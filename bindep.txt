@@ -1,0 +1,5 @@
+pkg-config
+build-essential
+golang-go
+golint
+make

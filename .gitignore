@@ -1,0 +1,7 @@
+*.json
+*.sublime-project
+*.sublime-workspace
+*.swp
+.idea
+.DS_Store
+vendor
