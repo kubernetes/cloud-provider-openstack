@@ -48,7 +48,8 @@ case $OS in
         if ! which add-apt-repository 1>/dev/null; then
             sudo $APT_GET install software-properties-common
         fi
-        sudo add-apt-repository --yes ppa:masterminds/glide && sudo apt-get update
-        sudo $APT_GET install glide
+        sudo add-apt-repository --yes ppa:longsleep/golang-backports
+        sudo add-apt-repository --yes ppa:masterminds/glide
+        sudo apt-get update && sudo $APT_GET install golang-go glide
         ;;
 esac

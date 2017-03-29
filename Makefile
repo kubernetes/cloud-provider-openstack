@@ -65,6 +65,8 @@ env:
 	@echo "GOROOT: $(GOROOT)"
 	@echo "DEST: $(DEST)"
 	@echo "PKG: $(PKG)"
+	go version
+	go env
 
 # Get our dev/test dependencies in place
 bootstrap:
