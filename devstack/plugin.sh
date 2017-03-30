@@ -1,37 +1,109 @@
-#!/usr/bin/env bash
-# plugin.sh - DevStack plugin.sh dispatch script zun-ui
+#!/bin/bash
+#
+# lib/dlm
+#
+# Functions to control the installation and configuration of kubernetes with the
+# external OpenStack cloud provider enabled.
+
+# Dependencies:
+#
+# - ``functions`` file
+
+# ``stack.sh`` calls the entry points in this order:
+#
+# - install_k8s_cloud_provider
+# - configure_k8s_cloud_provider
+# - cleanup_dlm
+
+# Save trace setting
+_XTRACE_K8S_PROVIDER=$(set +o | grep xtrace)
+set -o xtrace
+
 
 BASE_DIR=$(cd $(dirname $BASH_SOURCE)/.. && pwd)
 
+# Defaults
+# --------
+
+export GOPATH=${BASE_DIR}/go
+
+CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/kubernetes/kubernetes}
+K8S_SRC=${GOPATH}/src/k8s.io/kubernetes
+ETCD_VERSION=v3.1.4
+
+function install_prereqs {
+   # Install pre-reqs
+    $BASE_DIR/tools/install-distro-packages.sh
+    $BASE_DIR/tools/test-setup.sh
+}
+
+
+function install_docker {
+    # Install docker if needed
+    if ! is_package_installed docker-engine; then
+        curl -sSL https://get.docker.io | sudo bash
+    fi
+    docker --version
+
+    # Get the latest stable version of kubernetes
+    export K8S_VERSION=$(curl -sS https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+    echo "K8S_VERSION : ${K8S_VERSION}"
+
+    echo "Starting docker service"
+    sudo systemctl enable docker.service
+    sudo systemctl start docker.service --ignore-dependencies
+    echo "Checking docker service"
+    sudo docker ps
+}
+
 function install_k8s_cloud_provider {
-    echo_summary "Installing Devstack Plugin"
+    echo_summary "Installing Devstack Plugin for k8s-cloud-provider"
+
+    # golang env details
+    go env
+    go version
+
+    # Get Kubernetes from source
+    mkdir -p ${GOPATH}/src/k8s.io/
+    if [ ! -d "${K8S_SRC}" ]; then
+        git clone https://${CONFORMANCE_REPO} ${K8S_SRC}
+    fi
+    go get -u github.com/jteeuwen/go-bindata/go-bindata || true
+
+    # Run the script that builds kubernetes from source and starts the processes
+    pushd ${K8S_SRC} >/dev/null
+    hack/install-etcd.sh
+    run_process kubernetes "sudo -E hack/local-up-cluster.sh"
+    popd >/dev/null
 }
 
-function init_k8s_cloud_provider {
-    echo_summary "Initialize Devstack Plugin"
+# cleanup_k8s_cloud_provider() - Remove residual data files, anything left over from previous
+# runs that a clean run would need to clean up
+function cleanup_k8s_cloud_provider {
+    echo_summary "Cleaning up Devstack Plugin for k8s-cloud-provider"
+    sudo rm -rf "$K8S_SRC"
+    sudo rm -rf "$DEST/etcd"
 }
 
-function configure_k8s_cloud_provider {
-    echo_summary "Configuring Devstack Plugin"
+function stop_k8s_cloud_provider {
+    echo_summary "Stop Devstack Plugin for k8s-cloud-provider"
+    stop_process kubernetes
+    stop_process etcd-server
 }
 
 # check for service enabled
-if is_service_enabled zun-ui; then
+if is_service_enabled k8s-cloud-provider; then
 
     if [[ "$1" == "stack" && "$2" == "pre-install"  ]]; then
-        # Set up system services
         # no-op
         :
 
     elif [[ "$1" == "stack" && "$2" == "install"  ]]; then
-        # Perform installation of service source
-        # no-op
-        :
+        install_prereqs
+        install_docker
 
     elif [[ "$1" == "stack" && "$2" == "post-config"  ]]; then
-        # Configure after the other layer 1 and 2 services have been configured
-        # no-op
-        :
+        install_k8s_cloud_provider
 
     elif [[ "$1" == "stack" && "$2" == "extra"  ]]; then
         # no-op
@@ -39,14 +111,18 @@ if is_service_enabled zun-ui; then
     fi
 
     if [[ "$1" == "unstack"  ]]; then
-        # no-op
-        :
+        stop_k8s_cloud_provider
     fi
 
     if [[ "$1" == "clean"  ]]; then
-        # Remove state and transient data
-        # Remember clean.sh first calls unstack.sh
-        # no-op
-        :
+        cleanup_k8s_cloud_provider
     fi
 fi
+
+# Restore xtrace
+$_XTRACE_K8S_PROVIDER
+
+# Tell emacs to use shell-script-mode
+## Local variables:
+## mode: shell-script
+## End:

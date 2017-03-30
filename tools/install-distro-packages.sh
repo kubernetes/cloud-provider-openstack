@@ -1,5 +1,7 @@
 #!/bin/bash -xe
 
+BASE_DIR=$(cd $(dirname $BASH_SOURCE)/.. && pwd)
+
 # Local version to install bindep packages
 # Suitable for use for development
 
@@ -20,7 +22,9 @@ fi
 
 # Check for bindep
 if ! which bindep; then
+    pushd $BASE_DIR >/dev/null
     make bindep
+    popd >/dev/null
 fi
 
 PACKAGES=$(make bindep || true)

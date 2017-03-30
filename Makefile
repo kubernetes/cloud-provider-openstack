@@ -83,7 +83,7 @@ $(DEST): $(GOPATH)
 
 .bindep:
 	virtualenv .bindep
-	.bindep/bin/pip install bindep
+	.bindep/bin/pip install -i https://pypi.python.org/simple bindep
 
 bindep: .bindep
 	@.bindep/bin/bindep -b -f bindep.txt || true
