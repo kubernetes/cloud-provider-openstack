@@ -1,0 +1,2 @@
+# settings file for devstack plugin
+enable_service k8s_cloud_provider
