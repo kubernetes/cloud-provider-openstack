@@ -14,4 +14,5 @@
 
 set -ex
 
+echo "In gate_test_hook"
 $BASE/new/devstack-gate/devstack-vm-gate.sh

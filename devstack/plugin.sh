@@ -69,11 +69,23 @@ function install_k8s_cloud_provider {
         git clone https://${CONFORMANCE_REPO} ${K8S_SRC}
     fi
     go get -u github.com/jteeuwen/go-bindata/go-bindata || true
+    go get -u github.com/cloudflare/cfssl/cmd/... || true
 
     # Run the script that builds kubernetes from source and starts the processes
     pushd ${K8S_SRC} >/dev/null
     hack/install-etcd.sh
-    run_process kubernetes "sudo -E hack/local-up-cluster.sh"
+    export PATH=${K8S_SRC}/third_party/etcd:$GOPATH/bin:${PATH}
+
+    # Seed the log files so devstack-gate can capture the logs
+    export LOG_DIR=${SCREEN_LOGDIR:-/opt/stack/logs}
+    sudo mkdir -p $LOG_DIR
+    sudo touch $LOG_DIR/kube-apiserver.log;sudo ln -s $LOG_DIR/kube-apiserver.log $LOG_DIR/screen-kube-apiserver.log
+    sudo touch $LOG_DIR/kube-controller-manager.log;sudo ln -s $LOG_DIR/kube-controller-manager.log $LOG_DIR/screen-kube-controller-manager.log
+    sudo touch $LOG_DIR/kube-proxy.log;sudo ln -s $LOG_DIR/kube-proxy.log $LOG_DIR/screen-kube-proxy.log
+    sudo touch $LOG_DIR/kube-scheduler.log;sudo ln -s $LOG_DIR/kube-scheduler.log $LOG_DIR/screen-kube-scheduler.log
+    sudo touch $LOG_DIR/kubelet.log;sudo ln -s $LOG_DIR/kubelet.log $LOG_DIR/screen-kubelet.log
+
+    run_process kubernetes "sudo -E PATH=$PATH hack/local-up-cluster.sh"
     popd >/dev/null
 }
 

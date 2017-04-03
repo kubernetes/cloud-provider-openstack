@@ -15,3 +15,5 @@
 # This script is executed inside pre_test_hook function in devstack gate.
 
 export localconf=$BASE/new/devstack/local.conf
+
+echo "In pre_test_hook"
