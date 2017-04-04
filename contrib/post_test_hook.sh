@@ -73,7 +73,9 @@ echo "Running tests..."
 export GOPATH=${BASE_DIR}/go
 export KUBE_MASTER=local
 export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
-export KUBERNETES_PROVIDER=local
+export KUBERNETES_PROVIDER=skeleton
+export KUBERNETES_CONFORMANCE_TEST=y
+export GINKGO_PARALLEL=y
 export KUBE_MASTER_IP=https://127.0.0.1:6443/
 
 pushd $GOPATH/src/k8s.io/kubernetes >/dev/null
@@ -84,5 +86,5 @@ sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkg
 source $DEST/.gimme/envs/go1.7.5.env
 
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=test/e2e/e2e.test
-sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.failFast=true --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[HPA\]|Dashboard|Services.*functioning.*NodePort"
+sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[HPA\]|Dashboard|Services.*functioning.*NodePort"
 popd >/dev/null
