@@ -92,6 +92,11 @@ function install_k8s_cloud_provider {
     sudo touch $LOG_DIR/kube-scheduler.log;sudo ln -s $LOG_DIR/kube-scheduler.log $LOG_DIR/screen-kube-scheduler.log
     sudo touch $LOG_DIR/kubelet.log;sudo ln -s $LOG_DIR/kubelet.log $LOG_DIR/screen-kubelet.log
 
+    # Turn on a few things in local-up-cluster.sh
+    export ALLOW_PRIVILEGED=true
+    export ALLOW_SECURITY_CONTEXT=true
+    export ALLOW_ANY_TOKEN=true
+
     run_process kubernetes "sudo -E PATH=$PATH hack/local-up-cluster.sh"
     popd >/dev/null
 }

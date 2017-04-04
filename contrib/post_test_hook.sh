@@ -16,6 +16,42 @@
 
 BASE_DIR=$(cd $(dirname $BASH_SOURCE)/.. && pwd)
 
+
+function escape_test_name() {
+    sed 's/[]\$*.^|()[]/\\&/g; s/\s\+/\\s+/g' <<< "$1" | tr -d '\n'
+}
+
+TESTS_TO_SKIP=(
+    'DNS [It] should provide DNS for ExternalName services'
+    'DNS [It] should provide DNS for pods for Hostname and Subdomain Annotation'
+    'DNS [It] should provide DNS for services [Conformance]'
+    'DNS [It] should provide DNS for the cluster [Conformance]'
+    'Kubectl client [k8s.io] Guestbook application [It] should create and stop a working application [Conformance]'
+    'Kubectl client [k8s.io] Simple pod [It] should handle in-cluster config'
+    'Kubectl client [k8s.io] Simple pod [It] should support exec through an HTTP proxy'
+    'PreStop [It] should call prestop when killing a pod [Conformance]'
+    'Projected [It] should update labels on modification [Conformance] [Volume]'
+    'Services [It] should create endpoints for unready pods'
+    'Services [It] should serve a basic endpoint from pods [Conformance]'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should adopt matching orphans and release non-matching pods'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should allow template updates'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should not deadlock when a pod'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should provide basic identity'
+    'Volumes [Volume] [k8s.io] NFS [It] should be mountable'
+)
+
+function skipped_test_names () {
+    local first=y
+    for name in "${TESTS_TO_SKIP[@]}"; do
+        if [ -z "${first}" ]; then
+            echo -n "|"
+        else
+            first=
+        fi
+        echo -n "$(escape_test_name "${name}")"
+    done
+}
+
 cd $BASE/new/devstack
 source openrc admin admin
 
@@ -86,5 +122,5 @@ sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkg
 source $DEST/.gimme/envs/go1.7.5.env
 
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=test/e2e/e2e.test
-sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[HPA\]|Dashboard|Services.*functioning.*NodePort"
+sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[HPA\]|Dashboard|Services.*functioning.*NodePort|$(skipped_test_names)"
 popd >/dev/null
