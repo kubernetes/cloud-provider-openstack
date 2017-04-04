@@ -81,11 +81,7 @@ sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=cmd/kubectl
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkgo
 
 # e2e test does not work with 1.8, so fall back to 1.7
-sudo curl -sL -o ./gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
-sudo chmod +x ./gimme
-sudo ./gimme 1.7
-env | grep HOME
-source $HOME/.gimme/envs/go1.7.env
+source $DEST/.gimme/envs/go1.7.5.env
 
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=test/e2e/e2e.test
 sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.failFast=true --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[HPA\]|Dashboard|Services.*functioning.*NodePort"
