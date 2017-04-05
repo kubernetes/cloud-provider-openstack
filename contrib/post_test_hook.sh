@@ -109,6 +109,8 @@ echo "Dump Kubernetes Objects..."
 
 
 echo "Running tests..."
+set -ex
+
 export GOPATH=${BASE_DIR}/go
 export KUBE_MASTER=local
 export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
