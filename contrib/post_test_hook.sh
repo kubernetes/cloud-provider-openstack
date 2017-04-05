@@ -17,27 +17,30 @@
 BASE_DIR=$(cd $(dirname $BASH_SOURCE)/.. && pwd)
 
 
-function escape_test_name() {
-    sed 's/[]\$*.^|()[]/\\&/g; s/\s\+/\\s+/g' <<< "$1" | tr -d '\n'
-}
-
 TESTS_TO_SKIP=(
-    'DNS [It] should provide DNS for ExternalName services'
-    'DNS [It] should provide DNS for pods for Hostname and Subdomain Annotation'
-    'DNS [It] should provide DNS for services [Conformance]'
-    'DNS [It] should provide DNS for the cluster [Conformance]'
-    'Kubectl client [k8s.io] Guestbook application [It] should create and stop a working application [Conformance]'
-    'Kubectl client [k8s.io] Simple pod [It] should handle in-cluster config'
-    'Kubectl client [k8s.io] Simple pod [It] should support exec through an HTTP proxy'
-    'PreStop [It] should call prestop when killing a pod [Conformance]'
-    'Projected [It] should update labels on modification [Conformance] [Volume]'
-    'Services [It] should create endpoints for unready pods'
-    'Services [It] should serve a basic endpoint from pods [Conformance]'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should adopt matching orphans and release non-matching pods'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should allow template updates'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should not deadlock when a pod'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should provide basic identity'
-    'Volumes [Volume] [k8s.io] NFS [It] should be mountable'
+    '\[Slow\]'
+    '\[Serial\]'
+    '\[Disruptive\]'
+    '\[Flaky\]'
+    '\[Feature:.+\]'
+    '\[HPA\]'
+    'Dashboard'
+    'NFS.*should.*be.*mountable'
+    'provide.*basic.*identity'
+    'should.*adopt.*matching.*orphans.*and.*release.*non.*matching.*pods'
+    'should.*allow.*template.*updates'
+    'should.*call.*prestop.*when.*killing.*a.*pod'
+    'should.*create.*and.*stop.*a.*working.*application'
+    'should.*create.*endpoints.*for.*unready.*pods'
+    'should.*handle.*in.*cluster.*config'
+    'should.*not.*deadlock.*when.*a.*pod.s.*predecessor.*fails'
+    'should.*provide.*DNS.*for.*ExternalName.*services'
+    'should.*provide.*DNS.*for.*pods.*for.*Hostname.*and.*Subdomain.*Annotation'
+    'should.*provide.*DNS.*for.*services'
+    'should.*provide.*DNS.*for.*the.*cluster'
+    'should.*serve.*a.*basic.*endpoint.*from.*pods'
+    'should.*support.*exec.*through.*an.*HTTP.*proxy'
+    'should.*update.*labels.*on.*modification'
 )
 
 function skipped_test_names () {
@@ -48,7 +51,7 @@ function skipped_test_names () {
         else
             first=
         fi
-        echo -n "$(escape_test_name "${name}")"
+        echo -n "${name}"
     done
 }
 
@@ -122,5 +125,5 @@ sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkg
 source $DEST/.gimme/envs/go1.7.5.env
 
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=test/e2e/e2e.test
-sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.skip=\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[HPA\]|Dashboard|Services.*functioning.*NodePort|$(skipped_test_names)"
+sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.skip=$(skipped_test_names)"
 popd >/dev/null
