@@ -117,6 +117,7 @@ export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
 export KUBERNETES_PROVIDER=skeleton
 export KUBERNETES_CONFORMANCE_TEST=y
 export GINKGO_PARALLEL=y
+export GINKGO_NO_COLOR=y
 export KUBE_MASTER_IP=https://127.0.0.1:6443/
 
 pushd $GOPATH/src/k8s.io/kubernetes >/dev/null
