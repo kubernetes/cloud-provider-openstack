@@ -5,16 +5,6 @@
 # Functions to control the installation and configuration of kubernetes with the
 # external OpenStack cloud provider enabled.
 
-# Dependencies:
-#
-# - ``functions`` file
-
-# ``stack.sh`` calls the entry points in this order:
-#
-# - install_k8s_cloud_provider
-# - configure_k8s_cloud_provider
-# - cleanup_dlm
-
 # Save trace setting
 _XTRACE_K8S_PROVIDER=$(set +o | grep xtrace)
 set -o xtrace
@@ -35,6 +25,8 @@ function install_prereqs {
    # Install pre-reqs
     $BASE_DIR/tools/install-distro-packages.sh
     $BASE_DIR/tools/test-setup.sh
+
+    #install_package nfs-common
 }
 
 
@@ -70,13 +62,19 @@ function install_k8s_cloud_provider {
     go env
     go version
 
+    go get -u github.com/jteeuwen/go-bindata/go-bindata || true
+    go get -u github.com/cloudflare/cfssl/cmd/... || true
+
     # Get Kubernetes from source
     mkdir -p ${GOPATH}/src/k8s.io/
     if [ ! -d "${K8S_SRC}" ]; then
         git clone https://${CONFORMANCE_REPO} ${K8S_SRC}
+        pushd ${K8S_SRC} >/dev/null
+        git remote update
+        git fetch --all --tags --prune
+        git checkout tags/v1.7.0-alpha.1
+        popd >/dev/null
     fi
-    go get -u github.com/jteeuwen/go-bindata/go-bindata || true
-    go get -u github.com/cloudflare/cfssl/cmd/... || true
 
     # Run the script that builds kubernetes from source and starts the processes
     pushd ${K8S_SRC} >/dev/null
@@ -93,9 +91,14 @@ function install_k8s_cloud_provider {
     sudo touch $LOG_DIR/kubelet.log;sudo ln -s $LOG_DIR/kubelet.log $LOG_DIR/screen-kubelet.log
 
     # Turn on a few things in local-up-cluster.sh
-    export ALLOW_PRIVILEGED=true
-    export ALLOW_SECURITY_CONTEXT=true
-    export ALLOW_ANY_TOKEN=true
+    #export ALLOW_PRIVILEGED=true
+    #export ALLOW_SECURITY_CONTEXT=true
+    #export ALLOW_ANY_TOKEN=true
+    #export ENABLE_HOSTPATH_PROVISIONER=true
+    #export SERVICE_CLUSTER_IP_RANGE=10.1.0.0/24
+    #export FIRST_SERVICE_CLUSTER_IP=10.1.0.1
+    #export API_HOST_IP=${HOST_IP:-"127.0.0.1"}
+    #export KUBELET_HOST=${HOST_IP:-"127.0.0.1"}
 
     run_process kubernetes "sudo -E PATH=$PATH hack/local-up-cluster.sh"
     popd >/dev/null
