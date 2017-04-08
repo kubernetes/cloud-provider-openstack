@@ -109,37 +109,43 @@ imports:
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ini/ini
   version: 2e44421e256d82ebbf3d4d4fcabe8930b905eff3
+- name: github.com/go-openapi/analysis
+  version: b44dc874b601d9e4e2f6e19140e794ba24bead3b
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
   version: 13c6e3589ad90f49bd3e3bbe2c2cb3d7a4142272
+- name: github.com/go-openapi/loads
+  version: 18441dfa706d924a39a030ee2c3b1d8d81917b38
 - name: github.com/go-openapi/spec
   version: 6aced65f8501fe1217321abf0749d354824ba2ff
 - name: github.com/go-openapi/swag
   version: 1d0bd113de87027671077d3c71eb3ac5d7dbba72
 - name: github.com/gogo/protobuf
-  version: e18d7aa8f8c624c915db340349aad4c49b10d173
+  version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
   subpackages:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed
+  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
   - lru
 - name: github.com/golang/protobuf
-  version: 8616e8ee5e20a1704615e6c8d7afcdac06087a67
+  version: 4bd1920723d7b7c925de087aa32e2187708897f7
   subpackages:
   - jsonpb
   - proto
 - name: github.com/google/gofuzz
   version: 44d81051d367757e1c7c6a5a86423ece9afcf63c
 - name: github.com/gophercloud/gophercloud
-  version: 12f19e5e04d617182cffa5c11f189ef0013b9791
+  version: b06120d13e262ceaf890ef38ee30898813696af0
   subpackages:
   - openstack
+  - openstack/blockstorage/v1/apiversions
   - openstack/blockstorage/v1/volumes
+  - openstack/blockstorage/v2/volumes
   - openstack/common/extensions
   - openstack/compute/v2/extensions/volumeattach
   - openstack/compute/v2/flavors
@@ -194,7 +200,7 @@ imports:
   - mesosutil
   - upid
 - name: github.com/mitchellh/mapstructure
-  version: 740c764bc6149d3f1806231418adb9f52c11bcbf
+  version: cc8532a8e9a55ea36402aa21efdf403a60d34096
 - name: github.com/prometheus/client_golang
   version: e51041b3fa41cece0dca035740ba6411905be473
   subpackages:
@@ -250,7 +256,7 @@ imports:
   subpackages:
   - doc
 - name: github.com/spf13/pflag
-  version: 5ccb023bc27df288a957c5e994cd44fd19619465
+  version: c990990ab4981d84da820b7b00c85139ca150b5f
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -289,7 +295,7 @@ imports:
   - blowfish
   - ssh/terminal
 - name: golang.org/x/net
-  version: e90d6d0afc4c315a0d87a568ae68577cc15149a0
+  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
   - context
   - context/ctxhttp
@@ -327,9 +333,10 @@ imports:
   - unicode/norm
   - width
 - name: google.golang.org/api
-  version: 55146ba61254fdb1c26d65ff3c04bc1611ad73fb
+  version: 64485db7e8c8be51e572801d06cdbcfadd3546c1
   subpackages:
   - cloudmonitoring/v2beta2
+  - compute/v0.alpha
   - compute/v1
   - container/v1
   - dns/v1
@@ -337,6 +344,7 @@ imports:
   - googleapi
   - googleapi/internal/uritemplates
   - logging/v2beta1
+  - monitoring/v3
 - name: google.golang.org/appengine
   version: 4f7eeb5305a4ba1966344836ba4af9996b7b4e05
   subpackages:
@@ -360,7 +368,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/apimachinery
-  version: c1c4a7fe832857c75cc1d79c8e40d71d5da15fc6
+  version: 592382eb7243e2379169a0ced0fb71a8353a5653
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
@@ -408,7 +416,7 @@ imports:
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
 - name: k8s.io/apiserver
-  version: fbf5c43dfaa8eb5627bac6058e3bd51db8532cbb
+  version: 6eb4e56e7999d0faa4ab9ecffa3d118c628e84aa
   subpackages:
   - pkg/authentication/authenticator
   - pkg/authentication/serviceaccount
@@ -419,7 +427,7 @@ imports:
   - pkg/util/flag
   - pkg/util/logs
 - name: k8s.io/client-go
-  version: 5571124637a98cbc6579b0d1cfb78c0fc4b3f035
+  version: f1cb94b672d5cdaf5107430eab7cac84e54b8133
   subpackages:
   - discovery
   - kubernetes
@@ -445,6 +453,7 @@ imports:
   - pkg/api
   - pkg/api/install
   - pkg/api/v1
+  - pkg/api/v1/ref
   - pkg/apis/apps
   - pkg/apis/apps/install
   - pkg/apis/apps/v1beta1
@@ -505,16 +514,21 @@ imports:
   - util/integer
   - util/workqueue
 - name: k8s.io/kubernetes
-  version: a845e3e936e91cd14c4c5b462631233716d5839b
+  version: 868da1e08b38d5d7ebd3cfc3a1974063ce41109f
   subpackages:
   - cmd/cloud-controller-manager/app
   - cmd/cloud-controller-manager/app/options
+  - cmd/kubeadm/app/constants
   - pkg/api
+  - pkg/api/helper
   - pkg/api/install
-  - pkg/api/pod
   - pkg/api/service
   - pkg/api/util
   - pkg/api/v1
+  - pkg/api/v1/helper
+  - pkg/api/v1/node
+  - pkg/api/v1/pod
+  - pkg/api/v1/ref
   - pkg/api/v1/service
   - pkg/api/validation
   - pkg/apis/apps
@@ -646,8 +660,6 @@ imports:
   - pkg/security/apparmor
   - pkg/serviceaccount
   - pkg/util
-  - pkg/util/chmod
-  - pkg/util/chown
   - pkg/util/configz
   - pkg/util/exec
   - pkg/util/hash

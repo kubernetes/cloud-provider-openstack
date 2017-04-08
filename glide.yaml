@@ -4,7 +4,9 @@ import:
 - package: github.com/gophercloud/gophercloud
   subpackages:
   - openstack
+  - openstack/blockstorage/v1/apiversions
   - openstack/blockstorage/v1/volumes
+  - openstack/blockstorage/v2/volumes
   - openstack/compute/v2/extensions/volumeattach
   - openstack/compute/v2/flavors
   - openstack/compute/v2/servers
