@@ -103,7 +103,7 @@ function install_k8s_cloud_provider {
     export SERVICE_CLUSTER_IP_RANGE=10.1.0.0/24
     export FIRST_SERVICE_CLUSTER_IP=10.1.0.1
     export API_HOST_IP=${HOST_IP:-"127.0.0.1"}
-    export KUBELET_HOST=${HOST_IP:-"127.0.0.1"}
+    export KUBELET_HOST="0.0.0.0"
     #export HOSTNAME_OVERRIDE=${HOST_IP:-"127.0.0.1"}
     export ENABLE_CRI=false
 
