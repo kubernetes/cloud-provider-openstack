@@ -26,7 +26,7 @@ function install_prereqs {
     $BASE_DIR/tools/install-distro-packages.sh
     $BASE_DIR/tools/test-setup.sh
 
-    #install_package nfs-common
+    install_package nfs-common
 }
 
 
