@@ -28,6 +28,7 @@ TESTS_LIST_REGEX=(
 
 TESTS_LIST=(
     'ConfigMap [It] updates should be reflected in volume [Conformance] [Volume]'
+    'Certificates API [It] should support building a client with a CSR'
     'DNS [It] should provide DNS for ExternalName services'
     'DNS [It] should provide DNS for pods for Hostname and Subdomain Annotation'
     'DNS [It] should provide DNS for services [Conformance]'
@@ -36,11 +37,19 @@ TESTS_LIST=(
     'Kubectl client [k8s.io] Simple pod [It] should handle in-cluster config'
     'Kubectl client [k8s.io] Simple pod [It] should support exec through an HTTP proxy'
     'Kubernetes Dashboard [It] should check that the kubernetes-dashboard instance is alive'
+    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with multiple PVs and PVCs all in same ns [It] should create 4 PVs and 2 PVCs: test write access'
+    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with Single PV - PVC pairs [It] create a PV and a pre-bound PVC: test write access'
+    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with Single PV - PVC pairs [It] should create a non-pre-bound PV and PVC: test write access'
+    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with Single PV - PVC pairs [It] create a PVC and non-pre-bound PV: test write access'
     'PreStop [It] should call prestop when killing a pod [Conformance]'
     'Projected [It] should update annotations on modification [Conformance] [Volume]'
     'Projected [It] should update labels on modification [Conformance] [Volume]'
     'Services [It] should create endpoints for unready pods'
     'Services [It] should preserve source pod IP for traffic thru service cluster IP'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should adopt matching orphans and release non-matching pods'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should allow template updates'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should provide basic identity'
+    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should not deadlock when a pod.*s predecessor fails'
     'Volumes [Volume] [k8s.io] NFS [It] should be mountable'
 )
 

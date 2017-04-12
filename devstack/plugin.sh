@@ -77,7 +77,7 @@ function install_k8s_cloud_provider {
         pushd ${K8S_SRC} >/dev/null
         git remote update
         git fetch --all --tags --prune
-        git checkout tags/v1.7.0-alpha.1
+        #git checkout tags/v1.7.0-alpha.1
         popd >/dev/null
     fi
 
@@ -97,6 +97,7 @@ function install_k8s_cloud_provider {
 
     # Turn on/off a few things in local-up-cluster.sh
     export ALLOW_PRIVILEGED=true
+    export KUBE_ENABLE_CLUSTER_DNS=false
     export ALLOW_SECURITY_CONTEXT=true
     export ALLOW_ANY_TOKEN=true
     export ENABLE_HOSTPATH_PROVISIONER=true
