@@ -77,7 +77,7 @@ function install_k8s_cloud_provider {
         pushd ${K8S_SRC} >/dev/null
         git remote update
         git fetch --all --tags --prune
-        #git checkout tags/v1.7.0-alpha.1
+
         popd >/dev/null
     fi
 
@@ -105,12 +105,9 @@ function install_k8s_cloud_provider {
     export API_HOST_IP="172.17.0.1"
     export KUBELET_HOST="0.0.0.0"
     export ENABLE_CRI=false
+    export HOSTNAME_OVERRIDE=$(ip route get 1.1.1.1 | awk '{print $7}')
+    export LOG_LEVEL=10
 
-#    echo "Stop Docker iptable rules that interfere with kubedns"
-#    sudo iptables -D FORWARD -j DOCKER-ISOLATION
-#    sudo iptables -A DOCKER-ISOLATION -j RETURN
-#    sudo iptables --flush DOCKER-ISOLATION
-#    sudo iptables -X DOCKER-ISOLATION
     echo "Stopping firewall and allowing everything..."
     sudo iptables -F
     sudo iptables -X

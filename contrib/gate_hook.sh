@@ -15,4 +15,5 @@
 set -ex
 
 echo "In gate_test_hook"
+sudo sed -i 's/USE_SYSTEMD\=\"/USE_SYSTEMD_X=\"/' /opt/stack/new/devstack/stackrc
 $BASE/new/devstack-gate/devstack-vm-gate.sh

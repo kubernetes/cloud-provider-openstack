@@ -28,6 +28,7 @@ TESTS_LIST_REGEX=(
 
 FLAKY_TESTS_LIST=(
     'Downward API volume [It] should update annotations on modification [Conformance] [Volume]'
+    'Downward API volume [It] should update labels on modification [Conformance] [Volume]'
     'Services [It] should serve multiport endpoints from pods [Conformance]'
 )
 
@@ -90,7 +91,7 @@ echo "Waiting for kubernetes service to start..."
 for i in {1..600}
 do
     if [[ -f $KUBECONFIG ]]; then
-        running_count=$(./kubectl get svc --no-headers 2>/dev/null | grep "kubernetes" | wc -l)
+        running_count=$(./kubectl get nodes --no-headers 2>/dev/null | grep "Ready" | wc -l)
         if [ "$running_count" -ge 1 ]; then
             break
         fi
@@ -156,11 +157,11 @@ pushd $GOPATH/src/k8s.io/kubernetes >/dev/null
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=cmd/kubectl
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkgo
 
+# open up access for containers
 sudo ifconfig -a
-sudo iptables -t nat -A POSTROUTING -o ens3 -s 10.0.0.0/24 -j MASQUERADE
-sudo iptables -t nat -A POSTROUTING -o ens3 -s 172.17.0.0/24 -j MASQUERADE
-sudo iptables -t nat -A POSTROUTING -o eth0 -s 10.0.0.0/24 -j MASQUERADE
-sudo iptables -t nat -A POSTROUTING -o eth0 -s 172.17.0.0/24 -j MASQUERADE
+export HOST_INTERFACE=$(ip -f inet route | awk '/default/ {print $5}')
+sudo iptables -t nat -A POSTROUTING -o $HOST_INTERFACE -s 10.0.0.0/24 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o $HOST_INTERFACE -s 172.17.0.0/24 -j MASQUERADE
 
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=test/e2e/e2e.test
 sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.seed=1378936983 --logtostderr --v 4 --provider=local --report-dir=/opt/stack/logs/ --ginkgo.v --ginkgo.skip=$(test_names)"
