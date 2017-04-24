@@ -98,6 +98,7 @@ function install_k8s_cloud_provider {
     # Turn on/off a few things in local-up-cluster.sh
     export ALLOW_PRIVILEGED=true
     export KUBE_ENABLE_CLUSTER_DNS=false
+    export KUBE_ENABLE_CLUSTER_DASHBOARD=true
     export ALLOW_SECURITY_CONTEXT=true
     export ALLOW_ANY_TOKEN=true
     export ENABLE_HOSTPATH_PROVISIONER=true
