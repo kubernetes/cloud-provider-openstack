@@ -83,14 +83,17 @@ echo "K8S_VERSION : ${K8S_VERSION}"
 echo "Download Kubernetes CLI"
 sudo wget -O kubectl "http://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl"
 sudo chmod 755 kubectl
-./kubectl get nodes
+
+export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
 
 echo "Waiting for kubernetes service to start..."
 for i in {1..600}
 do
-    running_count=$(./kubectl -s=http://127.0.0.1:8080 get svc --no-headers 2>/dev/null | grep "443" | wc -l)
-    if [ "$running_count" -ge 1 ]; then
-      break
+    if [[ -f $KUBECONFIG ]]; then
+        running_count=$(./kubectl get svc --no-headers 2>/dev/null | grep "kubernetes" | wc -l)
+        if [ "$running_count" -ge 1 ]; then
+            break
+        fi
     fi
     echo -n "."
     sleep 1
@@ -100,28 +103,28 @@ echo "Cluster created!"
 echo ""
 
 echo "Dump Kubernetes Objects..."
-./kubectl -s=http://127.0.0.1:8080 get componentstatuses
-./kubectl -s=http://127.0.0.1:8080 get configmaps
-./kubectl -s=http://127.0.0.1:8080 get daemonsets
-./kubectl -s=http://127.0.0.1:8080 get deployments
-./kubectl -s=http://127.0.0.1:8080 get events
-./kubectl -s=http://127.0.0.1:8080 get endpoints
-./kubectl -s=http://127.0.0.1:8080 get horizontalpodautoscalers
-./kubectl -s=http://127.0.0.1:8080 get ingress
-./kubectl -s=http://127.0.0.1:8080 get jobs
-./kubectl -s=http://127.0.0.1:8080 get limitranges
-./kubectl -s=http://127.0.0.1:8080 get nodes
-./kubectl -s=http://127.0.0.1:8080 get namespaces
-./kubectl -s=http://127.0.0.1:8080 get pods
-./kubectl -s=http://127.0.0.1:8080 get persistentvolumes
-./kubectl -s=http://127.0.0.1:8080 get persistentvolumeclaims
-./kubectl -s=http://127.0.0.1:8080 get quota
-./kubectl -s=http://127.0.0.1:8080 get resourcequotas
-./kubectl -s=http://127.0.0.1:8080 get replicasets
-./kubectl -s=http://127.0.0.1:8080 get replicationcontrollers
-./kubectl -s=http://127.0.0.1:8080 get secrets
-./kubectl -s=http://127.0.0.1:8080 get serviceaccounts
-./kubectl -s=http://127.0.0.1:8080 get services
+./kubectl get componentstatuses
+./kubectl get configmaps
+./kubectl get daemonsets
+./kubectl get deployments
+./kubectl get events
+./kubectl get endpoints
+./kubectl get horizontalpodautoscalers
+./kubectl get ingress
+./kubectl get jobs
+./kubectl get limitranges
+./kubectl get nodes
+./kubectl get namespaces
+./kubectl get pods
+./kubectl get persistentvolumes
+./kubectl get persistentvolumeclaims
+./kubectl get quota
+./kubectl get resourcequotas
+./kubectl get replicasets
+./kubectl get replicationcontrollers
+./kubectl get secrets
+./kubectl get serviceaccounts
+./kubectl get services
 
 
 echo "Running tests..."
@@ -129,7 +132,6 @@ set -ex
 
 export GOPATH=${BASE_DIR}/go
 export KUBE_MASTER=local
-export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
 export KUBERNETES_PROVIDER=skeleton
 export KUBERNETES_CONFORMANCE_TEST=y
 export GINKGO_PARALLEL=y
