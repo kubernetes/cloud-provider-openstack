@@ -38,7 +38,13 @@ function install_docker {
         sudo apt-get update
         sudo apt-cache policy docker-engine
         sudo apt-get install -y docker-engine=1.12.6-0~ubuntu-xenial
+        sudo cat /lib/systemd/system/docker.service
+        sudo sed -r -i "s|(ExecStart)=(.+)|\1=\2 --iptables=false|" /lib/systemd/system/docker.service
+        sudo cat /lib/systemd/system/docker.service
+        sudo systemctl daemon-reload
+        sudo systemctl restart docker
         sudo systemctl status docker
+        sudo ifconfig -a
     fi
     docker --version
 
@@ -97,17 +103,31 @@ function install_k8s_cloud_provider {
 
     # Turn on/off a few things in local-up-cluster.sh
     export ALLOW_PRIVILEGED=true
-    export KUBE_ENABLE_CLUSTER_DNS=false
+    export KUBE_ENABLE_CLUSTER_DNS=true
     export KUBE_ENABLE_CLUSTER_DASHBOARD=true
     export ALLOW_SECURITY_CONTEXT=true
     export ALLOW_ANY_TOKEN=true
     export ENABLE_HOSTPATH_PROVISIONER=true
-    export SERVICE_CLUSTER_IP_RANGE=10.1.0.0/24
-    export FIRST_SERVICE_CLUSTER_IP=10.1.0.1
-    export API_HOST_IP=${HOST_IP:-"127.0.0.1"}
+    # Use the docker0's ip address for kubedns to work
+    export API_HOST_IP="172.17.0.1"
     export KUBELET_HOST="0.0.0.0"
-    #export HOSTNAME_OVERRIDE=${HOST_IP:-"127.0.0.1"}
     export ENABLE_CRI=false
+
+#    echo "Stop Docker iptable rules that interfere with kubedns"
+#    sudo iptables -D FORWARD -j DOCKER-ISOLATION
+#    sudo iptables -A DOCKER-ISOLATION -j RETURN
+#    sudo iptables --flush DOCKER-ISOLATION
+#    sudo iptables -X DOCKER-ISOLATION
+    echo "Stopping firewall and allowing everything..."
+    sudo iptables -F
+    sudo iptables -X
+    sudo iptables -t nat -F
+    sudo iptables -t nat -X
+    sudo iptables -t mangle -F
+    sudo iptables -t mangle -X
+    sudo iptables -P INPUT ACCEPT
+    sudo iptables -P FORWARD ACCEPT
+    sudo iptables -P OUTPUT ACCEPT
 
     run_process kubernetes "sudo -E PATH=$PATH hack/local-up-cluster.sh"
     popd >/dev/null
