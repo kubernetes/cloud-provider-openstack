@@ -122,6 +122,20 @@ echo "Dump Kubernetes Objects..."
 ./kubectl get serviceaccounts
 ./kubectl get services
 
+echo "Create a default StorageClass since we do not have a cloud provider"
+./kubectl create -f - <<EOF || true
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  namespace: kube-system
+  name: standard
+  annotations:
+    storageclass.beta.kubernetes.io/is-default-class: "true"
+  labels:
+    addonmanager.kubernetes.io/mode: Reconcile
+
+provisioner: kubernetes.io/host-path
+EOF
 
 echo "Running tests..."
 set -ex
