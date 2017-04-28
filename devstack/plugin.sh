@@ -62,13 +62,6 @@ function install_docker {
 function install_k8s_cloud_provider {
     echo_summary "Installing Devstack Plugin for k8s-cloud-provider"
 
-    # upstream kubernetes has not moved to 1.8 yet, so use 1.7.5
-    sudo curl -sL -o ./gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
-    sudo chmod +x ./gimme
-    sudo ./gimme 1.7.5
-    env | grep HOME
-    source $HOME/.gimme/envs/go1.7.5.env
-
     # golang env details
     go env
     go version

@@ -138,9 +138,6 @@ pushd $GOPATH/src/k8s.io/kubernetes >/dev/null
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=cmd/kubectl
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkgo
 
-# e2e test does not work with 1.8, so fall back to 1.7
-source $DEST/.gimme/envs/go1.7.5.env
-
 # open up access for containers
 sudo iptables -t nat -A POSTROUTING -o ens3 -s 10.0.0.0/24 -j MASQUERADE
 sudo iptables -t nat -A POSTROUTING -o ens3 -s 172.17.0.0/24 -j MASQUERADE
