@@ -33,7 +33,8 @@ function install_prereqs {
 function install_docker {
     # Install docker if needed
     if ! is_package_installed docker-engine; then
-        sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+        sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D || true
+        sudo apt-key adv --keyserver hkp://pgp.mit.edu:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D || true
         sudo apt-add-repository 'deb http://apt.dockerproject.org/repo ubuntu-xenial main'
         sudo apt-get update
         sudo apt-cache policy docker-engine

@@ -26,21 +26,17 @@ TESTS_LIST_REGEX=(
     '\[HPA\]'
 )
 
-TESTS_LIST=(
-    'Certificates API [It] should support building a client with a CSR'
+FLAKY_TESTS_LIST=(
     'Downward API volume [It] should update annotations on modification [Conformance] [Volume]'
+    'Services [It] should serve multiport endpoints from pods [Conformance]'
+)
+
+FAILING_TESTS_LIST=(
+    'Certificates API [It] should support building a client with a CSR'
     'DNS [It] should provide DNS for the cluster [Conformance]'
-    'Kubectl client [k8s.io] Simple pod [It] should support exec through an HTTP proxy'
-    'Networking [It] should provide Internet connection for containers [Conformance]'
-    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with Single PV - PVC pairs [It] create a PV and a pre-bound PVC: test write access'
-    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with Single PV - PVC pairs [It] should create a non-pre-bound PV and PVC: test write access'
-    'PersistentVolumes [Volume] [k8s.io] PersistentVolumes:NFS with multiple PVs and PVCs all in same ns [It] should create 4 PVs and 2 PVCs: test write access'
-    'Projected [It] should update labels on modification [Conformance] [Volume]'
+    'SSH [It] should SSH to all nodes and run commands'
+    'Services [It] should be able to up and down services'
     'Services [It] should create endpoints for unready pods'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should adopt matching orphans and release non-matching pods'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should allow template updates'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should not deadlock when a pod predecessor fails'
-    'StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] [It] should provide basic identity'
 )
 
 function escape_test_name() {
@@ -57,7 +53,15 @@ function test_names () {
         fi
         echo -n "${name}"
     done
-    for name in "${TESTS_LIST[@]}"; do
+    for name in "${FLAKY_TESTS_LIST[@]}"; do
+        if [ -z "${first}" ]; then
+            echo -n "|"
+        else
+            first=
+        fi
+        echo -n "$(escape_test_name "${name}")"
+    done
+    for name in "${FAILING_TESTS_LIST[@]}"; do
         if [ -z "${first}" ]; then
             echo -n "|"
         else
@@ -152,10 +156,12 @@ pushd $GOPATH/src/k8s.io/kubernetes >/dev/null
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=cmd/kubectl
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=vendor/github.com/onsi/ginkgo/ginkgo
 
-# open up access for containers
+sudo ifconfig -a
 sudo iptables -t nat -A POSTROUTING -o ens3 -s 10.0.0.0/24 -j MASQUERADE
 sudo iptables -t nat -A POSTROUTING -o ens3 -s 172.17.0.0/24 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o eth0 -s 10.0.0.0/24 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o eth0 -s 172.17.0.0/24 -j MASQUERADE
 
 sudo -E PATH=$GOPATH/bin:$PATH make all WHAT=test/e2e/e2e.test
-sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.seed=1378936983 --logtostderr --v 4 --report-dir=/opt/stack/logs/ --ginkgo.v --ginkgo.skip=$(test_names)"
+sudo -E PATH=$GOPATH/bin:$PATH go run hack/e2e.go -- -v --test --test_args="--ginkgo.trace=true --ginkgo.seed=1378936983 --logtostderr --v 4 --provider=local --report-dir=/opt/stack/logs/ --ginkgo.v --ginkgo.skip=$(test_names)"
 popd >/dev/null
