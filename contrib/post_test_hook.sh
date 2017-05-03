@@ -29,6 +29,7 @@ TESTS_LIST_REGEX=(
 FLAKY_TESTS_LIST=(
     # https://github.com/kubernetes/kubernetes/issues/44226
     'Downward API volume [It] should update labels on modification [Conformance] [Volume]'
+    'Downward API volume [It] should update annotations on modification [Conformance] [Volume]'
 )
 
 FAILING_TESTS_LIST=(
