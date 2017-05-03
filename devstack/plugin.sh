@@ -83,7 +83,12 @@ function install_k8s_cloud_provider {
 
     # Run the script that builds kubernetes from source and starts the processes
     pushd ${K8S_SRC} >/dev/null
+
+    # We need etcd for local-up-cluster to work
     hack/install-etcd.sh
+
+    # local-up-cluster needs the etcd path and the GOPATH bin as cf-ssl
+    # and go-bindata are located there
     export PATH=${K8S_SRC}/third_party/etcd:$GOPATH/bin:${PATH}
 
     # Seed the log files so devstack-gate can capture the logs
@@ -95,21 +100,7 @@ function install_k8s_cloud_provider {
     sudo touch $LOG_DIR/kube-scheduler.log;sudo ln -s $LOG_DIR/kube-scheduler.log $LOG_DIR/screen-kube-scheduler.log
     sudo touch $LOG_DIR/kubelet.log;sudo ln -s $LOG_DIR/kubelet.log $LOG_DIR/screen-kubelet.log
 
-    # Turn on/off a few things in local-up-cluster.sh
-    export ALLOW_PRIVILEGED=true
-    export KUBE_ENABLE_CLUSTER_DNS=true
-    export KUBE_ENABLE_CLUSTER_DASHBOARD=true
-    export ALLOW_SECURITY_CONTEXT=true
-    export ENABLE_HOSTPATH_PROVISIONER=true
-    export ENABLE_SINGLE_CA_SIGNER=true
-    # Use the docker0's ip address for kubedns to work
-    export API_HOST_IP="172.17.0.1"
-    export KUBELET_HOST="0.0.0.0"
-    export ENABLE_CRI=false
-    export HOSTNAME_OVERRIDE=$(ip route get 1.1.1.1 | awk '{print $7}')
-    export LOG_LEVEL=10
-
-    echo "Stopping firewall and allowing everything..."
+    echo "Stopping firewall and allow all traffic..."
     sudo iptables -F
     sudo iptables -X
     sudo iptables -t nat -F
@@ -120,7 +111,27 @@ function install_k8s_cloud_provider {
     sudo iptables -P FORWARD ACCEPT
     sudo iptables -P OUTPUT ACCEPT
 
-    run_process kubernetes "sudo -E PATH=$PATH hack/local-up-cluster.sh"
+    # Turn on/off a few things in local-up-cluster.sh
+    export ALLOW_PRIVILEGED=true
+    export ALLOW_SECURITY_CONTEXT=true
+    export ENABLE_CRI=false
+    export ENABLE_DAEMON=true
+    export ENABLE_HOSTPATH_PROVISIONER=true
+    export ENABLE_SINGLE_CA_SIGNER=true
+    export HOSTNAME_OVERRIDE=$(ip route get 1.1.1.1 | awk '{print $7}')
+    export KUBE_ENABLE_CLUSTER_DASHBOARD=true
+    export KUBE_ENABLE_CLUSTER_DNS=true
+    export LOG_LEVEL=10
+
+    # Listen on all interfaces
+    export KUBELET_HOST="0.0.0.0"
+
+    # Use the docker0's ip address for kubedns to work
+    export API_HOST_IP="172.17.0.1"
+
+    # local-up-cluster.sh compiles everything from source and starts the services.
+    sudo -E PATH=$PATH ./hack/local-up-cluster.sh
+
     popd >/dev/null
 }
 

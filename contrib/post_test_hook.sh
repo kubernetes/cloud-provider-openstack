@@ -101,6 +101,8 @@ done
 echo "Cluster created!"
 echo ""
 
+sudo journalctl -u devstack@kubernetes.service
+
 echo "Dump Kubernetes Objects..."
 ./kubectl get componentstatuses
 ./kubectl get configmaps
