@@ -101,6 +101,7 @@ function install_k8s_cloud_provider {
     export KUBE_ENABLE_CLUSTER_DASHBOARD=true
     export ALLOW_SECURITY_CONTEXT=true
     export ENABLE_HOSTPATH_PROVISIONER=true
+    export ENABLE_SINGLE_CA_SIGNER=true
     # Use the docker0's ip address for kubedns to work
     export API_HOST_IP="172.17.0.1"
     export KUBELET_HOST="0.0.0.0"
