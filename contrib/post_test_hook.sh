@@ -24,7 +24,6 @@ TESTS_LIST_REGEX=(
     '\[Flaky\]'
     '\[Feature:.+\]'
     '\[HPA\]'
-    '\[StatefulSetBasic\]'
 )
 
 FLAKY_TESTS_LIST=(
