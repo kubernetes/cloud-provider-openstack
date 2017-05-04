@@ -114,6 +114,7 @@ function install_k8s_cloud_provider {
     # Turn on/off a few things in local-up-cluster.sh
     export ALLOW_PRIVILEGED=true
     export ALLOW_SECURITY_CONTEXT=true
+    export CLOUD_PROVIDER=external
     export ENABLE_CRI=false
     export ENABLE_DAEMON=true
     export ENABLE_HOSTPATH_PROVISIONER=true
