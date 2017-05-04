@@ -139,6 +139,15 @@ function install_k8s_cloud_provider {
 # runs that a clean run would need to clean up
 function cleanup_k8s_cloud_provider {
     echo_summary "Cleaning up Devstack Plugin for k8s-cloud-provider"
+    # Kill etcd and the k8s processes
+    ps -ef | grep -e etcd -e hyperkube | grep -v grep | awk '{print $2}' | xargs sudo kill -9
+
+    # Cleanup docker images and containers
+    sudo docker rm -f $(docker ps -a -q) || true
+    sudo docker rmi -f $(docker images -q -a) || true
+
+    # Stop docker
+    sudo systemctl stop docker.service
     sudo rm -rf "$K8S_SRC"
     sudo rm -rf "$DEST/etcd"
 }
