@@ -19,7 +19,6 @@ export GOPATH=${BASE_DIR}/go
 
 CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/kubernetes/kubernetes}
 K8S_SRC=${GOPATH}/src/k8s.io/kubernetes
-ETCD_VERSION=v3.1.4
 
 function install_prereqs {
    # Install pre-reqs
@@ -84,12 +83,9 @@ function install_k8s_cloud_provider {
     # Run the script that builds kubernetes from source and starts the processes
     pushd ${K8S_SRC} >/dev/null
 
-    # We need etcd for local-up-cluster to work
-    hack/install-etcd.sh
-
     # local-up-cluster needs the etcd path and the GOPATH bin as cf-ssl
     # and go-bindata are located there
-    export PATH=${K8S_SRC}/third_party/etcd:$GOPATH/bin:${PATH}
+    export PATH=$DEST/bin:$GOPATH/bin:${PATH}
 
     # Seed the log files so devstack-gate can capture the logs
     export LOG_DIR=${SCREEN_LOGDIR:-/opt/stack/logs}
@@ -130,6 +126,9 @@ function install_k8s_cloud_provider {
     # Use the docker0's ip address for kubedns to work
     export API_HOST_IP="172.17.0.1"
 
+    # kill etcd and let local-up-cluster start it up
+    $SYSTEMCTL stop $ETCD_SYSTEMD_SERVICE
+
     # local-up-cluster.sh compiles everything from source and starts the services.
     sudo -E PATH=$PATH ./hack/local-up-cluster.sh
 
@@ -140,8 +139,8 @@ function install_k8s_cloud_provider {
 # runs that a clean run would need to clean up
 function cleanup_k8s_cloud_provider {
     echo_summary "Cleaning up Devstack Plugin for k8s-cloud-provider"
-    # Kill etcd and the k8s processes
-    ps -ef | grep -e etcd -e hyperkube | grep -v grep | awk '{print $2}' | xargs sudo kill -9
+    # Kill the k8s processes
+    ps -ef | grep -e hyperkube | grep -v grep | awk '{print $2}' | xargs sudo kill -9
 
     # Cleanup docker images and containers
     sudo docker rm -f $(docker ps -a -q) || true
@@ -150,13 +149,11 @@ function cleanup_k8s_cloud_provider {
     # Stop docker
     sudo systemctl stop docker.service
     sudo rm -rf "$K8S_SRC"
-    sudo rm -rf "$DEST/etcd"
 }
 
 function stop_k8s_cloud_provider {
     echo_summary "Stop Devstack Plugin for k8s-cloud-provider"
     stop_process kubernetes
-    stop_process etcd-server
 }
 
 # check for service enabled

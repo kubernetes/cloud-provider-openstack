@@ -1,5 +1,4 @@
 # settings file for devstack plugin
 
 enable_service k8s-cloud-provider
-enable_service etcd-server
 enable_service kubernetes
