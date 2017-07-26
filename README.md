@@ -34,3 +34,21 @@ https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication
 
 and the Authorization Webhook is at:
 https://kubernetes.io/docs/admin/authorization/webhook/
+
+Tips:
+
+- You can directly test the webhook with
+```
+cat << EOF | curl -kvs -XPOST -d @- https://localhost:8443/webhook
+{
+	"apiVersion": "authentication.k8s.io/v1beta1",
+	"kind": "TokenReview",
+	"metadata": {
+		"creationTimestamp": null
+	},
+	"spec": {
+		"token": $TOKEN"
+	}
+}
+EOF
+```

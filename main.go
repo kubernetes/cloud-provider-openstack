@@ -37,8 +37,6 @@ type status struct {
 var httpClient = &http.Client{}
 
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("headers: %v\n", r.Header)
-
 	var data map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -48,13 +46,23 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var token = data["spec"].(map[string]interface{})["token"].(string)
-	fmt.Printf("token: %#v\n", token)
+	var apiVersion = data["apiVersion"].(string)
+	var kind = data["kind"].(string)
 
+	if kind != "TokenReview" || apiVersion != "authentication.k8s.io/v1beta1" {
+		http.Error(w, fmt.Sprintf("unknown kind/apiVersion %q %q", kind, apiVersion),
+			http.StatusBadRequest)
+		return
+	}
+
+	var token = data["spec"].(map[string]interface{})["token"].(string)
+
+	// use the Keystone V3 API - "GET /v3/auth/tokens" to
+	// validate the token we get from the user.
+	// http://git.openstack.org/cgit/openstack/keystone/tree/api-ref/source/v3/authenticate-v3.inc#n437
 	urlStr := fmt.Sprintf("%s/auth/tokens/", keystoneURL)
 	request, err := http.NewRequest("GET", urlStr, nil)
 	if err != nil {
-		fmt.Printf("error: %#v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -64,7 +72,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := httpClient.Do(request)
 	if err != nil {
-		fmt.Printf("error: %#v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -87,7 +94,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("error: %#v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -96,7 +102,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	var keystone_data map[string]interface{}
 	err = json.Unmarshal(body, &keystone_data)
 	if err != nil {
-		fmt.Printf("error: %#v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -122,8 +127,6 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(output)
-
-	fmt.Printf("sending output: %#v\n", data)
 }
 
 var (
@@ -134,17 +137,18 @@ var (
 )
 
 func main() {
-	log.Println("server started")
-
 	flag.StringVar(&listenAddr, "listen", "localhost:8443", "<address>:<port> to listen on")
 	flag.StringVar(&tlsCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS.")
 	flag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
 	flag.StringVar(&keystoneURL, "keystone-url", "http://localhost/identity/v3/", "URL for the OpenStack Keystone API")
 	flag.Parse()
 
+	if tlsCertFile == "" || tlsPrivateKey == "" {
+		log.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
+	}
+
 	http.HandleFunc("/webhook", handleWebhook)
-	log.Printf("tls-cert-file : %s\n", tlsCertFile)
-	log.Printf("tls-private-key-file : %s\n", tlsPrivateKey)
+	log.Println("Starting webhook..")
 	log.Fatal(
 		http.ListenAndServeTLS(":8443",
 			tlsCertFile,
