@@ -78,13 +78,13 @@ func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token stri
 	}
 
 	token_info := data["token"].(map[string]interface{})
-	project_info := token_info["project"].(map[string]interface{})
-	user_info := &user.DefaultInfo{
-		Name: project_info["name"].(string),
-		UID:  project_info["id"].(string),
+	user_info := token_info["user"].(map[string]interface{})
+	user := &user.DefaultInfo{
+		Name: user_info["name"].(string),
+		UID:  user_info["id"].(string),
 	}
 
-	return user_info, true, nil
+	return user, true, nil
 }
 
 // Construct a Keystone v3 client, bail out if we cannot find the v3 API endpoint
