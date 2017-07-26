@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"io/ioutil"
+
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"github.com/dims/k8s-keystone-auth/pkg/authenticator/token/keystone"
 )
 
 type userInfo struct {
@@ -34,9 +36,17 @@ type status struct {
 	User          userInfo `json:"user"`
 }
 
-var httpClient = &http.Client{}
+type webhookHandler struct {
+	authenticator authenticator.Token
+}
 
-func handleWebhook(w http.ResponseWriter, r *http.Request) {
+func webhookServer(authenticator authenticator.Token) http.Handler {
+	return &webhookHandler{
+		authenticator: authenticator,
+	}
+}
+
+func (h *webhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var data map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -54,64 +64,33 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
-
 	var token = data["spec"].(map[string]interface{})["token"].(string)
 
-	// use the Keystone V3 API - "GET /v3/auth/tokens" to
-	// validate the token we get from the user.
-	// http://git.openstack.org/cgit/openstack/keystone/tree/api-ref/source/v3/authenticate-v3.inc#n437
-	urlStr := fmt.Sprintf("%s/auth/tokens/", keystoneURL)
-	request, err := http.NewRequest("GET", urlStr, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	user, authenticated, err := h.authenticator.AuthenticateToken(token)
 
-	request.Header.Add("X-Auth-Token", token)
-	request.Header.Add("X-Subject-Token", token)
-
-	resp, err := httpClient.Do(request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if resp.StatusCode != 200 {
+	if ! authenticated {
 		var response status
 		response.Authenticated = false
 		data["status"] = response
 
 		output, err := json.MarshalIndent(data, "", "  ")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(resp.StatusCode)
+		w.WriteHeader(http.StatusUnauthorized)
 		w.Write(output)
 		return
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	var keystone_data map[string]interface{}
-	err = json.Unmarshal(body, &keystone_data)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	token_info := keystone_data["token"].(map[string]interface{})
-	project_info := token_info["project"].(map[string]interface{})
-
 	var info userInfo
-	info.Username = project_info["name"].(string)
-	info.UID = project_info["id"].(string)
+	info.Username = user.GetName()
+	info.UID = user.GetUID()
+	info.Groups = user.GetGroups()
+	for k, vs := range user.GetExtra() {
+		info.Extra[k] = vs
+	}
 
 	var response status
 	response.Authenticated = true
@@ -130,10 +109,11 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	listenAddr    string
-	tlsCertFile   string
-	tlsPrivateKey string
-	keystoneURL   string
+	listenAddr     string
+	tlsCertFile    string
+	tlsPrivateKey  string
+	keystoneURL    string
+	keystoneCaFile string
 )
 
 func main() {
@@ -141,13 +121,19 @@ func main() {
 	flag.StringVar(&tlsCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS.")
 	flag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
 	flag.StringVar(&keystoneURL, "keystone-url", "http://localhost/identity/v3/", "URL for the OpenStack Keystone API")
+	flag.StringVar(&keystoneCaFile, "keystone-ca-file", "", "File containing the certificate authority for Keystone Service.")
 	flag.Parse()
 
 	if tlsCertFile == "" || tlsPrivateKey == "" {
 		log.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
 
-	http.HandleFunc("/webhook", handleWebhook)
+	handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	http.Handle("/webhook", webhookServer(handler))
 	log.Println("Starting webhook..")
 	log.Fatal(
 		http.ListenAndServeTLS(":8443",
