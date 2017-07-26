@@ -88,9 +88,7 @@ func (h *webhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	info.Username = user.GetName()
 	info.UID = user.GetUID()
 	info.Groups = user.GetGroups()
-	for k, vs := range user.GetExtra() {
-		info.Extra[k] = vs
-	}
+	info.Extra = user.GetExtra()
 
 	var response status
 	response.Authenticated = true

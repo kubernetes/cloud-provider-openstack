@@ -69,22 +69,52 @@ func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token stri
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
-	// Read the response and parse the name and id for the user
-	var data map[string]interface{}
-	err = json.Unmarshal(bodyBytes, &data)
+	obj := struct {
+		Token struct {
+			User struct {
+				Id   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"user"`
+			Project struct {
+				Id   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"project"`
+			Roles []struct {
+				Name string `json:"name"`
+			} `json:"roles"`
+		} `json:"token"`
+	}{}
+
+	err = json.Unmarshal(bodyBytes, &obj)
 	if err != nil {
 		glog.V(4).Infof("Cannot unmarshal response: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
-	token_info := data["token"].(map[string]interface{})
-	user_info := token_info["user"].(map[string]interface{})
-	user := &user.DefaultInfo{
-		Name: user_info["name"].(string),
-		UID:  user_info["id"].(string),
+	var roles []string
+	if obj.Token.Roles != nil && len(obj.Token.Roles) > 0 {
+		roles = make([]string, len(obj.Token.Roles))
+		for i := 0; i < len(obj.Token.Roles); i++ {
+			roles[i] = obj.Token.Roles[i].Name
+		}
+	} else {
+		roles = make([]string, 0)
 	}
 
-	return user, true, nil
+	extra := map[string][]string{
+		"alpha.kubernetes.io/identity/roles":        roles,
+		"alpha.kubernetes.io/identity/project/id":   []string{obj.Token.Project.Id},
+		"alpha.kubernetes.io/identity/project/name": []string{obj.Token.Project.Name},
+	}
+
+	authenticated_user := &user.DefaultInfo{
+		Name:   obj.Token.User.Name,
+		UID:    obj.Token.User.Id,
+		Groups: []string{obj.Token.Project.Id},
+		Extra:  extra,
+	}
+
+	return authenticated_user, true, nil
 }
 
 // Construct a Keystone v3 client, bail out if we cannot find the v3 API endpoint
@@ -116,7 +146,7 @@ func keystoneV3Client(options gophercloud.AuthOptions, transport http.RoundTripp
 }
 
 // NewKeystoneAuthenticator returns a password authenticator that validates credentials using openstack keystone
-func NewKeystoneAuthenticator(authURL string, caFile string) (* KeystoneAuthenticator, error) {
+func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthenticator, error) {
 	// FIXME: Enable this check later
 	//if !strings.HasPrefix(authURL, "https") {
 	//	return nil, errors.New("Auth URL should be secure and start with https")
