@@ -33,7 +33,7 @@ import (
 )
 
 // Construct a Keystone v3 client, bail out if we cannot find the v3 API endpoint
-func keystoneV3Client(options gophercloud.AuthOptions, transport http.RoundTripper) (*gophercloud.ProviderClient, error) {
+func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.RoundTripper) (*gophercloud.ProviderClient, error) {
 	client, err := openstack.NewClient(options.IdentityEndpoint)
 	if err != nil {
 		return nil, err
@@ -60,8 +60,7 @@ func keystoneV3Client(options gophercloud.AuthOptions, transport http.RoundTripp
 	}
 }
 
-// NewKeystoneAuthenticator returns a password authenticator that validates credentials using openstack keystone
-func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthenticator, error) {
+func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceClient, error) {
 	// FIXME: Enable this check later
 	//if !strings.HasPrefix(authURL, "https") {
 	//	return nil, errors.New("Auth URL should be secure and start with https")
@@ -80,7 +79,7 @@ func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthentic
 		transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
 	opts := gophercloud.AuthOptions{IdentityEndpoint: authURL}
-	provider, err := keystoneV3Client(opts, transport)
+	provider, err := createIdentityV3Provider(opts, transport)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +98,24 @@ func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthentic
 	// Make sure we look under /v3 for resources
 	client.IdentityBase = client.IdentityEndpoint
 	client.Endpoint = client.IdentityEndpoint
+	return client, nil
+}
+
+// NewKeystoneAuthenticator returns a password authenticator that validates credentials using openstack keystone
+func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthenticator, error) {
+	client, err := createKeystoneClient(authURL, caFile)
+	if err != nil {
+		return nil, err
+	}
 
 	return &KeystoneAuthenticator{authURL: authURL, client: client}, nil
+}
+
+func NewKeystoneAuthorizer(authURL string, caFile string) (*KeystoneAuthorizer, error) {
+	client, err := createKeystoneClient(authURL, caFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return &KeystoneAuthorizer{authURL: authURL, client: client}, nil
 }

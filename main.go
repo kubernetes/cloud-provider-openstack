@@ -21,8 +21,9 @@ import (
 	"log"
 	"net/http"
 
-	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"github.com/dims/k8s-keystone-auth/pkg/authenticator/token/keystone"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
 type userInfo struct {
@@ -38,11 +39,13 @@ type status struct {
 
 type webhookHandler struct {
 	authenticator authenticator.Token
+	authorizer    authorizer.Authorizer
 }
 
-func webhookServer(authenticator authenticator.Token) http.Handler {
+func webhookServer(authenticator authenticator.Token, authorizer authorizer.Authorizer) http.Handler {
 	return &webhookHandler{
 		authenticator: authenticator,
+		authorizer:    authorizer,
 	}
 }
 
@@ -59,16 +62,26 @@ func (h *webhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var apiVersion = data["apiVersion"].(string)
 	var kind = data["kind"].(string)
 
-	if kind != "TokenReview" || apiVersion != "authentication.k8s.io/v1beta1" {
-		http.Error(w, fmt.Sprintf("unknown kind/apiVersion %q %q", kind, apiVersion),
+	if apiVersion != "authentication.k8s.io/v1beta1" {
+		http.Error(w, fmt.Sprintf("unknown apiVersion %q", apiVersion),
 			http.StatusBadRequest)
 		return
 	}
-	var token = data["spec"].(map[string]interface{})["token"].(string)
+	if kind == "TokenReview" {
+		var token = data["spec"].(map[string]interface{})["token"].(string)
+		h.authenticateToken(w, r, token, data)
+	} else if kind == "SubjectAccessReview" {
+		h.authorizeToken(w, r, data)
+	} else {
+		http.Error(w, fmt.Sprintf("unknown kind/apiVersion %q %q", kind, apiVersion),
+			http.StatusBadRequest)
+	}
+}
 
+func (h *webhookHandler) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) {
 	user, authenticated, err := h.authenticator.AuthenticateToken(token)
 
-	if ! authenticated {
+	if !authenticated {
 		var response status
 		response.Authenticated = false
 		data["status"] = response
@@ -106,6 +119,14 @@ func (h *webhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(output)
 }
 
+func (h *webhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
+	_, _, err := h.authorizer.Authorize(nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 var (
 	listenAddr     string
 	tlsCertFile    string
@@ -126,12 +147,17 @@ func main() {
 		log.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
 
-	handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
+	authentication_handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	http.Handle("/webhook", webhookServer(handler))
+	authorization_handler, err := keystone.NewKeystoneAuthorizer(keystoneURL, keystoneCaFile)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	http.Handle("/webhook", webhookServer(authentication_handler, authorization_handler))
 	log.Println("Starting webhook..")
 	log.Fatal(
 		http.ListenAndServeTLS(":8443",
