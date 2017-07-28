@@ -32,7 +32,6 @@ func webhookServer(authenticator authenticator.Token, authorizer authorizer.Auth
 	}
 }
 
-
 var (
 	listenAddr     string
 	tlsCertFile    string

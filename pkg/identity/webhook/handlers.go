@@ -17,10 +17,12 @@ package webhook
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/authentication/user"
 )
 
 type userInfo struct {
@@ -69,6 +71,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookHandler) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) {
+	log.Printf(">>>> authenticateToken data : %#v\n", data)
 	user, authenticated, err := h.Authenticator.AuthenticateToken(token)
 
 	if !authenticated {
@@ -109,19 +112,59 @@ func (h *WebhookHandler) authenticateToken(w http.ResponseWriter, r *http.Reques
 	w.Write(output)
 }
 
-func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
-	fmt.Printf("authorizeToken data : %#v\n", data)
-	temp, _ := json.MarshalIndent(data, "", "  ")
-	fmt.Printf("REQUEST : %s\n", string(temp))
+func getField(data map[string]interface{}, name string) string {
+	if v, ok := data[name]; ok {
+		return v.(string)
+	}
+	return ""
+}
 
-	_, _, err := h.Authorizer.Authorize(nil)
+func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
+	log.Printf(">>>> authorizeToken data : %#v\n", data)
+	spec := data["spec"].(map[string]interface{})
+
+	username :=  spec["user"]
+	usr := &user.DefaultInfo{
+		Name:   username.(string),
+	}
+	attrs := authorizer.AttributesRecord{
+		User: usr,
+	}
+
+	groups := spec["group"].([]interface{})
+	usr.Groups = make([]string, len(groups))
+	for _, v := range groups {
+		usr.Groups = append(usr.Groups, v.(string))
+	}
+
+	if resourceAttributes, ok := spec["resourceAttributes"]; ok {
+		v := resourceAttributes.(map[string]interface{})
+		attrs.ResourceRequest = true
+		attrs.Verb = getField(v, "verb")
+		attrs.Namespace = getField(v, "namespace")
+		attrs.APIGroup = getField(v, "group")
+		attrs.APIVersion = getField(v, "version")
+		attrs.Resource = getField(v, "resource")
+		attrs.Name = getField(v, "name")
+	} else if nonResourceAttributes, ok := spec["nonResourceAttributes"]; ok {
+		v := nonResourceAttributes.(map[string]interface{})
+		attrs.ResourceRequest = false
+		attrs.Verb = getField(v, "verb")
+		attrs.Path = getField(v, "path")
+	} else {
+		err := fmt.Errorf("Unable to find attributes")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, _, err := h.Authorizer.Authorize(attrs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	delete(data, "spec")
-	data["status"] = map[string]interface{} {
+	data["status"] = map[string]interface{}{
 		"allowed": true,
 	}
 	output, err := json.MarshalIndent(data, "", "  ")
