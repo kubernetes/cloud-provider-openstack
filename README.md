@@ -28,6 +28,7 @@ users:
 - Run `kubectl --token $TOKEN get po` or `curl -k -v -XGET  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN" https://localhost:6443/api/v1/namespaces/default/pods`
 
 NOTE: I've tested this with `hack/local-up-cluster.sh` with RBAC disabled. Also, currently the hook is just for Authentication, not for Authorization.
+The Authorization piece is hooked up but currently just returns True all the time.
 
 More details about Kubernetes Authentication Webhook using Bearer Tokens is at :
 https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication
@@ -39,12 +40,35 @@ Tips:
 
 - You can directly test the webhook with
 ```
-cat << EOF | curl -kvs -XPOST -d @- https://localhost:8443/webhook
+cat << EOF | curl -kvs -XPOST -d @- https://localhost:8443/webhook | python -mjson.tool
 {
 	"apiVersion": "authentication.k8s.io/v1beta1",
 	"kind": "TokenReview",
+	"metadata": {
+		"creationTimestamp": null
+	},
 	"spec": {
-		"token": $TOKEN"
+		"token": "$TOKEN"
+	}
+}
+EOF
+
+cat << EOF | curl -kvs -XPOST -d @- https://localhost:8443/webhook | python -mjson.tool
+{
+	"apiVersion": "authorization.k8s.io/v1beta1",
+	"kind": "SubjectAccessReview",
+	"spec": {
+		"resourceAttributes": {
+			"namespace": "kittensandponies",
+			"verb": "get",
+			"group": "unicorn.example.org",
+			"resource": "pods"
+		},
+		"user": "jane",
+		"group": [
+			"group1",
+			"group2"
+		]
 	}
 }
 EOF
