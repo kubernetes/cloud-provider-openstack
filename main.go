@@ -62,7 +62,7 @@ func (h *webhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var apiVersion = data["apiVersion"].(string)
 	var kind = data["kind"].(string)
 
-	if apiVersion != "authentication.k8s.io/v1beta1" {
+	if apiVersion != "authentication.k8s.io/v1beta1" && apiVersion != "authorization.k8s.io/v1beta1" {
 		http.Error(w, fmt.Sprintf("unknown apiVersion %q", apiVersion),
 			http.StatusBadRequest)
 		return
@@ -120,11 +120,28 @@ func (h *webhookHandler) authenticateToken(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *webhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
+	fmt.Printf("authorizeToken data : %#v\n", data)
+	temp, _ := json.MarshalIndent(data, "", "  ")
+	fmt.Printf("REQUEST : %s\n", string(temp))
+
 	_, _, err := h.authorizer.Authorize(nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	delete(data, "spec")
+	data["status"] = map[string]interface{} {
+		"allowed": true,
+	}
+	output, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(output)
 }
 
 var (

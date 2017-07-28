@@ -29,6 +29,6 @@ type KeystoneAuthorizer struct {
 }
 
 func (KeystoneAuthorizer *KeystoneAuthorizer) Authorize(a authorizer.Attributes) (authorized bool, reason string, err error) {
-	fmt.Printf("Authorize Attributes : %#v", a)
+	fmt.Printf("Authorize Attributes : %#v\n", a)
 	return true, "", nil
 }
