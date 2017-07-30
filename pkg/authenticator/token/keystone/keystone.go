@@ -19,7 +19,10 @@ package keystone
 import (
 	"crypto/tls"
 	"errors"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"log"
 	//"strings"
 
 	"github.com/golang/glog"
@@ -27,7 +30,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
 
-	"fmt"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 )
@@ -111,11 +113,19 @@ func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthentic
 	return &KeystoneAuthenticator{authURL: authURL, client: client}, nil
 }
 
-func NewKeystoneAuthorizer(authURL string, caFile string) (*KeystoneAuthorizer, error) {
+func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*KeystoneAuthorizer, error) {
 	client, err := createKeystoneClient(authURL, caFile)
 	if err != nil {
 		return nil, err
 	}
 
-	return &KeystoneAuthorizer{authURL: authURL, client: client}, nil
+	policyList, err := NewFromFile(policyFile)
+	output, err := json.MarshalIndent(policyList, "", "  ")
+	if err == nil {
+		log.Printf(">>> Policy %s", string(output))
+	} else {
+		log.Fatalf(">>> Error %#v", err)
+	}
+
+	return &KeystoneAuthorizer{authURL: authURL, client: client, pl:policyList}, nil
 }

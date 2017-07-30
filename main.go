@@ -38,6 +38,7 @@ var (
 	tlsPrivateKey  string
 	keystoneURL    string
 	keystoneCaFile string
+	policyFile     string
 )
 
 func main() {
@@ -46,10 +47,14 @@ func main() {
 	flag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
 	flag.StringVar(&keystoneURL, "keystone-url", "http://localhost/identity/v3/", "URL for the OpenStack Keystone API")
 	flag.StringVar(&keystoneCaFile, "keystone-ca-file", "", "File containing the certificate authority for Keystone Service.")
+	flag.StringVar(&policyFile, "keystone-policy-file", "", "File containing the policy.")
 	flag.Parse()
 
 	if tlsCertFile == "" || tlsPrivateKey == "" {
 		log.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
+	}
+	if policyFile == "" {
+		log.Fatal("Please specify --keystone-policy-file argument.")
 	}
 
 	authentication_handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
@@ -57,7 +62,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	authorization_handler, err := keystone.NewKeystoneAuthorizer(keystoneURL, keystoneCaFile)
+	authorization_handler, err := keystone.NewKeystoneAuthorizer(keystoneURL, keystoneCaFile, policyFile)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

@@ -17,12 +17,12 @@ package webhook
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"log"
 )
 
 type userInfo struct {
@@ -71,8 +71,9 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookHandler) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) {
-	log.Printf(">>>> authenticateToken data : %#v\n", data)
+	//log.Printf(">>>> authenticateToken data : %#v\n", data)
 	user, authenticated, err := h.Authenticator.AuthenticateToken(token)
+	log.Printf("<<<< authenticateToken : %v, %v, %v\n", token, user, err)
 
 	if !authenticated {
 		var response status
@@ -120,7 +121,9 @@ func getField(data map[string]interface{}, name string) string {
 }
 
 func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
-	log.Printf(">>>> authorizeToken data : %#v\n", data)
+	output, err := json.MarshalIndent(data, "", "  ")
+	log.Printf(">>>> authorizeToken data : %s\n", string(output))
+
 	spec := data["spec"].(map[string]interface{})
 
 	username :=  spec["user"]
@@ -132,9 +135,20 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 	}
 
 	groups := spec["group"].([]interface{})
-	usr.Groups = make([]string, len(groups))
 	for _, v := range groups {
-		usr.Groups = append(usr.Groups, v.(string))
+			usr.Groups = append(usr.Groups, v.(string))
+	}
+	if extras, ok := spec["extra"].(map[string]interface{}); ok {
+		usr.Extra = make(map[string][]string, len(extras))
+		for key, value := range extras {
+				for _,v := range value.([]interface{}) {
+					if data, ok := usr.Extra[key] ; ok {
+						usr.Extra[key] = append(data, v.(string))
+					} else {
+						usr.Extra[key] = []string{v.(string)}
+					}
+				}
+		}
 	}
 
 	if resourceAttributes, ok := spec["resourceAttributes"]; ok {
@@ -157,17 +171,18 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	_, _, err := h.Authorizer.Authorize(attrs)
+	allowed, reason, err := h.Authorizer.Authorize(attrs)
+	log.Printf("<<<< authorizeToken : %v, %v, %v\n", allowed, reason, err)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, reason, http.StatusInternalServerError)
 		return
 	}
 
 	delete(data, "spec")
 	data["status"] = map[string]interface{}{
-		"allowed": true,
+		"allowed": allowed,
 	}
-	output, err := json.MarshalIndent(data, "", "  ")
+	output, err = json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
