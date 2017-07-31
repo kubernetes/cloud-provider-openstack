@@ -4,7 +4,7 @@ Proof-Of-Concept : Kubernetes webhook authentication and authorization for OpenS
 
 Steps to use this webook with Kubernetes
 
-- Save the following into webhook.kubeconfig and Add `--authentication-token-webhook-config-file=/path/to/your/webhook.kubeconfig` to your Kubernetes api server. 
+- Save the following into webhook.kubeconfig.
 ```
 apiVersion: v1
 clusters:
@@ -23,12 +23,16 @@ preferences: {}
 users:
 - name: webhook
 ```
-- Start webhook process with `--tls-cert-file /var/run/kubernetes/serving-kube-apiserver.crt --tls-private-key-file /var/run/kubernetes/serving-kube-apiserver.key`
+- Copy the examples/policy.json and edit it to your needs.
+- Add the following flags to your Kubernetes api server.
+  * `--authentication-token-webhook-config-file=/path/to/your/webhook.kubeconfig`
+  * `--authorization-mode=Webhook --authorization-webhook-config-file=/path/to/your/webhook.kubeconfig`
+- Start webhook process with the following flags
+  * `--tls-cert-file /var/run/kubernetes/serving-kube-apiserver.crt`
+  * `--tls-private-key-file /var/run/kubernetes/serving-kube-apiserver.key`
+  * `--keystone-policy-file examples/policy.json`
 - Run `openstack token issue` to generate a token
 - Run `kubectl --token $TOKEN get po` or `curl -k -v -XGET  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN" https://localhost:6443/api/v1/namespaces/default/pods`
-
-NOTE: I've tested this with `hack/local-up-cluster.sh` with RBAC disabled. Also, currently the hook is just for Authentication, not for Authorization.
-The Authorization piece is hooked up but currently just returns True all the time.
 
 More details about Kubernetes Authentication Webhook using Bearer Tokens is at :
 https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication
