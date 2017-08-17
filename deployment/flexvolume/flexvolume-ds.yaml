@@ -30,7 +30,7 @@ spec:
       containers:
         - name: cinder-flexvolume
           resources: {}
-          image: stackube/flex-volume:v1.0
+          image: stackube/flex-volume:v0.1
           command: ["/bin/bash", "install.sh"]
           env:
             # The endpoint of openstack authentication.
