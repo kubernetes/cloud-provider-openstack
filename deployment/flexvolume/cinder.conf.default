@@ -2,7 +2,7 @@
 auth-url = _AUTH_URL_
 username = _USERNAME_
 password = _PASSWORD_
-tenant-name = _TENAN_TNAME_
+tenant-name = _TENANT_NAME_
 region = _REGION_
 [RBD]
 keyring = _KEYRING_
