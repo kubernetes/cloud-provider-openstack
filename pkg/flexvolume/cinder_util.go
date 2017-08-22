@@ -19,6 +19,7 @@ package flexvolume
 import (
 	"fmt"
 
+	"k8s.io/frakti/pkg/util/knownflags"
 	utilnode "k8s.io/frakti/pkg/util/node"
 )
 
@@ -30,18 +31,18 @@ type FlexManager struct {
 func NewFlexManager(cinderConfigFile string) (*FlexManager, error) {
 	result := &FlexManager{}
 
-	if cinderConfigFile != "" {
-		cinderClient, err := newCinderClient(cinderConfigFile)
-		if err != nil {
-			return nil, fmt.Errorf("Init cinder client failed: %v", err)
-		} else {
-			result.cinderBaremetalUtil = &CinderBaremetalUtil{
-				client:   cinderClient,
-				hostname: utilnode.GetHostname(""),
-			}
-		}
+	if cinderConfigFile == "" {
+		cinderConfigFile = knownflags.CinderConfigFile
+	}
+
+	cinderClient, err := newCinderClient(cinderConfigFile)
+	if err != nil {
+		return nil, fmt.Errorf("Init cinder client failed: %v", err)
 	} else {
-		return nil, fmt.Errorf("Cinder volume configure is not provided")
+		result.cinderBaremetalUtil = &CinderBaremetalUtil{
+			client:   cinderClient,
+			hostname: utilnode.GetHostname(""),
+		}
 	}
 
 	return result, nil

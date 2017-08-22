@@ -22,4 +22,6 @@ const (
 	VolIdKey        = "volumeID"
 	FsTypeKey       = "fsType"
 	CinderConfigKey = "cinderConfig"
+
+	CinderConfigFile = "/etc/kubernetes/cinder.conf"
 )

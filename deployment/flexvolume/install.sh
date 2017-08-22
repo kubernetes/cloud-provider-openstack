@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -o errexit
+set -o nounset
+set -o pipefail
+
 # gracefully handle the TERM signal sent when deleting the daemonset
 trap 'exit' TERM
 
@@ -38,7 +42,7 @@ sed -i s/_USERNAME_/${USERNAME:-}/g ${TMP_CONF}
 sed -i s/_PASSWORD_/${PASSWORD:-}/g ${TMP_CONF}
 sed -i s/_TENANT_NAME_/${TENANT_NAME:-}/g ${TMP_CONF}
 sed -i s/_REGION_/${REGION:-}/g ${TMP_CONF}
-sed -i s/_KEYRING_/${KEYRING:-}/g ${TMP_CONF}
+sed -i s~_KEYRING_~${KEYRING:-}~g ${TMP_CONF}
 
 # Move the temporary Cinder config into place.
 CINDER_CONFIG_FIlE='/mnt/config/cinder.conf'
