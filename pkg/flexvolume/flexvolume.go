@@ -23,8 +23,8 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	utiljson "k8s.io/frakti/pkg/util/json"
 	"k8s.io/frakti/pkg/util/knownflags"
+	utilmetadata "k8s.io/frakti/pkg/util/metadata"
 )
 
 type FlexVolumeDriver struct {
@@ -36,8 +36,6 @@ type FlexVolumeDriver struct {
 	readOnly     bool
 	manager      *FlexManager
 
-	linuxMounter *LinuxMounter
-
 	// metadata provides meta of the volume
 	metadata map[string]interface{}
 }
@@ -45,8 +43,7 @@ type FlexVolumeDriver struct {
 // NewFlexVolumeDriver returns a flex volume driver
 func NewFlexVolumeDriver(uuid string) *FlexVolumeDriver {
 	return &FlexVolumeDriver{
-		uuid:         uuid,
-		linuxMounter: NewLinuxMounter(),
+		uuid: uuid,
 	}
 }
 
@@ -65,11 +62,18 @@ func (d *FlexVolumeDriver) initFlexVolumeDriverForMount(jsonOptions string) erro
 	var volOptions map[string]interface{}
 	json.Unmarshal([]byte(jsonOptions), &volOptions)
 
-	if len(volOptions[knownflags.VolIdKey].(string)) == 0 || len(volOptions[knownflags.CinderConfigKey].(string)) == 0 {
+	if len(volOptions[knownflags.VolIdKey].(string)) == 0 {
 		return fmt.Errorf("jsonOptions is not set by user properly: %#v", jsonOptions)
 	}
 
-	d.cinderConfig = volOptions[knownflags.CinderConfigKey].(string)
+	// cinder configure file is optional in jsonOptions
+	if userConfig, ok := volOptions[knownflags.CinderConfigKey]; ok {
+		d.cinderConfig = userConfig.(string)
+	} else {
+		// use default configure if not provided
+		d.cinderConfig = knownflags.CinderConfigFile
+	}
+
 	d.volId = volOptions[knownflags.VolIdKey].(string)
 	// this is a system option
 	d.fsType = volOptions["kubernetes.io/fsType"].(string)
@@ -86,12 +90,13 @@ func (d *FlexVolumeDriver) initFlexVolumeDriverForMount(jsonOptions string) erro
 // initFlexVolumeDriverForUnMount use targetMountDir to initialize FlexVolumeDriver from magic file
 func (d *FlexVolumeDriver) initFlexVolumeDriverForUnMount(targetMountDir string) error {
 	// use the magic file to store volId since flexvolume will execute fresh new binary every time
-	optsData, err := utiljson.ReadJsonOptsFile(targetMountDir)
+	optsData, err := utilmetadata.ReadJsonOptsFile(targetMountDir)
 	if err != nil {
 		return err
 	}
 
 	d.cinderConfig = optsData[knownflags.CinderConfigKey].(string)
+
 	d.volId = optsData[knownflags.VolIdKey].(string)
 
 	manager, err := NewFlexManager(d.cinderConfig)
@@ -142,18 +147,11 @@ func (d *FlexVolumeDriver) mount(targetMountDir, jsonOptions string) (map[string
 	}
 	glog.V(3).Infof("Cinder volume %s attached", d.volId)
 
-	// NOTE(harry) mount a tmpfs in targetMountDir. This is because when doing unmount,
-	// k8s will check if this dir is a mount point, if not, it will bypass the umount call
-	// This has been fixed in #49118, then we can delete this workaround in new release.
-	if err := d.linuxMounter.Mount("tmpfs", targetMountDir, "tmpfs"); err != nil {
-		return nil, fmt.Errorf("mounting tmpfs at %q: failed: %v", targetMountDir, err)
-	}
-
 	// append VolumeOptions with metadata
 	optsData := d.generateOptionsData(d.metadata)
 
 	// create a file and write metadata into the it
-	if err := utiljson.WriteJsonOptsFile(targetMountDir, optsData); err != nil {
+	if err := utilmetadata.WriteJsonOptsFile(targetMountDir, optsData); err != nil {
 		os.Remove(targetMountDir)
 		detachDiskLogError(d)
 		return nil, err
@@ -189,28 +187,24 @@ func detachDiskLogError(d *FlexVolumeDriver) {
 func (d *FlexVolumeDriver) unmount(targetMountDir string) (map[string]interface{}, error) {
 	glog.V(5).Infof("Cinder flexvolume unmount of %s", targetMountDir)
 
+	// check the target directory
 	if _, err := os.Stat(targetMountDir); os.IsNotExist(err) {
-		// non-exist targetMountDir for TearDown is meaningless and it is possible
-		// that this dir has been cleaned up, just omit the error for now
-		glog.Warningf(
-			"Volume directory: %v does not exists, it may have been cleaned up", targetMountDir)
-		return nil, nil
+		return nil, fmt.Errorf("volume directory: %v does not exists", targetMountDir)
 	}
 
-	//  initialize FlexVolumeDriver manager by reading cinderConfig from magic file
-	d.initFlexVolumeDriverForUnMount(targetMountDir)
+	//  initialize FlexVolumeDriver manager by reading cinderConfig from metadata file
+	if err := d.initFlexVolumeDriverForUnMount(targetMountDir); err != nil {
+		return nil, err
+	}
 
 	if err := d.manager.DetachDisk(d); err != nil {
 		return nil, err
 	}
 
-	// NOTE(harry) unmount a tmpfs in targetMountDir which is used to fool kubelet
-	if err := d.linuxMounter.Unmount(targetMountDir); err != nil {
-		return nil, fmt.Errorf("unmounting tmpfs at %q: failed: %v", targetMountDir, err)
-	}
-
-	if err := os.RemoveAll(targetMountDir); err != nil {
-		return nil, fmt.Errorf("removing host path: %v failed: %v", targetMountDir, err)
+	// NOTE: the targetDir will be cleaned by flexvolume,
+	// we just need to clean up the metadata file.
+	if err := utilmetadata.CleanUpMetadataFile(targetMountDir); err != nil {
+		return nil, err
 	}
 
 	return nil, nil
