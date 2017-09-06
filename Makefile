@@ -23,7 +23,7 @@ depend: work
 depend-update: work
 	cd $(DEST) && glide update
 
-build: work
+build: depend
 	cd $(DEST) && go build -o openstack-controller-manager main.go
 
 test: unit functional
