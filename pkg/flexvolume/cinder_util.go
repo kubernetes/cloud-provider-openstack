@@ -19,7 +19,6 @@ package flexvolume
 import (
 	"fmt"
 
-	"k8s.io/frakti/pkg/util/knownflags"
 	utilnode "k8s.io/frakti/pkg/util/node"
 )
 
@@ -30,10 +29,6 @@ type FlexManager struct {
 
 func NewFlexManager(cinderConfigFile string) (*FlexManager, error) {
 	result := &FlexManager{}
-
-	if cinderConfigFile == "" {
-		cinderConfigFile = knownflags.CinderConfigFile
-	}
 
 	cinderClient, err := newCinderClient(cinderConfigFile)
 	if err != nil {
