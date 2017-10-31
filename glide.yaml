@@ -4,7 +4,6 @@ import:
 - package: github.com/gophercloud/gophercloud
   subpackages:
   - openstack
-  - openstack/blockstorage/v1/apiversions
   - openstack/blockstorage/v1/volumes
   - openstack/blockstorage/v2/volumes
   - openstack/compute/v2/extensions/attachinterfaces
@@ -15,10 +14,6 @@ import:
   - openstack/networking/v2/extensions
   - openstack/networking/v2/extensions/layer3/floatingips
   - openstack/networking/v2/extensions/layer3/routers
-  - openstack/networking/v2/extensions/lbaas/members
-  - openstack/networking/v2/extensions/lbaas/monitors
-  - openstack/networking/v2/extensions/lbaas/pools
-  - openstack/networking/v2/extensions/lbaas/vips
   - openstack/networking/v2/extensions/lbaas_v2/listeners
   - openstack/networking/v2/extensions/lbaas_v2/loadbalancers
   - openstack/networking/v2/extensions/lbaas_v2/monitors
@@ -36,7 +31,6 @@ import:
 - package: k8s.io/api
   subpackages:
   - core/v1
-  repo: https://github.com/sttts/api
 - package: k8s.io/apimachinery
   subpackages:
   - pkg/api/resource
@@ -45,23 +39,16 @@ import:
   - pkg/util/net
   - pkg/util/sets
   - pkg/util/wait
-  repo: https://github.com/sttts/apimachinery
 - package: k8s.io/apiserver
   subpackages:
   - pkg/server/healthz
   - pkg/util/flag
   - pkg/util/logs
-  repo: https://github.com/sttts/apiserver
 - package: k8s.io/client-go
   subpackages:
   - kubernetes
   - rest
   - util/cert
-  repo: https://github.com/sttts/client-go
-- package: k8s.io/apiextensions-apiserver
-  subpackages:
-  - pkg/features
-  repo: https://github.com/sttts/apiextensions-apiserver
 - package: k8s.io/kubernetes
   subpackages:
   - cmd/cloud-controller-manager/app
@@ -72,7 +59,6 @@ import:
   - pkg/cloudprovider
   - pkg/cloudprovider/providers
   - pkg/cloudprovider/providers/openstack
-  - pkg/cloudprovider/providers/rackspace
   - pkg/controller
   - pkg/kubelet/apis
   - pkg/util/keymutex
