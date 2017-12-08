@@ -17,17 +17,13 @@ limitations under the License.
 package cinder
 
 import (
-	"os"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/volume/util"
 
-	"github.com/kubernetes-csi/drivers/pkg/cinder/openstack"
+	"github.com/kubernetes-csi/drivers/pkg/cinder/mount"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
@@ -40,36 +36,30 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	targetPath := req.GetTargetPath()
 	fsType := req.GetVolumeCapability().GetMount().GetFsType()
 	devicePath := req.GetPublishVolumeInfo()["DevicePath"]
-
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
+	
+	// Get Mount Provider
+	m, err := mount.GetMountProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
 		return nil, err
 	}
-
+	
 	// Device Scan
-	err = cloud.ScanForAttach(devicePath)
+	err = m.ScanForAttach(devicePath)
 	if err != nil {
 		glog.V(3).Infof("Failed to ScanForAttach: %v", err)
 		return nil, err
 	}
 
 	// Verify whether mounted
-	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetPath)
+	notMnt, err := m.IsLikelyNotMountPointAttach(targetPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(targetPath, 0750); err != nil {
-				return nil, status.Error(codes.Internal, err.Error())
-			}
-			notMnt = true
-		} else {
-			return nil, status.Error(codes.Internal, err.Error())
-		}
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	// Volume Mount
 	if notMnt {
+		// Get Options
 		var options []string
 		if req.GetReadonly() {
 			options = append(options, "ro")
@@ -78,8 +68,9 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		}
 		mountFlags := req.GetVolumeCapability().GetMount().GetMountFlags()
 		options = append(options, mountFlags...)
-		diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
-		err = diskMounter.FormatAndMount(devicePath, targetPath, fsType, options)
+		
+		// Mount
+		err = m.FormatAndMount(devicePath, targetPath, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -91,21 +82,23 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 
 	targetPath := req.GetTargetPath()
-	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetPath)
-
+	
+	// Get Mount Provider
+	m, err := mount.GetMountProvider()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, status.Error(codes.NotFound, "Targetpath not found")
-		} else {
-			return nil, status.Error(codes.Internal, err.Error())
-		}
+		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		return nil, err
 	}
 
+	notMnt, err := m.IsLikelyNotMountPointDetach(targetPath)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 	if notMnt {
 		return nil, status.Error(codes.NotFound, "Volume not mounted")
 	}
 
-	err = util.UnmountPath(req.GetTargetPath(), mount.New(""))
+	err = m.UnmountPath(req.GetTargetPath())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

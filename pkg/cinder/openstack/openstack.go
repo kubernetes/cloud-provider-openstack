@@ -23,16 +23,26 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 )
 
+type IOpenStack interface {
+	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, error)
+	DeleteVolume(volumeID string) error
+	AttachVolume(instanceID, volumeID string) (string, error)
+	WaitDiskAttached(instanceID string, volumeID string) error
+	DetachVolume(instanceID, volumeID string) error
+	WaitDiskDetached(instanceID string, volumeID string) error
+	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
+}
+
 type OpenStack struct {
 	compute      *gophercloud.ServiceClient
 	blockstorage *gophercloud.ServiceClient
 }
 
-var osinstance *OpenStack = nil
+var OsInstance IOpenStack = nil
 
-func GetOpenStackProvider() (*OpenStack, error) {
+func GetOpenStackProvider() (IOpenStack, error) {
 
-	if osinstance == nil {
+	if OsInstance == nil {
 		// Get config from env
 		opts, err := openstack.AuthOptionsFromEnv()
 		if err != nil {
@@ -64,11 +74,11 @@ func GetOpenStackProvider() (*OpenStack, error) {
 		}
 
 		// Init OpenStack
-		osinstance = &OpenStack{
+		OsInstance = &OpenStack{
 			compute:      computeclient,
 			blockstorage: blockstorageclient,
 		}
 	}
 
-	return osinstance, nil
+	return OsInstance, nil
 }

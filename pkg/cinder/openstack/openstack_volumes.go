@@ -18,14 +18,11 @@ package openstack
 
 import (
 	"fmt"
-	"io/ioutil"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/volume/util"
-	utilexec "k8s.io/utils/exec"
 
 	"github.com/golang/glog"
 )
@@ -35,8 +32,6 @@ const (
 	VolumeInUseStatus        = "in-use"
 	VolumeDeletedStatus      = "deleted"
 	VolumeErrorStatus        = "error"
-	probeVolumeDuration      = 1 * time.Second
-	probeVolumeTimeout       = 60 * time.Second
 	operationFinishInitDelay = 1 * time.Second
 	operationFinishFactor    = 1.1
 	operationFinishSteps     = 10
@@ -238,31 +233,6 @@ func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string,
 	return "", fmt.Errorf("volume %s has no ServerId", volumeID)
 }
 
-// ScanForAttach
-func (os *OpenStack) ScanForAttach(devicePath string) error {
-	ticker := time.NewTicker(probeVolumeDuration)
-	defer ticker.Stop()
-	timer := time.NewTimer(probeVolumeTimeout)
-	defer timer.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			glog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
-			probeVolume()
-
-			exists, err := util.PathExists(devicePath)
-			if exists && err == nil {
-				return nil
-			} else {
-				glog.V(3).Infof("Could not find attached Cinder disk %s", devicePath)
-			}
-		case <-timer.C:
-			return fmt.Errorf("Could not find attached Cinder disk %s. Timeout waiting for mount paths to be created.", devicePath)
-		}
-	}
-}
-
 // diskIsAttached queries if a volume is attached to a compute instance
 func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
 	volume, err := os.GetVolume(volumeID)
@@ -280,28 +250,4 @@ func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
 		return false, err
 	}
 	return volume.AttachedServerId != "", nil
-}
-
-// probeVolume probes volume in compute
-func probeVolume() error {
-	// rescan scsi bus
-	scsi_path := "/sys/class/scsi_host/"
-	if dirs, err := ioutil.ReadDir(scsi_path); err == nil {
-		for _, f := range dirs {
-			name := scsi_path + f.Name() + "/scan"
-			data := []byte("- - -")
-			ioutil.WriteFile(name, data, 0666)
-		}
-	}
-
-	executor := utilexec.New()
-	args := []string{"trigger"}
-	cmd := executor.Command("udevadm", args...)
-	_, err := cmd.CombinedOutput()
-	if err != nil {
-		glog.V(3).Infof("error running udevadm trigger %v\n", err)
-		return err
-	}
-	glog.V(4).Infof("Successfully probed all attachments")
-	return nil
 }

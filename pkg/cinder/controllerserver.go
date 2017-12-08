@@ -53,7 +53,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Volume Availability - Default is nova
 	volAvailability := req.GetParameters()["availability"]
-	if len(volType) == 0 {
+	if len(volAvailability) == 0 {
 		volAvailability = "nova"
 	}
 

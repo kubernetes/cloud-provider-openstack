@@ -1,0 +1,94 @@
+package cinder
+
+import (
+	"testing"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/kubernetes-csi/drivers/pkg/cinder/mount"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+var fakeNs *nodeServer
+
+// Init Node Server
+func init() {
+	if fakeNs == nil {
+		d := NewDriver(fakeNodeID, fakeEndpoint)
+		fakeNs = NewNodeServer(d)
+	}
+}
+
+// Test NodePublishVolume
+func TestNodePublishVolume(t *testing.T) {
+
+	// mock MountMock
+	mmock := new(mount.MountMock)
+	// ScanForAttach(devicePath string) error
+	mmock.On("ScanForAttach", fakeDevicePath).Return(nil)
+	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
+	mmock.On("IsLikelyNotMountPointAttach", fakeTargetPath).Return(true, nil)
+	// FormatAndMount(source string, target string, fstype string, options []string) error
+	mmock.On("FormatAndMount", fakeDevicePath, fakeTargetPath, mock.AnythingOfType("string"), []string{"rw"}).Return(nil)
+	mount.MInstance = mmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodePublishVolumeResponse{}
+
+	// Fake request
+	fakeReq := &csi.NodePublishVolumeRequest{
+		Version:           &version,
+		VolumeId:          fakeVolID,
+		PublishVolumeInfo: map[string]string{"DevicePath": fakeDevicePath},
+		TargetPath:        fakeTargetPath,
+		VolumeCapability:  nil,
+		Readonly:          false,
+	}
+
+	// Invoke NodePublishVolume
+	actualRes, err := fakeNs.NodePublishVolume(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodePublishVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+// Test NodeUnpublishVolume
+func TestNodeUnpublishVolume(t *testing.T) {
+
+	// mock MountMock
+	mmock := new(mount.MountMock)
+
+	// IsLikelyNotMountPointDetach(targetpath string) (bool, error)
+	mmock.On("IsLikelyNotMountPointDetach", fakeTargetPath).Return(false, nil)
+	// UnmountPath(mountPath string) error
+	mmock.On("UnmountPath", fakeTargetPath).Return(nil)
+	mount.MInstance = mmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodeUnpublishVolumeResponse{}
+
+	// Fake request
+	fakeReq := &csi.NodeUnpublishVolumeRequest{
+		Version:    &version,
+		VolumeId:   fakeVolID,
+		TargetPath: fakeTargetPath,
+	}
+
+	// Invoke NodeUnpublishVolume
+	actualRes, err := fakeNs.NodeUnpublishVolume(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodeUnpublishVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
