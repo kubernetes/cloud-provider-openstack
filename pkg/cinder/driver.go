@@ -20,12 +20,14 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 
+	"github.com/kubernetes-csi/drivers/pkg/cinder/openstack"
 	"github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
 type driver struct {
 	csiDriver *csicommon.CSIDriver
 	endpoint  string
+	config    string
 
 	ids *csicommon.DefaultIdentityServer
 	cs  *controllerServer
@@ -49,12 +51,13 @@ func GetSupportedVersions() []*csi.Version {
 	return []*csi.Version{&version}
 }
 
-func NewDriver(nodeID, endpoint string) *driver {
+func NewDriver(nodeID, endpoint string, config string) *driver {
 	glog.Infof("Driver: %v version: %v", driverName, csicommon.GetVersionString(&version))
 
 	d := &driver{}
 
 	d.endpoint = endpoint
+	d.config = config
 
 	csiDriver := csicommon.NewCSIDriver(driverName, &version, GetSupportedVersions(), nodeID)
 	csiDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME})
@@ -79,5 +82,6 @@ func NewNodeServer(d *driver) *nodeServer {
 }
 
 func (d *driver) Run() {
+	openstack.InitOpenStackProvider(d.config)
 	csicommon.RunControllerandNodePublishServer(d.endpoint, d.csiDriver, NewControllerServer(d), NewNodeServer(d))
 }

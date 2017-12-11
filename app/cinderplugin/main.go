@@ -27,6 +27,7 @@ import (
 var (
 	endpoint string
 	nodeID   string
+	config   string
 )
 
 func main() {
@@ -44,6 +45,9 @@ func main() {
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
 	cmd.MarkPersistentFlagRequired("endpoint")
 
+	cmd.PersistentFlags().StringVar(&config, "config", "", "CSI drive config")
+	cmd.MarkPersistentFlagRequired("config")
+
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
@@ -53,6 +57,6 @@ func main() {
 }
 
 func handle() {
-	d := cinder.NewDriver(nodeID, endpoint)
+	d := cinder.NewDriver(nodeID, endpoint, config)
 	d.Run()
 }

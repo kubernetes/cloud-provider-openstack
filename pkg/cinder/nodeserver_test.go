@@ -30,7 +30,7 @@ var fakeNs *nodeServer
 // Init Node Server
 func init() {
 	if fakeNs == nil {
-		d := NewDriver(fakeNodeID, fakeEndpoint)
+		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
 		fakeNs = NewNodeServer(d)
 	}
 }

@@ -19,8 +19,10 @@ package openstack
 import (
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
+	"gopkg.in/gcfg.v1"
 )
 
 type IOpenStack interface {
@@ -38,15 +40,93 @@ type OpenStack struct {
 	blockstorage *gophercloud.ServiceClient
 }
 
+type Config struct {
+	Global struct {
+		AuthUrl    string `gcfg:"auth-url"`
+		Username   string
+		UserId     string `gcfg:"user-id"`
+		Password   string
+		TenantId   string `gcfg:"tenant-id"`
+		TenantName string `gcfg:"tenant-name"`
+		DomainId   string `gcfg:"domain-id"`
+		DomainName string `gcfg:"domain-name"`
+		Region     string
+	}
+}
+
+func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
+	return gophercloud.AuthOptions{
+		IdentityEndpoint: cfg.Global.AuthUrl,
+		Username:         cfg.Global.Username,
+		UserID:           cfg.Global.UserId,
+		Password:         cfg.Global.Password,
+		TenantID:         cfg.Global.TenantId,
+		TenantName:       cfg.Global.TenantName,
+		DomainID:         cfg.Global.DomainId,
+		DomainName:       cfg.Global.DomainName,
+
+		// Persistent service, so we need to be able to renew tokens.
+		AllowReauth: true,
+	}
+}
+
+func getConfigFromFile(configFilePath string) (gophercloud.AuthOptions, string, error) {
+	// Get config from file
+	var opts gophercloud.AuthOptions
+	config, err := os.Open(configFilePath)
+	if err != nil {
+		glog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
+		return opts, "", err
+	}
+	defer config.Close()
+
+	// Read configuration
+	var cfg Config
+	err = gcfg.ReadInto(&cfg, config)
+	if err != nil {
+		glog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
+		return opts, "", err
+	}
+
+	opts = cfg.toAuthOptions()
+	region := cfg.Global.Region
+
+	return opts, region, nil
+}
+
+func getConfigFromEnv() (gophercloud.AuthOptions, string, error) {
+	// Get config from env
+	opts, err := openstack.AuthOptionsFromEnv()
+	if err != nil {
+		glog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
+		return opts, "", err
+	}
+
+	// Get Region from env
+	region := os.Getenv("OS_REGION_NAME")
+
+	return opts, region, nil
+}
+
 var OsInstance IOpenStack = nil
+var configFile string = "/etc/openstack.conf"
+
+func InitOpenStackProvider(cfg string) {
+	configFile = cfg
+	glog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
+}
 
 func GetOpenStackProvider() (IOpenStack, error) {
 
 	if OsInstance == nil {
-		// Get config from env
-		opts, err := openstack.AuthOptionsFromEnv()
+		// Get config from file
+		opts, region, err := getConfigFromFile(configFile)
 		if err != nil {
-			return nil, err
+			// Get config from env
+			opts, region, err = getConfigFromEnv()
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Authenticate Client
@@ -54,8 +134,6 @@ func GetOpenStackProvider() (IOpenStack, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		region := os.Getenv("OS_REGION_NAME")
 
 		// Init Nova ServiceClient
 		computeclient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{

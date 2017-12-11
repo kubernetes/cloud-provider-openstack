@@ -4,12 +4,7 @@
 
 ### Start Cinder driver
 ```
-$ export OS_USERNAME=admin
-$ export OS_PASSWORD=password
-$ export OS_TENANT_NAME=admin
-$ export OS_AUTH_URL="http://10.0.0.1/identity"
-$ export OS_DOMAIN_NAME=Default
-$ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --nodeid CSINodeID
+$ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --config /etc/openstack.conf --nodeid CSINodeID
 ```
 
 ### Test using csc
