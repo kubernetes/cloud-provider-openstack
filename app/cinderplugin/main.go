@@ -25,8 +25,9 @@ import (
 )
 
 var (
-	endpoint string
-	nodeID   string
+	endpoint    string
+	nodeID      string
+	cloudconfig string
 )
 
 func main() {
@@ -44,6 +45,9 @@ func main() {
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
 	cmd.MarkPersistentFlagRequired("endpoint")
 
+	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "CSI driver cloud config")
+	cmd.MarkPersistentFlagRequired("cloud-config")
+
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
@@ -53,6 +57,6 @@ func main() {
 }
 
 func handle() {
-	d := cinder.NewDriver(nodeID, endpoint)
+	d := cinder.NewDriver(nodeID, endpoint, cloudconfig)
 	d.Run()
 }

@@ -30,7 +30,7 @@ var fakeCs *controllerServer
 // Init Controller Server
 func init() {
 	if fakeCs == nil {
-		d := NewDriver(fakeNodeID, fakeEndpoint)
+		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
 		fakeCs = NewControllerServer(d)
 	}
 }
