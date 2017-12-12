@@ -22,7 +22,7 @@ import (
 
 var fakeNodeID = "CSINodeID"
 var fakeEndpoint = "tcp://127.0.0.1:10000"
-var fakeConfig = "/etc/openstack.conf"
+var fakeConfig = "/etc/cloud.conf"
 var fakeCtx = context.Background()
 var fakeVolName = "CSIVolumeName"
 var fakeVolID = "CSIVolumeID"

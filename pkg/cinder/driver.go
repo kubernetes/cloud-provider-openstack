@@ -25,9 +25,9 @@ import (
 )
 
 type driver struct {
-	csiDriver *csicommon.CSIDriver
-	endpoint  string
-	config    string
+	csiDriver   *csicommon.CSIDriver
+	endpoint    string
+	cloudconfig string
 
 	ids *csicommon.DefaultIdentityServer
 	cs  *controllerServer
@@ -51,13 +51,13 @@ func GetSupportedVersions() []*csi.Version {
 	return []*csi.Version{&version}
 }
 
-func NewDriver(nodeID, endpoint string, config string) *driver {
+func NewDriver(nodeID, endpoint string, cloudconfig string) *driver {
 	glog.Infof("Driver: %v version: %v", driverName, csicommon.GetVersionString(&version))
 
 	d := &driver{}
 
 	d.endpoint = endpoint
-	d.config = config
+	d.cloudconfig = cloudconfig
 
 	csiDriver := csicommon.NewCSIDriver(driverName, &version, GetSupportedVersions(), nodeID)
 	csiDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME})
@@ -82,6 +82,6 @@ func NewNodeServer(d *driver) *nodeServer {
 }
 
 func (d *driver) Run() {
-	openstack.InitOpenStackProvider(d.config)
+	openstack.InitOpenStackProvider(d.cloudconfig)
 	csicommon.RunControllerandNodePublishServer(d.endpoint, d.csiDriver, NewControllerServer(d), NewNodeServer(d))
 }

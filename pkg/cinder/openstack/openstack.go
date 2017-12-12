@@ -70,13 +70,14 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 	}
 }
 
-func getConfigFromFile(configFilePath string) (gophercloud.AuthOptions, string, error) {
+func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
 	// Get config from file
-	var opts gophercloud.AuthOptions
+	var authOpts gophercloud.AuthOptions
+	var epOpts gophercloud.EndpointOpts
 	config, err := os.Open(configFilePath)
 	if err != nil {
 		glog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
-		return opts, "", err
+		return authOpts, epOpts, err
 	}
 	defer config.Close()
 
@@ -85,31 +86,35 @@ func getConfigFromFile(configFilePath string) (gophercloud.AuthOptions, string, 
 	err = gcfg.ReadInto(&cfg, config)
 	if err != nil {
 		glog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
-		return opts, "", err
+		return authOpts, epOpts, err
 	}
 
-	opts = cfg.toAuthOptions()
-	region := cfg.Global.Region
+	authOpts = cfg.toAuthOptions()
+	epOpts = gophercloud.EndpointOpts{
+		Region: cfg.Global.Region,
+	}
 
-	return opts, region, nil
+	return authOpts, epOpts, nil
 }
 
-func getConfigFromEnv() (gophercloud.AuthOptions, string, error) {
+func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
 	// Get config from env
-	opts, err := openstack.AuthOptionsFromEnv()
+	authOpts, err := openstack.AuthOptionsFromEnv()
+	var epOpts gophercloud.EndpointOpts
 	if err != nil {
 		glog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
-		return opts, "", err
+		return authOpts, epOpts, err
+	}
+	
+	epOpts = gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
 	}
 
-	// Get Region from env
-	region := os.Getenv("OS_REGION_NAME")
-
-	return opts, region, nil
+	return authOpts, epOpts, nil
 }
 
 var OsInstance IOpenStack = nil
-var configFile string = "/etc/openstack.conf"
+var configFile string = "/etc/cloud.conf"
 
 func InitOpenStackProvider(cfg string) {
 	configFile = cfg
@@ -120,33 +125,29 @@ func GetOpenStackProvider() (IOpenStack, error) {
 
 	if OsInstance == nil {
 		// Get config from file
-		opts, region, err := getConfigFromFile(configFile)
+		authOpts, epOpts, err := GetConfigFromFile(configFile)
 		if err != nil {
 			// Get config from env
-			opts, region, err = getConfigFromEnv()
+			authOpts, epOpts, err = GetConfigFromEnv()
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		// Authenticate Client
-		provider, err := openstack.AuthenticatedClient(opts)
+		provider, err := openstack.AuthenticatedClient(authOpts)
 		if err != nil {
 			return nil, err
 		}
 
 		// Init Nova ServiceClient
-		computeclient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
-			Region: region,
-		})
+		computeclient, err := openstack.NewComputeV2(provider, epOpts)
 		if err != nil {
 			return nil, err
 		}
 
 		// Init Cinder ServiceClient
-		blockstorageclient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
-			Region: region,
-		})
+		blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
 		if err != nil {
 			return nil, err
 		}

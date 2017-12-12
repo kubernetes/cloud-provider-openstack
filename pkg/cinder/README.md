@@ -4,7 +4,7 @@
 
 ### Start Cinder driver
 ```
-$ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --config /etc/openstack.conf --nodeid CSINodeID
+$ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
 ```
 
 ### Test using csc
