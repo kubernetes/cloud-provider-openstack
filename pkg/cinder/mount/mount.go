@@ -25,13 +25,13 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume/util"
 	utilexec "k8s.io/utils/exec"
-	
+
 	"github.com/golang/glog"
 )
 
 const (
-	probeVolumeDuration      = 1 * time.Second
-	probeVolumeTimeout       = 60 * time.Second
+	probeVolumeDuration = 1 * time.Second
+	probeVolumeTimeout  = 60 * time.Second
 )
 
 type IMount interface {
@@ -129,11 +129,11 @@ func (m *Mount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
 	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetpath)
 	if err != nil {
 		if os.IsNotExist(err) {
- 			return notMnt,fmt.Errorf("targetpath not found")
- 		} else {
- 			return notMnt, err
- 		}
- 	}
+			return notMnt, fmt.Errorf("targetpath not found")
+		} else {
+			return notMnt, err
+		}
+	}
 	return notMnt, nil
 }
 
