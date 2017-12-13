@@ -36,14 +36,14 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	targetPath := req.GetTargetPath()
 	fsType := req.GetVolumeCapability().GetMount().GetFsType()
 	devicePath := req.GetPublishVolumeInfo()["DevicePath"]
-	
+
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
 	if err != nil {
 		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
 		return nil, err
 	}
-	
+
 	// Device Scan
 	err = m.ScanForAttach(devicePath)
 	if err != nil {
@@ -68,7 +68,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		}
 		mountFlags := req.GetVolumeCapability().GetMount().GetMountFlags()
 		options = append(options, mountFlags...)
-		
+
 		// Mount
 		err = m.FormatAndMount(devicePath, targetPath, fsType, options)
 		if err != nil {
@@ -82,7 +82,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 
 	targetPath := req.GetTargetPath()
-	
+
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
 	if err != nil {

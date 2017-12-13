@@ -105,7 +105,7 @@ func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, erro
 		glog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
 		return authOpts, epOpts, err
 	}
-	
+
 	epOpts = gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	}

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -30,7 +31,14 @@ var (
 	cloudconfig string
 )
 
+func init() {
+	flag.Set("logtostderr", "true")
+}
+
 func main() {
+
+	flag.CommandLine.Parse([]string{})
+
 	cmd := &cobra.Command{
 		Use:   "Cinder",
 		Short: "CSI based Cinder driver",
@@ -38,6 +46,8 @@ func main() {
 			handle()
 		},
 	}
+
+	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
 	cmd.MarkPersistentFlagRequired("nodeid")
