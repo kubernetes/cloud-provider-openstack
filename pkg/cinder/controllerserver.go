@@ -47,15 +47,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Volume Type
 	volType := req.GetParameters()["type"]
-	if len(volType) == 0 {
-		volType = "lvmdriver-1"
-	}
 
 	// Volume Availability - Default is nova
 	volAvailability := req.GetParameters()["availability"]
-	if len(volAvailability) == 0 {
-		volAvailability = "nova"
-	}
 
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
@@ -96,7 +90,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	volID := req.GetVolumeId()
 	err = cloud.DeleteVolume(volID)
 	if err != nil {
-		glog.V(3).Infof("Failed to CreateVolume: %v", err)
+		glog.V(3).Infof("Failed to DeleteVolume: %v", err)
 		return nil, err
 	}
 
