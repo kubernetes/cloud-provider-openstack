@@ -35,6 +35,38 @@ func init() {
 	}
 }
 
+// Test GetNodeID
+func TestGetNodeID(t *testing.T) {
+
+	// mock MountMock
+	mmock := new(mount.MountMock)
+	// GetInstanceID() (string, error)
+	mmock.On("GetInstanceID").Return(fakeNodeID, nil)
+	mount.MInstance = mmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.GetNodeIDResponse{
+		NodeId: fakeNodeID,
+	}
+
+	// Fake request
+	fakeReq := &csi.GetNodeIDRequest{
+		Version: &version,
+	}
+
+	// Invoke GetNodeID
+	actualRes, err := fakeNs.GetNodeID(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to GetNodeID: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
 // Test NodePublishVolume
 func TestNodePublishVolume(t *testing.T) {
 

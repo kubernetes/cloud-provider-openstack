@@ -38,7 +38,7 @@ type driver struct {
 }
 
 const (
-	driverName = "Cinder"
+	driverName = "csi-cinderplugin"
 )
 
 var (
@@ -60,8 +60,11 @@ func NewDriver(nodeID, endpoint string, cloudconfig string) *driver {
 	d.cloudconfig = cloudconfig
 
 	csiDriver := csicommon.NewCSIDriver(driverName, &version, GetSupportedVersions(), nodeID)
-	csiDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME})
-	csiDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME})
+	csiDriver.AddControllerServiceCapabilities(
+		[]csi.ControllerServiceCapability_RPC_Type{
+			csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+			csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		})
 	csiDriver.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 
 	d.csiDriver = csiDriver
