@@ -31,6 +31,31 @@ type nodeServer struct {
 	*csicommon.DefaultNodeServer
 }
 
+func (ns *nodeServer) GetNodeID(ctx context.Context, req *csi.GetNodeIDRequest) (*csi.GetNodeIDResponse, error) {
+
+	// Get Mount Provider
+	m, err := mount.GetMountProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		return nil, err
+	}
+
+	nodeID, err := m.GetInstanceID()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetInstanceID: %v", err)
+		return nil, err
+	}
+
+	if len(nodeID) > 0 {
+		return &csi.GetNodeIDResponse{
+			NodeId: nodeID,
+		}, nil
+	}
+
+	// Using default function
+	return ns.DefaultNodeServer.GetNodeID(ctx, req)
+}
+
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 
 	targetPath := req.GetTargetPath()

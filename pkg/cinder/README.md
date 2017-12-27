@@ -1,19 +1,51 @@
 # CSI Cinder driver
 
-## Usage:
+## Kubernetes
+
+### Requirements
+
+The following feature gates and runtime config have to be enabled to deploy the driver.
+
+```
+FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true
+RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true"
+```
+
+Mountprogpation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
+
+### Example local-up-cluster.sh
+
+```ALLOW_PRIVILEGED=true FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
+
+### Deploy
+
+Encode your ```cloud.conf``` file content using base64.
+
+```base64 -w 0 cloud.conf```
+
+Update ```cloud.conf``` configuration in ```deploy/kubernetes/csi-secret-cinderplugin.yaml``` file
+by using the result of the above command.
+
+```kubectl -f deploy/kubernetes create```
+
+### Example Nginx application
+
+```kubectl -f examples/kubernetes/nginx.yaml create```
+
+## Using CSC tool
 
 ### Start Cinder driver
 ```
 $ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
 ```
 
-### Test using csc
+### Test
 Get ```csc``` tool from https://github.com/chakri-nelluri/gocsi/tree/master/csc
 
 #### Get plugin info
 ```
 $ csc identity plugin-info --endpoint tcp://127.0.0.1:10000
-"Cinder"	"0.1.0"
+"csi-cinderplugin"	"0.1.0"
 ```
 
 #### Get supported versions

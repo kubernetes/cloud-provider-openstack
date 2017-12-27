@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -32,6 +33,7 @@ import (
 const (
 	probeVolumeDuration = 1 * time.Second
 	probeVolumeTimeout  = 60 * time.Second
+	instanceIDFile      = "/var/lib/cloud/data/instance-id"
 )
 
 type IMount interface {
@@ -40,6 +42,7 @@ type IMount interface {
 	FormatAndMount(source string, target string, fstype string, options []string) error
 	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
 	UnmountPath(mountPath string) error
+	GetInstanceID() (string, error)
 }
 
 type Mount struct {
@@ -140,4 +143,19 @@ func (m *Mount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
 // UnmountPath
 func (m *Mount) UnmountPath(mountPath string) error {
 	return util.UnmountPath(mountPath, mount.New(""))
+}
+
+// GetInstanceID from file
+func (m *Mount) GetInstanceID() (string, error) {
+	// Try to find instance ID on the local filesystem (created by cloud-init)
+	idBytes, err := ioutil.ReadFile(instanceIDFile)
+	if err == nil {
+		instanceID := string(idBytes)
+		instanceID = strings.TrimSpace(instanceID)
+		glog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
+		if instanceID != "" {
+			return instanceID, nil
+		}
+	}
+	return "", err
 }
