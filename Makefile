@@ -24,7 +24,7 @@ depend-update: work
 	cd $(DEST) && glide update
 
 build: depend
-	cd $(DEST) && go build -o openstack-controller-manager main.go
+	cd $(DEST) && go build -o openstack-cloud-controller-manager main.go
 
 test: unit functional
 
@@ -92,7 +92,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-controller-manager
+	rm -rf .bindep openstack-cloud-controller-manager
 
 realclean: clean
 	rm -rf vendor
