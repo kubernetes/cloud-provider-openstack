@@ -134,3 +134,6 @@ zz_generated.openapi.go
 
 /bazel-*
 *.pyc
+
+# binaries
+openstack-cloud-controller-manager
