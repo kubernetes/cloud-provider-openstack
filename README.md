@@ -63,19 +63,34 @@ Step 4: Create a configmap with the openstack cloud configuration (see `manifest
 kubectl create configmap cloud-config --from-file=/etc/kubernetes/cloud-config -n kube-system
 ```
 
-Step 5: Deploy a pod with the definition in `manifests/openstack-cloud-controller-manager-pod.yaml`
+Step 5: Deploy controller manager
+
+Option #1 - Using a single pod with the definition in `manifests/openstack-cloud-controller-manager-pod.yaml`
 ```
 kubectl create -f manifests/openstack-cloud-controller-manager-pod.yaml
 ```
+Option #2 - Using a daemonset
+```
+kubectl create -f manifests/openstack-cloud-controller-manager-ds.yaml
+```
 
 Step 6: Monitor using kubectl, for example:
+
+for Option #1:
 ```
 kubectl get pods -n kube-system
 kubectl get pods -n kube-system openstack-cloud-controller-manager -o json
 kubectl describe pod/openstack-cloud-controller-manager -n kube-system
 ```
 
-Step 7: TBD - test features and implement daemonset
+for Option #2:
+```
+kubectl get ds -n kube-system
+kubectl get ds -n kube-system openstack-cloud-controller-manager -o json
+kubectl describe ds/openstack-cloud-controller-manager -n kube-system
+```
+
+Step 7: TBD - test features
 
 # Developing
 
