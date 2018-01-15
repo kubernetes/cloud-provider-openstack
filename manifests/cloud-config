@@ -1,0 +1,14 @@
+[Global]
+region=RegionOne
+username=admin
+password=passw0rd
+auth-url=http://192.128.1.15:5000/v3
+tenant-id=0db2280918794317aeea697f4b022783
+domain-id=29825027971c42f8866a223574af23d0
+
+[LoadBalancer]
+subnet-id=9c018814-f2a8-45dd-9679-5400d49b333a
+floating-network-id=80c9fc78-a2be-45d5-a85b-f17a6c98df92
+
+[BlockStorage]
+bs-version=v2
