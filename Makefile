@@ -27,7 +27,7 @@ depend-update: work
 	cd $(DEST) && glide update
 
 build: depend
-	cd $(DEST) && go build -o openstack-cloud-controller-manager main.go
+	cd $(DEST) && CGO_ENABLED=0 GOOS=linux go build -o openstack-cloud-controller-manager main.go
 
 test: unit functional
 
