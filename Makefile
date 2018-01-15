@@ -15,6 +15,9 @@ PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 
+VERSION ?= v0.1.0
+REGISTRY ?= openstack
+
 # CTI targets
 
 depend: work
@@ -102,6 +105,9 @@ realclean: clean
 
 shell: work
 	cd $(DEST) && $(SHELL) -i
+
+build-image: build
+	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) .
 
 .PHONY: bindep build clean cover depend docs fmt functional lint realclean \
 	relnotes test translation
