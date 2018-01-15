@@ -24,14 +24,11 @@ spec:
         k8s-app: openstack-cloud-controller-manager
     spec:
       hostNetwork: true
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
       tolerations:
       - key: node.cloudprovider.kubernetes.io/uninitialized
         value: "true"
         effect: NoSchedule
       - key: node-role.kubernetes.io/master
-        operator: Exists
         effect: NoSchedule
       serviceAccountName: cloud-controller-manager
       containers:
@@ -40,7 +37,7 @@ spec:
           args:
             - /bin/openstack-cloud-controller-manager
             - --v=2
-            - --cloud-config=/etc/kubernetes/cloud-config
+            - --cloud-config=/etc/cloud/cloud-config
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
             - --address=127.0.0.1
@@ -55,8 +52,8 @@ spec:
             - mountPath: /etc/kubernetes/controller-manager.conf
               name: kubeconfig
               readOnly: true
-            - mountPath: /etc/kubernetes/cloud-config
-              name: cloudconfig
+            - mountPath: /etc/cloud
+              name: cloud-config-volume
               readOnly: true
             - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
               name: flexvolume-dir
@@ -81,7 +78,6 @@ spec:
           path: /etc/kubernetes/controller-manager.conf
           type: FileOrCreate
         name: kubeconfig
-      - hostPath:
-          path: /etc/kubernetes/cloud-config
-          type: FileOrCreate
-        name: cloudconfig
+      - name: cloud-config-volume
+        configMap:
+          name: cloud-config
