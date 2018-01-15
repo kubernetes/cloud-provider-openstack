@@ -41,15 +41,22 @@ case $OS in
             echo "Homebrew not found, install Glide from source?"
         fi
         ;;
-    xenial)
+    xenial|zesty)
         APT_GET="DEBIAN_FRONTEND=noninteractive \
             apt-get -q --option "Dpkg::Options::=--force-confold" \
             --assume-yes"
         if ! which add-apt-repository 1>/dev/null; then
             sudo $APT_GET install software-properties-common
         fi
-        sudo add-apt-repository --yes ppa:longsleep/golang-backports
-        sudo add-apt-repository --yes ppa:masterminds/glide
-        sudo apt-get update && sudo $APT_GET install golang-go glide
+        sudo add-apt-repository --yes ppa:gophers/archive
+        sudo apt-get update && sudo $APT_GET install golang-1.9-go
+        sudo ln -s /usr/lib/go-1.9/bin/go /usr/local/bin
+        sudo ln -s /usr/lib/go-1.9/bin/gofmt /usr/local/bin
+        wget -O install-glide.sh https://glide.sh/get
+        export GOPATH=$HOME/go
+        export PATH=$PATH:$HOME/go/bin
+        mkdir -p $HOME/go/bin
+        chmod +x install-glide.sh
+        sudo -E PATH=$PATH ./install-glide.sh
         ;;
 esac
