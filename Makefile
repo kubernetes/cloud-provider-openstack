@@ -112,7 +112,11 @@ shell: work
 	cd $(DEST) && $(SHELL) -i
 
 build-image: build
+ifeq ($(GOOS),linux)
 	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) .
+else
+	$(error Please set GOOS=linux for building the image)
+endif
 
 version:
 	@echo ${VERSION}
