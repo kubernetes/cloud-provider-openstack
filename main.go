@@ -20,6 +20,7 @@ limitations under the License.
 package main
 
 import (
+	goflag "flag"
 	"fmt"
 	"os"
 
@@ -34,7 +35,10 @@ import (
 	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"github.com/spf13/pflag"
+	"github.com/golang/glog"
 )
+
+var version string
 
 func init() {
 	healthz.DefaultHealthz()
@@ -44,12 +48,16 @@ func main() {
 	s := options.NewCloudControllerManagerServer()
 	s.AddFlags(pflag.CommandLine)
 
+	goflag.CommandLine.Parse([]string{})
 	flag.InitFlags()
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
+	glog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
+
 	verflag.PrintAndExitIfRequested()
 
+	s.CloudProvider = "openstack"
 	if err := app.Run(s); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
