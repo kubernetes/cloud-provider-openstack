@@ -15,8 +15,8 @@ PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 
-VERSION ?= v0.1.0
-REGISTRY ?= openstack
+VERSION ?= 0.1.0
+REGISTRY ?= dims
 
 # CTI targets
 
