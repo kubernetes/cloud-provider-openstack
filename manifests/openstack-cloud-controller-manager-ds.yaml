@@ -33,7 +33,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: openstack-cloud-controller-manager
-          image: openstack/openstack-cloud-controller-manager:v0.1.0
+          image: dims/openstack-cloud-controller-manager:0.1.0
           args:
             - /bin/openstack-cloud-controller-manager
             - --v=2
