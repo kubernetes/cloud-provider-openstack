@@ -15,7 +15,9 @@ PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 
-VERSION ?= 0.1.0
+GOOS ?= $(shell go env GOOS)
+VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
+                 git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 REGISTRY ?= dims
 
 # CTI targets
@@ -27,7 +29,10 @@ depend-update: work
 	cd $(DEST) && glide update
 
 build: depend
-	cd $(DEST) && CGO_ENABLED=0 GOOS=linux go build -o openstack-cloud-controller-manager main.go
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags "-X 'main.version=${VERSION}'" \
+		-o openstack-cloud-controller-manager \
+		main.go
 
 test: unit functional
 
@@ -109,5 +114,8 @@ shell: work
 build-image: build
 	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) .
 
+version:
+	@echo ${VERSION}
+
 .PHONY: bindep build clean cover depend docs fmt functional lint realclean \
-	relnotes test translation
+	relnotes test translation version
