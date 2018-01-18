@@ -34,8 +34,8 @@ import (
 	_ "k8s.io/kubernetes/pkg/version/prometheus" // for version metric registration
 	"k8s.io/kubernetes/pkg/version/verflag"
 
-	"github.com/spf13/pflag"
 	"github.com/golang/glog"
+	"github.com/spf13/pflag"
 )
 
 var version string
