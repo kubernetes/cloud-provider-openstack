@@ -30,9 +30,10 @@ import (
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app/options"
 	_ "k8s.io/kubernetes/pkg/client/metrics/prometheus" // for client metric registration
-	_ "k8s.io/kubernetes/pkg/cloudprovider/providers"
-	_ "k8s.io/kubernetes/pkg/version/prometheus" // for version metric registration
+	_ "k8s.io/kubernetes/pkg/version/prometheus"        // for version metric registration
 	"k8s.io/kubernetes/pkg/version/verflag"
+
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/cloudprovider/providers/openstack"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -57,7 +58,7 @@ func main() {
 
 	verflag.PrintAndExitIfRequested()
 
-	s.CloudProvider = "openstack"
+	s.CloudProvider = openstack.ProviderName
 	if err := app.Run(s); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
