@@ -1,0 +1,32 @@
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: internal-http-nginx-deployment
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: internal-http-nginx-service
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80

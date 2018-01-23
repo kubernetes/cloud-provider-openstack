@@ -2,33 +2,33 @@
 
 Thank you for visiting the `openstack-cloud-controller-manager` repository!
 
-OpenStack Cloud Controller Manager - An external cloud controller manager for running kubernetes 
-in a OpenStack cluster.
+OpenStack Cloud Controller Manager - An external cloud controller manager for running kubernetes
+in an OpenStack cluster.
 
-# Introduction
+## Introduction
 
-External cloud providers were introduced as an Alpha feature in Kubernetes release 1.6. This repository 
-contains an implementation of external cloud provider for OpenStack clusters. An external cloud provider 
-is a kubernetes controller that runs cloud provider-specific loops required for the functioning of 
-kubernetes. These loops were originally a part of the `kube-controller-manager`, but they were tightly 
-coupling the `kube-controller-manager` to cloud-provider specific code. In order to free the kubernetes 
-project of this dependency, the `cloud-controller-manager` was introduced.  
+External cloud providers were introduced as an Alpha feature in Kubernetes release 1.6. This repository
+contains an implementation of external cloud provider for OpenStack clusters. An external cloud provider
+is a kubernetes controller that runs cloud provider-specific loops required for the functioning of
+kubernetes. These loops were originally a part of the `kube-controller-manager`, but they were tightly
+coupling the `kube-controller-manager` to cloud-provider specific code. In order to free the kubernetes
+project of this dependency, the `cloud-controller-manager` was introduced.
 
-`cloud-controller-manager` allows cloud vendors and kubernetes core to evolve independent of each other. 
-In prior releases, the core Kubernetes code was dependent upon cloud provider-specific code for functionality. 
-In future releases, code specific to cloud vendors should be maintained by the cloud vendor themselves, and 
+`cloud-controller-manager` allows cloud vendors and kubernetes core to evolve independent of each other.
+In prior releases, the core Kubernetes code was dependent upon cloud provider-specific code for functionality.
+In future releases, code specific to cloud vendors should be maintained by the cloud vendor themselves, and
 linked to `cloud-controller-manager` while running Kubernetes.
 
-As such, you must disable these controller loops in the `kube-controller-manager` if you are running the 
-`openstack-cloud-controller-manager`. You can disable the controller loops by setting the `--cloud-provider` 
-flag to `external` when starting the kube-controller-manager. 
+As such, you must disable these controller loops in the `kube-controller-manager` if you are running the
+`openstack-cloud-controller-manager`. You can disable the controller loops by setting the `--cloud-provider`
+flag to `external` when starting the kube-controller-manager.
 
 For more details, please see:
 - https://github.com/kubernetes/community/blob/master/keps/0002-controller-manager.md
 - https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager
 - https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/
 
-# Using with kubeadm
+## Using with kubeadm
 
 Step 1: Edit your /etc/systemd/system/kubelet.service.d/10-kubeadm.conf to add `--cloud-provider=external` to the kubelet arguments
 ```
@@ -92,11 +92,17 @@ kubectl describe ds/openstack-cloud-controller-manager -n kube-system
 
 Step 7: TBD - test features
 
-# Developing
+## Examples
 
-`make` will build, test, and package this project. This project uses trash Glide for dependency management. 
+Here are some examples of how you could leverage `openstack-cloud-controller-manager`:
 
-# License
+- [loadbalancers](examples/loadbalancers/)
+
+## Developing
+
+`make` will build, test, and package this project. This project uses trash Glide for dependency management.
+
+## License
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
