@@ -17,9 +17,9 @@ limitations under the License.
 package provisioner
 
 import (
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"github.com/kubernetes-incubator/external-storage/openstack/standalone-cinder/pkg/volumeservice"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -40,7 +40,7 @@ func getChapSecretName(connection volumeservice.VolumeConnection, options contro
 
 func (m *iscsiMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.VolumeOptions) (*v1.PersistentVolumeSource, error) {
 	ret := &v1.PersistentVolumeSource{
-		ISCSI: &v1.ISCSIVolumeSource{
+		ISCSI: &v1.ISCSIPersistentVolumeSource{
 			// TODO: Need some way to specify the initiator name
 			TargetPortal:    conn.Data.TargetPortal,
 			IQN:             conn.Data.TargetIqn,
@@ -51,9 +51,9 @@ func (m *iscsiMapper) BuildPVSource(conn volumeservice.VolumeConnection, options
 	secretName := getChapSecretName(conn, options)
 	if secretName != "" {
 		ret.ISCSI.SessionCHAPAuth = true
-		ret.ISCSI.SecretRef = &v1.LocalObjectReference{
-			Name: secretName,
-		}
+		secretRef := new(v1.SecretReference)
+		secretRef.Name = secretName
+		ret.ISCSI.SecretRef = secretRef
 	}
 	return ret, nil
 }

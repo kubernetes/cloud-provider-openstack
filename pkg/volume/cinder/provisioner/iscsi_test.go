@@ -17,8 +17,8 @@ limitations under the License.
 package provisioner
 
 import (
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"github.com/kubernetes-incubator/external-storage/openstack/standalone-cinder/pkg/volumeservice"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/api/core/v1"
@@ -155,7 +155,7 @@ var _ = Describe("Iscsi Mapper", func() {
 
 		BeforeEach(func() {
 			pv = createPersistentVolume()
-			pv.Spec.PersistentVolumeSource.ISCSI = &v1.ISCSIVolumeSource{}
+			pv.Spec.PersistentVolumeSource.ISCSI = &v1.ISCSIPersistentVolumeSource{}
 		})
 
 		JustBeforeEach(func() {
@@ -166,9 +166,9 @@ var _ = Describe("Iscsi Mapper", func() {
 
 		Context("when the PV contains a secret reference", func() {
 			BeforeEach(func() {
-				pv.Spec.ISCSI.SecretRef = &v1.LocalObjectReference{
-					Name: "secretName",
-				}
+				secretRef := new(v1.SecretReference)
+				secretRef.Name = "secretName"
+				pv.Spec.ISCSI.SecretRef = secretRef
 			})
 
 			It("should delete the secret", func() {

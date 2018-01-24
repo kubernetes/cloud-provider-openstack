@@ -35,6 +35,10 @@ build: depend
 		cmd/openstack-cloud-controller-manager/main.go
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
+		-o cinder-provisioner \
+		cmd/cinder-provisioner/main.go
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
@@ -104,7 +108,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver
+	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner
 
 realclean: clean
 	rm -rf vendor

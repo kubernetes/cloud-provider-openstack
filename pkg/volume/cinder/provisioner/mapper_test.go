@@ -17,7 +17,7 @@ limitations under the License.
 package provisioner
 
 import (
-	"github.com/kubernetes-incubator/external-storage/openstack/standalone-cinder/pkg/volumeservice"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -100,7 +100,7 @@ var _ = Describe("Mapper", func() {
 		Context("with an ISCSI PV", func() {
 			BeforeEach(func() {
 				source = v1.PersistentVolumeSource{
-					ISCSI: &v1.ISCSIVolumeSource{},
+					ISCSI: &v1.ISCSIPersistentVolumeSource{},
 				}
 			})
 
@@ -112,7 +112,7 @@ var _ = Describe("Mapper", func() {
 		Context("with an RBD PV", func() {
 			BeforeEach(func() {
 				source = v1.PersistentVolumeSource{
-					RBD: &v1.RBDVolumeSource{},
+					RBD: &v1.RBDPersistentVolumeSource{},
 				}
 			})
 
