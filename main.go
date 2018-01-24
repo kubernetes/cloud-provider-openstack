@@ -54,7 +54,7 @@ func main() {
 		log.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
 	if policyFile == "" {
-		log.Fatal("Please specify --keystone-policy-file argument.")
+		log.Printf("Argument --keystone-policy-file missing. Only keystone authentication will work. Use RBAC for authorization.")
 	}
 
 	authentication_handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
