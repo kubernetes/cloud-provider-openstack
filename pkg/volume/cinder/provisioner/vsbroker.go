@@ -17,9 +17,9 @@ limitations under the License.
 package provisioner
 
 import (
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 	"github.com/gophercloud/gophercloud"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"github.com/kubernetes-incubator/external-storage/openstack/standalone-cinder/pkg/volumeservice"
 )
 
 // volumeServiceBroker provides a mechanism for tests to override calls to cinder with mocks.

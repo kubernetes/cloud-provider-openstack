@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"strings"
 
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"github.com/kubernetes-incubator/external-storage/openstack/standalone-cinder/pkg/volumeservice"
 	"k8s.io/api/core/v1"
 )
 
@@ -58,16 +58,15 @@ func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options c
 	if len(splitName) != 2 {
 		return nil, errors.New("Field 'name' cannot be split into pool and image")
 	}
-
+	secretRef := new(v1.SecretReference)
+	secretRef.Name = getRbdSecretName(options.PVC)
 	return &v1.PersistentVolumeSource{
-		RBD: &v1.RBDVolumeSource{
+		RBD: &v1.RBDPersistentVolumeSource{
 			CephMonitors: mons,
 			RBDPool:      splitName[0],
 			RBDImage:     splitName[1],
 			RadosUser:    conn.Data.AuthUsername,
-			SecretRef: &v1.LocalObjectReference{
-				Name: getRbdSecretName(options.PVC),
-			},
+			SecretRef:    secretRef,
 		},
 	}, nil
 }

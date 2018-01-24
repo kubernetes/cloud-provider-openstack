@@ -2,9 +2,11 @@ package: git.openstack.org/openstack/openstack-cloud-controller-manager
 import:
 - package: github.com/golang/glog
 - package: github.com/gophercloud/gophercloud
+  version: e6eebf4bc729a74c834d96d950a804ab61015b0a
   subpackages:
   - openstack
   - openstack/blockstorage/extensions/volumeactions
+  - openstack/blockstorage/noauth
   - openstack/blockstorage/v1/volumes
   - openstack/blockstorage/v2/volumes
   - openstack/blockstorage/v3/volumes
@@ -26,6 +28,10 @@ import:
   - openstack/networking/v2/networks
   - openstack/networking/v2/ports
   - pagination
+- package: github.com/kubernetes-incubator/external-storage
+  repo: https://github.com/dims/external-storage
+  subpackages:
+  - lib/controller
 - package: github.com/mitchellh/mapstructure
 - package: github.com/pborman/uuid
 - package: github.com/prometheus/client_golang
@@ -35,27 +41,34 @@ import:
 - package: github.com/spf13/pflag
 - package: gopkg.in/gcfg.v1
 - package: k8s.io/api
+  version: kubernetes-1.9.2
   subpackages:
   - core/v1
 - package: k8s.io/apimachinery
+  version: kubernetes-1.9.2
   subpackages:
   - pkg/api/resource
   - pkg/apis/meta/v1
   - pkg/types
   - pkg/util/net
   - pkg/util/sets
+  - pkg/util/uuid
   - pkg/util/wait
 - package: k8s.io/apiserver
+  version: kubernetes-1.9.2
   subpackages:
   - pkg/server/healthz
   - pkg/util/flag
   - pkg/util/logs
 - package: k8s.io/client-go
+  version: kubernetes-1.9.2
   subpackages:
   - kubernetes
   - rest
+  - tools/clientcmd
   - util/cert
 - package: k8s.io/kubernetes
+  version: v1.9.2
   subpackages:
   - cmd/cloud-controller-manager/app
   - cmd/cloud-controller-manager/app/options
@@ -76,5 +89,8 @@ import:
 - package: k8s.io/utils
   subpackages:
   - exec
+testImport:
+- package: github.com/onsi/ginkgo
+- package: github.com/onsi/gomega
 ignore:
   - git.openstack.org/openstack/k8s-cloud-provider/openstack
