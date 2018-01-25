@@ -15,10 +15,10 @@ go_import_path: github.com/dims/openstack-cloud-controller-manager
 install:
   - go get -v github.com/Masterminds/glide
   - cd $GOPATH/src/github.com/Masterminds/glide && git checkout tags/v0.13.1 && go install && cd -
-  - glide install
+  - glide install --strip-vendor
   - make
 
 script:
-  - go vet github.com/dims/openstack-cloud-controller-manager/...
-  - go fmt github.com/dims/openstack-cloud-controller-manager/...
-  - go test -v github.com/dims/openstack-cloud-controller-manager/... -cover
+  - make vet
+  - make fmt
+  - make cover

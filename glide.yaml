@@ -61,8 +61,6 @@ import:
   - pkg/apis/core/v1/helper
   - pkg/client/metrics/prometheus
   - pkg/cloudprovider
-  - pkg/cloudprovider/providers
-  - pkg/cloudprovider/providers/openstack
   - pkg/controller
   - pkg/kubelet/apis
   - pkg/util/keymutex

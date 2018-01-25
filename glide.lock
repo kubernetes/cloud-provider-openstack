@@ -1,64 +1,6 @@
-hash: b9f63ffb7ea5bd0bc871244940c5947a69d73e3be920031c5e20679ff95f9785
-updated: 2018-01-12T20:29:03.172130488-05:00
+hash: 90bade548b34e7bd0fa239e6460b938a27d14d4b64a0cb1de667c9b841f52d03
+updated: 2018-01-24T19:47:24.065739026-05:00
 imports:
-- name: cloud.google.com/go
-  version: 3b1ae45394a234c385be014e9a488f2bb6eef821
-  subpackages:
-  - compute/metadata
-  - internal
-- name: github.com/aws/aws-sdk-go
-  version: 760741802ad40f49ae9fc4a69ef6706d2527d62e
-  subpackages:
-  - aws
-  - aws/awserr
-  - aws/awsutil
-  - aws/client
-  - aws/client/metadata
-  - aws/corehandlers
-  - aws/credentials
-  - aws/credentials/ec2rolecreds
-  - aws/credentials/endpointcreds
-  - aws/credentials/stscreds
-  - aws/defaults
-  - aws/ec2metadata
-  - aws/endpoints
-  - aws/request
-  - aws/session
-  - aws/signer/v4
-  - internal/shareddefaults
-  - private/protocol
-  - private/protocol/ec2query
-  - private/protocol/json/jsonutil
-  - private/protocol/jsonrpc
-  - private/protocol/query
-  - private/protocol/query/queryutil
-  - private/protocol/rest
-  - private/protocol/xml/xmlutil
-  - service/autoscaling
-  - service/ec2
-  - service/ecr
-  - service/elb
-  - service/elbv2
-  - service/kms
-  - service/sts
-- name: github.com/Azure/azure-sdk-for-go
-  version: 934e2462aeb6e0c14186dcfeedd73a026d1b8eeb
-  subpackages:
-  - arm/compute
-  - arm/containerregistry
-  - arm/disk
-  - arm/network
-  - arm/storage
-  - storage
-- name: github.com/Azure/go-autorest
-  version: e14a70c556c8e0db173358d1a903dca345a8e75e
-  subpackages:
-  - autorest
-  - autorest/adal
-  - autorest/azure
-  - autorest/date
-  - autorest/to
-  - autorest/validation
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -79,10 +21,6 @@ imports:
   - ocsp/config
   - signer
   - signer/local
-- name: github.com/d2g/dhcp4
-  version: a1d1b6c41b1ce8a71a5121a9cee31809c4707d9c
-- name: github.com/d2g/dhcp4client
-  version: 6e570ed0a266b730a860ba1068090f683b2c213a
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
   subpackages:
@@ -94,49 +32,8 @@ imports:
   subpackages:
   - digestset
   - reference
-- name: github.com/docker/docker
-  version: 4f3616fb1c112e206b88cb7a9922bf49067a7756
-  subpackages:
-  - api
-  - api/types
-  - api/types/blkiodev
-  - api/types/container
-  - api/types/events
-  - api/types/filters
-  - api/types/image
-  - api/types/mount
-  - api/types/network
-  - api/types/registry
-  - api/types/strslice
-  - api/types/swarm
-  - api/types/swarm/runtime
-  - api/types/time
-  - api/types/versions
-  - api/types/volume
-  - client
-  - pkg/ioutils
-  - pkg/jsonlog
-  - pkg/jsonmessage
-  - pkg/longpath
-  - pkg/mount
-  - pkg/stdcopy
-  - pkg/symlink
-  - pkg/system
-  - pkg/term
-  - pkg/term/windows
-  - pkg/tlsconfig
-- name: github.com/docker/go-connections
-  version: 3ede32e2033de7505e6500d6c868c2b9ed9f169d
-  subpackages:
-  - nat
-  - sockets
-  - tlsconfig
-- name: github.com/docker/go-units
-  version: 9e638d38cf6977a37a8ea0078f3ee75a7cdb2dd1
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
-- name: github.com/go-ini/ini
-  version: 300e940a926eb277d3901b20bdfcc54928ad3642
 - name: github.com/gogo/protobuf
   version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
   subpackages:
@@ -209,14 +106,10 @@ imports:
   version: 6633656539c1639d9d78127b7d47c622b5d7b6dc
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
-- name: github.com/jmespath/go-jmespath
-  version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
 - name: github.com/json-iterator/go
   version: 13f86432b882000a51c6e610c620974462691a97
 - name: github.com/juju/ratelimit
   version: 5b9ff866471762aa2ab2dced63c9fb6f53921342
-- name: github.com/kardianos/osext
-  version: 8fef92e41e22a70e700a96b29f066cda30ea24ef
 - name: github.com/matttproud/golang_protobuf_extensions
   version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
   subpackages:
@@ -225,11 +118,6 @@ imports:
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/opencontainers/go-digest
   version: a6d0ee40d4207ea02364bd3b9e8e77b9159ba1eb
-- name: github.com/opencontainers/image-spec
-  version: 372ad780f63454fbbbbcc7cf80e5b90245c13e13
-  subpackages:
-  - specs-go
-  - specs-go/v1
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/pmezard/go-difflib
@@ -254,12 +142,6 @@ imports:
   version: 65c1f6f8f0fc1e2185eb9863a3bc751496404259
   subpackages:
   - xfs
-- name: github.com/rubiojr/go-vhd
-  version: 0bfd3b39853cdde5762efda92289f14b0ac0491b
-  subpackages:
-  - vhd
-- name: github.com/satori/go.uuid
-  version: 879c5887cd475cd7864858769793b2ceb0d44feb
 - name: github.com/spf13/cobra
   version: f62e98d28ab7ad31d707ba837a966378465c7b57
   subpackages:
@@ -274,36 +156,6 @@ imports:
   - assert
   - mock
   - require
-- name: github.com/vmware/govmomi
-  version: b8b228cfbad7f0a69ed90393ca9aee085d3c6ef1
-  subpackages:
-  - find
-  - list
-  - object
-  - pbm
-  - pbm/methods
-  - pbm/types
-  - property
-  - session
-  - task
-  - vim25
-  - vim25/debug
-  - vim25/methods
-  - vim25/mo
-  - vim25/progress
-  - vim25/soap
-  - vim25/types
-  - vim25/xml
-- name: github.com/vmware/photon-controller-go-sdk
-  version: 4a435daef6ccd3d0edaac1161e76f51a70c2589a
-  subpackages:
-  - SSPI
-  - photon
-  - photon/lightwave
-- name: github.com/xanzy/go-cloudstack
-  version: 1e2cbf647e57fa90353612074fdfc42faf5073bf
-  subpackages:
-  - cloudstack
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
@@ -319,7 +171,6 @@ imports:
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
-  - context/ctxhttp
   - html
   - html/atom
   - http2
@@ -329,13 +180,6 @@ imports:
   - lex/httplex
   - trace
   - websocket
-- name: golang.org/x/oauth2
-  version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
-  subpackages:
-  - google
-  - internal
-  - jws
-  - jwt
 - name: golang.org/x/sys
   version: 95c6576299259db960f6c5b9b69ea52422860fce
   subpackages:
@@ -355,32 +199,6 @@ imports:
   - unicode/bidi
   - unicode/norm
   - width
-- name: google.golang.org/api
-  version: c0dae069ee96c9261a04c81efd9e0f1e55f565ac
-  subpackages:
-  - cloudmonitoring/v2beta2
-  - compute/v0.alpha
-  - compute/v0.beta
-  - compute/v1
-  - container/v1
-  - gensupport
-  - googleapi
-  - googleapi/internal/uritemplates
-  - logging/v2beta1
-  - monitoring/v3
-  - pubsub/v1
-- name: google.golang.org/appengine
-  version: 5bee14b453b4c71be47ec1781b0fa61c2ea182db
-  subpackages:
-  - internal
-  - internal/app_identity
-  - internal/base
-  - internal/datastore
-  - internal/log
-  - internal/modules
-  - internal/remote_api
-  - internal/urlfetch
-  - urlfetch
 - name: gopkg.in/gcfg.v1
   version: 27e4946190b4a327b539185f2b5b1f7c84730728
   subpackages:
@@ -648,24 +466,10 @@ imports:
   - pkg/client/leaderelectionconfig
   - pkg/client/metrics/prometheus
   - pkg/cloudprovider
-  - pkg/cloudprovider/providers
-  - pkg/cloudprovider/providers/aws
-  - pkg/cloudprovider/providers/azure
-  - pkg/cloudprovider/providers/azure/auth
-  - pkg/cloudprovider/providers/cloudstack
-  - pkg/cloudprovider/providers/gce
-  - pkg/cloudprovider/providers/openstack
-  - pkg/cloudprovider/providers/ovirt
-  - pkg/cloudprovider/providers/photon
-  - pkg/cloudprovider/providers/vsphere
-  - pkg/cloudprovider/providers/vsphere/vclib
-  - pkg/cloudprovider/providers/vsphere/vclib/diskmanagers
   - pkg/controller
   - pkg/controller/cloud
   - pkg/controller/route
   - pkg/controller/service
-  - pkg/credentialprovider
-  - pkg/credentialprovider/aws
   - pkg/features
   - pkg/fieldpath
   - pkg/kubelet/apis
@@ -692,7 +496,6 @@ imports:
   - pkg/util/pointer
   - pkg/util/strings
   - pkg/util/taints
-  - pkg/util/version
   - pkg/version
   - pkg/version/prometheus
   - pkg/version/verflag

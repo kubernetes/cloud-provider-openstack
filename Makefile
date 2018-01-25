@@ -43,13 +43,13 @@ functional:
 	@echo "$@ not yet implemented"
 
 fmt: work
-	cd $(DEST) && CGO_ENABLED=0 go fmt ./...
+	cd $(DEST) && go fmt ./...
 
-lint:
-	@echo "$@ not yet implemented"
+vet: work
+	cd $(DEST) && go vet ./...
 
-cover:
-	@echo "$@ not yet implemented"
+cover: depend
+	cd $(DEST) && go test -tags=unit $(shell glide novendor) -cover
 
 docs:
 	@echo "$@ not yet implemented"
