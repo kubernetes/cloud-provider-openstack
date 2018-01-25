@@ -27,9 +27,11 @@ import:
   - openstack/networking/v2/ports
   - pagination
 - package: github.com/mitchellh/mapstructure
+- package: github.com/pborman/uuid
 - package: github.com/prometheus/client_golang
   subpackages:
   - prometheus
+- package: github.com/scalingdata/gcfg
 - package: github.com/spf13/pflag
 - package: gopkg.in/gcfg.v1
 - package: k8s.io/api
