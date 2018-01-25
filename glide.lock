@@ -1,5 +1,5 @@
-hash: 90bade548b34e7bd0fa239e6460b938a27d14d4b64a0cb1de667c9b841f52d03
-updated: 2018-01-24T19:47:24.065739026-05:00
+hash: 4b99e4c542bcc944beb34ba004b692abb473be8d3f18fdab3c2758de3b27859d
+updated: 2018-01-25T16:33:13.455900996-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -142,6 +142,12 @@ imports:
   version: 65c1f6f8f0fc1e2185eb9863a3bc751496404259
   subpackages:
   - xfs
+- name: github.com/scalingdata/gcfg
+  version: 37aabad69cfd3d20b8390d902a8b10e245c615ff
+  subpackages:
+  - scanner
+  - token
+  - types
 - name: github.com/spf13/cobra
   version: f62e98d28ab7ad31d707ba837a966378465c7b57
   subpackages:
