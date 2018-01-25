@@ -19,7 +19,7 @@ package flexvolume
 import (
 	"fmt"
 
-	utilnode "k8s.io/frakti/pkg/util/node"
+	utilnode "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/node"
 )
 
 // FlexManager is a wrapper of CinderBaremetalUtil

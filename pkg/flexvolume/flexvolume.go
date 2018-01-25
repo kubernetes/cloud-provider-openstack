@@ -23,8 +23,8 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	"k8s.io/frakti/pkg/util/knownflags"
-	utilmetadata "k8s.io/frakti/pkg/util/metadata"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/knownflags"
+	utilmetadata "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/metadata"
 )
 
 type FlexVolumeDriver struct {
