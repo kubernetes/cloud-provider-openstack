@@ -19,8 +19,8 @@ package main
 import (
 	"os"
 
-	"k8s.io/frakti/pkg/flexvolume"
-	"k8s.io/frakti/pkg/util/uuid"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/uuid"
 )
 
 func main() {
