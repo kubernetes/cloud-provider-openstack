@@ -32,11 +32,11 @@ build: depend
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o openstack-cloud-controller-manager \
-		main.go
+		cmd/openstack-cloud-controller-manager/main.go
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-flex-volume-driver \
-		cmd/flexvolume_driver/flexvolume_driver.go
+		cmd/cinder-flex-volume-driver/main.go
 
 test: unit functional
 

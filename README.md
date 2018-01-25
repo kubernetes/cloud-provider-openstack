@@ -58,20 +58,20 @@ gzip -d openstack-cloud-controller-manager.tgz
 docker load < openstack-cloud-controller-manager.tar
 ```
 
-Step 4: Create a configmap with the openstack cloud configuration (see `manifests/cloud-config`)
+Step 4: Create a configmap with the openstack cloud configuration (see `manifests/openstack-cloud-controller-manager/cloud-config`)
 ```
 kubectl create configmap cloud-config --from-file=/etc/kubernetes/cloud-config -n kube-system
 ```
 
 Step 5: Deploy controller manager
 
-Option #1 - Using a single pod with the definition in `manifests/openstack-cloud-controller-manager-pod.yaml`
+Option #1 - Using a single pod with the definition in `manifests/openstack-cloud-controller-manager/openstack-cloud-controller-manager-pod.yaml`
 ```
-kubectl create -f manifests/openstack-cloud-controller-manager-pod.yaml
+kubectl create -f manifests/openstack-cloud-controller-manager/openstack-cloud-controller-manager-pod.yaml
 ```
 Option #2 - Using a daemonset
 ```
-kubectl create -f manifests/openstack-cloud-controller-manager-ds.yaml
+kubectl create -f manifests/openstack-cloud-controller-manager/openstack-cloud-controller-manager-ds.yaml
 ```
 
 Step 6: Monitor using kubectl, for example:
