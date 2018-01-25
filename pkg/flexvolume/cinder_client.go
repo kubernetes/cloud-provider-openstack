@@ -58,8 +58,8 @@ func (cfg openStackConfig) toAuthOptions() gophercloud.AuthOptions {
 		UserID:           cfg.Global.UserId,
 		Password:         cfg.Global.Password,
 		//APIKey:           cfg.Global.ApiKey,
-		TenantID:         cfg.Global.TenantId,
-		TenantName:       cfg.Global.TenantName,
+		TenantID:   cfg.Global.TenantId,
+		TenantName: cfg.Global.TenantName,
 
 		// Persistent service, so we need to be able to renew tokens.
 		AllowReauth: true,
@@ -148,7 +148,7 @@ func (client *cinderClient) terminateConnection(id string, copts *volumeactions.
 }
 
 func (client *cinderClient) detach(id string) error {
-	detachOpts := volumeactions.DetachOpts {}
+	detachOpts := volumeactions.DetachOpts{}
 	detachResult := volumeactions.Detach(client.cinder, id, detachOpts)
 	if detachResult.Err != nil && detachResult.Err.Error() != "EOF" {
 		glog.Warningf("Detach cinder volume %s failed: %v", id, detachResult.Err)

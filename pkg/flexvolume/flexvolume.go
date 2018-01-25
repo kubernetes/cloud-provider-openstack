@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang/glog"
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/knownflags"
 	utilmetadata "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/metadata"
+	"github.com/golang/glog"
 )
 
 type FlexVolumeDriver struct {
