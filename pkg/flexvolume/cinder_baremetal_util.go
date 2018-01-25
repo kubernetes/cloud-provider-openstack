@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"github.com/rackspace/gophercloud/openstack/blockstorage/v2/extensions/volumeactions"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 
 	"k8s.io/frakti/pkg/flexvolume/cinder/drivers"
 )
@@ -45,7 +45,7 @@ func (cb *CinderBaremetalUtil) AttachDiskBaremetal(b *FlexVolumeDriver, targetMo
 	var attached bool
 	if len(volume.Attachments) > 0 || volume.Status != "available" {
 		for _, att := range volume.Attachments {
-			if att["host_name"].(string) == cb.hostname && att["device"].(string) == targetMountDir {
+			if att.HostName == cb.hostname && att.Device == targetMountDir {
 				glog.V(5).Infof("Volume %s is already attached", b.volId)
 				attached = true
 				break
@@ -128,7 +128,7 @@ func (cb *CinderBaremetalUtil) DetachDiskBaremetal(d *FlexVolumeDriver) error {
 		data["keyring"] = cb.client.keyring
 	}
 
-	err = cb.client.terminateConnection(volume.ID, cb.getConnectionOptions())
+	err = cb.client.terminateConnection(volume.ID, cb.getTerminationOptions())
 	if err != nil {
 		return err
 	}
@@ -163,8 +163,18 @@ func (cb *CinderBaremetalUtil) getIscsiInitiator() string {
 }
 
 // Get cinder connections options
-func (cb *CinderBaremetalUtil) getConnectionOptions() *volumeactions.ConnectorOpts {
-	connector := volumeactions.ConnectorOpts{
+func (cb *CinderBaremetalUtil) getConnectionOptions() *volumeactions.InitializeConnectionOpts {
+	connector := volumeactions.InitializeConnectionOpts{
+		Host:      cb.hostname,
+		Initiator: cb.getIscsiInitiator(),
+	}
+
+	return &connector
+}
+
+// Get cinder termination options
+func (cb *CinderBaremetalUtil) getTerminationOptions() *volumeactions.TerminateConnectionOpts {
+	connector := volumeactions.TerminateConnectionOpts{
 		Host:      cb.hostname,
 		Initiator: cb.getIscsiInitiator(),
 	}

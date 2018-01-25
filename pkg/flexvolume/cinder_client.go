@@ -21,10 +21,10 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	"github.com/rackspace/gophercloud"
-	"github.com/rackspace/gophercloud/openstack"
-	"github.com/rackspace/gophercloud/openstack/blockstorage/v2/extensions/volumeactions"
-	"github.com/rackspace/gophercloud/openstack/blockstorage/v2/volumes"
+	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	"github.com/scalingdata/gcfg"
 )
 
@@ -57,7 +57,7 @@ func (cfg openStackConfig) toAuthOptions() gophercloud.AuthOptions {
 		Username:         cfg.Global.Username,
 		UserID:           cfg.Global.UserId,
 		Password:         cfg.Global.Password,
-		APIKey:           cfg.Global.ApiKey,
+		//APIKey:           cfg.Global.ApiKey,
 		TenantID:         cfg.Global.TenantId,
 		TenantName:       cfg.Global.TenantName,
 
@@ -120,7 +120,7 @@ func (client *cinderClient) getVolume(volumeID string) (*volumes.Volume, error) 
 	return volume, nil
 }
 
-func (client *cinderClient) getConnectionInfo(id string, copts *volumeactions.ConnectorOpts) (map[string]interface{}, error) {
+func (client *cinderClient) getConnectionInfo(id string, copts *volumeactions.InitializeConnectionOpts) (map[string]interface{}, error) {
 	connectionInfo, err := volumeactions.InitializeConnection(client.cinder, id, copts).Extract()
 	if err != nil && err.Error() != "EOF" {
 		return nil, err
@@ -138,7 +138,7 @@ func (client *cinderClient) attach(id string, opts volumeactions.AttachOpts) err
 	return nil
 }
 
-func (client *cinderClient) terminateConnection(id string, copts *volumeactions.ConnectorOpts) error {
+func (client *cinderClient) terminateConnection(id string, copts *volumeactions.TerminateConnectionOpts) error {
 	terminateResult := volumeactions.TerminateConnection(client.cinder, id, copts)
 	if terminateResult.Err != nil && terminateResult.Err.Error() != "EOF" {
 		glog.Warningf("Terminate cinder volume %s failed: %v", id, terminateResult.Err)
@@ -148,7 +148,8 @@ func (client *cinderClient) terminateConnection(id string, copts *volumeactions.
 }
 
 func (client *cinderClient) detach(id string) error {
-	detachResult := volumeactions.Detach(client.cinder, id)
+	detachOpts := volumeactions.DetachOpts {}
+	detachResult := volumeactions.Detach(client.cinder, id, detachOpts)
 	if detachResult.Err != nil && detachResult.Err.Error() != "EOF" {
 		glog.Warningf("Detach cinder volume %s failed: %v", id, detachResult.Err)
 		return detachResult.Err
