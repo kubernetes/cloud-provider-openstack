@@ -117,7 +117,13 @@ shell: work
 
 build-image: build
 ifeq ($(GOOS),linux)
-	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) .
+	cp openstack-cloud-controller-manager cluster/images/controller-manager
+	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) cluster/images/controller-manager
+	rm cluster/images/controller-manager/openstack-cloud-controller-manager
+
+	cp cinder-flex-volume-driver cluster/images/flex-volume-driver
+	docker build -t $(REGISTRY)/cinder-flex-volume-driver:$(VERSION) cluster/images/flex-volume-driver
+	rm cluster/images/flex-volume-driver/cinder-flex-volume-driver
 else
 	$(error Please set GOOS=linux for building the image)
 endif

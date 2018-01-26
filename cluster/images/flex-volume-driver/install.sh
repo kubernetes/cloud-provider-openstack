@@ -22,7 +22,7 @@ trap 'exit' TERM
 
 # WORKDIR /flexvolume
 TMP_CONF='cinder.conf.tmp'
-VOL_BINARY='flexvolume_driver'
+VOL_BINARY='cinder-flex-volume-driver'
 
 VOL_BINARY_DIR='/mnt/binary'
 

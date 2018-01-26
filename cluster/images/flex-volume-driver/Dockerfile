@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:3.6
-
-MAINTAINER frakti team
+FROM alpine:3.7
 
 # add bash
 RUN apk --no-cache add bash
 
 WORKDIR /flexvolume
  
-COPY flexvolume_driver .
+COPY cinder-flex-volume-driver .
 COPY cinder.conf.default cinder.conf.tmp
 COPY install.sh .

@@ -136,5 +136,5 @@ zz_generated.openapi.go
 *.pyc
 
 # binaries
-./openstack-cloud-controller-manager
-./cinder-flex-volume-driver
+/openstack-cloud-controller-manager
+/cinder-flex-volume-driver
