@@ -90,11 +90,11 @@ function install_k8s_cloud_provider {
     # Seed the log files so devstack-gate can capture the logs
     export LOG_DIR=${SCREEN_LOGDIR:-/opt/stack/logs}
     sudo mkdir -p $LOG_DIR
-    sudo touch $LOG_DIR/kube-apiserver.log;sudo ln -s $LOG_DIR/kube-apiserver.log $LOG_DIR/screen-kube-apiserver.log
-    sudo touch $LOG_DIR/kube-controller-manager.log;sudo ln -s $LOG_DIR/kube-controller-manager.log $LOG_DIR/screen-kube-controller-manager.log
-    sudo touch $LOG_DIR/kube-proxy.log;sudo ln -s $LOG_DIR/kube-proxy.log $LOG_DIR/screen-kube-proxy.log
-    sudo touch $LOG_DIR/kube-scheduler.log;sudo ln -s $LOG_DIR/kube-scheduler.log $LOG_DIR/screen-kube-scheduler.log
-    sudo touch $LOG_DIR/kubelet.log;sudo ln -s $LOG_DIR/kubelet.log $LOG_DIR/screen-kubelet.log
+    sudo touch $LOG_DIR/kube-apiserver.log;sudo ln -sf $LOG_DIR/kube-apiserver.log $LOG_DIR/screen-kube-apiserver.log
+    sudo touch $LOG_DIR/kube-controller-manager.log;sudo ln -sf $LOG_DIR/kube-controller-manager.log $LOG_DIR/screen-kube-controller-manager.log
+    sudo touch $LOG_DIR/kube-proxy.log;sudo ln -sf $LOG_DIR/kube-proxy.log $LOG_DIR/screen-kube-proxy.log
+    sudo touch $LOG_DIR/kube-scheduler.log;sudo ln -sf $LOG_DIR/kube-scheduler.log $LOG_DIR/screen-kube-scheduler.log
+    sudo touch $LOG_DIR/kubelet.log;sudo ln -sf $LOG_DIR/kubelet.log $LOG_DIR/screen-kubelet.log
 
     echo "Stopping firewall and allow all traffic..."
     sudo iptables -F
