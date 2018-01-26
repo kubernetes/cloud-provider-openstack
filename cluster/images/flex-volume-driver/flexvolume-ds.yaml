@@ -20,7 +20,6 @@ spec:
         k8s-app: cinder-flexvolume
         name: cinder-flexvolume
       annotations:
-        runtime.frakti.alpha.kubernetes.io/OSContainer: "true"
         scheduler.alpha.kubernetes.io/critical-pod: ''
         scheduler.alpha.kubernetes.io/tolerations: |
           [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
