@@ -50,8 +50,8 @@ case $OS in
         fi
         sudo add-apt-repository --yes ppa:gophers/archive
         sudo apt-get update && sudo $APT_GET install golang-1.9-go
-        sudo ln -s /usr/lib/go-1.9/bin/go /usr/local/bin
-        sudo ln -s /usr/lib/go-1.9/bin/gofmt /usr/local/bin
+        sudo ln -sf /usr/lib/go-1.9/bin/go /usr/local/bin
+        sudo ln -sf /usr/lib/go-1.9/bin/gofmt /usr/local/bin
         wget -O install-glide.sh https://glide.sh/get
         export GOPATH=$HOME/go
         export PATH=$PATH:$HOME/go/bin
