@@ -138,3 +138,4 @@ zz_generated.openapi.go
 # binaries
 /openstack-cloud-controller-manager
 /cinder-flex-volume-driver
+/cinder-provisioner
