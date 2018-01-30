@@ -45,7 +45,7 @@ build: depend
 test: unit functional
 
 unit: depend
-	cd $(DEST) && go test -tags=unit $(shell glide novendor)
+	cd $(DEST) && go test -tags=unit $(shell glide novendor) $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
