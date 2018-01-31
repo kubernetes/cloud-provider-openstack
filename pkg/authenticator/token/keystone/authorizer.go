@@ -17,11 +17,11 @@ limitations under the License.
 package keystone
 
 import (
-	"log"
 	"github.com/gophercloud/gophercloud"
+	"log"
 
-	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"encoding/json"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
 type KeystoneAuthorizer struct {
@@ -96,7 +96,7 @@ func nonResourceMatches(p Policy, a authorizer.Attributes) bool {
 func match(match Match, attributes authorizer.Attributes) bool {
 	user := attributes.GetUser()
 	if match.Type == "group" {
-		for _, group  := range user.GetGroups() {
+		for _, group := range user.GetGroups() {
 			if match.Value == "*" || group == match.Value {
 				return true
 			}
@@ -143,7 +143,7 @@ func match(match Match, attributes authorizer.Attributes) bool {
 	return false
 }
 
-func (KeystoneAuthorizer *KeystoneAuthorizer) Authorize(a authorizer.Attributes) (authorized bool, reason string, err error) {
+func (KeystoneAuthorizer *KeystoneAuthorizer) Authorize(a authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
 	log.Printf("Authorizing user : %#v\n", a.GetUser())
 	for _, p := range KeystoneAuthorizer.pl {
 		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
@@ -152,13 +152,13 @@ func (KeystoneAuthorizer *KeystoneAuthorizer) Authorize(a authorizer.Attributes)
 		}
 		if p.ResourceSpec != nil {
 			if resourceMatches(*p, a) {
-				return true, "", nil
+				return authorizer.DecisionAllow, "", nil
 			}
 		} else if p.NonResourceSpec != nil {
 			if nonResourceMatches(*p, a) {
-				return true, "", nil
+				return authorizer.DecisionAllow, "", nil
 			}
 		}
 	}
-	return false, "No policy matched.", nil
+	return authorizer.DecisionDeny, "No policy matched.", nil
 }

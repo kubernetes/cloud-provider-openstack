@@ -17,9 +17,9 @@ limitations under the License.
 package keystone
 
 import (
-	"os"
 	"bufio"
 	"encoding/json"
+	"os"
 )
 
 type Policy struct {

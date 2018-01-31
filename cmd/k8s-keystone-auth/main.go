@@ -19,8 +19,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/dims/k8s-keystone-auth/pkg/authenticator/token/keystone"
-	"github.com/dims/k8s-keystone-auth/pkg/identity/webhook"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/authenticator/token/keystone"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/webhook"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )

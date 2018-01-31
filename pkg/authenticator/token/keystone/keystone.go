@@ -18,11 +18,11 @@ package keystone
 
 import (
 	"crypto/tls"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 	"log"
+	"net/http"
 	//"strings"
 
 	"github.com/golang/glog"
@@ -127,5 +127,5 @@ func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*K
 		log.Fatalf(">>> Error %#v", err)
 	}
 
-	return &KeystoneAuthorizer{authURL: authURL, client: client, pl:policyList}, nil
+	return &KeystoneAuthorizer{authURL: authURL, client: client, pl: policyList}, nil
 }
