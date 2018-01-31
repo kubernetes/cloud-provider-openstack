@@ -1,0 +1,55 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  creationTimestamp: null
+  labels:
+    component: k8s-keystone-auth
+    tier: control-plane
+  name: k8s-keystone-auth
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - ./bin/k8s-keystone-auth
+    - --tls-cert-file
+    - /etc/kubernetes/pki/apiserver.crt
+    - --tls-private-key-file
+    - /etc/kubernetes/pki/apiserver.key
+    - --keystone-url
+    - https://mykeystone.com:5000/v3
+    image: k8s-keystone-auth
+    imagePullPolicy: Always
+    #livenessProbe:
+    #  failureThreshold: 8
+    #  httpGet:
+    #    host: 127.0.0.1
+    #    path: /healthz
+    #    port: 6443
+    #    scheme: HTTPS
+    #  initialDelaySeconds: 15
+    #  timeoutSeconds: 15
+    name: k8s-keystone-auth
+    resources:
+      requests:
+        cpu: 250m
+    volumeMounts:
+    - mountPath: /etc/kubernetes/pki
+      name: k8s-certs
+      readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: ca-certs
+      readOnly: true
+  hostNetwork: true
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/pki
+      type: DirectoryOrCreate
+    name: k8s-certs
+  - hostPath:
+      path: /etc/ssl/certs
+      type: DirectoryOrCreate
+    name: ca-certs
+status: {}
