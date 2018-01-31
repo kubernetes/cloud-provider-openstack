@@ -139,3 +139,4 @@ zz_generated.openapi.go
 /openstack-cloud-controller-manager
 /cinder-flex-volume-driver
 /cinder-provisioner
+/k8s-keystone-auth

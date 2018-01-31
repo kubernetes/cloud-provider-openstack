@@ -15,7 +15,7 @@ limitations under the License.
 package main
 
 import (
-	"flag"
+	flag "github.com/spf13/pflag"
 	"log"
 	"net/http"
 
