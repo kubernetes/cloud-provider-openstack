@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"flag"
+	flag "github.com/spf13/pflag"
 
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/provisioner"
 	"github.com/golang/glog"
