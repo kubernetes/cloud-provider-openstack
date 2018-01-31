@@ -20,8 +20,8 @@ import (
 	"net/http"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"log"
 )
 
@@ -126,9 +126,9 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 
 	spec := data["spec"].(map[string]interface{})
 
-	username :=  spec["user"]
+	username := spec["user"]
 	usr := &user.DefaultInfo{
-		Name:   username.(string),
+		Name: username.(string),
 	}
 	attrs := authorizer.AttributesRecord{
 		User: usr,
@@ -136,18 +136,18 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 
 	groups := spec["group"].([]interface{})
 	for _, v := range groups {
-			usr.Groups = append(usr.Groups, v.(string))
+		usr.Groups = append(usr.Groups, v.(string))
 	}
 	if extras, ok := spec["extra"].(map[string]interface{}); ok {
 		usr.Extra = make(map[string][]string, len(extras))
 		for key, value := range extras {
-				for _,v := range value.([]interface{}) {
-					if data, ok := usr.Extra[key] ; ok {
-						usr.Extra[key] = append(data, v.(string))
-					} else {
-						usr.Extra[key] = []string{v.(string)}
-					}
+			for _, v := range value.([]interface{}) {
+				if data, ok := usr.Extra[key]; ok {
+					usr.Extra[key] = append(data, v.(string))
+				} else {
+					usr.Extra[key] = []string{v.(string)}
 				}
+			}
 		}
 	}
 

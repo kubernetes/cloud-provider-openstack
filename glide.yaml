@@ -27,6 +27,7 @@ import:
   - openstack/networking/v2/extensions/security/rules
   - openstack/networking/v2/networks
   - openstack/networking/v2/ports
+  - openstack/utils
   - pagination
 - package: github.com/kubernetes-incubator/external-storage
   repo: https://github.com/dims/external-storage
@@ -57,6 +58,9 @@ import:
 - package: k8s.io/apiserver
   version: kubernetes-1.9.2
   subpackages:
+  - pkg/authentication/authenticator
+  - pkg/authentication/user
+  - pkg/authorization/authorizer
   - pkg/server/healthz
   - pkg/util/flag
   - pkg/util/logs
