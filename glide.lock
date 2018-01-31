@@ -1,5 +1,5 @@
-hash: ed6cae47badfcf37f75978d3c8c20078c90c41c9458ea0d99baedc5be2fe6eb2
-updated: 2018-01-29T13:08:49.17026232-05:00
+hash: 7ec0a24a0c32c5659fcc8c429544cd63b6676f08b4914d1cf2af0bb157837e13
+updated: 2018-01-30T22:24:00.920587741-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -318,6 +318,7 @@ imports:
   - pkg/authentication/authenticator
   - pkg/authentication/serviceaccount
   - pkg/authentication/user
+  - pkg/authorization/authorizer
   - pkg/features
   - pkg/server/healthz
   - pkg/util/feature

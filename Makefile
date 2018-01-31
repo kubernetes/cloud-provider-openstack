@@ -41,6 +41,10 @@ build: depend
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags "-X 'main.version=${VERSION}'" \
+		-o k8s-keystone-auth \
+		cmd/k8s-keystone-auth/main.go
 
 test: unit functional
 
@@ -108,7 +112,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner
+	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner k8s-keystone-auth
 
 realclean: clean
 	rm -rf vendor

@@ -1,0 +1,46 @@
+[
+  {
+    "resource": {
+      "verb": "*",
+      "resource": "*",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "role",
+      "value": "*"
+    }
+  },
+  {
+    "resource": {
+      "verb": "*",
+      "resource": "*",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "group",
+      "value": "*"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "*",
+      "path": "*"
+    },
+    "match": {
+      "type": "role",
+      "value": "*"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "*",
+      "path": "*"
+    },
+    "match": {
+      "type": "group",
+      "value": "*"
+    }
+  }
+]
