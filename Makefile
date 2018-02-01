@@ -14,6 +14,7 @@ export GOPATH ?= $(GOPATH_DEFAULT)
 PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
+SOURCES := $(shell find $(DEST) -name '*.go')
 
 GOOS ?= $(shell go env GOOS)
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
@@ -28,19 +29,27 @@ depend: work
 depend-update: work
 	cd $(DEST) && glide update
 
-build: depend
+build: depend openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver k8s-keystone-auth
+
+openstack-cloud-controller-manager: $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
+
+cinder-provisioner: $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
+
+cinder-flex-volume-driver: $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
+
+k8s-keystone-auth: $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o k8s-keystone-auth \
