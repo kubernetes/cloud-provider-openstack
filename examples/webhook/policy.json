@@ -20,7 +20,7 @@
     },
     "match": {
       "type": "group",
-      "value": "*"
+      "value": "system:authenticated"
     }
   },
   {
@@ -40,7 +40,7 @@
     },
     "match": {
       "type": "group",
-      "value": "*"
+      "value": "system:authenticated"
     }
   }
 ]

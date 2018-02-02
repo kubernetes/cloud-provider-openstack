@@ -17,32 +17,33 @@ limitations under the License.
 package keystone
 
 import (
-	"github.com/gophercloud/gophercloud"
-	"log"
-
 	"encoding/json"
+
+	"github.com/golang/glog"
+	"github.com/gophercloud/gophercloud"
+
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
 type KeystoneAuthorizer struct {
 	authURL string
 	client  *gophercloud.ServiceClient
-	pl      policyList
+	pl      PolicyList
 }
 
 func resourceMatches(p Policy, a authorizer.Attributes) bool {
 	if p.NonResourceSpec != nil && p.ResourceSpec != nil {
-		log.Printf("Policy has both resource and nonresource sections. skipping : %#v", p)
+		glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
 		return false
 	}
 
 	if p.ResourceSpec.Verb == "" {
-		log.Printf("verb is empty. skipping : %#v", p)
+		glog.Infof("verb is empty. skipping : %#v", p)
 		return false
 	}
 
 	if p.ResourceSpec.APIGroup == nil || p.ResourceSpec.Namespace == nil || p.ResourceSpec.Resource == nil {
-		log.Printf("version/namespace/resource should be all set. skipping : %#v", p)
+		glog.Infof("version/namespace/resource should be all set. skipping : %#v", p)
 		return false
 	}
 
@@ -54,7 +55,7 @@ func resourceMatches(p Policy, a authorizer.Attributes) bool {
 					if allowed {
 						output, err := json.MarshalIndent(p, "", "  ")
 						if err == nil {
-							log.Printf(">>>> matched rule : %s", string(output))
+							glog.V(6).Infof("matched rule : %s", string(output))
 						}
 						return true
 					}
@@ -67,12 +68,12 @@ func resourceMatches(p Policy, a authorizer.Attributes) bool {
 
 func nonResourceMatches(p Policy, a authorizer.Attributes) bool {
 	if p.NonResourceSpec.Verb == "" {
-		log.Printf("verb is empty. skipping : %#v", p)
+		glog.Infof("verb is empty. skipping : %#v", p)
 		return false
 	}
 
 	if p.NonResourceSpec.NonResourcePath == nil {
-		log.Printf("path should be set. skipping : %#v", p)
+		glog.Infof("path should be set. skipping : %#v", p)
 		return false
 	}
 
@@ -83,7 +84,7 @@ func nonResourceMatches(p Policy, a authorizer.Attributes) bool {
 				if allowed {
 					output, err := json.MarshalIndent(p, "", "  ")
 					if err == nil {
-						log.Printf(">>>> matched rule : %s", string(output))
+						glog.V(6).Infof("matched rule : %s", string(output))
 					}
 					return true
 				}
@@ -138,16 +139,16 @@ func match(match Match, attributes authorizer.Attributes) bool {
 			}
 		}
 	} else {
-		log.Printf("unknown type %s. skipping.", match.Type)
+		glog.Infof("unknown type %s. skipping.", match.Type)
 	}
 	return false
 }
 
 func (KeystoneAuthorizer *KeystoneAuthorizer) Authorize(a authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
-	log.Printf("Authorizing user : %#v\n", a.GetUser())
+	glog.Infof("Authorizing user : %#v\n", a.GetUser())
 	for _, p := range KeystoneAuthorizer.pl {
 		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
-			log.Printf("Policy has both resource and nonresource sections. skipping : %#v", p)
+			glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
 			continue
 		}
 		if p.ResourceSpec != nil {

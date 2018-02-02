@@ -43,7 +43,7 @@ type cinderProvisioner struct {
 	// Openstack cinder client
 	VolumeService *gophercloud.ServiceClient
 
-	// Kubernetes Client. Use to create secret
+	// Kubernetes client. Use to create secret
 	Client kubernetes.Interface
 	// Identity of this cinderProvisioner, generated. Used to identify "this"
 	// provisioner's PVs.

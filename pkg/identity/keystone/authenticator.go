@@ -50,14 +50,14 @@ func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token stri
 	url := keystoneAuthenticator.client.ServiceURL("auth", "tokens")
 	response, err := keystoneAuthenticator.client.Request("GET", url, &request_opts)
 	if err != nil {
-		glog.V(4).Info("Failed: bad response from API call: %v", err)
+		glog.Warningf("Failed: bad response from API call: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
 	defer response.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		glog.V(4).Infof("Cannot get HTTP response body from keystone token validate: %v", err)
+		glog.Warningf("Cannot get HTTP response body from keystone token validate: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
@@ -79,7 +79,7 @@ func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token stri
 
 	err = json.Unmarshal(bodyBytes, &obj)
 	if err != nil {
-		glog.V(4).Infof("Cannot unmarshal response: %v", err)
+		glog.Warningf("Cannot unmarshal response: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
