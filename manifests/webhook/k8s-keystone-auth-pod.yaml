@@ -4,7 +4,7 @@ metadata:
   annotations:
     scheduler.alpha.kubernetes.io/critical-pod: ""
   labels:
-    component: kube-controller-manager
+    component: k8s-keystone-auth
     tier: control-plane
   name: k8s-keystone-auth
   namespace: kube-system
