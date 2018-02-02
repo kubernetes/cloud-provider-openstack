@@ -24,32 +24,34 @@ REGISTRY ?= dims
 # CTI targets
 
 depend: work
-	cd $(DEST) && glide install --strip-vendor
+ifeq ($(wildcard $(DEST)/vendor/.*),)
+		cd $(DEST) && glide install --strip-vendor
+endif
 
 depend-update: work
 	cd $(DEST) && glide update
 
-build: depend openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver k8s-keystone-auth
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver k8s-keystone-auth
 
-openstack-cloud-controller-manager: $(SOURCES)
+openstack-cloud-controller-manager: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
 
-cinder-provisioner: $(SOURCES)
+cinder-provisioner: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
 
-cinder-flex-volume-driver: $(SOURCES)
+cinder-flex-volume-driver: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
-k8s-keystone-auth: $(SOURCES)
+k8s-keystone-auth: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o k8s-keystone-auth \
@@ -132,15 +134,40 @@ realclean: clean
 shell: work
 	cd $(DEST) && $(SHELL) -i
 
-build-image: build
+images: image-controller-manager image-flex-volume-driver image-provisioner image-k8s-keystone-auth
+
+image-controller-manager: depend openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
 	cp openstack-cloud-controller-manager cluster/images/controller-manager
 	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) cluster/images/controller-manager
 	rm cluster/images/controller-manager/openstack-cloud-controller-manager
+else
+	$(error Please set GOOS=linux for building the image)
+endif
 
+image-flex-volume-driver: depend cinder-flex-volume-driver
+ifeq ($(GOOS),linux)
 	cp cinder-flex-volume-driver cluster/images/flex-volume-driver
 	docker build -t $(REGISTRY)/cinder-flex-volume-driver:$(VERSION) cluster/images/flex-volume-driver
 	rm cluster/images/flex-volume-driver/cinder-flex-volume-driver
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
+image-provisioner: depend cinder-provisioner
+ifeq ($(GOOS),linux)
+	cp cinder-provisioner cluster/images/cinder-provisioner
+	docker build -t $(REGISTRY)/cinder-provisioner:$(VERSION) cluster/images/cinder-provisioner
+	rm cluster/images/cinder-provisioner/cinder-provisioner
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
+image-k8s-keystone-auth: depend k8s-keystone-auth
+ifeq ($(GOOS),linux)
+	cp k8s-keystone-auth cluster/images/webhook
+	docker build -t $(REGISTRY)/k8s-keystone-auth:$(VERSION) cluster/images/webhook
+	rm cluster/images/webhook/k8s-keystone-auth
 else
 	$(error Please set GOOS=linux for building the image)
 endif
