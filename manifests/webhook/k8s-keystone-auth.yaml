@@ -35,6 +35,11 @@ spec:
       resources:
         requests:
           cpu: 200m
+      ports:
+        - containerPort: 8443
+          hostPort: 8443
+          name: https
+          protocol: TCP
   hostNetwork: true
   volumes:
   - hostPath:
