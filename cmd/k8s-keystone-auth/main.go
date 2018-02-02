@@ -15,14 +15,17 @@ limitations under the License.
 package main
 
 import (
-	flag "github.com/spf13/pflag"
-	"log"
+	"flag"
+	"github.com/golang/glog"
+	"github.com/spf13/pflag"
 	"net/http"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/authenticator/token/keystone"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/keystone"
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/webhook"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
+	kflag "k8s.io/apiserver/pkg/util/flag"
+	"k8s.io/apiserver/pkg/util/logs"
 )
 
 func webhookServer(authenticator authenticator.Token, authorizer authorizer.Authorizer) http.Handler {
@@ -42,35 +45,39 @@ var (
 )
 
 func main() {
-	flag.StringVar(&listenAddr, "listen", "localhost:8443", "<address>:<port> to listen on")
-	flag.StringVar(&tlsCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS.")
-	flag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
-	flag.StringVar(&keystoneURL, "keystone-url", "http://localhost/identity/v3/", "URL for the OpenStack Keystone API")
-	flag.StringVar(&keystoneCaFile, "keystone-ca-file", "", "File containing the certificate authority for Keystone Service.")
-	flag.StringVar(&policyFile, "keystone-policy-file", "", "File containing the policy.")
-	flag.Parse()
+	flag.CommandLine.Parse([]string{})
+	pflag.StringVar(&listenAddr, "listen", "0.0.0.0:8443", "<address>:<port> to listen on")
+	pflag.StringVar(&tlsCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS.")
+	pflag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
+	pflag.StringVar(&keystoneURL, "keystone-url", "http://localhost/identity/v3/", "URL for the OpenStack Keystone API")
+	pflag.StringVar(&keystoneCaFile, "keystone-ca-file", "", "File containing the certificate authority for Keystone Service.")
+	pflag.StringVar(&policyFile, "keystone-policy-file", "", "File containing the policy.")
+
+	kflag.InitFlags()
+	logs.InitLogs()
+	defer logs.FlushLogs()
 
 	if tlsCertFile == "" || tlsPrivateKey == "" {
-		log.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
+		glog.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
 	if policyFile == "" {
-		log.Printf("Argument --keystone-policy-file missing. Only keystone authentication will work. Use RBAC for authorization.")
+		glog.Infof("Argument --keystone-policy-file missing. Only keystone authentication will work. Use RBAC for authorization.")
 	}
 
 	authentication_handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
 	if err != nil {
-		log.Fatal(err.Error())
+		glog.Fatal(err.Error())
 	}
 
 	authorization_handler, err := keystone.NewKeystoneAuthorizer(keystoneURL, keystoneCaFile, policyFile)
 	if err != nil {
-		log.Fatal(err.Error())
+		glog.Fatal(err.Error())
 	}
 
 	http.Handle("/webhook", webhookServer(authentication_handler, authorization_handler))
-	log.Println("Starting webhook..")
-	log.Fatal(
-		http.ListenAndServeTLS(":8443",
+	glog.Infof("Starting webhook..")
+	glog.Fatal(
+		http.ListenAndServeTLS(listenAddr,
 			tlsCertFile,
 			tlsPrivateKey,
 			nil))

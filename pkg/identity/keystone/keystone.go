@@ -21,9 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	//"strings"
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
@@ -89,11 +87,11 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 	// We should use the V3 API
 	client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{})
 	if err != nil {
-		glog.V(4).Info("Failed: Unable to use keystone v3 identity service: %v", err)
+		glog.Warningf("Failed: Unable to use keystone v3 identity service: %v", err)
 		return nil, errors.New("Failed to authenticate")
 	}
 	if err != nil {
-		glog.V(4).Info("Failed: Starting openstack authenticate client: %v", err)
+		glog.Warningf("Failed: Starting openstack authenticate client: %v", err)
 		return nil, errors.New("Failed to authenticate")
 	}
 
@@ -122,9 +120,9 @@ func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*K
 	policyList, err := NewFromFile(policyFile)
 	output, err := json.MarshalIndent(policyList, "", "  ")
 	if err == nil {
-		log.Printf(">>> Policy %s", string(output))
+		glog.V(6).Infof("Policy %s", string(output))
 	} else {
-		log.Fatalf(">>> Error %#v", err)
+		glog.V(6).Infof("Error %#v", err)
 	}
 
 	return &KeystoneAuthorizer{authURL: authURL, client: client, pl: policyList}, nil

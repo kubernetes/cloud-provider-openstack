@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/golang/glog"
+
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
-	"log"
 )
 
 type userInfo struct {
@@ -71,9 +72,8 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebhookHandler) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) {
-	//log.Printf(">>>> authenticateToken data : %#v\n", data)
 	user, authenticated, err := h.Authenticator.AuthenticateToken(token)
-	log.Printf("<<<< authenticateToken : %v, %v, %v\n", token, user, err)
+	glog.V(6).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
 
 	if !authenticated {
 		var response status
@@ -122,7 +122,7 @@ func getField(data map[string]interface{}, name string) string {
 
 func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
 	output, err := json.MarshalIndent(data, "", "  ")
-	log.Printf(">>>> authorizeToken data : %s\n", string(output))
+	glog.V(6).Infof("authorizeToken data : %s\n", string(output))
 
 	spec := data["spec"].(map[string]interface{})
 
@@ -172,7 +172,7 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 	}
 
 	allowed, reason, err := h.Authorizer.Authorize(attrs)
-	log.Printf("<<<< authorizeToken : %v, %v, %v\n", allowed, reason, err)
+	glog.Infof("<<<< authorizeToken : %v, %v, %v\n", allowed, reason, err)
 	if err != nil {
 		http.Error(w, reason, http.StatusInternalServerError)
 		return

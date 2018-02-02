@@ -66,16 +66,16 @@ type NonResourcePolicySpec struct {
 	NonResourcePath *string `json:"path"`
 }
 
-type policyList []*Policy
+type PolicyList []*Policy
 
-func NewFromFile(path string) (policyList, error) {
+func NewFromFile(path string) (PolicyList, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var data policyList
+	var data PolicyList
 
 	reader := bufio.NewReader(file)
 	decoder := json.NewDecoder(reader)
