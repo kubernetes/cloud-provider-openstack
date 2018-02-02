@@ -19,6 +19,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 	"net/http"
+	"os"
 
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/keystone"
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/webhook"
@@ -49,7 +50,7 @@ func main() {
 	pflag.StringVar(&listenAddr, "listen", "0.0.0.0:8443", "<address>:<port> to listen on")
 	pflag.StringVar(&tlsCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS.")
 	pflag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
-	pflag.StringVar(&keystoneURL, "keystone-url", "http://localhost/identity/v3/", "URL for the OpenStack Keystone API")
+	pflag.StringVar(&keystoneURL, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
 	pflag.StringVar(&keystoneCaFile, "keystone-ca-file", "", "File containing the certificate authority for Keystone Service.")
 	pflag.StringVar(&policyFile, "keystone-policy-file", "", "File containing the policy.")
 
@@ -57,6 +58,9 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
+	if keystoneURL == "" {
+		glog.Fatal("please specify --keystone-url or set the OS_AUTH_URL environment variable.")
+	}
 	if tlsCertFile == "" || tlsPrivateKey == "" {
 		glog.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
@@ -75,7 +79,7 @@ func main() {
 	}
 
 	http.Handle("/webhook", webhookServer(authentication_handler, authorization_handler))
-	glog.Infof("Starting webhook..")
+	glog.Infof("Starting webhook...")
 	glog.Fatal(
 		http.ListenAndServeTLS(listenAddr,
 			tlsCertFile,
