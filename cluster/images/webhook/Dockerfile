@@ -17,5 +17,5 @@ RUN apk add --no-cache ca-certificates
 ADD k8s-keystone-auth /bin/
 
 EXPOSE 8443
-CMD ./bin/k8s-keystone-auth --tls-cert-file ${API_SERVER_CERT} --tls-private-key-file ${API_SERVER_KEY} --keystone-url ${OPENSTACK_KEYSTONE_URL}
 
+CMD ["/bin/k8s-keystone-auth"]
