@@ -20,12 +20,13 @@ import (
 	"fmt"
 	"os"
 
+	openstack_provider "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/cloudprovider/providers/openstack"
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
-	"github.com/scalingdata/gcfg"
+	gcfg "gopkg.in/gcfg.v1"
 )
 
 type cinderClient struct {
@@ -34,18 +35,7 @@ type cinderClient struct {
 }
 
 type openStackConfig struct {
-	Global struct {
-		AuthUrl    string `gcfg:"auth-url"`
-		Username   string `gcfg:"username"`
-		UserId     string `gcfg:"user-id"`
-		Password   string `gcfg:"password"`
-		ApiKey     string `gcfg:"api-key"`
-		TenantId   string `gcfg:"tenant-id"`
-		TenantName string `gcfg:"tenant-name"`
-		DomainId   string `gcfg:"domain-id"`
-		DomainName string `gcfg:"domain-name"`
-		Region     string `gcfg:"region"`
-	}
+	openstack_provider.Config
 	RBD struct {
 		Keyring string `gcfg:"keyring"`
 	}
@@ -57,9 +47,10 @@ func (cfg openStackConfig) toAuthOptions() gophercloud.AuthOptions {
 		Username:         cfg.Global.Username,
 		UserID:           cfg.Global.UserId,
 		Password:         cfg.Global.Password,
-		//APIKey:           cfg.Global.ApiKey,
-		TenantID:   cfg.Global.TenantId,
-		TenantName: cfg.Global.TenantName,
+		TenantID:         cfg.Global.TenantId,
+		TenantName:       cfg.Global.TenantName,
+		DomainID:         cfg.Global.DomainId,
+		DomainName:       cfg.Global.DomainName,
 
 		// Persistent service, so we need to be able to renew tokens.
 		AllowReauth: true,
