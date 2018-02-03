@@ -168,10 +168,10 @@ if is_service_enabled k8s-cloud-provider; then
         install_prereqs
 
     elif [[ "$1" == "stack" && "$2" == "post-config"  ]]; then
-        install_k8s_cloud_provider
-
-    elif [[ "$1" == "stack" && "$2" == "extra"  ]]; then
         # no-op
+        :
+    elif [[ "$1" == "stack" && "$2" == "extra"  ]]; then
+        install_k8s_cloud_provider
         :
     fi
 
