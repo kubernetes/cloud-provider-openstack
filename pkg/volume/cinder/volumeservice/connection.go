@@ -76,7 +76,7 @@ func (cfg cinderConfig) toAuth3Options() tokens3.AuthOptions {
 func getConfigFromEnv() cinderConfig {
 	authURL := os.Getenv("OS_AUTH_URL")
 	if authURL == "" {
-		glog.Warning("OS_AUTH_URL missing from environment")
+		glog.V(6).Info("OS_AUTH_URL missing from environment")
 		return cinderConfig{}
 	}
 
