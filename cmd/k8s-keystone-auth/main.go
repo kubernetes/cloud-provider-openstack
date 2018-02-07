@@ -43,7 +43,7 @@ var (
 	keystoneURL    string
 	keystoneCaFile string
 	policyFile     string
-	version 	   string
+	version        string
 )
 
 func main() {
