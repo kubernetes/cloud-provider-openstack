@@ -37,7 +37,7 @@ var (
 	kubeconfig  string
 	id          string
 	cloudconfig string
-	version 	string
+	version     string
 )
 
 func main() {
