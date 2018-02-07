@@ -1,0 +1,4 @@
+- project:
+    check:
+      jobs:
+        - openstack-cloud-controller-manager-unit-test
