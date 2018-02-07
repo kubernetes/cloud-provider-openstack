@@ -43,6 +43,7 @@ var (
 	keystoneURL    string
 	keystoneCaFile string
 	policyFile     string
+	version 	   string
 )
 
 func main() {
@@ -57,6 +58,8 @@ func main() {
 	kflag.InitFlags()
 	logs.InitLogs()
 	defer logs.FlushLogs()
+
+	glog.V(1).Infof("k8s-keystone-auth version: %s", version)
 
 	if keystoneURL == "" {
 		glog.Fatal("please specify --keystone-url or set the OS_AUTH_URL environment variable.")
