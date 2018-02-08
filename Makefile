@@ -31,7 +31,7 @@ endif
 depend-update: work
 	cd $(DEST) && glide update
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver k8s-keystone-auth
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -44,6 +44,12 @@ cinder-provisioner: depend $(SOURCES)
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
+
+cinder-csi-plugin: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags "-X 'main.version=${VERSION}'" \
+		-o cinder-csi-plugin \
+		cmd/cinder-csi-plugin/main.go
 
 cinder-flex-volume-driver: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -123,7 +129,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner k8s-keystone-auth
+	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth
 
 realclean: clean
 	rm -rf vendor
@@ -134,7 +140,7 @@ realclean: clean
 shell: work
 	cd $(DEST) && $(SHELL) -i
 
-images: image-controller-manager image-flex-volume-driver image-provisioner image-k8s-keystone-auth
+images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth
 
 image-controller-manager: depend openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
@@ -159,6 +165,15 @@ ifeq ($(GOOS),linux)
 	cp cinder-provisioner cluster/images/cinder-provisioner
 	docker build -t $(REGISTRY)/cinder-provisioner:$(VERSION) cluster/images/cinder-provisioner
 	rm cluster/images/cinder-provisioner/cinder-provisioner
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
+image-csi-plugin: depend cinder-csi-plugin
+ifeq ($(GOOS),linux)
+	cp cinder-csi-plugin cluster/images/cinder-csi-plugin
+	docker build -t $(REGISTRY)/cinder-csi-plugin:$(VERSION) cluster/images/cinder-csi-plugin
+	rm cluster/images/cinder-csi-plugin/cinder-csi-plugin
 else
 	$(error Please set GOOS=linux for building the image)
 endif

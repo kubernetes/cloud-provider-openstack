@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/kubernetes-csi/drivers/pkg/cinder/mount"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/mount"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 )
 
