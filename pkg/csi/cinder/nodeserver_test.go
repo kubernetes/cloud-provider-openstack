@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/kubernetes-csi/drivers/pkg/cinder/mount"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/mount"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
