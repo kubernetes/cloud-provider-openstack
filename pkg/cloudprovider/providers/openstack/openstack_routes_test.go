@@ -17,7 +17,6 @@ limitations under the License.
 package openstack
 
 import (
-	"context"
 	"net"
 	"testing"
 
@@ -53,12 +52,12 @@ func TestRoutes(t *testing.T) {
 		DestinationCIDR: "10.164.2.0/24",
 		TargetNode:      types.NodeName(servername),
 	}
-	err = r.CreateRoute(context.TODO(), clusterName, "myhint", &newroute)
+	err = r.CreateRoute(clusterName, "myhint", &newroute)
 	if err != nil {
 		t.Fatalf("CreateRoute error: %v", err)
 	}
 
-	routelist, err := r.ListRoutes(context.TODO(), clusterName)
+	routelist, err := r.ListRoutes(clusterName)
 	if err != nil {
 		t.Fatalf("ListRoutes() error: %v", err)
 	}
@@ -71,7 +70,7 @@ func TestRoutes(t *testing.T) {
 		t.Logf("%s via %s", cidr, route.TargetNode)
 	}
 
-	err = r.DeleteRoute(context.TODO(), clusterName, &newroute)
+	err = r.DeleteRoute(clusterName, &newroute)
 	if err != nil {
 		t.Fatalf("DeleteRoute error: %v", err)
 	}
