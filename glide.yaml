@@ -1,5 +1,9 @@
 package: git.openstack.org/openstack/openstack-cloud-controller-manager
 import:
+- package: github.com/container-storage-interface/spec
+  version: 9e88e4bfabeca1b8e4810555815f112159292ada
+  subpackages:
+  - lib/go/csi
 - package: github.com/golang/glog
 - package: github.com/gophercloud/gophercloud
   version: e6eebf4bc729a74c834d96d950a804ab61015b0a
@@ -29,6 +33,10 @@ import:
   - openstack/networking/v2/ports
   - openstack/utils
   - pagination
+- package: github.com/kubernetes-csi/drivers
+  subpackages:
+  - pkg/cinder
+  - pkg/csi-common
 - package: github.com/kubernetes-incubator/external-storage
   repo: https://github.com/dims/external-storage
   subpackages:
@@ -38,8 +46,18 @@ import:
 - package: github.com/prometheus/client_golang
   subpackages:
   - prometheus
-- package: github.com/scalingdata/gcfg
+- package: github.com/spf13/cobra
 - package: github.com/spf13/pflag
+- package: github.com/stretchr/testify
+  subpackages:
+  - mock
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  subpackages:
+  - codes
+  - status
 - package: gopkg.in/gcfg.v1
 - package: k8s.io/api
   version: kubernetes-1.9.2
