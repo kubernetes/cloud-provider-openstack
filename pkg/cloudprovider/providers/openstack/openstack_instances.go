@@ -17,7 +17,6 @@ limitations under the License.
 package openstack
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 
@@ -55,7 +54,7 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 
 // CurrentNodeName implements Instances.CurrentNodeName
 // Note this is *not* necessarily the same as hostname.
-func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {
+func (i *Instances) CurrentNodeName(hostname string) (types.NodeName, error) {
 	md, err := getMetadata(i.opts.SearchOrder)
 	if err != nil {
 		return "", err
@@ -64,12 +63,12 @@ func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types
 }
 
 // AddSSHKeyToAllInstances is not implemented for OpenStack
-func (i *Instances) AddSSHKeyToAllInstances(ctx context.Context, user string, keyData []byte) error {
+func (i *Instances) AddSSHKeyToAllInstances(user string, keyData []byte) error {
 	return cloudprovider.NotImplemented
 }
 
 // NodeAddresses implements Instances.NodeAddresses
-func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
+func (i *Instances) NodeAddresses(name types.NodeName) ([]v1.NodeAddress, error) {
 	glog.V(4).Infof("NodeAddresses(%v) called", name)
 
 	addrs, err := getAddressesByName(i.compute, name)
@@ -84,7 +83,7 @@ func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v
 // NodeAddressesByProviderID returns the node addresses of an instances with the specified unique providerID
 // This method will not be called from the node that is requesting this ID. i.e. metadata service
 // and other local methods cannot be used here
-func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
+func (i *Instances) NodeAddressesByProviderID(providerID string) ([]v1.NodeAddress, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 
 	if err != nil {
@@ -106,7 +105,7 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 }
 
 // ExternalID returns the cloud provider ID of the specified instance (deprecated).
-func (i *Instances) ExternalID(ctx context.Context, name types.NodeName) (string, error) {
+func (i *Instances) ExternalID(name types.NodeName) (string, error) {
 	srv, err := getServerByName(i.compute, name, true)
 	if err != nil {
 		if err == ErrNotFound {
@@ -119,7 +118,7 @@ func (i *Instances) ExternalID(ctx context.Context, name types.NodeName) (string
 
 // InstanceExistsByProviderID returns true if the instance with the given provider id still exists and is running.
 // If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
-func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
+func (i *Instances) InstanceExistsByProviderID(providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 	if err != nil {
 		return false, err
@@ -154,7 +153,7 @@ func (os *OpenStack) InstanceID() (string, error) {
 }
 
 // InstanceID returns the cloud provider ID of the specified instance.
-func (i *Instances) InstanceID(ctx context.Context, name types.NodeName) (string, error) {
+func (i *Instances) InstanceID(name types.NodeName) (string, error) {
 	srv, err := getServerByName(i.compute, name, true)
 	if err != nil {
 		if err == ErrNotFound {
@@ -170,7 +169,7 @@ func (i *Instances) InstanceID(ctx context.Context, name types.NodeName) (string
 // InstanceTypeByProviderID returns the cloudprovider instance type of the node with the specified unique providerID
 // This method will not be called from the node that is requesting this ID. i.e. metadata service
 // and other local methods cannot be used here
-func (i *Instances) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
+func (i *Instances) InstanceTypeByProviderID(providerID string) (string, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 
 	if err != nil {
@@ -187,7 +186,7 @@ func (i *Instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 }
 
 // InstanceType returns the type of the specified instance.
-func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (string, error) {
+func (i *Instances) InstanceType(name types.NodeName) (string, error) {
 	srv, err := getServerByName(i.compute, name, true)
 
 	if err != nil {

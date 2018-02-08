@@ -17,7 +17,6 @@ limitations under the License.
 package openstack
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -120,19 +119,6 @@ func TestReadConfig(t *testing.T) {
 
 	if cfg.Global.UserID != "user" {
 		t.Errorf("incorrect userid: %s", cfg.Global.UserID)
-	}
-
-	if cfg.Global.Password != "mypass" {
-		t.Errorf("incorrect password: %s", cfg.Global.Password)
-	}
-
-	// config file wins over environment variable
-	if cfg.Global.TenantName != "demo" {
-		t.Errorf("incorrect tenant name: %s", cfg.Global.TenantName)
-	}
-
-	if cfg.Global.UserId != "user" {
-		t.Errorf("incorrect userid: %s", cfg.Global.UserId)
 	}
 
 	if cfg.Global.Password != "mypass" {
@@ -506,7 +492,7 @@ func TestLoadBalancer(t *testing.T) {
 			t.Fatalf("LoadBalancer() returned false - perhaps your stack doesn't support Neutron?")
 		}
 
-		_, exists, err := lb.GetLoadBalancer(context.TODO(), testClusterName, &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "noexist"}})
+		_, exists, err := lb.GetLoadBalancer(testClusterName, &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "noexist"}})
 		if err != nil {
 			t.Fatalf("GetLoadBalancer(\"noexist\") returned error: %s", err)
 		}
@@ -532,7 +518,7 @@ func TestZones(t *testing.T) {
 		t.Fatalf("Zones() returned false")
 	}
 
-	zone, err := z.GetZone(context.TODO())
+	zone, err := z.GetZone()
 	if err != nil {
 		t.Fatalf("GetZone() returned error: %s", err)
 	}

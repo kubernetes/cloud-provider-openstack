@@ -47,13 +47,13 @@ type cinderConfig struct {
 
 func (cfg cinderConfig) toAuthOptions() gophercloud.AuthOptions {
 	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthUrl,
+		IdentityEndpoint: cfg.Global.AuthURL,
 		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserId,
+		UserID:           cfg.Global.UserID,
 		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantId,
+		TenantID:         cfg.Global.TenantID,
 		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainId,
+		DomainID:         cfg.Global.DomainID,
 		DomainName:       cfg.Global.DomainName,
 
 		// Persistent service, so we need to be able to renew tokens.
@@ -63,11 +63,11 @@ func (cfg cinderConfig) toAuthOptions() gophercloud.AuthOptions {
 
 func (cfg cinderConfig) toAuth3Options() tokens3.AuthOptions {
 	return tokens3.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthUrl,
+		IdentityEndpoint: cfg.Global.AuthURL,
 		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserId,
+		UserID:           cfg.Global.UserID,
 		Password:         cfg.Global.Password,
-		DomainID:         cfg.Global.DomainId,
+		DomainID:         cfg.Global.DomainID,
 		DomainName:       cfg.Global.DomainName,
 		AllowReauth:      true,
 	}
@@ -112,7 +112,7 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 }
 
 func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, error) {
-	provider, err := openstack.NewClient(cfg.Global.AuthUrl)
+	provider, err := openstack.NewClient(cfg.Global.AuthURL)
 	if err != nil {
 		return nil, err
 	}
@@ -127,10 +127,10 @@ func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, err
 		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 
 	}
-	if cfg.Global.TrustId != "" {
+	if cfg.Global.TrustID != "" {
 		opts := cfg.toAuth3Options()
 		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.Global.TrustId,
+			TrustID:            cfg.Global.TrustID,
 			AuthOptionsBuilder: &opts,
 		}
 		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
