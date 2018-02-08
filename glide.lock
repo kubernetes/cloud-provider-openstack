@@ -1,10 +1,14 @@
-hash: 7ec0a24a0c32c5659fcc8c429544cd63b6676f08b4914d1cf2af0bb157837e13
-updated: 2018-01-30T22:24:00.920587741-05:00
+hash: 20f016b53e26bafbb0a4246cc2ba25697144cf0ebcb8c90b7828191494d403ee
+updated: 2018-02-08T14:53:51.6031001-05:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
   - quantile
+- name: github.com/container-storage-interface/spec
+  version: 9e88e4bfabeca1b8e4810555815f112159292ada
+  subpackages:
+  - lib/go/csi
 - name: github.com/davecgh/go-spew
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
   subpackages:
@@ -110,6 +114,11 @@ imports:
   version: 36b14963da70d11297d313183d7e6388c8510e1e
 - name: github.com/juju/ratelimit
   version: 5b9ff866471762aa2ab2dced63c9fb6f53921342
+- name: github.com/kubernetes-csi/drivers
+  version: a862fcb47b62717ed139cfba3f03d298380f5135
+  subpackages:
+  - pkg/cinder
+  - pkg/csi-common
 - name: github.com/kubernetes-incubator/external-storage
   version: 6df31a412b8ef432dd7d048d8ef34fd39998248f
   repo: https://github.com/dims/external-storage
@@ -161,12 +170,6 @@ imports:
   version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
 - name: github.com/PuerkitoBio/urlesc
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
-- name: github.com/scalingdata/gcfg
-  version: 37aabad69cfd3d20b8390d902a8b10e245c615ff
-  subpackages:
-  - scanner
-  - token
-  - types
 - name: github.com/spf13/cobra
   version: f62e98d28ab7ad31d707ba837a966378465c7b57
 - name: github.com/spf13/pflag
@@ -178,22 +181,25 @@ imports:
   subpackages:
   - assert
   - mock
-  - require
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
+  - bcrypt
+  - blowfish
+  - nacl/secretbox
+  - poly1305
+  - salsa20/salsa
   - ssh/terminal
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
-  - html
-  - html/atom
   - http2
   - http2/hpack
   - idna
+  - internal/timeseries
   - lex/httplex
-  - websocket
+  - trace
 - name: golang.org/x/sys
   version: a2e06a18b0d52d8cb2010e04b372a1965d8e3439
   subpackages:
@@ -213,6 +219,26 @@ imports:
   - unicode/bidi
   - unicode/norm
   - width
+- name: google.golang.org/genproto
+  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
+  subpackages:
+  - googleapis/rpc/status
+- name: google.golang.org/grpc
+  version: d2e1b51f33ff8c5e4a15560ff049d200e83726c5
+  subpackages:
+  - codes
+  - credentials
+  - grpclb/grpc_lb_v1
+  - grpclog
+  - internal
+  - keepalive
+  - metadata
+  - naming
+  - peer
+  - stats
+  - status
+  - tap
+  - transport
 - name: gopkg.in/gcfg.v1
   version: 298b7a6a3838f79debfaee8bd3bfb2b8d779e756
   subpackages:
