@@ -130,7 +130,7 @@ function install_k8s_cloud_provider {
     $SYSTEMCTL stop $ETCD_SYSTEMD_SERVICE
 
     # local-up-cluster.sh compiles everything from source and starts the services.
-    sudo -E PATH=$PATH ./hack/local-up-cluster.sh
+    sudo -E PATH=$PATH SHELLOPTS=$SHELLOPTS ./hack/local-up-cluster.sh
 
     popd >/dev/null
 }
