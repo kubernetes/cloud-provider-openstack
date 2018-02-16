@@ -140,11 +140,6 @@ func (i *Instances) InstanceExistsByProviderID(providerID string) (bool, error) 
 	return true, nil
 }
 
-// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes
-func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
-	return false, cloudprovider.NotImplemented
-}
-
 // InstanceID returns the kubelet's cloud provider ID.
 func (os *OpenStack) InstanceID() (string, error) {
 	if len(os.localInstanceID) == 0 {
@@ -159,8 +154,7 @@ func (os *OpenStack) InstanceID() (string, error) {
 
 // InstanceID returns the cloud provider ID of the specified instance.
 func (i *Instances) InstanceID(name types.NodeName) (string, error) {
-	// we should fetch instanceid from all states instead of ACTIVE
-	srv, err := getServerByName(i.compute, name, false)
+	srv, err := getServerByName(i.compute, name, true)
 	if err != nil {
 		if err == ErrNotFound {
 			return "", cloudprovider.InstanceNotFound
