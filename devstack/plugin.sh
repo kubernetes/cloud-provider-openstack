@@ -120,6 +120,30 @@ function install_k8s_cloud_provider {
     export KUBE_ENABLE_CLUSTER_DNS=true
     export LOG_LEVEL=10
 
+    pushd ${BASE_DIR}
+    make build
+    popd
+
+    export EXTERNAL_CLOUD_PROVIDER_BINARY=${BASE_DIR}/openstack-cloud-controller-manager
+    export EXTERNAL_CLOUD_PROVIDER=true
+    export CLOUD_PROVIDER=openstack
+    export CLOUD_CONFIG=${CLOUD_CONFIG_FILE}
+
+    sudo pwd
+    if [[ ! -d "${CLOUD_CONFIG_DIR}" ]]; then
+        sudo mkdir -p ${CLOUD_CONFIG_DIR}
+    fi
+    sudo chown $STACK_USER /etc/kubernetes/
+    iniset ${CLOUD_CONFIG} Global region RegionOne
+    iniset ${CLOUD_CONFIG} Global username admin
+    iniset ${CLOUD_CONFIG} Global password secretadmin
+    iniset ${CLOUD_CONFIG} Global auth-url "http://localhost/identity"
+    iniset ${CLOUD_CONFIG} Global tenant-id $(openstack project show admin -f value -c id)
+    iniset ${CLOUD_CONFIG} Global domain-id default
+    iniset ${CLOUD_CONFIG} LoadBalancer subnet-id $(openstack subnet show lb-mgmt-subnet -f value -c id)
+    iniset ${CLOUD_CONFIG} LoadBalancer floating-network-id $(openstack network show public -f value -c id)
+    iniset ${CLOUD_CONFIG} BlockStorage bs-version v2
+
     # Listen on all interfaces
     export KUBELET_HOST="0.0.0.0"
 
