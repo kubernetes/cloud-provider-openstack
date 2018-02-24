@@ -17,6 +17,8 @@ spec:
         k8s-app: k8s-keystone-auth
     spec:
       hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
       tolerations:
       - key: node.cloudprovider.kubernetes.io/uninitialized
         value: "true"

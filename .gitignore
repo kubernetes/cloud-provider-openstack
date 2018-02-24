@@ -140,3 +140,4 @@ zz_generated.openapi.go
 /cinder-flex-volume-driver
 /cinder-provisioner
 /k8s-keystone-auth
+/cinder-csi-plugin
