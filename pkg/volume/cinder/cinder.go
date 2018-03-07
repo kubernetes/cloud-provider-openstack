@@ -23,6 +23,7 @@ import (
 	"path"
 
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/cloudprovider/providers/openstack"
+	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
 	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
@@ -34,7 +35,6 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	kstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
-	"k8s.io/kubernetes/pkg/volume/util"
 )
 
 const (

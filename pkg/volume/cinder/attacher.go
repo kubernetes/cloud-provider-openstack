@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
-	volumeutil "k8s.io/kubernetes/pkg/volume/util"
+	volumeutil "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
 )
 
 type cinderDiskAttacher struct {
