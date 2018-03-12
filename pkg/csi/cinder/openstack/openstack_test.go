@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gophercloud/gophercloud"
@@ -85,6 +86,9 @@ region=` + fakeRegion + `
 
 // Test GetConfigFromEnv
 func TestGetConfigFromEnv(t *testing.T) {
+	env := clearEnviron(t)
+	defer resetEnviron(t, env)
+
 	// init env
 	os.Setenv("OS_AUTH_URL", fakeAuthUrl)
 	os.Setenv("OS_USERNAME", fakeUserName)
@@ -116,4 +120,25 @@ func TestGetConfigFromEnv(t *testing.T) {
 	// Assert
 	assert.Equal(expectedAuthOpts, actualAuthOpts)
 	assert.Equal(expectedEpOpts, actualEpOpts)
+}
+
+func clearEnviron(t *testing.T) []string {
+	env := os.Environ()
+	for _, pair := range env {
+		if strings.HasPrefix(pair, "OS_") {
+			i := strings.Index(pair, "=") + 1
+			os.Unsetenv(pair[:i-1])
+		}
+	}
+	return env
+}
+func resetEnviron(t *testing.T, items []string) {
+	for _, pair := range items {
+		if strings.HasPrefix(pair, "OS_") {
+			i := strings.Index(pair, "=") + 1
+			if err := os.Setenv(pair[:i-1], pair[i:]); err != nil {
+				t.Errorf("Setenv(%q, %q) failed during reset: %v", pair[:i-1], pair[i:], err)
+			}
+		}
+	}
 }
