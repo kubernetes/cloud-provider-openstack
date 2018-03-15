@@ -1,9 +1,10 @@
 package: git.openstack.org/openstack/openstack-cloud-controller-manager
 import:
 - package: github.com/container-storage-interface/spec
-  version: 9e88e4bfabeca1b8e4810555815f112159292ada
+  version: v0.2.0
   subpackages:
   - lib/go/csi
+  - lib/go/csi/v0
 - package: github.com/golang/glog
 - package: github.com/gophercloud/gophercloud
   version: e6eebf4bc729a74c834d96d950a804ab61015b0a
