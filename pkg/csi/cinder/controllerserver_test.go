@@ -19,7 +19,7 @@ package cinder
 import (
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/openstack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -49,7 +49,6 @@ func TestCreateVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
-		Version:            &version,
 		Name:               fakeVolName,
 		VolumeCapabilities: nil,
 	}
@@ -61,11 +60,11 @@ func TestCreateVolume(t *testing.T) {
 	}
 
 	// Assert
-	assert.NotNil(actualRes.VolumeInfo)
+	assert.NotNil(actualRes.Volume)
 
-	assert.NotEqual(0, len(actualRes.VolumeInfo.Id), "Volume Id is nil")
+	assert.NotEqual(0, len(actualRes.Volume.Id), "Volume Id is nil")
 
-	assert.Equal(fakeAvailability, actualRes.VolumeInfo.Attributes["availability"])
+	assert.Equal(fakeAvailability, actualRes.Volume.Attributes["availability"])
 }
 
 // Test DeleteVolume
@@ -82,7 +81,6 @@ func TestDeleteVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.DeleteVolumeRequest{
-		Version:  &version,
 		VolumeId: fakeVolID,
 	}
 
@@ -117,7 +115,6 @@ func TestControllerPublishVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.ControllerPublishVolumeRequest{
-		Version:          &version,
 		VolumeId:         fakeVolID,
 		NodeId:           fakeNodeID,
 		VolumeCapability: nil,
@@ -126,7 +123,7 @@ func TestControllerPublishVolume(t *testing.T) {
 
 	// Expected Result
 	expectedRes := &csi.ControllerPublishVolumeResponse{
-		PublishVolumeInfo: map[string]string{
+		PublishInfo: map[string]string{
 			"DevicePath": fakeDevicePath,
 		},
 	}
@@ -157,7 +154,6 @@ func TestControllerUnpublishVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.ControllerUnpublishVolumeRequest{
-		Version:  &version,
 		VolumeId: fakeVolID,
 		NodeId:   fakeNodeID,
 	}
