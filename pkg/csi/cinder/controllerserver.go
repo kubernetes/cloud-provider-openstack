@@ -17,9 +17,9 @@ limitations under the License.
 package cinder
 
 import (
-	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/glog"
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/openstack"
+	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
@@ -68,7 +68,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	glog.V(4).Infof("Create volume %s in Availability Zone: %s", resID, resAvailability)
 
 	return &csi.CreateVolumeResponse{
-		VolumeInfo: &csi.VolumeInfo{
+		Volume: &csi.Volume{
 			Id: resID,
 			Attributes: map[string]string{
 				"availability": resAvailability,
@@ -137,7 +137,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	pvInfo["DevicePath"] = devicePath
 
 	return &csi.ControllerPublishVolumeResponse{
-		PublishVolumeInfo: pvInfo,
+		PublishInfo: pvInfo,
 	}, nil
 }
 
