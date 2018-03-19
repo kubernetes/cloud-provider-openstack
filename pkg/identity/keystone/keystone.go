@@ -44,7 +44,7 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 	}
 
 	versions := []*utils.Version{
-		{ID: "v3.0", Priority: 30, Suffix: "/v3/"},
+		{ID: "v3", Priority: 30, Suffix: "/v3/"},
 	}
 	chosen, _, err := utils.ChooseVersion(client, versions)
 	if err != nil {
@@ -52,7 +52,7 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 	}
 
 	switch chosen.ID {
-	case "v3.0":
+	case "v3":
 		return client, nil
 	default:
 		// The switch statement must be out of date from the versions list.
