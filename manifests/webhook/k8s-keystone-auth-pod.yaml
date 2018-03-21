@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  labels:
+    component: k8s-keystone-auth
+    tier: control-plane
+  name: k8s-keystone-auth
+  namespace: kube-system
+spec:
+  containers:
+    - name: k8s-keystone-auth
+      image: dims/k8s-keystone-auth:0.1.0
+      args:
+        - /bin/k8s-keystone-auth
+        - --v=10
+        - --tls-cert-file
+        - /etc/kubernetes/pki/apiserver.crt
+        - --tls-private-key-file
+        - /etc/kubernetes/pki/apiserver.key
+        - --keystone-policy-file
+        - /etc/kubernetes/webhook/policy.json
+        - --keystone-url=http://ctl:5000/v3
+      volumeMounts:
+        - mountPath: /etc/kubernetes/pki
+          name: k8s-certs
+          readOnly: true
+        - mountPath: /etc/kubernetes/webhook
+          name: k8s-webhook
+          readOnly: true
+        - mountPath: /etc/ssl/certs
+          name: ca-certs
+          readOnly: true
+      resources:
+        requests:
+          cpu: 200m
+      ports:
+        - containerPort: 8443
+          hostPort: 8443
+          name: https
+          protocol: TCP
+  hostNetwork: true
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/pki
+      type: DirectoryOrCreate
+    name: k8s-certs
+  - hostPath:
+      path: /etc/kubernetes/webhook
+      type: DirectoryOrCreate
+    name: k8s-webhook
+  - hostPath:
+      path: /etc/ssl/certs
+      type: DirectoryOrCreate
+    name: ca-certs

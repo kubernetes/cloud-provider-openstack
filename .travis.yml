@@ -1,0 +1,24 @@
+# Setting "sudo" to false forces Travis-CI to use its
+# container-based build infrastructure, which has shorter
+# queue times.
+sudo: false
+
+# Use the newer Travis-CI build templates based on the
+# Debian Linux distribution "Trusty" release.
+dist: trusty
+
+# Select Go as the language used to run the build.
+language: go
+go: 1.9.x
+go_import_path: github.com/dims/openstack-cloud-controller-manager
+
+install:
+  - go get -v github.com/Masterminds/glide
+  - cd $GOPATH/src/github.com/Masterminds/glide && git checkout tags/v0.13.1 && go install && cd -
+  - glide install --strip-vendor
+  - make
+
+script:
+  - make vet
+  - make fmt
+  - make cover

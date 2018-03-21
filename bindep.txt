@@ -1,0 +1,6 @@
+pkg-config
+build-essential
+mercurial
+golang-go
+golint
+make

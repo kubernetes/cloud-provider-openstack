@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: external-http-nginx-deployment
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
+    loadbalancer.openstack.org/floating-network-id: "9be23551-38e2-4d27-b5ea-ea2ea1321bd6"
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: external-http-nginx-service
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80

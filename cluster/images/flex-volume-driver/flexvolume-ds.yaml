@@ -1,0 +1,84 @@
+kind: DaemonSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: cinder-flexvolume
+  namespace: kube-system
+  labels:
+    component: cinder-flexvolume
+    k8s-app: cinder-flexvolume
+    name: cinder-flexvolume
+spec:
+  selector:
+    matchLabels:
+      component: cinder-flexvolume
+      k8s-app: cinder-flexvolume
+      name: cinder-flexvolume
+  template:
+    metadata:
+      labels:
+        component: cinder-flexvolume
+        k8s-app: cinder-flexvolume
+        name: cinder-flexvolume
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+        scheduler.alpha.kubernetes.io/tolerations: |
+          [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
+           {"key":"CriticalAddonsOnly", "operator":"Exists"}]
+    spec:
+      securityContext: {}
+      containers:
+        - name: cinder-flexvolume
+          resources: {}
+          image: stackube/flex-volume:v0.1
+          command: ["/bin/bash", "install.sh"]
+          env:
+            # The endpoint of openstack authentication.
+            - name: AUTH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: flexvolume-config
+                  key: auth-url
+            # The username for openstack authentication.
+            - name: USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: flexvolume-config
+                  key: username
+            # The password for openstack authentication.
+            - name: PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: flexvolume-config
+                  key: password
+            # The tenant name for openstack authentication.
+            - name: TENANT_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: flexvolume-config
+                  key: tenant-name
+            # The region for openstack authentication.
+            - name: REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: flexvolume-config
+                  key: region
+            # The keyring for cinder client.
+            - name: KEYRING
+              valueFrom:
+                configMapKeyRef:
+                  name: flexvolume-config
+                  key: keyring
+          volumeMounts:
+            - mountPath: /mnt/binary
+              name: binarydir
+            - mountPath: /mnt/config
+              name: cinderconfig
+      volumes:
+        # Used for flexvolume binary.
+        - name: binarydir
+          hostPath:
+            path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec/cinder~flexvolume_driver/
+        # Used to cinder client.
+        - name: cinderconfig
+          hostPath:
+            path: /etc/kubernetes

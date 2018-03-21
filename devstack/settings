@@ -1,0 +1,6 @@
+# settings file for devstack plugin
+
+enable_service k8s-cloud-provider
+enable_service kubernetes
+CLOUD_CONFIG_DIR=${CLOUD_CONFIG:-/etc/kubernetes}
+CLOUD_CONFIG_FILE=${CLOUD_CONFIG_DIR}/cloud-config

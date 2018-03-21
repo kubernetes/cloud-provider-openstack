@@ -1,0 +1,119 @@
+package: git.openstack.org/openstack/openstack-cloud-controller-manager
+import:
+- package: github.com/container-storage-interface/spec
+  version: v0.2.0
+  subpackages:
+  - lib/go/csi
+  - lib/go/csi/v0
+- package: github.com/golang/glog
+- package: github.com/gophercloud/gophercloud
+  version: e6eebf4bc729a74c834d96d950a804ab61015b0a
+  subpackages:
+  - openstack
+  - openstack/blockstorage/extensions/volumeactions
+  - openstack/blockstorage/noauth
+  - openstack/blockstorage/v1/volumes
+  - openstack/blockstorage/v2/volumes
+  - openstack/blockstorage/v3/volumes
+  - openstack/compute/v2/extensions/attachinterfaces
+  - openstack/compute/v2/extensions/volumeattach
+  - openstack/compute/v2/servers
+  - openstack/identity/v3/extensions/trusts
+  - openstack/identity/v3/tokens
+  - openstack/networking/v2/extensions
+  - openstack/networking/v2/extensions/external
+  - openstack/networking/v2/extensions/layer3/floatingips
+  - openstack/networking/v2/extensions/layer3/routers
+  - openstack/networking/v2/extensions/lbaas_v2/listeners
+  - openstack/networking/v2/extensions/lbaas_v2/loadbalancers
+  - openstack/networking/v2/extensions/lbaas_v2/monitors
+  - openstack/networking/v2/extensions/lbaas_v2/pools
+  - openstack/networking/v2/extensions/security/groups
+  - openstack/networking/v2/extensions/security/rules
+  - openstack/networking/v2/networks
+  - openstack/networking/v2/ports
+  - openstack/utils
+  - pagination
+- package: github.com/kubernetes-csi/drivers
+  subpackages:
+  - pkg/cinder
+  - pkg/csi-common
+- package: github.com/kubernetes-incubator/external-storage
+  repo: https://github.com/dims/external-storage
+  subpackages:
+  - lib/controller
+- package: github.com/mitchellh/mapstructure
+- package: github.com/pborman/uuid
+- package: github.com/prometheus/client_golang
+  subpackages:
+  - prometheus
+- package: github.com/spf13/cobra
+- package: github.com/spf13/pflag
+- package: github.com/stretchr/testify
+  subpackages:
+  - mock
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  subpackages:
+  - codes
+  - status
+- package: gopkg.in/gcfg.v1
+- package: k8s.io/api
+  version: kubernetes-1.9.2
+  subpackages:
+  - core/v1
+- package: k8s.io/apimachinery
+  version: kubernetes-1.9.2
+  subpackages:
+  - pkg/api/resource
+  - pkg/apis/meta/v1
+  - pkg/types
+  - pkg/util/net
+  - pkg/util/sets
+  - pkg/util/uuid
+  - pkg/util/wait
+- package: k8s.io/apiserver
+  version: kubernetes-1.9.2
+  subpackages:
+  - pkg/authentication/authenticator
+  - pkg/authentication/user
+  - pkg/authorization/authorizer
+  - pkg/server/healthz
+  - pkg/util/flag
+  - pkg/util/logs
+- package: k8s.io/client-go
+  version: kubernetes-1.9.2
+  subpackages:
+  - kubernetes
+  - rest
+  - tools/clientcmd
+  - util/cert
+- package: k8s.io/kubernetes
+  version: v1.9.2
+  subpackages:
+  - cmd/cloud-controller-manager/app
+  - cmd/cloud-controller-manager/app/options
+  - pkg/api/v1/service
+  - pkg/apis/core/v1/helper
+  - pkg/client/metrics/prometheus
+  - pkg/cloudprovider
+  - pkg/controller
+  - pkg/kubelet/apis
+  - pkg/util/keymutex
+  - pkg/util/mount
+  - pkg/util/strings
+  - pkg/version/prometheus
+  - pkg/version/verflag
+  - pkg/volume
+  - pkg/volume/util
+  - pkg/volume/util/volumehelper
+- package: k8s.io/utils
+  subpackages:
+  - exec
+testImport:
+- package: github.com/onsi/ginkgo
+- package: github.com/onsi/gomega
+ignore:
+  - git.openstack.org/openstack/k8s-cloud-provider/openstack
