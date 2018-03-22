@@ -24,31 +24,31 @@ import (
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 
-	"k8s.io/apiserver/pkg/authentication/user"
+	k8s_authenticator "k8s.io/apiserver/pkg/authentication/user"
 )
 
-// KeystoneAuthenticator contacts openstack keystone to validate user's token passed in the request.
+// Authenticator contacts openstack keystone to validate user's token passed in the request.
 // The keystone endpoint is passed during apiserver startup
-type KeystoneAuthenticator struct {
+type Authenticator struct {
 	authURL string
 	client  *gophercloud.ServiceClient
 }
 
-// AuthenticatePassword checks the token via Keystone call
-func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token string) (user.Info, bool, error) {
+// AuthenticateToken checks the token via Keystone call
+func (a *Authenticator) AuthenticateToken(token string) (k8s_authenticator.Info, bool, error) {
 
 	// We can use the Keystone GET /v3/auth/tokens API to validate the token
 	// and get information about the user as well
 	// http://git.openstack.org/cgit/openstack/keystone/tree/api-ref/source/v3/authenticate-v3.inc#n437
 	// https://developer.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail
-	request_opts := gophercloud.RequestOpts{
+	requestOpts := gophercloud.RequestOpts{
 		MoreHeaders: map[string]string{
 			"X-Auth-Token":    token,
 			"X-Subject-Token": token,
 		},
 	}
-	url := keystoneAuthenticator.client.ServiceURL("auth", "tokens")
-	response, err := keystoneAuthenticator.client.Request("GET", url, &request_opts)
+	url := a.client.ServiceURL("auth", "tokens")
+	response, err := a.client.Request("GET", url, &requestOpts)
 	if err != nil {
 		glog.Warningf("Failed: bad response from API call: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
@@ -99,12 +99,12 @@ func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token stri
 		"alpha.kubernetes.io/identity/project/name": {obj.Token.Project.Name},
 	}
 
-	authenticated_user := &user.DefaultInfo{
+	authenticatedUser := &k8s_authenticator.DefaultInfo{
 		Name:   obj.Token.User.Name,
 		UID:    obj.Token.User.Id,
 		Groups: []string{obj.Token.Project.Id},
 		Extra:  extra,
 	}
 
-	return authenticated_user, true, nil
+	return authenticatedUser, true, nil
 }
