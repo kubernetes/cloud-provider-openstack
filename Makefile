@@ -69,6 +69,8 @@ k8s-keystone-auth: depend $(SOURCES)
 
 test: unit functional
 
+check: fmt vet lint
+
 unit: depend
 	cd $(DEST) && go test -tags=unit $(shell glide novendor) $(TESTARGS)
 
@@ -76,7 +78,10 @@ functional:
 	@echo "$@ not yet implemented"
 
 fmt: work
-	cd $(DEST) && go fmt ./...
+	cd $(DEST) && hack/verify-gofmt.sh
+
+lint: work
+	cd $(DEST) && hack/verify-golint.sh
 
 vet: work
 	cd $(DEST) && go vet ./...
