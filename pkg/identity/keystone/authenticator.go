@@ -24,7 +24,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 
-	k8s_authenticator "k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/authentication/user"
 )
 
 // Authenticator contacts openstack keystone to validate user's token passed in the request.
@@ -35,7 +35,7 @@ type Authenticator struct {
 }
 
 // AuthenticateToken checks the token via Keystone call
-func (a *Authenticator) AuthenticateToken(token string) (k8s_authenticator.Info, bool, error) {
+func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error) {
 
 	// We can use the Keystone GET /v3/auth/tokens API to validate the token
 	// and get information about the user as well
@@ -99,7 +99,7 @@ func (a *Authenticator) AuthenticateToken(token string) (k8s_authenticator.Info,
 		"alpha.kubernetes.io/identity/project/name": {obj.Token.Project.Name},
 	}
 
-	authenticatedUser := &k8s_authenticator.DefaultInfo{
+	authenticatedUser := &user.DefaultInfo{
 		Name:   obj.Token.User.Name,
 		UID:    obj.Token.User.Id,
 		Groups: []string{obj.Token.Project.Id},
