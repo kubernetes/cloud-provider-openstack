@@ -20,8 +20,8 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/openstack"
 	"github.com/kubernetes-csi/drivers/pkg/csi-common"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type driver struct {

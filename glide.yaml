@@ -1,4 +1,4 @@
-package: git.openstack.org/openstack/openstack-cloud-controller-manager
+package: k8s.io/cloud-provider-openstack
 import:
 - package: github.com/container-storage-interface/spec
   version: v0.2.0

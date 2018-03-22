@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/knownflags"
+	"k8s.io/cloud-provider-openstack/pkg/flexvolume/knownflags"
 )
 
 // MapToJson converts the specified map object to indented JSON.

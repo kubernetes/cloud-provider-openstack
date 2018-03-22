@@ -17,7 +17,7 @@ limitations under the License.
 package provisioner
 
 import (
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
+	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
