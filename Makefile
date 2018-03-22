@@ -15,6 +15,7 @@ PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 SOURCES := $(shell find $(DEST) -name '*.go')
+HAS_GLIDE := $(shell command -v glide;)
 
 GOOS ?= $(shell go env GOOS)
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
@@ -24,6 +25,9 @@ REGISTRY ?= dims
 # CTI targets
 
 depend: work
+ifndef HAS_GLIDE
+	go get -u github.com/Masterminds/glide
+endif
 ifeq ($(wildcard $(DEST)/vendor/.*),)
 		cd $(DEST) && glide install --strip-vendor
 endif
