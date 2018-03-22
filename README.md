@@ -1,6 +1,6 @@
 # OpenStack Cloud Controller Manager
 
-Thank you for visiting the `openstack-cloud-controller-manager` repository!
+Thank you for visiting the `cloud-provider-openstack` repository!
 
 OpenStack Cloud Controller Manager - An external cloud controller manager for running kubernetes
 in an OpenStack cluster.
