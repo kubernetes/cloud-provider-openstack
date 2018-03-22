@@ -22,16 +22,19 @@ import (
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 
-	"k8s.io/apiserver/pkg/authorization/authorizer"
+	k8s_authorizer "k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
-type KeystoneAuthorizer struct {
+// Authorizer contacts openstack keystone to check whether the user can perform
+// requested operations.
+// The keystone endpoint and policy list are passed during apiserver startup
+type Authorizer struct {
 	authURL string
 	client  *gophercloud.ServiceClient
-	pl      PolicyList
+	pl      policyList
 }
 
-func resourceMatches(p Policy, a authorizer.Attributes) bool {
+func resourceMatches(p policy, a k8s_authorizer.Attributes) bool {
 	if p.NonResourceSpec != nil && p.ResourceSpec != nil {
 		glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
 		return false
@@ -66,7 +69,7 @@ func resourceMatches(p Policy, a authorizer.Attributes) bool {
 	return false
 }
 
-func nonResourceMatches(p Policy, a authorizer.Attributes) bool {
+func nonResourceMatches(p policy, a k8s_authorizer.Attributes) bool {
 	if p.NonResourceSpec.Verb == "" {
 		glog.Infof("verb is empty. skipping : %#v", p)
 		return false
@@ -94,7 +97,7 @@ func nonResourceMatches(p Policy, a authorizer.Attributes) bool {
 	return false
 }
 
-func match(match Match, attributes authorizer.Attributes) bool {
+func match(match policyMatch, attributes k8s_authorizer.Attributes) bool {
 	user := attributes.GetUser()
 	if match.Type == "group" {
 		for _, group := range user.GetGroups() {
@@ -144,22 +147,23 @@ func match(match Match, attributes authorizer.Attributes) bool {
 	return false
 }
 
-func (KeystoneAuthorizer *KeystoneAuthorizer) Authorize(a authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
-	glog.Infof("Authorizing user : %#v\n", a.GetUser())
-	for _, p := range KeystoneAuthorizer.pl {
+// Authorize checks whether the user can perform an operation
+func (a *Authorizer) Authorize(attributes k8s_authorizer.Attributes) (authorized k8s_authorizer.Decision, reason string, err error) {
+	glog.Infof("Authorizing user : %#v\n", attributes.GetUser())
+	for _, p := range a.pl {
 		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
 			glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
 			continue
 		}
 		if p.ResourceSpec != nil {
-			if resourceMatches(*p, a) {
-				return authorizer.DecisionAllow, "", nil
+			if resourceMatches(*p, attributes) {
+				return k8s_authorizer.DecisionAllow, "", nil
 			}
 		} else if p.NonResourceSpec != nil {
-			if nonResourceMatches(*p, a) {
-				return authorizer.DecisionAllow, "", nil
+			if nonResourceMatches(*p, attributes) {
+				return k8s_authorizer.DecisionAllow, "", nil
 			}
 		}
 	}
-	return authorizer.DecisionDeny, "No policy matched.", nil
+	return k8s_authorizer.DecisionDeny, "No policy matched.", nil
 }
