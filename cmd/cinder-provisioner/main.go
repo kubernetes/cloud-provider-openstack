@@ -21,8 +21,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/provisioner"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	kflag "k8s.io/apiserver/pkg/util/flag"

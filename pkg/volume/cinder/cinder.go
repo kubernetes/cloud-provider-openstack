@@ -22,9 +22,9 @@ import (
 	"os"
 	"path"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/cloudprovider/providers/openstack"
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
 	"github.com/golang/glog"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/volume/util"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

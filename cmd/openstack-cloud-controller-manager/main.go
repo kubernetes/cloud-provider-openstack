@@ -33,7 +33,7 @@ import (
 	_ "k8s.io/kubernetes/pkg/version/prometheus"        // for version metric registration
 	"k8s.io/kubernetes/pkg/version/verflag"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"

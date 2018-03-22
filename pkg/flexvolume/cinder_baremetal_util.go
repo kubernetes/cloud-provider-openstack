@@ -24,7 +24,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/cinder/drivers"
+	"k8s.io/cloud-provider-openstack/pkg/flexvolume/cinder/drivers"
 )
 
 // CinderBaremetalUtil is a tool to operate Cinder volume without cloud provider
