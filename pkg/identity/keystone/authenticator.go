@@ -95,8 +95,8 @@ func (keystoneAuthenticator *KeystoneAuthenticator) AuthenticateToken(token stri
 
 	extra := map[string][]string{
 		"alpha.kubernetes.io/identity/roles":        roles,
-		"alpha.kubernetes.io/identity/project/id":   []string{obj.Token.Project.Id},
-		"alpha.kubernetes.io/identity/project/name": []string{obj.Token.Project.Name},
+		"alpha.kubernetes.io/identity/project/id":   {obj.Token.Project.Id},
+		"alpha.kubernetes.io/identity/project/name": {obj.Token.Project.Name},
 	}
 
 	authenticated_user := &user.DefaultInfo{

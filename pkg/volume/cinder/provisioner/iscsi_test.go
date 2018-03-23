@@ -82,6 +82,7 @@ var _ = Describe("Iscsi Mapper", func() {
 			Expect(source.ISCSI.IQN).To(Equal("iqn"))
 			Expect(source.ISCSI.Lun).To(Equal(int32(3)))
 			Expect(source.ISCSI.SessionCHAPAuth).To(BeFalse())
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		Context("when CHAP authentication is enabled", func() {
@@ -131,16 +132,19 @@ var _ = Describe("Iscsi Mapper", func() {
 				pass := string(cb.CreatedSecret.Data["node.session.auth.password"][:])
 				Expect(user).To(Equal("user"))
 				Expect(pass).To(Equal("pass"))
+				Expect(err).NotTo(HaveOccurred())
 			})
 
 			It("should target the namespace where the PVC resides", func() {
 				Expect(cb.Namespace).To(Equal(options.PVC.Namespace))
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 
 		Context("when the connection does not require CHAP authentication", func() {
 			It("should not create a CHAP secret", func() {
 				Expect(cb.CreatedSecret).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})
@@ -174,12 +178,14 @@ var _ = Describe("Iscsi Mapper", func() {
 			It("should delete the secret", func() {
 				Expect(cb.DeletedSecret).To(Equal("secretName"))
 				Expect(cb.Namespace).To(Equal("testNs"))
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 
 		Context("when the PV does not contain a secret reference", func() {
 			It("should not delete any secret", func() {
 				Expect(cb.DeletedSecret).To(BeEmpty())
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})
