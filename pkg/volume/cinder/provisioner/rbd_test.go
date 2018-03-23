@@ -102,6 +102,7 @@ var _ = Describe("Rbd Mapper", func() {
 				Expect(source.RBD.RBDImage).To(Equal("image"))
 				Expect(source.RBD.RadosUser).To(Equal("admin"))
 				Expect(source.RBD.SecretRef.Name).To(Equal("storageclass-cephx-secret"))
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 
@@ -112,6 +113,7 @@ var _ = Describe("Rbd Mapper", func() {
 
 			It("should be nil", func() {
 				Expect(source).To(BeNil())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
@@ -123,6 +125,7 @@ var _ = Describe("Rbd Mapper", func() {
 
 			It("should be nil", func() {
 				Expect(source).To(BeNil())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
@@ -133,6 +136,7 @@ var _ = Describe("Rbd Mapper", func() {
 
 			It("should have an image field containing a '/'", func() {
 				Expect(source.RBD.RBDImage).To(Equal("image/foo"))
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 	})

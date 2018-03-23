@@ -23,13 +23,13 @@ import (
 	"strings"
 	"time"
 
+	volumeutil "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
-	volumeutil "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
 )
 
 type cinderDiskAttacher struct {
