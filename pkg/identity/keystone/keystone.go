@@ -90,10 +90,6 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 		glog.Warningf("Failed: Unable to use keystone v3 identity service: %v", err)
 		return nil, errors.New("Failed to authenticate")
 	}
-	if err != nil {
-		glog.Warningf("Failed: Starting openstack authenticate client: %v", err)
-		return nil, errors.New("Failed to authenticate")
-	}
 
 	// Make sure we look under /v3 for resources
 	client.IdentityBase = client.IdentityEndpoint
