@@ -16,6 +16,7 @@ DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 SOURCES := $(shell find $(DEST) -name '*.go')
 HAS_GLIDE := $(shell command -v glide;)
+HAS_LINT := $(shell command -v golint;)
 
 GOOS ?= $(shell go env GOOS)
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
@@ -81,6 +82,10 @@ fmt: work
 	cd $(DEST) && hack/verify-gofmt.sh
 
 lint: work
+ifndef HAS_LINT
+		go get -u github.com/golang/lint/golint
+		echo "installing lint"
+endif
 	cd $(DEST) && hack/verify-golint.sh
 
 vet: work

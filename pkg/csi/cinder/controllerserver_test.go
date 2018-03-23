@@ -19,8 +19,8 @@ package cinder
 import (
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/openstack"
+	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
