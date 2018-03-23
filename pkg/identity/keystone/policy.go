@@ -22,22 +22,22 @@ import (
 	"os"
 )
 
-type Policy struct {
-	ResourceSpec *ResourcePolicySpec `json:"resource,omitempty"`
+type policy struct {
+	ResourceSpec *resourcePolicySpec `json:"resource,omitempty"`
 
-	NonResourceSpec *NonResourcePolicySpec `json:"nonresource,omitempty"`
+	NonResourceSpec *nonResourcePolicySpec `json:"nonresource,omitempty"`
 
 	// One of user:foo, project:bar, role:baz, group:qux
-	Match Match `json:"match"`
+	Match policyMatch `json:"match"`
 }
 
-type Match struct {
+type policyMatch struct {
 	Type string `json:"type"`
 
 	Value string `json:"value"`
 }
 
-type ResourcePolicySpec struct {
+type resourcePolicySpec struct {
 	// Kubernetes resource API verb like: get, list, watch, create, update, delete, proxy.
 	// "*" matches all verbs.
 	Verb string `json:"verb"`
@@ -55,7 +55,7 @@ type ResourcePolicySpec struct {
 	Namespace *string `json:"namespace"`
 }
 
-type NonResourcePolicySpec struct {
+type nonResourcePolicySpec struct {
 	// Kubernetes resource API verb like: get, list, watch, create, update, delete, proxy.
 	// "*" matches all verbs.
 	Verb string `json:"verb"`
@@ -66,16 +66,17 @@ type NonResourcePolicySpec struct {
 	NonResourcePath *string `json:"path"`
 }
 
-type PolicyList []*Policy
+type policyList []*policy
 
-func NewFromFile(path string) (PolicyList, error) {
+// newFromFile loads a list of policies from a file
+func newFromFile(path string) (policyList, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	var data PolicyList
+	var data policyList
 
 	reader := bufio.NewReader(file)
 	decoder := json.NewDecoder(reader)
