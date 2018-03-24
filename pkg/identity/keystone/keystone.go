@@ -90,10 +90,6 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 		glog.Warningf("Failed: Unable to use keystone v3 identity service: %v", err)
 		return nil, errors.New("Failed to authenticate")
 	}
-	if err != nil {
-		glog.Warningf("Failed: Starting openstack authenticate client: %v", err)
-		return nil, errors.New("Failed to authenticate")
-	}
 
 	// Make sure we look under /v3 for resources
 	client.IdentityBase = client.IdentityEndpoint
@@ -102,22 +98,23 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 }
 
 // NewKeystoneAuthenticator returns a password authenticator that validates credentials using openstack keystone
-func NewKeystoneAuthenticator(authURL string, caFile string) (*KeystoneAuthenticator, error) {
+func NewKeystoneAuthenticator(authURL string, caFile string) (*Authenticator, error) {
 	client, err := createKeystoneClient(authURL, caFile)
 	if err != nil {
 		return nil, err
 	}
 
-	return &KeystoneAuthenticator{authURL: authURL, client: client}, nil
+	return &Authenticator{authURL: authURL, client: client}, nil
 }
 
-func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*KeystoneAuthorizer, error) {
+// NewKeystoneAuthorizer returns a password authorizer that checks whether the user can perform an operation
+func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*Authorizer, error) {
 	client, err := createKeystoneClient(authURL, caFile)
 	if err != nil {
 		return nil, err
 	}
 
-	policyList, err := NewFromFile(policyFile)
+	policyList, err := newFromFile(policyFile)
 	output, err := json.MarshalIndent(policyList, "", "  ")
 	if err == nil {
 		glog.V(6).Infof("Policy %s", string(output))
@@ -125,5 +122,5 @@ func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*K
 		glog.V(6).Infof("Error %#v", err)
 	}
 
-	return &KeystoneAuthorizer{authURL: authURL, client: client, pl: policyList}, nil
+	return &Authorizer{authURL: authURL, client: client, pl: policyList}, nil
 }
