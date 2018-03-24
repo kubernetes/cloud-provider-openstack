@@ -116,7 +116,7 @@ func (i *Instances) ExternalID(name types.NodeName) (string, error) {
 	return srv.ID, nil
 }
 
-// InstanceExistsByProviderID returns true if the instance with the given provider id still exists and is running.
+// InstanceExistsByProviderID returns true if the instance with the given provider id still exist.
 // If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
 func (i *Instances) InstanceExistsByProviderID(providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
@@ -124,17 +124,12 @@ func (i *Instances) InstanceExistsByProviderID(providerID string) (bool, error) 
 		return false, err
 	}
 
-	server, err := servers.Get(i.compute, instanceID).Extract()
+	_, err = servers.Get(i.compute, instanceID).Extract()
 	if err != nil {
 		if isNotFound(err) {
 			return false, nil
 		}
 		return false, err
-	}
-
-	if server.Status != "ACTIVE" {
-		glog.Warningf("the instance %s is not active", instanceID)
-		return false, nil
 	}
 
 	return true, nil
