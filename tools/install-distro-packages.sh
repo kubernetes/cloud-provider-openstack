@@ -25,9 +25,8 @@ if ! which bindep; then
     pushd $BASE_DIR >/dev/null
     make bindep
     popd >/dev/null
+    PACKAGES=$(make bindep || true)
 fi
-
-PACKAGES=$(make bindep || true)
 
 # inspired from project-config install-distro-packages.sh
 if apt-get -v >/dev/null 2>&1 ; then

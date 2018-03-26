@@ -21,9 +21,9 @@ CONFORMANCE_REPO=${CONFORMANCE_REPO:-github.com/kubernetes/kubernetes}
 K8S_SRC=${GOPATH}/src/k8s.io/kubernetes
 
 function install_prereqs {
-   # Install pre-reqs
-    $BASE_DIR/tools/install-distro-packages.sh
+    # Install pre-reqs
     $BASE_DIR/tools/test-setup.sh
+    $BASE_DIR/tools/install-distro-packages.sh
 
     install_package nfs-common
 }
@@ -41,9 +41,9 @@ function install_docker {
         sudo cat /lib/systemd/system/docker.service
         sudo sed -r -i "s|(ExecStart)=(.+)|\1=\2 --iptables=false|" /lib/systemd/system/docker.service
         sudo cat /lib/systemd/system/docker.service
-        sudo systemctl daemon-reload
-        sudo systemctl restart docker
-        sudo systemctl status docker
+        sudo systemctl --no-pager daemon-reload
+        sudo systemctl --no-pager restart docker
+        sudo systemctl --no-pager status docker
         sudo ifconfig -a
     fi
     docker --version
@@ -53,8 +53,8 @@ function install_docker {
     echo "K8S_VERSION : ${K8S_VERSION}"
 
     echo "Starting docker service"
-    sudo systemctl enable docker.service
-    sudo systemctl start docker.service --ignore-dependencies
+    sudo systemctl --no-pager enable docker.service
+    sudo systemctl --no-pager start docker.service --ignore-dependencies
     echo "Checking docker service"
     sudo docker ps
 }
