@@ -43,7 +43,6 @@ function install_docker {
         sudo cat /lib/systemd/system/docker.service
         sudo systemctl daemon-reload
         sudo systemctl restart docker
-        sudo systemctl status docker
         sudo ifconfig -a
     fi
     docker --version
