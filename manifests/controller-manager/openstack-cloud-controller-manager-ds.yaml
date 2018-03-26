@@ -24,6 +24,8 @@ spec:
         k8s-app: openstack-cloud-controller-manager
     spec:
       hostNetwork: true
+      securityContext:
+        runAsUser: 1001
       tolerations:
       - key: node.cloudprovider.kubernetes.io/uninitialized
         value: "true"
