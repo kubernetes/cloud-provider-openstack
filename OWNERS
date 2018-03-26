@@ -7,6 +7,7 @@ approvers:
 - flaper87
 - hogepodge
 - NickrenREN
+- rootfs
 - zetaab
 - zioproto
 reviewers:
@@ -22,6 +23,7 @@ reviewers:
 - lingxiankong
 - mrhillsman
 - NickrenREN
+- rootfs
 - strigazi
 - v1k0d3n
 - zetaab
