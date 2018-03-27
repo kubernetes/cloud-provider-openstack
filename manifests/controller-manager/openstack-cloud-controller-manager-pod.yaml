@@ -39,6 +39,8 @@ spec:
         requests:
           cpu: 200m
   hostNetwork: true
+  securityContext:
+    runAsUser: 1001
   volumes:
   - hostPath:
       path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
