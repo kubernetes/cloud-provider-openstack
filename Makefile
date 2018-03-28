@@ -15,6 +15,7 @@ PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 SOURCES := $(shell find $(DEST) -name '*.go')
+HAS_MERCURIAL := $(shell command -v hg;)
 HAS_GLIDE := $(shell command -v glide;)
 HAS_LINT := $(shell command -v golint;)
 
@@ -26,6 +27,9 @@ REGISTRY ?= dims
 # CTI targets
 
 depend: work
+ifndef HAS_MERCURIAL
+	pip install Mercurial
+endif
 ifndef HAS_GLIDE
 	go get -u github.com/Masterminds/glide
 endif
@@ -34,7 +38,7 @@ ifeq ($(wildcard $(DEST)/vendor/.*),)
 endif
 
 depend-update: work
-	cd $(DEST) && glide update
+	cd $(DEST) && glide update --strip-vendor
 
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
 

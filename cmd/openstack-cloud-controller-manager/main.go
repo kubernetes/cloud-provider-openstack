@@ -22,7 +22,9 @@ package main
 import (
 	goflag "flag"
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/util/flag"
@@ -30,12 +32,14 @@ import (
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app/options"
 	_ "k8s.io/kubernetes/pkg/client/metrics/prometheus" // for client metric registration
-	_ "k8s.io/kubernetes/pkg/version/prometheus"        // for version metric registration
+	utilflag "k8s.io/kubernetes/pkg/util/flag"
+	_ "k8s.io/kubernetes/pkg/version/prometheus" // for version metric registration
 	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 
 	"github.com/golang/glog"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -46,21 +50,45 @@ func init() {
 }
 
 func main() {
-	s := options.NewCloudControllerManagerServer()
-	s.AddFlags(pflag.CommandLine)
+	rand.Seed(time.Now().UTC().UnixNano())
+	s := options.NewCloudControllerManagerOptions()
+	command := &cobra.Command{
+		Use: "cloud-controller-manager",
+		Long: `The Cloud controller manager is a daemon that embeds
+the cloud specific control loops shipped with Kubernetes.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			verflag.PrintAndExitIfRequested()
+			utilflag.PrintFlags(cmd.Flags())
 
-	goflag.CommandLine.Parse([]string{})
-	flag.InitFlags()
+			c, err := s.Config()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+
+			if err := app.Run(c.Complete()); err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+
+		},
+	}
+	s.AddFlags(command.Flags())
+
+	// TODO: once we switch everything over to Cobra commands, we can go back to calling
+	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
+	// normalize func and add the go flag set by hand.
+	pflag.CommandLine.SetNormalizeFunc(flag.WordSepNormalizeFunc)
+	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+	// utilflag.InitFlags()
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
 	glog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
 
-	verflag.PrintAndExitIfRequested()
-
-	s.CloudProvider = openstack.ProviderName
-	if err := app.Run(s); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+	s.Generic.ComponentConfig.CloudProvider = openstack.ProviderName
+	if err := command.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }

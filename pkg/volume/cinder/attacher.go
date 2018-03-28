@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -27,9 +28,9 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	volumeutil "k8s.io/cloud-provider-openstack/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
+	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 )
 
 type cinderDiskAttacher struct {
@@ -400,7 +401,7 @@ func (attacher *cinderDiskAttacher) nodeInstanceID(nodeName types.NodeName) (str
 	if !res {
 		return "", fmt.Errorf("failed to list openstack instances")
 	}
-	instanceID, err := instances.InstanceID(nodeName)
+	instanceID, err := instances.InstanceID(context.TODO(), nodeName)
 	if err != nil {
 		return "", err
 	}
