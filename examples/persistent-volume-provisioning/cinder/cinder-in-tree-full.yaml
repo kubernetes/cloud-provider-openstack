@@ -5,7 +5,8 @@ metadata:
 provisioner: kubernetes.io/cinder
 parameters:
   type: hdd
-  availability: nova
+#  availability: nova
+#  fsType: ext4
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1
