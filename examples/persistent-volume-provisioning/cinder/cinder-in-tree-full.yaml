@@ -1,0 +1,41 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: gold
+provisioner: kubernetes.io/cinder
+parameters:
+  type: hdd
+  availability: nova
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: myclaim-gold
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # pass here the size of the volume
+  storageClassName: gold
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+spec:
+  containers:
+    - name: web
+      image: nginx
+      ports:
+        - name: web
+          containerPort: 80
+          hostPort: 8081
+          protocol: TCP
+      volumeMounts:
+        - mountPath: "/usr/share/nginx/html"
+          name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: myclaim-gold
