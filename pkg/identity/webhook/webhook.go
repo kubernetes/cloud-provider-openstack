@@ -180,7 +180,7 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 
 	delete(data, "spec")
 	data["status"] = map[string]interface{}{
-		"allowed": allowed,
+		"allowed": allowed == authorizer.DecisionAllow,
 	}
 	output, err = json.MarshalIndent(data, "", "  ")
 	if err != nil {
