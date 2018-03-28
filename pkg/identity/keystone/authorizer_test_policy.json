@@ -1,0 +1,161 @@
+[
+  {
+    "resource": {
+      "verb": "get",
+      "resource": "user_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  },
+  {
+    "resource": {
+      "verb": "get",
+      "resource": "group_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "group",
+      "value": "group1"
+    }
+  },
+  {
+    "resource": {
+      "verb": "get",
+      "resource": "project_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "project",
+      "value": "project1"
+    }
+  },
+  {
+    "resource": {
+      "verb": "get",
+      "resource": "role_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "role",
+      "value": "role1"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "get",
+      "path": "/user"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "get",
+      "path": "/group"
+    },
+    "match": {
+      "type": "group",
+      "value": "group1"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "get",
+      "path": "/project"
+    },
+    "match": {
+      "type": "project",
+      "value": "project1"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "get",
+      "path": "/role"
+    },
+    "match": {
+      "type": "role",
+      "value": "role1"
+    }
+  },
+
+  {
+    "resource": {
+      "verb": "*",
+      "resource": "unknown_type_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "unknown_type",
+      "value": "*"
+    }
+  },
+  {
+    "resource": {
+      "verb": "get",
+      "resource": "user_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "nonresource": {
+      "verb": "get",
+      "path": "/user"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  },
+  {
+    "resource": {
+      "verb": "",
+      "resource": "user_resource",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "",
+      "path": "/user"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  },
+  {
+    "resource": {
+      "verb": "get",
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  },
+  {
+    "nonresource": {
+      "verb": "get"
+    },
+    "match": {
+      "type": "user",
+      "value": "user1"
+    }
+  }
+]

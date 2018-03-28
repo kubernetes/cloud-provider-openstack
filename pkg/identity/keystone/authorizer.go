@@ -35,11 +35,6 @@ type Authorizer struct {
 }
 
 func resourceMatches(p policy, a authorizer.Attributes) bool {
-	if p.NonResourceSpec != nil && p.ResourceSpec != nil {
-		glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
-		return false
-	}
-
 	if p.ResourceSpec.Verb == "" {
 		glog.Infof("verb is empty. skipping : %#v", p)
 		return false
@@ -82,15 +77,13 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 
 	if p.NonResourceSpec.Verb == "*" || p.NonResourceSpec.Verb == a.GetVerb() {
 		if *p.NonResourceSpec.NonResourcePath == "*" || *p.NonResourceSpec.NonResourcePath == a.GetPath() {
-			if *p.ResourceSpec.Resource == "*" || *p.ResourceSpec.Resource == a.GetResource() {
-				allowed := match(p.Match, a)
-				if allowed {
-					output, err := json.MarshalIndent(p, "", "  ")
-					if err == nil {
-						glog.V(6).Infof("matched rule : %s", string(output))
-					}
-					return true
+			allowed := match(p.Match, a)
+			if allowed {
+				output, err := json.MarshalIndent(p, "", "  ")
+				if err == nil {
+					glog.V(6).Infof("matched rule : %s", string(output))
 				}
+				return true
 			}
 		}
 	}
@@ -117,7 +110,6 @@ func match(match policyMatch, attributes authorizer.Attributes) bool {
 						return true
 					}
 				}
-
 			}
 		}
 		if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/name"]; ok {
@@ -127,7 +119,6 @@ func match(match policyMatch, attributes authorizer.Attributes) bool {
 						return true
 					}
 				}
-
 			}
 		}
 	} else if match.Type == "role" {
