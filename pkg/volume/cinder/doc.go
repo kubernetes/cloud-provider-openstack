@@ -14,4 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cinder // import "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder"
+package cinder // import "k8s.io/cloud-provider-openstack/pkg/volume/cinder"

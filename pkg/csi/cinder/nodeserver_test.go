@@ -19,10 +19,10 @@ package cinder
 import (
 	"testing"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/mount"
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 )
 
 var fakeNs *nodeServer

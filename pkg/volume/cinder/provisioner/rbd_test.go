@@ -17,11 +17,11 @@ limitations under the License.
 package provisioner
 
 import (
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/api/core/v1"
+	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 )
 
 var _ = Describe("Rbd Mapper", func() {

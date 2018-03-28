@@ -4,7 +4,7 @@
 
 #REPO_VERSION?=$(shell git describe --tags)
 
-GIT_HOST = git.openstack.org
+GIT_HOST = k8s.io
 
 PWD := $(shell pwd)
 BASE_DIR := $(shell basename $(PWD))
@@ -12,7 +12,7 @@ BASE_DIR := $(shell basename $(PWD))
 GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
 PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
-DEST := $(GOPATH)/src/$(GIT_HOST)/openstack/$(BASE_DIR)
+DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 SOURCES := $(shell find $(DEST) -name '*.go')
 HAS_GLIDE := $(shell command -v glide;)

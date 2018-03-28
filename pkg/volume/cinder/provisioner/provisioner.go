@@ -20,12 +20,12 @@ import (
 	"errors"
 	"fmt"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/cinder/volumeservice"
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 )
 
 const (

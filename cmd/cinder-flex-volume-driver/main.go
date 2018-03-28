@@ -19,8 +19,8 @@ package main
 import (
 	"os"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume"
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/flexvolume/uuid"
+	"k8s.io/cloud-provider-openstack/pkg/flexvolume"
+	"k8s.io/cloud-provider-openstack/pkg/flexvolume/uuid"
 )
 
 func main() {

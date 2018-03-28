@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"os"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder"
 	"github.com/spf13/cobra"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 )
 
 var (
