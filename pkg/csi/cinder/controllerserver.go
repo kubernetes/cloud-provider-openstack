@@ -17,12 +17,12 @@ limitations under the License.
 package cinder
 
 import (
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/csi/cinder/openstack"
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/kubernetes/pkg/volume"
 )
 

@@ -31,7 +31,7 @@ import (
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"gopkg.in/gcfg.v1"
 
-	openstack_provider "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/cloudprovider/providers/openstack"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 
 	"github.com/golang/glog"
 	netutil "k8s.io/apimachinery/pkg/util/net"

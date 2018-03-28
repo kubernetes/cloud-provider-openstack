@@ -21,12 +21,12 @@ import (
 	"net/http"
 	"os"
 
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/keystone"
-	"git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/identity/webhook"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	kflag "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
+	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	"k8s.io/cloud-provider-openstack/pkg/identity/webhook"
 )
 
 func webhookServer(authenticator authenticator.Token, authorizer authorizer.Authorizer) http.Handler {

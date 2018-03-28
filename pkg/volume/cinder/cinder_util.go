@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	volutil "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	volutil "k8s.io/cloud-provider-openstack/pkg/volume/util"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"

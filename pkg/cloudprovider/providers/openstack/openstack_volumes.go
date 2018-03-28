@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	volumeutil "git.openstack.org/openstack/openstack-cloud-controller-manager/pkg/volume/util"
+	volumeutil "k8s.io/cloud-provider-openstack/pkg/volume/util"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
