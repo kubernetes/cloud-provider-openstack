@@ -3,6 +3,7 @@ approvers:
 - anguslees
 - dims
 - FengyunPan2
+- aglitke
 reviewers:
 - anguslees
 - rootfs
@@ -11,3 +12,4 @@ reviewers:
 - jingxu97
 - msau42
 - FengyunPan2
+- aglitke
