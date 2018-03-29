@@ -29,7 +29,7 @@ cinder deployment with keystone managing authentication and
 providing the service catalog, and a standalone configuration where
 cinder is accessed directly.
 
-Conventional cinder deployments can be used by supplying a clound
+Conventional cinder deployments can be used by supplying a cloud
 config file identical to the one you would use to configure an
 openstack cloud provider.
 
