@@ -3,11 +3,10 @@ import:
 - package: github.com/container-storage-interface/spec
   version: v0.2.0
   subpackages:
-  - lib/go/csi
   - lib/go/csi/v0
 - package: github.com/golang/glog
 - package: github.com/gophercloud/gophercloud
-  version: e6eebf4bc729a74c834d96d950a804ab61015b0a
+  version: 6da026c32e2d622cc242d32984259c77237aefe1
   subpackages:
   - openstack
   - openstack/blockstorage/extensions/volumeactions
@@ -36,10 +35,8 @@ import:
   - pagination
 - package: github.com/kubernetes-csi/drivers
   subpackages:
-  - pkg/cinder
   - pkg/csi-common
 - package: github.com/kubernetes-incubator/external-storage
-  repo: https://github.com/dims/external-storage
   subpackages:
   - lib/controller
 - package: github.com/mitchellh/mapstructure
@@ -61,45 +58,51 @@ import:
   - status
 - package: gopkg.in/gcfg.v1
 - package: k8s.io/api
-  version: kubernetes-1.9.2
+  version: kubernetes-1.10.0
   subpackages:
   - core/v1
+  - storage/v1
 - package: k8s.io/apimachinery
-  version: kubernetes-1.9.2
+  version: kubernetes-1.10.0
   subpackages:
   - pkg/api/resource
   - pkg/apis/meta/v1
+  - pkg/labels
+  - pkg/runtime
   - pkg/types
   - pkg/util/net
   - pkg/util/sets
   - pkg/util/uuid
   - pkg/util/wait
 - package: k8s.io/apiserver
-  version: kubernetes-1.9.2
+  version: kubernetes-1.10.0
   subpackages:
   - pkg/authentication/authenticator
   - pkg/authentication/user
   - pkg/authorization/authorizer
   - pkg/server/healthz
+  - pkg/util/feature
   - pkg/util/flag
   - pkg/util/logs
 - package: k8s.io/client-go
-  version: kubernetes-1.9.2
+  version: kubernetes-1.10.0
   subpackages:
   - kubernetes
   - rest
   - tools/clientcmd
   - util/cert
 - package: k8s.io/kubernetes
-  version: v1.9.2
+  version: v1.10.0
   subpackages:
   - cmd/cloud-controller-manager/app
   - cmd/cloud-controller-manager/app/options
+  - pkg/api/legacyscheme
   - pkg/api/v1/service
   - pkg/apis/core/v1/helper
   - pkg/client/metrics/prometheus
   - pkg/cloudprovider
   - pkg/controller
+  - pkg/features
   - pkg/kubelet/apis
   - pkg/util/keymutex
   - pkg/util/mount
@@ -108,7 +111,7 @@ import:
   - pkg/version/verflag
   - pkg/volume
   - pkg/volume/util
-  - pkg/volume/util/volumehelper
+  - pkg/volume/util/types
 - package: k8s.io/utils
   subpackages:
   - exec
@@ -116,4 +119,4 @@ testImport:
 - package: github.com/onsi/ginkgo
 - package: github.com/onsi/gomega
 ignore:
-  - git.openstack.org/openstack/k8s-cloud-provider/openstack
+  - k8s.io/cloud-provider-openstack
