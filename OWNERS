@@ -6,6 +6,7 @@ approvers:
 - edisonxiang
 - FengyunPan2
 - flaper87
+- ghugo
 - hogepodge
 - NickrenREN
 - rootfs
@@ -20,6 +21,7 @@ reviewers:
 - Fedosin
 - FengyunPan2
 - flaper87
+- ghugo
 - gonzolino
 - hogepodge
 - lingxiankong
