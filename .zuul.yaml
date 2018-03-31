@@ -1,4 +1,4 @@
 - project:
     check:
       jobs:
-        - openstack-cloud-controller-manager-unittest
+        - cloud-provider-openstack-unittest
