@@ -72,7 +72,7 @@ func CreateCinderVolume(vs *gophercloud.ServiceClient, options controller.Volume
 	// Cinder works with gigabytes, convert to GiB with rounding up
 	sizeGB := int((sizeBytes + 1024*1024*1024 - 1) / (1024 * 1024 * 1024))
 	volType := ""
-	availability := "nova"
+	availability := ""
 	// Apply ProvisionerParameters (case-insensitive). We leave validation of
 	// the values to the cloud provider.
 	for k, v := range options.Parameters {
