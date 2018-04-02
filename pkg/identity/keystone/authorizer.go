@@ -18,6 +18,7 @@ package keystone
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
@@ -34,21 +35,20 @@ type Authorizer struct {
 	pl      policyList
 }
 
+func findString(a string, list []string) bool {
+	sort.Strings(list)
+	index := sort.SearchStrings(list, a)
+	if index < len(list) && list[index] == a {
+		return true
+	}
+	return false
+}
+
 func resourceMatches(p policy, a authorizer.Attributes) bool {
-	if p.ResourceSpec.Verb == "" {
-		glog.Infof("verb is empty. skipping : %#v", p)
-		return false
-	}
-
-	if p.ResourceSpec.APIGroup == nil || p.ResourceSpec.Namespace == nil || p.ResourceSpec.Resource == nil {
-		glog.Infof("version/namespace/resource should be all set. skipping : %#v", p)
-		return false
-	}
-
-	if p.ResourceSpec.Verb == "*" || p.ResourceSpec.Verb == a.GetVerb() {
-		if *p.ResourceSpec.APIGroup == "*" || *p.ResourceSpec.APIGroup == a.GetAPIGroup() {
-			if *p.ResourceSpec.Namespace == "*" || *p.ResourceSpec.Namespace == a.GetNamespace() {
-				if *p.ResourceSpec.Resource == "*" || *p.ResourceSpec.Resource == a.GetResource() {
+	if *p.ResourceSpec.APIGroup == "*" || *p.ResourceSpec.APIGroup == a.GetAPIGroup() {
+		if *p.ResourceSpec.Namespace == "*" || *p.ResourceSpec.Namespace == a.GetNamespace() {
+			if findString("*", p.ResourceSpec.Resources) || findString(a.GetResource(), p.ResourceSpec.Resources) {
+				if findString("*", p.ResourceSpec.Verbs) || findString(a.GetVerb(), p.ResourceSpec.Verbs) {
 					allowed := match(p.Match, a)
 					if allowed {
 						output, err := json.MarshalIndent(p, "", "  ")
@@ -65,7 +65,7 @@ func resourceMatches(p policy, a authorizer.Attributes) bool {
 }
 
 func nonResourceMatches(p policy, a authorizer.Attributes) bool {
-	if p.NonResourceSpec.Verb == "" {
+	if findString("", p.NonResourceSpec.Verbs) {
 		glog.Infof("verb is empty. skipping : %#v", p)
 		return false
 	}
@@ -75,7 +75,7 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 		return false
 	}
 
-	if p.NonResourceSpec.Verb == "*" || p.NonResourceSpec.Verb == a.GetVerb() {
+	if findString("*", p.NonResourceSpec.Verbs) || findString(a.GetVerb(), p.NonResourceSpec.Verbs) {
 		if *p.NonResourceSpec.NonResourcePath == "*" || *p.NonResourceSpec.NonResourcePath == a.GetPath() {
 			allowed := match(p.Match, a)
 			if allowed {
@@ -90,57 +90,84 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	return false
 }
 
-func match(match policyMatch, attributes authorizer.Attributes) bool {
+func match(match []policyMatch, attributes authorizer.Attributes) bool {
 	user := attributes.GetUser()
-	if match.Type == "group" {
-		for _, group := range user.GetGroups() {
-			if match.Value == "*" || group == match.Value {
-				return true
-			}
-		}
-	} else if match.Type == "user" {
-		if match.Value == "*" || user.GetName() == match.Value || user.GetUID() == match.Value {
-			return true
-		}
-	} else if match.Type == "project" {
-		if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/id"]; ok {
-			if ok {
-				for _, item := range val {
-					if match.Value == "*" || item == match.Value {
-						return true
-					}
-				}
-			}
-		}
-		if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/name"]; ok {
-			if ok {
-				for _, item := range val {
-					if match.Value == "*" || item == match.Value {
-						return true
-					}
-				}
-			}
-		}
-	} else if match.Type == "role" {
-		if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/roles"]; ok {
-			if ok {
-				for _, item := range val {
-					if match.Value == "*" || item == match.Value {
-						return true
-					}
-				}
+	var find = false
+	types := []string{TypeGroup, TypeProject, TypeRole, TypeUser}
 
-			}
+	for _, m := range match {
+		if !findString(m.Type, types) {
+			glog.Warningf("unknown type %s", m.Type)
+			return false
 		}
-	} else {
-		glog.Infof("unknown type %s. skipping.", match.Type)
+		if findString("*", m.Values) {
+			continue
+		}
+
+		find = false
+
+		if m.Type == TypeGroup {
+			for _, group := range user.GetGroups() {
+				if findString(group, m.Values) {
+					find = true
+					break
+				}
+			}
+			if !find {
+				return false
+			}
+		} else if m.Type == TypeUser {
+			if !findString(user.GetName(), m.Values) && !findString(user.GetUID(), m.Values) {
+				return false
+			}
+		} else if m.Type == TypeProject {
+			if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/id"]; ok {
+				for _, item := range val {
+					if findString(item, m.Values) {
+						find = true
+						break
+					}
+				}
+				if find {
+					continue
+				}
+			}
+
+			if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/name"]; ok {
+				for _, item := range val {
+					if findString(item, m.Values) {
+						find = true
+						break
+					}
+				}
+				if find {
+					continue
+				}
+			}
+			return false
+		} else if m.Type == TypeRole {
+			if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/roles"]; ok {
+				for _, item := range val {
+					if findString(item, m.Values) {
+						find = true
+						break
+					}
+				}
+				if find {
+					continue
+				}
+			}
+			return false
+		} else {
+			glog.Infof("unknown type %s. skipping.", m.Type)
+		}
 	}
-	return false
+
+	return true
 }
 
 // Authorize checks whether the user can perform an operation
 func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
-	glog.Infof("Authorizing user : %#v\n", attributes.GetUser())
 	for _, p := range a.pl {
 		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
 			glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
@@ -156,5 +183,7 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 			}
 		}
 	}
+
+	glog.Warningf("Authorization failed, user: %#v, attributes: %#v\n", attributes.GetUser(), attributes)
 	return authorizer.DecisionDeny, "No policy matched.", nil
 }
