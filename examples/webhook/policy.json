@@ -1,46 +1,32 @@
 [
   {
     "resource": {
-      "verb": "*",
-      "resource": "*",
+      "verbs": [
+        "get",
+        "list",
+        "watch"
+      ],
+      "resources": [
+        "pods"
+      ],
       "version": "*",
-      "namespace": "*"
+      "namespace": "default"
     },
-    "match": {
-      "type": "role",
-      "value": "*"
-    }
-  },
-  {
-    "resource": {
-      "verb": "*",
-      "resource": "*",
-      "version": "*",
-      "namespace": "*"
-    },
-    "match": {
-      "type": "group",
-      "value": "system:authenticated"
-    }
-  },
-  {
-    "nonresource": {
-      "verb": "*",
-      "path": "*"
-    },
-    "match": {
-      "type": "role",
-      "value": "*"
-    }
-  },
-  {
-    "nonresource": {
-      "verb": "*",
-      "path": "*"
-    },
-    "match": {
-      "type": "group",
-      "value": "system:authenticated"
-    }
+    "match": [
+      {
+        "type": "role",
+        "values": [
+          "k8s-admin",
+          "k8s-viewer",
+          "k8s-editor"
+        ]
+      },
+      {
+        "type": "project",
+        "values": [
+          "c1f7910086964990847dc6c8b128f63c"
+        ]
+      }
+    ]
   }
 ]

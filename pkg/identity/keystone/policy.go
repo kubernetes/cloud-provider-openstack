@@ -27,24 +27,31 @@ type policy struct {
 
 	NonResourceSpec *nonResourcePolicySpec `json:"nonresource,omitempty"`
 
-	// One of user:foo, project:bar, role:baz, group:qux
-	Match policyMatch `json:"match"`
+	Match []policyMatch `json:"match"`
 }
+
+// Supported types for policy match.
+const (
+	TypeUser    string = "user"
+	TypeGroup   string = "group"
+	TypeProject string = "project"
+	TypeRole    string = "role"
+)
 
 type policyMatch struct {
 	Type string `json:"type"`
 
-	Value string `json:"value"`
+	Values []string `json:"values"`
 }
 
 type resourcePolicySpec struct {
 	// Kubernetes resource API verb like: get, list, watch, create, update, delete, proxy.
-	// "*" matches all verbs.
-	Verb string `json:"verb"`
+	// ["*"] matches all verbs.
+	Verbs []string `json:"verbs"`
 
-	// Resource is the name of a resource.
-	// "*" matches all resources
-	Resource *string `json:"resource"`
+	// Resources is the list of resource names.
+	// ["*"] matches all resources
+	Resources []string `json:"resources"`
 
 	// APIGroup is the name of an API group.
 	// "*" matches all API groups
@@ -58,7 +65,7 @@ type resourcePolicySpec struct {
 type nonResourcePolicySpec struct {
 	// Kubernetes resource API verb like: get, list, watch, create, update, delete, proxy.
 	// "*" matches all verbs.
-	Verb string `json:"verb"`
+	Verbs []string `json:"verbs"`
 
 	// NonResourcePath matches non-resource request paths.
 	// "*" matches all paths
