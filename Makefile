@@ -74,7 +74,7 @@ k8s-keystone-auth: depend $(SOURCES)
 
 test: unit functional
 
-check: fmt vet lint
+check: depend fmt vet lint
 
 unit: depend
 	cd $(DEST) && go test -tags=unit $(shell glide novendor) $(TESTARGS)
