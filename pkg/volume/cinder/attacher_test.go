@@ -619,8 +619,8 @@ func (testcase *testcase) CreateVolume(name string, size int, vtype, availabilit
 	return "", "", false, errors.New("Not implemented")
 }
 
-func (testcase *testcase) GetDevicePath(volumeID string) string {
-	return ""
+func (testcase *testcase) GetDevicePath(volumeID string) (string, error) {
+	return "", nil
 }
 
 func (testcase *testcase) InstanceID() (string, error) {

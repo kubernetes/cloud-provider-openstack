@@ -31,6 +31,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	k8s_volume "k8s.io/kubernetes/pkg/volume"
@@ -44,6 +45,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/golang/glog"
+)
+
+const (
+	operationFinishInitDelay = 1 * time.Second
+	operationFinishFactor    = 1.1
+	operationFinishSteps     = 15
 )
 
 type volumeService interface {
@@ -547,18 +554,32 @@ func (os *OpenStack) getDevicePathFromInstanceMetadata(volumeID string) string {
 }
 
 // GetDevicePath returns the path of an attached block storage volume, specified by its id.
-func (os *OpenStack) GetDevicePath(volumeID string) string {
-	devicePath := os.GetDevicePathBySerialID(volumeID)
+func (os *OpenStack) GetDevicePath(volumeID string) (string, error) {
+	backoff := wait.Backoff{
+		Duration: operationFinishInitDelay,
+		Factor:   operationFinishFactor,
+		Steps:    operationFinishSteps,
+	}
 
-	if devicePath == "" {
+	var devicePath string
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		devicePath = os.GetDevicePathBySerialID(volumeID)
+		if devicePath != "" {
+			return true, nil
+		}
 		devicePath = os.getDevicePathFromInstanceMetadata(volumeID)
-	}
+		if devicePath != "" {
+			return true, nil
+		}
+		return false, nil
+	})
 
-	if devicePath == "" {
-		glog.Warningf("Failed to find device for the volumeID: %q", volumeID)
+	if err == wait.ErrWaitTimeout {
+		return "", fmt.Errorf("Failed to find device for the volumeID: %q within the alloted time", volumeID)
+	} else if devicePath == "" {
+		return "", fmt.Errorf("Device path was empty for volumeID: %q", volumeID)
 	}
-
-	return devicePath
+	return devicePath, nil
 }
 
 // DeleteVolume deletes a volume given volume name.
