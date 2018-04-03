@@ -67,15 +67,19 @@ func TestAuthorizer(t *testing.T) {
 	// with additional tests for other scenarios.
 
 	// Resource user match
-	attrs := authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "get", Resource: "user_resource"}
+	attrs := authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "get", Resource: "user_resource1"}
 	decision, _, _ := a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionAllow, decision)
 
-	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "patch", Resource: "user_resource"}
+	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "list", Resource: "user_resource2"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "patch", Resource: "user_resource1"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
-	attrs = authorizer.AttributesRecord{User: user2, ResourceRequest: true, Verb: "get", Resource: "user_resource"}
+	attrs = authorizer.AttributesRecord{User: user2, ResourceRequest: true, Verb: "get", Resource: "user_resource1"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
@@ -89,6 +93,11 @@ func TestAuthorizer(t *testing.T) {
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
 	attrs = authorizer.AttributesRecord{User: user2, ResourceRequest: true, Verb: "get", Resource: "group_resource"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// Resource group and role match
+	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "get", Resource: "group_role_resource"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 

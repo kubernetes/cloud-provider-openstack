@@ -172,7 +172,7 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 	}
 
 	allowed, reason, err := h.Authorizer.Authorize(attrs)
-	glog.Infof("<<<< authorizeToken : %v, %v, %v\n", allowed, reason, err)
+	glog.V(4).Infof("<<<< authorizeToken: %v, %v, %v\n", allowed, reason, err)
 	if err != nil {
 		http.Error(w, reason, http.StatusInternalServerError)
 		return
