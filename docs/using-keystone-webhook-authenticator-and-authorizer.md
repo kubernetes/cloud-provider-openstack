@@ -39,7 +39,7 @@ users:
 
 - Copy the examples/policy.json and edit it to your needs.
 - Add the following flags to your Kubernetes api server.
-  * `--authorization-mode=Webhook,Node --authorization-webhook-config-file=/path/to/your/webhook.kubeconfig`
+  * `--authorization-mode=Node,Webhook,RBAC --authorization-webhook-config-file=/path/to/your/webhook.kubeconfig`
 - When you start the webhook process make sure you also have the following flags (in addition to the flags in the case of authentication)
   * `--keystone-policy-file examples/policy.json`
 
