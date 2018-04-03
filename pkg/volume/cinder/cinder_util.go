@@ -62,7 +62,10 @@ func (util *DiskUtil) AttachDisk(b *cinderVolumeMounter, globalPDPath string) er
 	var devicePath string
 	numTries := 0
 	for {
-		devicePath = cloud.GetDevicePath(diskid)
+		devicePath, err = cloud.GetDevicePath(diskid)
+		if err != nil {
+			return err
+		}
 		probeAttachedVolume()
 
 		_, err := os.Stat(devicePath)
