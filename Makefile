@@ -11,6 +11,8 @@ BASE_DIR := $(shell basename $(PWD))
 # Keep an existing GOPATH, make a private one if it is undefined
 GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
+TESTARGS_DEFAULT := "-v"
+export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
@@ -74,7 +76,7 @@ k8s-keystone-auth: depend $(SOURCES)
 
 test: unit functional
 
-check: fmt vet lint
+check: depend fmt vet lint
 
 unit: depend
 	cd $(DEST) && go test -tags=unit $(shell glide novendor) $(TESTARGS)
