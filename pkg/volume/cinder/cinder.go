@@ -53,7 +53,7 @@ type BlockStorageProvider interface {
 	DetachDisk(instanceID, volumeID string) error
 	DeleteVolume(volumeID string) error
 	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, bool, error)
-	GetDevicePath(volumeID string) string
+	GetDevicePath(volumeID string) (string, error)
 	InstanceID() (string, error)
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
 	OperationPending(diskName string) (bool, string, error)

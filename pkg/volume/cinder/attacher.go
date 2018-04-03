@@ -231,7 +231,10 @@ func (attacher *cinderDiskAttacher) WaitForAttach(spec *volume.Spec, devicePath 
 			probeAttachedVolume()
 			if !attacher.cinderProvider.ShouldTrustDevicePath() {
 				// Using the Cinder volume ID, find the real device path (See Issue #33128)
-				devicePath = attacher.cinderProvider.GetDevicePath(volumeID)
+				devicePath, err = attacher.cinderProvider.GetDevicePath(volumeID)
+				if err != nil {
+					return "", err
+				}
 			}
 			exists, err := volumeutil.PathExists(devicePath)
 			if exists && err == nil {

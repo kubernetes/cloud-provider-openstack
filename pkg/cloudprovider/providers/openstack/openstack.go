@@ -275,7 +275,7 @@ func readInstanceID(searchOrder string) (string, error) {
 		instanceID := string(idBytes)
 		instanceID = strings.TrimSpace(instanceID)
 		glog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" {
+		if instanceID != "" && instanceID != "iid-datasource-none" {
 			return instanceID, nil
 		}
 		// Fall through to metadata server lookup

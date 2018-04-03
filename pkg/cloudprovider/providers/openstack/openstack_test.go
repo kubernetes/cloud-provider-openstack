@@ -40,7 +40,6 @@ import (
 const (
 	testClusterName = "testCluster"
 
-	volumeStatusTimeoutSeconds = 30
 	// volumeStatus* is configuration of exponential backoff for
 	// waiting for specified volume status. Starting with 1
 	// seconds, multiplying by 1.2 with each step and taking 13 steps at maximum
@@ -56,6 +55,7 @@ func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status 
 		Factor:   volumeStatusFactor,
 		Steps:    volumeStatusSteps,
 	}
+	start := time.Now().Second()
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		getVol, err := os.getVolume(volumeName)
 		if err != nil {
@@ -65,7 +65,7 @@ func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status 
 			t.Logf("Volume (%s) status changed to %s after %v seconds\n",
 				volumeName,
 				status,
-				volumeStatusTimeoutSeconds)
+				time.Now().Second()-start)
 			return true, nil
 		}
 		return false, nil
@@ -74,7 +74,7 @@ func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status 
 		t.Logf("Volume (%s) status did not change to %s after %v seconds\n",
 			volumeName,
 			status,
-			volumeStatusTimeoutSeconds)
+			time.Now().Second()-start)
 		return
 	}
 	if err != nil {
@@ -574,7 +574,10 @@ func TestVolumes(t *testing.T) {
 
 		WaitForVolumeStatus(t, os, vol, volumeInUseStatus)
 
-		devicePath := os.GetDevicePath(diskID)
+		devicePath, err := os.GetDevicePath(diskID)
+		if err != nil {
+			t.Fatalf("Cannot GetDevicePath for Cinder volume %s: %v", vol, err)
+		}
 		if diskPathRegexp.FindString(devicePath) == "" {
 			t.Fatalf("GetDevicePath returned and unexpected path for Cinder volume %s, returned %s", vol, devicePath)
 		}
