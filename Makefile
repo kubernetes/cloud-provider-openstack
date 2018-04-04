@@ -13,12 +13,15 @@ GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
-PKG := $(shell awk  '/^package: / { print $$2 }' glide.yaml)
+# Add $HOME/bin to path for dep install
+export PATH := $(HOME/bin):$(PATH)
+
+PKG := $(shell awk '/^ignored = /' Gopkg.toml | sed 's/'"ignored = \[\""'//' | sed 's/'"\"\]"'//')
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 DEST := $(GOPATH)/src/$(PKG)
 SOURCES := $(shell find $(DEST) -name '*.go')
 HAS_MERCURIAL := $(shell command -v hg;)
-HAS_GLIDE := $(shell command -v glide;)
+HAS_DEP := $(shell dep version;)
 HAS_LINT := $(shell command -v golint;)
 
 GOOS ?= $(shell go env GOOS)
@@ -32,15 +35,15 @@ depend: work
 ifndef HAS_MERCURIAL
 	pip install Mercurial
 endif
-ifndef HAS_GLIDE
-	go get -u github.com/Masterminds/glide
+ifndef HAS_DEP
+	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 endif
 ifeq ($(wildcard $(DEST)/vendor/.*),)
-		cd $(DEST) && glide install --strip-vendor
+		cd $(DEST) && dep ensure
 endif
 
 depend-update: work
-	cd $(DEST) && glide update --strip-vendor
+	cd $(DEST) && dep ensure
 
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
 
@@ -79,7 +82,7 @@ test: unit functional
 check: depend fmt vet lint
 
 unit: depend
-	cd $(DEST) && go test -tags=unit $(shell glide novendor) $(TESTARGS)
+	cd $(DEST) && go test -tags=unit ./... $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
@@ -98,7 +101,7 @@ vet: work
 	cd $(DEST) && go vet ./...
 
 cover: depend
-	cd $(DEST) && go test -tags=unit $(shell glide novendor) -cover
+	cd $(DEST) && go test -tags=unit ./... -cover
 
 docs:
 	@echo "$@ not yet implemented"
