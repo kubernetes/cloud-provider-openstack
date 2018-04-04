@@ -3,7 +3,7 @@
 # Used in both CI jobs and locally
 #
 # Install the following tools:
-# * glide
+# * dep
 
 # Get OS
 case $(uname -s) in
@@ -34,11 +34,11 @@ esac
 case $OS in
     darwin)
         if which brew 1>/dev/null; then
-            if ! which glide 1>/dev/null; then
-                brew install glide
+            if ! which dep 1>/dev/null; then
+                brew install dep
             fi
         else
-            echo "Homebrew not found, install Glide from source?"
+            curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
         fi
         ;;
     xenial|zesty)
@@ -52,11 +52,6 @@ case $OS in
         sudo apt-get update && sudo $APT_GET install golang-1.9-go
         sudo ln -sf /usr/lib/go-1.9/bin/go /usr/local/bin
         sudo ln -sf /usr/lib/go-1.9/bin/gofmt /usr/local/bin
-        wget -O install-glide.sh https://glide.sh/get
-        export GOPATH=$HOME/go
-        export PATH=$PATH:$HOME/go/bin
-        mkdir -p $HOME/go/bin
-        chmod +x install-glide.sh
-        sudo -E PATH=$PATH ./install-glide.sh
+        curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
         ;;
 esac
