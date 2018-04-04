@@ -19,10 +19,10 @@ package volumeservice
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -125,12 +125,11 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 		}
 		return config, nil
 	}
-
-	// Pass explicit nil so plugins can actually check for nil. See
-	// "Why is my nil error value not equal to nil?" in golang.org/doc/faq.
-	glog.Fatal("Configuration missing: no config file specified and " +
-		"environment variables are not set.")
-	return cinderConfig{}, errors.New("Missing configuration")
+	if reflect.DeepEqual(config, cinderConfig{}) {
+		glog.Fatal("Configuration missing: no config file specified and " +
+			"environment variables are not set.")
+	}
+	return config, nil
 }
 
 func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, error) {
