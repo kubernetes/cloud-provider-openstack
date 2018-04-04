@@ -74,13 +74,35 @@ func (cfg cinderConfig) toAuth3Options() tokens3.AuthOptions {
 }
 
 func getConfigFromEnv() cinderConfig {
-	authURL := os.Getenv("OS_AUTH_URL")
-	if authURL == "" {
-		glog.V(6).Info("OS_AUTH_URL missing from environment")
-		return cinderConfig{}
+	var cfg cinderConfig
+
+	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
+	cfg.Global.Username = os.Getenv("OS_USERNAME")
+	cfg.Global.Password = os.Getenv("OS_PASSWORD")
+	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
+	cfg.Global.UserID = os.Getenv("OS_USER_ID")
+	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
+
+	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
+	if cfg.Global.TenantID == "" {
+		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
+	}
+	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
+	if cfg.Global.TenantName == "" {
+		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
 	}
 
-	return cinderConfig{}
+	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
+	if cfg.Global.DomainID == "" {
+		cfg.Global.DomainID = os.Getenv("OS_USER_DOMAIN_ID")
+	}
+	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
+	if cfg.Global.DomainName == "" {
+		cfg.Global.DomainName = os.Getenv("OS_USER_DOMAIN_NAME")
+	}
+
+	cfg.Cinder.Endpoint = os.Getenv("OS_CINDER_ENDPOINT")
+	return cfg
 }
 
 func getConfig(configFilePath string) (cinderConfig, error) {
