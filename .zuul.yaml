@@ -1,4 +1,15 @@
 - project:
-    check:
+    cloud-provider-openstack-all:
       jobs:
         - cloud-provider-openstack-unittest
+        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
+        - cloud-provider-openstack-acceptance-test-lb-octavia
+    cloud-provider-openstack-unit:
+      jobs:
+        - cloud-provider-openstack-unittest
+    cloud-provider-openstack-lb:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-lb-octavia
+    cloud-provider-openstack-auth:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
