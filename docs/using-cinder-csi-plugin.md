@@ -23,14 +23,14 @@ Encode your ```cloud.conf``` file content using base64.
 
 ```base64 -w 0 cloud.conf```
 
-Update ```cloud.conf``` configuration in ```deploy/kubernetes/csi-secret-cinderplugin.yaml``` file
+Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
 
-```kubectl -f deploy/kubernetes create```
+```kubectl -f manifests/cinder-csi-plugin create```
 
 ### Example Nginx application
 
-```kubectl -f examples/kubernetes/nginx.yaml create```
+```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
 
 ## Using CSC tool
 
