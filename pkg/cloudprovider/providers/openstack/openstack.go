@@ -112,6 +112,11 @@ type BlockStorageOpts struct {
 	IgnoreVolumeAZ  bool   `gcfg:"ignore-volume-az"`
 }
 
+// NetworkingOpts is used for networking settings
+type NetworkingOpts struct {
+	PublicNetworkName string `gcfg:"public-network-name"`
+}
+
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
 	RouterID string `gcfg:"router-id"` // required
@@ -126,12 +131,13 @@ type MetadataOpts struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
-	provider     *gophercloud.ProviderClient
-	region       string
-	lbOpts       LoadBalancerOpts
-	bsOpts       BlockStorageOpts
-	routeOpts    RouterOpts
-	metadataOpts MetadataOpts
+	provider       *gophercloud.ProviderClient
+	region         string
+	lbOpts         LoadBalancerOpts
+	bsOpts         BlockStorageOpts
+	routeOpts      RouterOpts
+	metadataOpts   MetadataOpts
+	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
 	localInstanceID string
 }
@@ -155,6 +161,7 @@ type Config struct {
 	BlockStorage BlockStorageOpts
 	Route        RouterOpts
 	Metadata     MetadataOpts
+	Networking   NetworkingOpts
 }
 
 func init() {
@@ -253,6 +260,7 @@ func readConfig(config io.Reader) (Config, error) {
 	cfg.BlockStorage.IgnoreVolumeAZ = false
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
 	cfg.Metadata.DHCPDomain = "novalocal"
+	cfg.Networking.PublicNetworkName = "public"
 
 	err := gcfg.ReadInto(&cfg, config)
 	return cfg, err
@@ -350,12 +358,13 @@ func newOpenStack(cfg Config) (*OpenStack, error) {
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
 	os := OpenStack{
-		provider:     provider,
-		region:       cfg.Global.Region,
-		lbOpts:       cfg.LoadBalancer,
-		bsOpts:       cfg.BlockStorage,
-		routeOpts:    cfg.Route,
-		metadataOpts: cfg.Metadata,
+		provider:       provider,
+		region:         cfg.Global.Region,
+		lbOpts:         cfg.LoadBalancer,
+		bsOpts:         cfg.BlockStorage,
+		routeOpts:      cfg.Route,
+		metadataOpts:   cfg.Metadata,
+		networkingOpts: cfg.Networking,
 	}
 
 	err = checkOpenStackOpts(&os)
@@ -449,7 +458,7 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*s
 	return &serverList[0], nil
 }
 
-func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
+func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	addrs := []v1.NodeAddress{}
 
 	type Address struct {
@@ -466,7 +475,7 @@ func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
 	for network, addrList := range addresses {
 		for _, props := range addrList {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || network == "public" {
+			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
 				addressType = v1.NodeExternalIP
 			} else {
 				addressType = v1.NodeInternalIP
@@ -503,17 +512,17 @@ func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
 	return addrs, nil
 }
 
-func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName) ([]v1.NodeAddress, error) {
+func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	srv, err := getServerByName(client, name)
 	if err != nil {
 		return nil, err
 	}
 
-	return nodeAddresses(srv)
+	return nodeAddresses(srv, networkingOpts)
 }
 
-func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool) (string, error) {
-	addrs, err := getAddressesByName(client, name)
+func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
+	addrs, err := getAddressesByName(client, name, networkingOpts)
 	if err != nil {
 		return "", err
 	} else if len(addrs) == 0 {
@@ -721,7 +730,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	r, err := NewRoutes(compute, network, os.routeOpts)
+	r, err := NewRoutes(compute, network, os.routeOpts, os.networkingOpts)
 	if err != nil {
 		glog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false
