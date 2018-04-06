@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"golang.org/x/net/context"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 var fakeNodeID = "CSINodeID"
@@ -30,3 +31,15 @@ var fakeVolType = ""
 var fakeAvailability = ""
 var fakeDevicePath = "/dev/xxx"
 var fakeTargetPath = "/mnt/cinder"
+var fakeVol1 = openstack.Volume{
+	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:   "fake-duplicate",
+	Status: "available",
+	AZ:     "",
+}
+var fakeVol2 = openstack.Volume{
+	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:   "fake-duplicate",
+	Status: "available",
+	AZ:     "",
+}
