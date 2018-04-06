@@ -56,6 +56,8 @@ type Volume struct {
 	Status string
 	// Volume size in GB
 	Size int
+	// Availability Zone the volume belongs to
+	AZ string
 }
 
 // CreateVolume creates a volume of given size
@@ -76,6 +78,33 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 	}
 
 	return vol.ID, vol.AvailabilityZone, nil
+}
+
+// GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
+// Returns a list of Volume references with the specified name
+func (os *OpenStack) GetVolumesByName(n string) ([]Volume, error) {
+	var vlist []Volume
+	opts := volumes.ListOpts{Name: n}
+	pages, err := volumes.List(os.blockstorage, opts).AllPages()
+	if err != nil {
+		return vlist, err
+	}
+
+	vols, err := volumes.ExtractVolumes(pages)
+	if err != nil {
+		return vlist, err
+	}
+
+	for _, v := range vols {
+		volume := Volume{
+			ID:     v.ID,
+			Name:   v.Name,
+			Status: v.Status,
+			AZ:     v.AvailabilityZone,
+		}
+		vlist = append(vlist, volume)
+	}
+	return vlist, nil
 }
 
 // DeleteVolume delete a volume

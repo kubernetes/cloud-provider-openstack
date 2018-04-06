@@ -17,6 +17,8 @@ limitations under the License.
 package cinder
 
 import (
+	"errors"
+
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
@@ -58,14 +60,32 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	// Volume Create
-	resID, resAvailability, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, nil)
+	// Verify a volume with the provided name doesn't already exist for this tenant
+	volumes, err := cloud.GetVolumesByName(volName)
 	if err != nil {
-		glog.V(3).Infof("Failed to CreateVolume: %v", err)
-		return nil, err
+		glog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
 	}
 
-	glog.V(4).Infof("Create volume %s in Availability Zone: %s", resID, resAvailability)
+	resID := ""
+	resAvailability := ""
+
+	if len(volumes) == 1 {
+		resID = volumes[0].ID
+		resAvailability = volumes[0].AZ
+	} else if len(volumes) > 1 {
+		glog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
+		return nil, errors.New("multiple volumes reported by Cinder with same name")
+	} else {
+		// Volume Create
+		resID, resAvailability, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, nil)
+		if err != nil {
+			glog.V(3).Infof("Failed to CreateVolume: %v", err)
+			return nil, err
+		}
+
+		glog.V(4).Infof("Create volume %s in Availability Zone: %s", resID, resAvailability)
+
+	}
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
