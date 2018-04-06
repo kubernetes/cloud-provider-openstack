@@ -12,3 +12,6 @@ floating-network-id=80c9fc78-a2be-45d5-a85b-f17a6c98df92
 
 [BlockStorage]
 bs-version=v2
+
+[Networking]
+public-network-name=public

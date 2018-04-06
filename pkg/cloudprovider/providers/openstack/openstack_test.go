@@ -441,7 +441,11 @@ func TestNodeAddresses(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv)
+	networkingOpts := NetworkingOpts{
+		PublicNetworkName: "public",
+	}
+
+	addrs, err := nodeAddresses(&srv, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
