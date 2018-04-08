@@ -66,6 +66,10 @@ var ErrMultipleResults = errors.New("multiple results where only one expected")
 // ErrNoAddressFound is used when we cannot find an ip address for the host
 var ErrNoAddressFound = errors.New("no address found for host")
 
+// ErrIPv6SupportDisabled is used when one tries to use IPv6 Addresses when
+// IPv6 support is disabled by config
+var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
+
 // MyDuration is the encoding.TextUnmarshaler interface for time.Duration
 type MyDuration struct {
 	time.Duration
@@ -112,6 +116,12 @@ type BlockStorageOpts struct {
 	IgnoreVolumeAZ  bool   `gcfg:"ignore-volume-az"`
 }
 
+// NetworkingOpts is used for networking settings
+type NetworkingOpts struct {
+	IPv6SupportDisabled bool   `gcfg:"ipv6-support-disabled"`
+	PublicNetworkName   string `gcfg:"public-network-name"`
+}
+
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
 	RouterID string `gcfg:"router-id"` // required
@@ -126,12 +136,13 @@ type MetadataOpts struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
-	provider     *gophercloud.ProviderClient
-	region       string
-	lbOpts       LoadBalancerOpts
-	bsOpts       BlockStorageOpts
-	routeOpts    RouterOpts
-	metadataOpts MetadataOpts
+	provider       *gophercloud.ProviderClient
+	region         string
+	lbOpts         LoadBalancerOpts
+	bsOpts         BlockStorageOpts
+	routeOpts      RouterOpts
+	metadataOpts   MetadataOpts
+	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
 	localInstanceID string
 }
@@ -155,6 +166,7 @@ type Config struct {
 	BlockStorage BlockStorageOpts
 	Route        RouterOpts
 	Metadata     MetadataOpts
+	Networking   NetworkingOpts
 }
 
 func init() {
@@ -236,6 +248,8 @@ func configFromEnv() (cfg Config, ok bool) {
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
 	cfg.Metadata.DHCPDomain = "novalocal"
 	cfg.BlockStorage.BSVersion = "auto"
+	cfg.Networking.IPv6SupportDisabled = false
+	cfg.Networking.PublicNetworkName = "public"
 
 	return
 }
@@ -253,6 +267,8 @@ func readConfig(config io.Reader) (Config, error) {
 	cfg.BlockStorage.IgnoreVolumeAZ = false
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
 	cfg.Metadata.DHCPDomain = "novalocal"
+	cfg.Networking.IPv6SupportDisabled = false
+	cfg.Networking.PublicNetworkName = "public"
 
 	err := gcfg.ReadInto(&cfg, config)
 	return cfg, err
@@ -350,12 +366,13 @@ func newOpenStack(cfg Config) (*OpenStack, error) {
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
 	os := OpenStack{
-		provider:     provider,
-		region:       cfg.Global.Region,
-		lbOpts:       cfg.LoadBalancer,
-		bsOpts:       cfg.BlockStorage,
-		routeOpts:    cfg.Route,
-		metadataOpts: cfg.Metadata,
+		provider:       provider,
+		region:         cfg.Global.Region,
+		lbOpts:         cfg.LoadBalancer,
+		bsOpts:         cfg.BlockStorage,
+		routeOpts:      cfg.Route,
+		metadataOpts:   cfg.Metadata,
+		networkingOpts: cfg.Networking,
 	}
 
 	err = checkOpenStackOpts(&os)
@@ -449,7 +466,7 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*s
 	return &serverList[0], nil
 }
 
-func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
+func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	addrs := []v1.NodeAddress{}
 
 	type Address struct {
@@ -466,18 +483,21 @@ func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
 	for network, addrList := range addresses {
 		for _, props := range addrList {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || network == "public" {
+			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
 				addressType = v1.NodeExternalIP
 			} else {
 				addressType = v1.NodeInternalIP
 			}
 
-			v1helper.AddToNodeAddresses(&addrs,
-				v1.NodeAddress{
-					Type:    addressType,
-					Address: props.Addr,
-				},
-			)
+			isIPv6 := net.ParseIP(props.Addr).To4() == nil
+			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+				v1helper.AddToNodeAddresses(&addrs,
+					v1.NodeAddress{
+						Type:    addressType,
+						Address: props.Addr,
+					},
+				)
+			}
 		}
 	}
 
@@ -491,7 +511,7 @@ func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
 		)
 	}
 
-	if srv.AccessIPv6 != "" {
+	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
 		v1helper.AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
@@ -503,17 +523,21 @@ func nodeAddresses(srv *servers.Server) ([]v1.NodeAddress, error) {
 	return addrs, nil
 }
 
-func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName) ([]v1.NodeAddress, error) {
+func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	srv, err := getServerByName(client, name)
 	if err != nil {
 		return nil, err
 	}
 
-	return nodeAddresses(srv)
+	return nodeAddresses(srv, networkingOpts)
 }
 
-func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool) (string, error) {
-	addrs, err := getAddressesByName(client, name)
+func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
+	if needIPv6 && networkingOpts.IPv6SupportDisabled {
+		return "", ErrIPv6SupportDisabled
+	}
+
+	addrs, err := getAddressesByName(client, name, networkingOpts)
 	if err != nil {
 		return "", err
 	} else if len(addrs) == 0 {
@@ -721,7 +745,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	r, err := NewRoutes(compute, network, os.routeOpts)
+	r, err := NewRoutes(compute, network, os.routeOpts, os.networkingOpts)
 	if err != nil {
 		glog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false

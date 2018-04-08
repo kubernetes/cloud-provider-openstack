@@ -35,21 +35,23 @@ var errNoRouterID = errors.New("router-id not set in cloud provider config")
 
 // Routes implements the cloudprovider.Routes for OpenStack clouds
 type Routes struct {
-	compute *gophercloud.ServiceClient
-	network *gophercloud.ServiceClient
-	opts    RouterOpts
+	compute        *gophercloud.ServiceClient
+	network        *gophercloud.ServiceClient
+	opts           RouterOpts
+	networkingOpts NetworkingOpts
 }
 
 // NewRoutes creates a new instance of Routes
-func NewRoutes(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, opts RouterOpts) (cloudprovider.Routes, error) {
+func NewRoutes(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, opts RouterOpts, networkingOpts NetworkingOpts) (cloudprovider.Routes, error) {
 	if opts.RouterID == "" {
 		return nil, errNoRouterID
 	}
 
 	return &Routes{
-		compute: compute,
-		network: network,
-		opts:    opts,
+		compute:        compute,
+		network:        network,
+		opts:           opts,
+		networkingOpts: networkingOpts,
 	}, nil
 }
 
@@ -59,7 +61,7 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 
 	nodeNamesByAddr := make(map[string]types.NodeName)
 	err := foreachServer(r.compute, servers.ListOpts{}, func(srv *servers.Server) (bool, error) {
-		addrs, err := nodeAddresses(srv)
+		addrs, err := nodeAddresses(srv, r.networkingOpts)
 		if err != nil {
 			return false, err
 		}
@@ -149,7 +151,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 
 	ip, _, _ := net.ParseCIDR(route.DestinationCIDR)
 	isCIDRv6 := ip.To4() == nil
-	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6)
+	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts)
 
 	if err != nil {
 		return err
@@ -225,7 +227,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 
 	ip, _, _ := net.ParseCIDR(route.DestinationCIDR)
 	isCIDRv6 := ip.To4() == nil
-	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6)
+	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts)
 
 	if err != nil {
 		return err

@@ -33,8 +33,9 @@ import (
 
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
-	compute *gophercloud.ServiceClient
-	opts    MetadataOpts
+	compute        *gophercloud.ServiceClient
+	opts           MetadataOpts
+	networkingOpts NetworkingOpts
 }
 
 // Instances returns an implementation of Instances for OpenStack.
@@ -49,8 +50,9 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 	glog.V(4).Info("Claiming to support Instances")
 
 	return &Instances{
-		compute: compute,
-		opts:    os.metadataOpts,
+		compute:        compute,
+		opts:           os.metadataOpts,
+		networkingOpts: os.networkingOpts,
 	}, true
 }
 
@@ -77,7 +79,7 @@ func (i *Instances) AddSSHKeyToAllInstances(ctx context.Context, user string, ke
 func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
 	glog.V(4).Infof("NodeAddresses(%v) called", name)
 
-	addrs, err := getAddressesByName(i.compute, name)
+	addrs, err := getAddressesByName(i.compute, name, i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +104,7 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
-	addresses, err := nodeAddresses(server)
+	addresses, err := nodeAddresses(server, i.networkingOpts)
 	if err != nil {
 		return []v1.NodeAddress{}, err
 	}
