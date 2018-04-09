@@ -4,6 +4,7 @@
         - cloud-provider-openstack-unittest
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
         - cloud-provider-openstack-acceptance-test-lb-octavia
+        - cloud-provider-openstack-acceptance-test-e2e-conformance
     cloud-provider-openstack-unit:
       jobs:
         - cloud-provider-openstack-unittest
@@ -13,3 +14,6 @@
     cloud-provider-openstack-auth:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
+    cloud-provider-openstack-e2e-conformance:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance
