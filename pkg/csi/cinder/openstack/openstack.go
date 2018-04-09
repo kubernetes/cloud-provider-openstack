@@ -33,6 +33,7 @@ type IOpenStack interface {
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
+	GetVolumesByName(name string) ([]Volume, error)
 }
 
 type OpenStack struct {

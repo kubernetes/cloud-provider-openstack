@@ -67,6 +67,39 @@ func TestCreateVolume(t *testing.T) {
 	assert.Equal(fakeAvailability, actualRes.Volume.Attributes["availability"])
 }
 
+// Test CreateVolumeDuplicate
+func TestCreateVolumeDuplicate(t *testing.T) {
+
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, nil)
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name:               "fake-duplicate",
+		VolumeCapabilities: nil,
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert
+	assert.NotNil(actualRes.Volume)
+
+	assert.NotEqual(0, len(actualRes.Volume.Id), "Volume Id is nil")
+
+	assert.Equal("nova", actualRes.Volume.Attributes["availability"])
+
+	assert.Equal("261a8b81-3660-43e5-bab8-6470b65ee4e9", actualRes.Volume.Id)
+}
+
 // Test DeleteVolume
 func TestDeleteVolume(t *testing.T) {
 
