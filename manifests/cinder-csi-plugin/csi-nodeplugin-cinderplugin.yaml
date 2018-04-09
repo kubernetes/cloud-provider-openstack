@@ -38,7 +38,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: docker.io/k8scsi/cinderplugin
+          image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
