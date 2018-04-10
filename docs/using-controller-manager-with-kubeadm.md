@@ -12,7 +12,7 @@ kubeadm init --config kubeadm.conf
 
 Then follow the usual steps to bootstrap the other nodes using `kubeadm join`
 
-Step 3: build the container image using the following (`make bootstrap` will download go SDK and glide if needed)
+Step 3: build the container image using the following (`make bootstrap` will download go SDK and dep if needed)
 ```
 GOOS=linux make images
 ```
