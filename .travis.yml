@@ -13,9 +13,8 @@ go: 1.9.x
 go_import_path: github.com/dims/openstack-cloud-controller-manager
 
 install:
-  - go get -v github.com/Masterminds/glide
-  - cd $GOPATH/src/github.com/Masterminds/glide && git checkout tags/v0.13.1 && go install && cd -
-  - glide install --strip-vendor
+  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+  - dep ensure
   - make
 
 script:
