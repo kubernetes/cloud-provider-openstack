@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
       - name: standalone-cinder-provisioner
-        image: "quay.io/external_storage/standalone-cinder-provisioner:latest"
+        image: docker.io/k8scloudprovider/cinder-provisioner:latest
         imagePullPolicy: IfNotPresent
         env:
         - name: OS_AUTH_URL

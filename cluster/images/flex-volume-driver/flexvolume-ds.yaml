@@ -29,7 +29,7 @@ spec:
       containers:
         - name: cinder-flexvolume
           resources: {}
-          image: stackube/flex-volume:v0.1
+          image: docker.io/k8scloudprovider/cinder-flex-volume-driver:latest
           command: ["/bin/bash", "install.sh"]
           env:
             # The endpoint of openstack authentication.

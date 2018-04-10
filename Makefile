@@ -26,7 +26,7 @@ HAS_LINT := $(shell command -v golint;)
 GOOS ?= $(shell go env GOOS)
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
                  git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
-REGISTRY ?= dims
+REGISTRY ?= k8scloudprovider
 
 # CTI targets
 
@@ -210,6 +210,15 @@ ifeq ($(GOOS),linux)
 else
 	$(error Please set GOOS=linux for building the image)
 endif
+
+upload-images: images
+	@echo "push images to $(REGISTRY)"
+	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
+	docker push $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION)
+	docker push $(REGISTRY)/cinder-flex-volume-driver:$(VERSION)
+	docker push $(REGISTRY)/cinder-provisioner:$(VERSION)
+	docker push $(REGISTRY)/cinder-csi-plugin:$(VERSION)
+	docker push $(REGISTRY)/k8s-keystone-auth:$(VERSION)
 
 version:
 	@echo ${VERSION}
