@@ -29,6 +29,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+          imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: plugin-dir
               mountPath: /plugin
