@@ -42,7 +42,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: cinder
-          image: docker.io/k8scsi/cinderplugin
+          image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
           args :
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"

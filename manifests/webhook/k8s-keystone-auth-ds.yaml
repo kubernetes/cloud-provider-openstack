@@ -27,7 +27,7 @@ spec:
         effect: NoSchedule
       containers:
         - name: k8s-keystone-auth
-          image: dims/k8s-keystone-auth:0.1.0
+          image: docker.io/k8scloudprovider/k8s-keystone-auth:latest
           args:
             - /bin/k8s-keystone-auth
             - --v=10
