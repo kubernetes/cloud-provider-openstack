@@ -84,7 +84,7 @@ func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercl
 
 	// Read configuration
 	var cfg Config
-	err = gcfg.ReadInto(&cfg, config)
+	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
 		glog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
 		return authOpts, epOpts, err
