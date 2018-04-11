@@ -1,25 +1,20 @@
 - project:
-    cloud-provider-openstack-all:
+    cloud-provider-openstack-unittest:
       jobs:
         - cloud-provider-openstack-unittest
-        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
-        - cloud-provider-openstack-acceptance-test-lb-octavia
-        - cloud-provider-openstack-acceptance-test-e2e-conformance
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10.0
-    cloud-provider-openstack-unit:
-      jobs:
-        - cloud-provider-openstack-unittest
-    cloud-provider-openstack-lb:
+    cloud-provider-openstack-acceptance-test-lb-octavia:
       jobs:
         - cloud-provider-openstack-acceptance-test-lb-octavia
-    cloud-provider-openstack-auth:
+    cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
-    cloud-provider-openstack-e2e-conformance:
+    cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10.0
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10
     periodic:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10.0
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10
