@@ -71,7 +71,7 @@ func readConfig(configFile string) (openStackConfig, error) {
 	}
 
 	var cfg openStackConfig
-	err = gcfg.ReadInto(&cfg, config)
+	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	return cfg, err
 }
 
