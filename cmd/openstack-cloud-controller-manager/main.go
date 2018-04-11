@@ -51,6 +51,8 @@ func init() {
 
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
+
+	goflag.CommandLine.Parse([]string{})
 	s := options.NewCloudControllerManagerOptions()
 	command := &cobra.Command{
 		Use: "cloud-controller-manager",
