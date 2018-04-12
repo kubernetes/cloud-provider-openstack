@@ -8,6 +8,15 @@
     cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
+    cloud-provider-openstack-acceptance-test-k8s-cinder:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-k8s-cinder
+    cloud-provider-openstack-acceptance-test-standalone-cinder:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-standalone-cinder
+    cloud-provider-openstack-acceptance-test-csi-cinder:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-csi-cinder
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance
