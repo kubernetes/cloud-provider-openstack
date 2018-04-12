@@ -118,7 +118,7 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 
 		defer configFile.Close()
 
-		err = gcfg.ReadInto(&config, configFile)
+		err = gcfg.FatalOnly(gcfg.ReadInto(&config, configFile))
 		if err != nil {
 			glog.Fatalf("Couldn't read configuration: %#v", err)
 			return cinderConfig{}, err

@@ -270,7 +270,7 @@ func readConfig(config io.Reader) (Config, error) {
 	cfg.Networking.IPv6SupportDisabled = false
 	cfg.Networking.PublicNetworkName = "public"
 
-	err := gcfg.ReadInto(&cfg, config)
+	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	return cfg, err
 }
 
