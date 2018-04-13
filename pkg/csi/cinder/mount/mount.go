@@ -87,7 +87,7 @@ func probeVolume() error {
 func (m *Mount) LocalAttach(volumeId string) error {
 	exec := mount.NewOsExec()
 
-	args := []string{}
+	args := []string{volumeId}
 	_, err := exec.Run("cinder-attach", args...)
 	if err != nil {
 		glog.V(3).Infof("error doing local-attach %v\n", err)
