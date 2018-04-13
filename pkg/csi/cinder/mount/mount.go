@@ -43,6 +43,7 @@ type IMount interface {
 	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
+	LocalAttach(volumeId string) error
 }
 
 type Mount struct {
@@ -79,6 +80,20 @@ func probeVolume() error {
 		return err
 	}
 	glog.V(4).Infof("Successfully probed all attachments")
+	return nil
+}
+
+// ScanForAttach
+func (m *Mount) LocalAttach(volumeId string) error {
+	exec := mount.NewOsExec()
+
+	args := []string{}
+	_, err := exec.Run("cinder-attach", args...)
+	if err != nil {
+		glog.V(3).Infof("error doing local-attach %v\n", err)
+		return err
+	}
+
 	return nil
 }
 
