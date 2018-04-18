@@ -85,9 +85,12 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	var routes []*cloudprovider.Route
 	for _, item := range router.Routes {
 		nodeName, foundNode := nodeNamesByAddr[item.NextHop]
+		if !foundNode {
+			nodeName = types.NodeName(item.NextHop)
+		}
 		route := cloudprovider.Route{
 			Name:            item.DestinationCIDR,
-			TargetNode:      nodeName, //empty if NextHop is unknown
+			TargetNode:      nodeName, //contains the nexthop address if node was not found
 			Blackhole:       !foundNode,
 			DestinationCIDR: item.DestinationCIDR,
 		}
@@ -227,10 +230,15 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 
 	ip, _, _ := net.ParseCIDR(route.DestinationCIDR)
 	isCIDRv6 := ip.To4() == nil
-	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts)
+	var addr string
 
-	if err != nil {
-		return err
+	// Blackhole routes are orphaned and have no counterpart in OpenStack
+	if !route.Blackhole {
+		var err error
+		addr, err = getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts)
+		if err != nil {
+			return err
+		}
 	}
 
 	router, err := routers.Get(r.network, r.opts.RouterID).Extract()
@@ -241,7 +249,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	routes := router.Routes
 	index := -1
 	for i, item := range routes {
-		if item.DestinationCIDR == route.DestinationCIDR && item.NextHop == addr {
+		if item.DestinationCIDR == route.DestinationCIDR && (item.NextHop == addr || route.Blackhole && item.NextHop == string(route.TargetNode)) {
 			index = i
 			break
 		}
@@ -257,7 +265,8 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	routes = routes[:len(routes)-1]
 
 	unwind, err := updateRoutes(r.network, router, routes)
-	if err != nil {
+	// If this was a blackhole route we are done, there are no ports to update
+	if err != nil || route.Blackhole {
 		return err
 	}
 	defer onFailure.call(unwind)
