@@ -17,7 +17,6 @@ TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk  -F "\"" '/^ignored = / { print $$2 }' Gopkg.toml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
-DEST := $(GOPATH)/src/$(PKG)
 SOURCES := $(shell find $(DEST) -name '*.go')
 HAS_MERCURIAL := $(shell command -v hg;)
 HAS_DEP := $(shell command -v dep;)
