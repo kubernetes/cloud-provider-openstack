@@ -117,7 +117,7 @@ func (client *cinderClient) getConnectionInfo(id string, copts *volumeactions.In
 		return nil, err
 	}
 
-	return connectionInfo["connection_info"].(map[string]interface{}), nil
+	return connectionInfo, nil
 }
 
 func (client *cinderClient) attach(id string, opts volumeactions.AttachOpts) error {
