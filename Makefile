@@ -29,19 +29,19 @@ REGISTRY ?= k8scloudprovider
 
 # CTI targets
 
-depend: work
+depend: env work
 ifndef HAS_MERCURIAL
 	pip install Mercurial
 endif
 ifndef HAS_DEP
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 endif
-	dep ensure
+	cd $(DEST) && dep ensure
 
 depend-update: work
-	dep ensure -update
+	cd $(DEST) && dep ensure -update
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth octavia-ingress-controller
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -72,6 +72,12 @@ k8s-keystone-auth: depend $(SOURCES)
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o k8s-keystone-auth \
 		cmd/k8s-keystone-auth/main.go
+
+octavia-ingress-controller: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags "-X 'main.version=${VERSION}'" \
+		-o octavia-ingress-controller \
+		cmd/octavia-ingress-controller/main.go
 
 test: unit functional
 
@@ -152,7 +158,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth
+	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth octavia-ingress-controller
 
 realclean: clean
 	rm -rf vendor
