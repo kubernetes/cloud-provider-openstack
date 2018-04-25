@@ -27,7 +27,17 @@ VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
                  git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 REGISTRY ?= k8scloudprovider
 
+ifneq ("$(DEST)", "$(PWD)")
+    $(error Please run 'make' from $(DEST). Current directory is $(PWD))
+endif
+
 # CTI targets
+
+$(GOBIN):
+	echo "create gobin"
+	mkdir -p $(GOBIN)
+
+work: $(GOBIN)
 
 depend: work
 ifndef HAS_MERCURIAL
@@ -44,31 +54,31 @@ depend-update: work
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
 
 openstack-cloud-controller-manager: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
 
 cinder-provisioner: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
 
 cinder-csi-plugin: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
 cinder-flex-volume-driver: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
 k8s-keystone-auth: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o k8s-keystone-auth \
 		cmd/k8s-keystone-auth/main.go
@@ -78,26 +88,26 @@ test: unit functional
 check: depend fmt vet lint
 
 unit: depend
-	cd $(DEST) && go test -tags=unit $(shell go list ./...) $(TESTARGS)
+	go test -tags=unit $(shell go list ./...) $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
 
-fmt: work
-	cd $(DEST) && hack/verify-gofmt.sh
+fmt:
+	hack/verify-gofmt.sh
 
-lint: work
+lint:
 ifndef HAS_LINT
 		go get -u github.com/golang/lint/golint
 		echo "installing lint"
 endif
-	cd $(DEST) && hack/verify-golint.sh
+	hack/verify-golint.sh
 
-vet: work
-	cd $(DEST) && go vet ./...
+vet:
+	go vet ./...
 
 cover: depend
-	cd $(DEST) && go test -tags=unit $(shell go list ./...) -cover
+	go test -tags=unit $(shell go list ./...) -cover
 
 docs:
 	@echo "$@ not yet implemented"
@@ -128,19 +138,6 @@ env:
 bootstrap:
 	tools/test-setup.sh
 
-work: $(GOPATH) $(GOBIN) $(DEST)
-
-$(GOPATH):
-	mkdir -p $(GOPATH)
-
-$(GOBIN):
-	echo "create gobin"
-	mkdir -p $(GOBIN)
-
-$(DEST): $(GOPATH)
-	mkdir -p $(shell dirname $(DEST))
-	ln -s $(PWD) $(DEST)
-
 .bindep:
 	virtualenv .bindep
 	.bindep/bin/pip install -i https://pypi.python.org/simple bindep
@@ -160,8 +157,8 @@ realclean: clean
 		rm -rf $(GOPATH); \
 	fi
 
-shell: work
-	cd $(DEST) && $(SHELL) -i
+shell:
+	$(SHELL) -i
 
 images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth
 
