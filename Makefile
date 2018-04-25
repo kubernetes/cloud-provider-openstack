@@ -36,10 +36,10 @@ endif
 ifndef HAS_DEP
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 endif
-	dep ensure
+	cd $(DEST) && dep ensure
 
 depend-update: work
-	dep ensure -update
+	cd $(DEST) && dep ensure -update
 
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
 
@@ -139,7 +139,7 @@ $(GOBIN):
 
 $(DEST): $(GOPATH)
 	mkdir -p $(shell dirname $(DEST))
-	ln -s $(PWD) $(DEST)
+	ln -sf $(PWD) $(DEST)
 
 .bindep:
 	virtualenv .bindep
