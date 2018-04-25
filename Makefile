@@ -29,7 +29,7 @@ REGISTRY ?= k8scloudprovider
 
 # CTI targets
 
-depend: work
+depend: env work
 ifndef HAS_MERCURIAL
 	pip install Mercurial
 endif
