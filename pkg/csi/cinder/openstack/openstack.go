@@ -22,6 +22,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"gopkg.in/gcfg.v1"
 )
 
@@ -34,6 +35,9 @@ type IOpenStack interface {
 	WaitDiskDetached(instanceID string, volumeID string) error
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
 	GetVolumesByName(name string) ([]Volume, error)
+	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
+	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
+	DeleteSnapshot(snapID string) error
 }
 
 type OpenStack struct {
