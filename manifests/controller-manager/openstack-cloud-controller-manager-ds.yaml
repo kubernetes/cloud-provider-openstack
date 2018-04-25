@@ -23,7 +23,8 @@ spec:
       labels:
         k8s-app: openstack-cloud-controller-manager
     spec:
-      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
       securityContext:
         runAsUser: 1001
       tolerations:
