@@ -1,4 +1,4 @@
-ignored = ["k8s.io/cloud-provider-openstack"]
+ignored = ["k8s.io/cloud-provider-openstack", "github.com/kubernetes/cloud-provider-openstack"]
 
 [[constraint]]
   name = "github.com/container-storage-interface/spec"
