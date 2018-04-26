@@ -6,18 +6,14 @@
 
 GIT_HOST = k8s.io
 
-PWD := $(shell pwd)
-BASE_DIR := $(shell basename $(PWD))
-# Keep an existing GOPATH, make a private one if it is undefined
-GOPATH_DEFAULT := $(PWD)/.go
-export GOPATH ?= $(GOPATH_DEFAULT)
+PROJECT_DIR := ${CURDIR}
+BASE_DIR := $(shell basename $(PROJECT_DIR))
 GOBIN_DEFAULT := $(GOPATH)/bin
 export GOBIN ?= $(GOBIN_DEFAULT)
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk  -F "\"" '/^ignored = / { print $$2 }' Gopkg.toml)
-DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
-SOURCES := $(shell find $(DEST) -name '*.go')
+SOURCES := $(shell find $(PROJECT_DIR) -name '*.go')
 HAS_MERCURIAL := $(shell command -v hg;)
 HAS_DEP := $(shell command -v dep;)
 HAS_LINT := $(shell command -v golint;)
@@ -26,10 +22,17 @@ GOOS ?= $(shell go env GOOS)
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
                  git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 REGISTRY ?= k8scloudprovider
+export BIN_DIR ?= $(PROJECT_DIR)
 
 # CTI targets
 
 depend: work
+ifneq ($(findstring $(GOPATH),$(PROJECT_DIR)),$(GOPATH))
+	$(error current dir $(PROJECT_DIR) is not in your GOPATH $(GOPATH))
+endif
+
+
+
 ifndef HAS_MERCURIAL
 	pip install Mercurial
 endif
@@ -44,33 +47,36 @@ depend-update: work
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth
 
 openstack-cloud-controller-manager: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	$(info $$GOOS is [${GOOS}])
+	$(info $$GOPATH is [${GOPATH}])
+	$(info $$GOBIN is [${GOBIN}])
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
-		-o openstack-cloud-controller-manager \
+		-o ${BIN_DIR}/openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
 
 cinder-provisioner: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
-		-o cinder-provisioner \
+		-o ${BIN_DIR}/cinder-provisioner \
 		cmd/cinder-provisioner/main.go
 
 cinder-csi-plugin: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
-		-o cinder-csi-plugin \
+		-o ${BIN_DIR}/cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
 cinder-flex-volume-driver: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
-		-o cinder-flex-volume-driver \
+		-o ${BIN_DIR}/cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
 k8s-keystone-auth: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags "-X 'main.version=${VERSION}'" \
-		-o k8s-keystone-auth \
+		-o ${BIN_DIR}/k8s-keystone-auth \
 		cmd/k8s-keystone-auth/main.go
 
 test: unit functional
@@ -78,26 +84,26 @@ test: unit functional
 check: depend fmt vet lint
 
 unit: depend
-	cd $(DEST) && go test -tags=unit $(shell go list ./...) $(TESTARGS)
+	go test -tags=unit $(shell go list ./...) $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
 
 fmt: work
-	cd $(DEST) && hack/verify-gofmt.sh
+	hack/verify-gofmt.sh
 
 lint: work
 ifndef HAS_LINT
 		go get -u github.com/golang/lint/golint
 		echo "installing lint"
 endif
-	cd $(DEST) && hack/verify-golint.sh
+	hack/verify-golint.sh
 
 vet: work
-	cd $(DEST) && go vet ./...
+	go vet ./...
 
 cover: depend
-	cd $(DEST) && go test -tags=unit $(shell go list ./...) -cover
+	go test -tags=unit $(shell go list ./...) -cover
 
 docs:
 	@echo "$@ not yet implemented"
@@ -115,11 +121,10 @@ translation:
 
 # Set up the development environment
 env:
-	@echo "PWD: $(PWD)"
+	@echo "PROJECT_DIR: $(PROJECT_DIR)"
 	@echo "BASE_DIR: $(BASE_DIR)"
 	@echo "GOPATH: $(GOPATH)"
 	@echo "GOROOT: $(GOROOT)"
-	@echo "DEST: $(DEST)"
 	@echo "PKG: $(PKG)"
 	go version
 	go env
@@ -128,18 +133,7 @@ env:
 bootstrap:
 	tools/test-setup.sh
 
-work: $(GOPATH) $(GOBIN) $(DEST)
-
-$(GOPATH):
-	mkdir -p $(GOPATH)
-
-$(GOBIN):
-	echo "create gobin"
-	mkdir -p $(GOBIN)
-
-$(DEST): $(GOPATH)
-	mkdir -p $(shell dirname $(DEST))
-	ln -s $(PWD) $(DEST)
+work: $(GOPATH) $(GOBIN)
 
 .bindep:
 	virtualenv .bindep
@@ -152,7 +146,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth
+	rm -rf .bindep $(BIN_DIR)
 
 realclean: clean
 	rm -rf vendor
@@ -161,7 +155,7 @@ realclean: clean
 	fi
 
 shell: work
-	cd $(DEST) && $(SHELL) -i
+	cd $(BIN_DIR) && $(SHELL) -i
 
 images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth
 
