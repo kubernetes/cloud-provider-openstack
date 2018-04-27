@@ -192,6 +192,7 @@
     "openstack/blockstorage/noauth",
     "openstack/blockstorage/v1/volumes",
     "openstack/blockstorage/v2/volumes",
+    "openstack/blockstorage/v3/snapshots",
     "openstack/blockstorage/v3/volumes",
     "openstack/common/extensions",
     "openstack/compute/v2/extensions/attachinterfaces",
@@ -962,6 +963,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cce458db5b11a6cf671678682afad949a345d9099dc24c340766805d4146a17f"
+  inputs-digest = "b66aeba19207ddd867290d26dc6cdf458d6323f0f2380f6a9958bf4c5483811d"
   solver-name = "gps-cdcl"
   solver-version = 1
