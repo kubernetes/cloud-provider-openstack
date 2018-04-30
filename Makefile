@@ -51,7 +51,7 @@ endif
 depend-update: work
 	dep ensure -update
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -88,6 +88,12 @@ client-keystone-auth: depend $(SOURCES)
 		-ldflags "-X 'main.version=${VERSION}'" \
 		-o client-keystone-auth \
 		cmd/client-keystone-auth/main.go
+
+octavia-ingress-controller: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags "-X 'main.version=${VERSION}'" \
+		-o octavia-ingress-controller \
+		cmd/octavia-ingress-controller/main.go
 
 test: unit functional
 
@@ -155,7 +161,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth
+	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller
 
 realclean: clean
 	rm -rf vendor
