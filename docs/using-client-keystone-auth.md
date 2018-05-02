@@ -51,13 +51,15 @@ users:
 
       # Environment variables to set when executing the plugin. Optional.
       env:
-      - name: "OS_AUTH_URL"
-        value: "https://127.0.0.1/identity"
+      - name: "OS_USERNAME"
+        value: "admin"
+      - name: "OS_PASSWORD"
+        value: "passw0rd"
 
       # Arguments to pass when executing the plugin. Optional.
       args:
-      - "--domain-name default"
-      - "--keystone-url https://127.0.0.1/identity"
+      - "--domain-name=default"
+      - "--keystone-url=https://127.0.0.1/identity"
 clusters:
 - name: my-cluster
   cluster:
@@ -107,10 +109,11 @@ When the plugin is executed from an interactive session, `stdin` and `stderr` ar
 exposed to the plugin so it can prompt the user for input for interactive logins.
 
 To authenticate in Keystone from an interactive session, the user needs to provide the address
-and domain name. These values can be specified using environment variables
-(`OS_AUTH_URL` and `OS_DOMAIN_NAME`), or through command arguments
-(`--keystone-url` and `--domain-name`), respectively. If they are not specified, the user
-will be prompted to enter them at the time of the interactive session.
+domain name, user name and his password. These values can be specified using environment variables
+(`OS_AUTH_URL`, `OS_DOMAIN_NAME`, `OS_USERNAME` and `OS_PASSWORD`), or through command arguments
+(`--keystone-url`, `--domain-name`, `--user-name` and `--password`), respectively.
+If they are not specified, the user will be prompted to enter them at the time of the interactive
+session.
 
 When responding to a 401 HTTP status code (indicating invalid credentials), this object will
 include metadata about the response.
