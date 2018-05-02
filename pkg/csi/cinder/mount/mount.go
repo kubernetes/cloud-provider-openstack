@@ -28,6 +28,7 @@ import (
 	utilexec "k8s.io/utils/exec"
 
 	"github.com/golang/glog"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 const (
@@ -43,7 +44,8 @@ type IMount interface {
 	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
-	LocalAttach(volumeId string) error
+	LocalAttach(volumeID string) (string, error)
+	LocalDetach(volumeID string) error
 }
 
 type Mount struct {
@@ -83,14 +85,42 @@ func probeVolume() error {
 	return nil
 }
 
-// ScanForAttach
-func (m *Mount) LocalAttach(volumeId string) error {
+// LocalAttach
+func (m *Mount) LocalAttach(volumeID string) (string, error) {
 	exec := mount.NewOsExec()
 
-	args := []string{volumeId}
-	_, err := exec.Run("cinder-attach", args...)
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
-		glog.V(3).Infof("error doing local-attach %v\n", err)
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return "", err
+	}
+
+	args := []string{"local-attach", volumeID}
+	out, err := exec.Run("cinder", args...)
+	if err != nil {
+		glog.V(3).Infof("error doing local-attach %s\n%v\n", string(out), err)
+		return "", err
+	}
+
+	volume, err := cloud.GetVolume(volumeID)
+	glog.V(3).Infof("device path %v", volume.AttachedDevice)
+	if err != nil {
+		glog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
+		return "", err
+	}
+
+	return volume.AttachedDevice, nil
+}
+
+// LocalAttach
+func (m *Mount) LocalDetach(volumeID string) error {
+	exec := mount.NewOsExec()
+
+	args := []string{"local-detach", volumeID}
+	out, err := exec.Run("cinder", args...)
+	if err != nil {
+		glog.V(3).Infof("error doing local-detach %s\n%v\n", string(out), err)
 		return err
 	}
 
