@@ -5,6 +5,9 @@
     cloud-provider-openstack-acceptance-test-lb-octavia:
       jobs:
         - cloud-provider-openstack-acceptance-test-lb-octavia
+    cloud-provider-openstack-format:
+      jobs:
+        - cloud-provider-openstack-format
     cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
