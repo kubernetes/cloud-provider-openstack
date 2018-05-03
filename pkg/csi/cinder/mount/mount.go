@@ -113,7 +113,7 @@ func (m *Mount) LocalAttach(volumeID string) (string, error) {
 	return volume.AttachedDevice, nil
 }
 
-// LocalAttach
+// LocalDetach
 func (m *Mount) LocalDetach(volumeID string) error {
 	exec := mount.NewOsExec()
 

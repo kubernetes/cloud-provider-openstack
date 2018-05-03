@@ -21,14 +21,20 @@ import (
 )
 
 type Server struct {
-	// Unique identifier for the volume.
+	// Unique identifier for the instance.
 	ID string
-	// Human-readable display name for the volume.
+
+	// Human-readable display name for the instance.
 	Name string
-	// Current status of the volume.
+
+	// Current status of the instance.
 	Status string
 }
 
+// GetInstance is a wrapper around gophercloud's `servers.Get`. It
+// fetches the data for an instance and extracts it into a `Server`
+// struct.
+// Returns a Server struct
 func (os *OpenStack) GetInstance(instanceID string) (Server, error) {
 	inst, err := servers.Get(os.compute, instanceID).Extract()
 	if err != nil {
