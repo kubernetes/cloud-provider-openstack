@@ -21,10 +21,17 @@ SOURCES := $(shell find $(DEST) -name '*.go')
 HAS_MERCURIAL := $(shell command -v hg;)
 HAS_DEP := $(shell command -v dep;)
 HAS_LINT := $(shell command -v golint;)
+HAS_GOX := $(shell command -v gox;)
+GOX_PARALLEL ?= 3
+TARGETS ?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le
+DIST_DIRS         = find * -type d -exec
 
 GOOS ?= $(shell go env GOOS)
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
                  git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
+GOFLAGS   :=
+TAGS      :=
+LDFLAGS   := "-w -s -X 'main.version=${VERSION}'"
 REGISTRY ?= k8scloudprovider
 
 ifneq ("$(DEST)", "$(PWD)")
@@ -55,43 +62,43 @@ build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
 
 cinder-provisioner: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
 
 cinder-csi-plugin: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
 cinder-flex-volume-driver: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
 k8s-keystone-auth: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o k8s-keystone-auth \
 		cmd/k8s-keystone-auth/main.go
 
 client-keystone-auth: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o client-keystone-auth \
 		cmd/client-keystone-auth/main.go
 
 octavia-ingress-controller: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags "-X 'main.version=${VERSION}'" \
+		-ldflags '$(LDFLAGS)' \
 		-o octavia-ingress-controller \
 		cmd/octavia-ingress-controller/main.go
 
@@ -161,7 +168,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller
+	rm -rf _dist .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller
 
 realclean: clean
 	rm -rf vendor
@@ -231,5 +238,29 @@ upload-images: images
 version:
 	@echo ${VERSION}
 
+.PHONY: build-cross
+build-cross: LDFLAGS += -extldflags "-static"
+build-cross: depend
+ifndef HAS_GOX
+	go get -u github.com/mitchellh/gox
+endif
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/openstack-cloud-controller-manager/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/cinder-provisioner/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/cinder-csi-plugin/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/cinder-flex-volume-driver/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/k8s-keystone-auth/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/client-keystone-auth/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/octavia-ingress-controller/
+
+.PHONY: dist
+dist: build-cross
+	( \
+		cd _dist && \
+		$(DIST_DIRS) cp ../LICENSE {} \; && \
+		$(DIST_DIRS) cp ../README.md {} \; && \
+		$(DIST_DIRS) tar -zcf cloud-provider-openstack-$(VERSION)-{}.tar.gz {} \; && \
+		$(DIST_DIRS) zip -r cloud-provider-openstack-$(VERSION)-{}.zip {} \; \
+	)
+
 .PHONY: bindep build clean cover depend docs fmt functional lint realclean \
-	relnotes test translation version
+	relnotes test translation version build-cross dist
