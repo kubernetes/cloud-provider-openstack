@@ -3,9 +3,9 @@
       jobs:
         - cloud-provider-openstack-unittest
 # TODO: re-enable this job after https://github.com/theopenlab/openlab/issues/54 gets fixed
-#    cloud-provider-openstack-acceptance-test-lb-octavia:
-#      jobs:
-#        - cloud-provider-openstack-acceptance-test-lb-octavia
+    cloud-provider-openstack-acceptance-test-lb-octavia:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-lb-octavia
     cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
@@ -31,3 +31,4 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10
+
