@@ -22,29 +22,37 @@ import (
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	Kubernetes kubeConfig
-	OpenStack  osConfig
-	Octavia    octaviaConfig
+	Kubernetes kubeConfig    `mapstructure:"kubernetes"`
+	OpenStack  osConfig      `mapstructure:"openstack"`
+	Octavia    octaviaConfig `mapstructure:"octavia"`
 }
 
+// Configuration for connecting to Kubernetes API server, either api_host or kubeconfig should be configured.
 type kubeConfig struct {
-	ApiserverHost string
-	KubeConfig    string
+	// (Optional)Kubernetes API server host address.
+	ApiserverHost string `mapstructure:"api_host"`
+
+	// (Optional)Kubeconfig file used to connect to Kubernetes cluster.
+	KubeConfig string `mapstructure:"kubeconfig"`
 }
 
+// OpenStack credentials configuration, the section is required.
 type osConfig struct {
 	Username  string
 	Password  string
-	ProjectID string
-	AuthURL   string
+	ProjectID string `mapstructure:"project_id"`
+	AuthURL   string `mapstructure:"auth_url"`
 	Region    string
 }
 
+// Octavia service related configuration
 type octaviaConfig struct {
-	SubnetID           string
-	NodeSubnetID       string
-	AllocateFloatingIP bool
-	FloatingIPNetwork  string
+	// (Required)Subnet ID to create the load balancer.
+	SubnetID string `mapstructure:"subnet_id"`
+
+	// (Optional)Public network to create floating IP.
+	// If empty, no floating IP will be allocated to the load balancer vip.
+	FloatingIPNetwork string `mapstructure:"fip_network"`
 }
 
 // ToAuthOptions gets openstack auth options
