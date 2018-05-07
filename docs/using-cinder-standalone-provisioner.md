@@ -12,7 +12,7 @@ standard kubelet machinery and without help from cinder.
 The provisioner works by mapping cinder volume connections 
 (iscsi, rbd, fc, etc) to the corresponding native/raw kubernetes
 volume types.  New cinder types can be supported in the provisioner
-by creating a new implementation of the volunmeMapper interface.  The
+by creating a new implementation of the volumeMapper interface.  The
 implementation is responsible for building a PersistentVolumeSource
 from cinder connection information and for setup and teardown of any
 authentication (CHAP secret, cephx secret, etc) if required.

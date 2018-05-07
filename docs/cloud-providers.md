@@ -101,7 +101,7 @@ file:
   cloud.
 * `use-octavia` (Optional): Used to determine whether to look for and use an
   Octavia LBaaS V2 service catalog endpoint. Valid values are `true` or `false`.
-  Where `true` is specified and an Octaiva LBaaS V2 entry can not be found, the
+  Where `true` is specified and an Octavia LBaaS V2 entry can not be found, the
   provider will fall back and attempt to find a Neutron LBaaS V2 endpoint
   instead. The default value is `false`.
 * `subnet-id` (Optional): Used to specify the id of the subnet you want to
