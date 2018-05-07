@@ -11,7 +11,7 @@ FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true
 RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true"
 ```
 
-Mountprogpation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
+MountPropagation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
 
 ### Example local-up-cluster.sh
 
