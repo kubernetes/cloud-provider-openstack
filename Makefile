@@ -179,7 +179,7 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth
+images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller
 
 image-controller-manager: depend openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
@@ -226,6 +226,15 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
+image-octavia-ingress-controller: depend octavia-ingress-controller
+ifeq ($(GOOS),linux)
+	cp octavia-ingress-controller cluster/images/octavia-ingress-controller
+	docker build -t $(REGISTRY)/octavia-ingress-controller:$(VERSION) cluster/images/octavia-ingress-controller
+	rm cluster/images/octavia-ingress-controller/octavia-ingress-controller
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
 upload-images: images
 	@echo "push images to $(REGISTRY)"
 	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
@@ -234,6 +243,7 @@ upload-images: images
 	docker push $(REGISTRY)/cinder-provisioner:$(VERSION)
 	docker push $(REGISTRY)/cinder-csi-plugin:$(VERSION)
 	docker push $(REGISTRY)/k8s-keystone-auth:$(VERSION)
+	docker push $(REGISTRY)/octavia-ingress-controller:$(VERSION)
 
 version:
 	@echo ${VERSION}
