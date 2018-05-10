@@ -62,43 +62,43 @@ build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
 
 cinder-provisioner: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
 
 cinder-csi-plugin: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
 cinder-flex-volume-driver: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
 k8s-keystone-auth: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o k8s-keystone-auth \
 		cmd/k8s-keystone-auth/main.go
 
 client-keystone-auth: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o client-keystone-auth \
 		cmd/client-keystone-auth/main.go
 
 octavia-ingress-controller: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags '$(LDFLAGS)' \
+		-ldflags $(LDFLAGS) \
 		-o octavia-ingress-controller \
 		cmd/octavia-ingress-controller/main.go
 
