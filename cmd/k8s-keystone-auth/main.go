@@ -49,11 +49,11 @@ var (
 func main() {
 	flag.CommandLine.Parse([]string{})
 	pflag.StringVar(&listenAddr, "listen", "0.0.0.0:8443", "<address>:<port> to listen on")
-	pflag.StringVar(&tlsCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS.")
-	pflag.StringVar(&tlsPrivateKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
+	pflag.StringVar(&tlsCertFile, "tls-cert-file", os.Getenv("TLS_CERT_FILE"), "File containing the default x509 Certificate for HTTPS.")
+	pflag.StringVar(&tlsPrivateKey, "tls-private-key-file", os.Getenv("TLS_PRIVATE_KEY_FILE"), "File containing the default x509 private key matching --tls-cert-file.")
 	pflag.StringVar(&keystoneURL, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
-	pflag.StringVar(&keystoneCaFile, "keystone-ca-file", "", "File containing the certificate authority for Keystone Service.")
-	pflag.StringVar(&policyFile, "keystone-policy-file", "", "File containing the policy.")
+	pflag.StringVar(&keystoneCaFile, "keystone-ca-file", os.Getenv("KEYSTONE_CA_FILE"), "File containing the certificate authority for Keystone Service.")
+	pflag.StringVar(&policyFile, "keystone-policy-file", os.Getenv("KEYSTONE_POLICY_FILE"), "File containing the policy.")
 
 	kflag.InitFlags()
 	logs.InitLogs()
