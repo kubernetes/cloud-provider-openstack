@@ -64,8 +64,48 @@ This command creates the following entry in your ~/.kube/config
     auth-provider:
       name: openstack
 ```
-- Run `kubectl config set-context --cluster=kubernetes --user=openstackuser openstackuser@kubernetes`
+- Run `kubectl config set-context --cluster=mycluster --user=openstackuser openstackuser@kubernetes`
 - Run `kubectl config use-context openstackuser@kubernetes` to activate the context
+
+After running above commands, your kubeconfig file should be like below:
+
+```
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /tmp/certs/ca.pem
+    server: https://172.24.4.6:6443
+  name: mycluster
+contexts:
+- context:
+    cluster: mycluster
+    user: admin
+  name: default
+- context:
+    cluster: mycluster
+    user: openstackuser
+  name: openstackuser@kubernetes
+current-context: openstackuser@kubernetes
+kind: Config
+preferences: {}
+users:
+- name: admin
+  user:
+    client-certificate: /tmp/certs/cert.pem
+    client-key: /tmp/certs/key.pem
+- name: openstackuser
+  user:
+    auth-provider:
+      config:
+        ttl: 10m0s
+      name: openstack
+
+```
+
+In above kubeconfig, the cluster name is `mycluster`, the kube API address is
+`https://172.24.4.6:6443`. And in this kubeconfig file, there are two contexts.
+One for normal certs auth, and one for Keystone auth. Please note, the current
+context is `openstackuser@kubernetes`.
 
 Source your env vars. Make sure you include `OS_DOMAIN_NAME` or the client will fallback to Keystone V2 that is not supported by the webhook.This env should be ok:
 
