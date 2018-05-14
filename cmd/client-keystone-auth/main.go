@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -54,7 +55,9 @@ const respTemplate string = `{
 }`
 
 func promptForString(field string, r io.Reader, show bool) (result string, err error) {
-	fmt.Printf("Please enter %s: ", field)
+	// We have to print output to Stderr, because Stdout is redirected and not shown to the user.
+	fmt.Fprintf(os.Stderr, "Please enter %s: ", field)
+
 	if show {
 		_, err = fmt.Fscan(r, &result)
 	} else {
@@ -62,7 +65,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 		if terminal.IsTerminal(int(os.Stdin.Fd())) {
 			data, err = terminal.ReadPassword(int(os.Stdin.Fd()))
 			result = string(data)
-			fmt.Println()
+			fmt.Fprintf(os.Stderr, "\n")
 		} else {
 			return "", fmt.Errorf("error reading input for %s", field)
 		}
@@ -70,37 +73,46 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 	return result, err
 }
 
-// prompt pulls keystone auth url, domain, username and password from stdin.
-// "url" and "domain" are optional parameters, and they are used only if
-// interactive is set to true, otherwise ignored. If these parameters are
-// not specified (i.e. equal ""), then user will be promted to enter them
-// from the console.
-func prompt(url string, domain string) (gophercloud.AuthOptions, error) {
+// prompt pulls keystone auth url, domain, username and password from stdin,
+// if they are not specified initially (i.e. equal "").
+func prompt(url string, domain string, user string, password string) (gophercloud.AuthOptions, error) {
 	var err error
 	var options gophercloud.AuthOptions
 
-	if url == "" { // url is not defined in the config - ask user to specify it
+	if url == "" {
 		url, err = promptForString("Keystone Auth URL", os.Stdin, true)
 		if err != nil {
 			return options, err
 		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Keystone auth url is \"%s\"\n", url)
 	}
 
-	if domain == "" { // domain is not defined in the config - ask user to specify it
+	if domain == "" {
 		domain, err = promptForString("domain name", os.Stdin, true)
 		if err != nil {
 			return options, err
 		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Domain name is \"%s\"\n", domain)
 	}
 
-	user, err := promptForString("user name", os.Stdin, true)
-	if err != nil {
-		return options, err
+	if user == "" {
+		user, err = promptForString("user name", os.Stdin, true)
+		if err != nil {
+			return options, err
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "User name is \"%s\"\n", user)
 	}
 
-	password, err := promptForString("password", nil, false)
-	if err != nil {
-		return options, err
+	if password == "" {
+		password, err = promptForString("password", nil, false)
+		if err != nil {
+			return options, err
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Password is set\n")
 	}
 
 	options = gophercloud.AuthOptions{
@@ -137,11 +149,15 @@ func validateKebernetesExecInfo(kei KuberneteExecInfo) error {
 func main() {
 	var url string
 	var domain string
+	var user string
+	var password string
 	var options gophercloud.AuthOptions
 	var err error
 
 	pflag.StringVar(&url, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
-	pflag.StringVar(&domain, "domain-name", "default", "Keystone domain name")
+	pflag.StringVar(&domain, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
+	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
+	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
 	kflag.InitFlags()
 
 	keiData := os.Getenv("KUBERNETES_EXEC_INFO")
@@ -172,7 +188,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain)
+		options, err = prompt(url, domain, user, password)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
@@ -189,5 +205,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf(respTemplate, token.ID, token.ExpiresAt)
+	fmt.Printf(respTemplate, token.ID, token.ExpiresAt.Format(time.RFC3339Nano))
 }
