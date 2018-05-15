@@ -80,6 +80,10 @@ const (
 	cinderVolumePluginName = "kubernetes.io/cinder"
 )
 
+func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
+	return host.GetPodVolumeDir(uid, kstrings.EscapeQualifiedNameForDisk(cinderVolumePluginName), volName)
+}
+
 func (plugin *cinderPlugin) Init(host volume.VolumeHost) error {
 	plugin.host = host
 	plugin.volumeLocks = keymutex.NewKeyMutex()
@@ -136,12 +140,13 @@ func (plugin *cinderPlugin) newMounterInternal(spec *volume.Spec, podUID types.U
 
 	return &cinderVolumeMounter{
 		cinderVolume: &cinderVolume{
-			podUID:  podUID,
-			volName: spec.Name(),
-			pdName:  pdName,
-			mounter: mounter,
-			manager: manager,
-			plugin:  plugin,
+			podUID:          podUID,
+			volName:         spec.Name(),
+			pdName:          pdName,
+			mounter:         mounter,
+			manager:         manager,
+			plugin:          plugin,
+			MetricsProvider: volume.NewMetricsStatFS(getPath(podUID, spec.Name(), plugin.host)),
 		},
 		fsType:             fsType,
 		readOnly:           readOnly,
@@ -155,11 +160,12 @@ func (plugin *cinderPlugin) NewUnmounter(volName string, podUID types.UID) (volu
 func (plugin *cinderPlugin) newUnmounterInternal(volName string, podUID types.UID, manager cdManager, mounter mount.Interface) (volume.Unmounter, error) {
 	return &cinderVolumeUnmounter{
 		&cinderVolume{
-			podUID:  podUID,
-			volName: volName,
-			manager: manager,
-			mounter: mounter,
-			plugin:  plugin,
+			podUID:          podUID,
+			volName:         volName,
+			manager:         manager,
+			mounter:         mounter,
+			plugin:          plugin,
+			MetricsProvider: volume.NewMetricsStatFS(getPath(podUID, volName, plugin.host)),
 		}}, nil
 }
 
@@ -304,7 +310,7 @@ type cinderVolume struct {
 	// diskMounter provides the interface that is used to mount the actual block device.
 	blockDeviceMounter mount.Interface
 	plugin             *cinderPlugin
-	volume.MetricsNil
+	volume.MetricsProvider
 }
 
 func (b *cinderVolumeMounter) GetAttributes() volume.Attributes {
@@ -398,8 +404,7 @@ func makeGlobalPDName(host volume.VolumeHost, devName string) string {
 }
 
 func (cd *cinderVolume) GetPath() string {
-	name := cinderVolumePluginName
-	return cd.plugin.host.GetPodVolumeDir(cd.podUID, kstrings.EscapeQualifiedNameForDisk(name), cd.volName)
+	return getPath(cd.podUID, cd.volName, cd.plugin.host)
 }
 
 type cinderVolumeUnmounter struct {
@@ -485,8 +490,7 @@ type cinderVolumeDeleter struct {
 var _ volume.Deleter = &cinderVolumeDeleter{}
 
 func (r *cinderVolumeDeleter) GetPath() string {
-	name := cinderVolumePluginName
-	return r.plugin.host.GetPodVolumeDir(r.podUID, kstrings.EscapeQualifiedNameForDisk(name), r.volName)
+	return getPath(r.podUID, r.volName, r.plugin.host)
 }
 
 func (r *cinderVolumeDeleter) Delete() error {
