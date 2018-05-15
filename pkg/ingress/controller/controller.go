@@ -295,7 +295,7 @@ func (c *Controller) nodeSyncLoop() {
 				log.WithFields(log.Fields{"name": lbName}).Errorf("Failed to retrieve loadbalancer from OpenStack: %v", err)
 			}
 
-			// If lb doesn't exist or error occured, continue
+			// If lb doesn't exist or error occurred, continue
 			continue
 		}
 
