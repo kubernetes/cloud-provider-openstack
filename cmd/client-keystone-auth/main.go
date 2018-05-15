@@ -175,7 +175,7 @@ func main() {
 
 	err = validateKebernetesExecInfo(kei)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "An error occured: %v\n", err)
+		fmt.Fprintf(os.Stderr, "An error occurred: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -201,7 +201,7 @@ func main() {
 			fmt.Println(errRespTemplate)
 			os.Exit(0)
 		}
-		fmt.Fprintf(os.Stderr, "An error occured: %v\n", err)
+		fmt.Fprintf(os.Stderr, "An error occurred: %v\n", err)
 		os.Exit(1)
 	}
 
