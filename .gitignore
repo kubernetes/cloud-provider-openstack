@@ -6,6 +6,7 @@
 .idea
 .DS_Store
 vendor
+coverage.txt
 
 # OSX leaves these everywhere on SMB shares
 ._*
