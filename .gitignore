@@ -29,6 +29,7 @@ vendor
 /output*/
 /_output*/
 /_output
+/_dist
 
 # Emacs save files
 *~
@@ -141,3 +142,4 @@ zz_generated.openapi.go
 /cinder-provisioner
 /k8s-keystone-auth
 /cinder-csi-plugin
+/octavia-ingress-controller
