@@ -17,7 +17,7 @@ if ! which make; then
     PACKAGES="$PACKAGES make"
 fi
 if [[ -n $PACKAGES ]]; then
-    sudo apt-get -q --assume-yes install virtualenv
+    sudo apt-get -q --assume-yes install $PACKAGES
 fi
 
 # Check for bindep
