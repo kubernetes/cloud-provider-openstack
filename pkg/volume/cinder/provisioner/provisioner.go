@@ -19,13 +19,17 @@ package provisioner
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+
+	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 )
 
 const (
@@ -35,8 +39,8 @@ const (
 	// ProvisionerIDAnn is an annotation to identify a particular instance of this provisioner
 	ProvisionerIDAnn = "standaloneCinderProvisionerIdentity"
 
-	// CinderVolumeID is an annotation to store the ID of the associated cinder volume
-	CinderVolumeID = "cinderVolumeId"
+	// CinderVolumeIDAnn is an annotation to store the ID of the associated cinder volume
+	CinderVolumeIDAnn = "cinderVolumeId"
 )
 
 type cinderProvisioner struct {
@@ -71,9 +75,39 @@ func NewCinderProvisioner(client kubernetes.Interface, id, configFilePath string
 	}, nil
 }
 
+func getCreateOptions(options controller.VolumeOptions) (volumes_v2.CreateOpts, error) {
+	name := fmt.Sprintf("cinder-dynamic-pvc-%s", uuid.NewUUID())
+	capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
+	sizeBytes := capacity.Value()
+	// Cinder works with gigabytes, convert to GiB with rounding up
+	sizeGB := int((sizeBytes + 1024*1024*1024 - 1) / (1024 * 1024 * 1024))
+	volType := ""
+	availability := "nova"
+	// Apply ProvisionerParameters (case-insensitive). We leave validation of
+	// the values to the cloud provider.
+	for k, v := range options.Parameters {
+		switch strings.ToLower(k) {
+		case "type":
+			volType = v
+		case "availability":
+			availability = v
+		default:
+			return volumes_v2.CreateOpts{}, fmt.Errorf("invalid option %q", k)
+		}
+	}
+
+	return volumes_v2.CreateOpts{
+		Name:             name,
+		Size:             sizeGB,
+		VolumeType:       volType,
+		AvailabilityZone: availability,
+	}, nil
+}
+
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *cinderProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
 	var (
+		volumeID   string
 		connection volumeservice.VolumeConnection
 		mapper     volumeMapper
 		pv         *v1.PersistentVolume
@@ -85,8 +119,12 @@ func (p *cinderProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	}
 
 	// TODO: Check access mode
-
-	volumeID, err := p.vsb.createCinderVolume(p.VolumeService, options)
+	createOptions, err := getCreateOptions(options)
+	if err != nil {
+		glog.Error(err)
+		goto ERROR
+	}
+	volumeID, err = p.vsb.createCinderVolume(p.VolumeService, createOptions)
 	if err != nil {
 		glog.Errorf("Failed to create volume")
 		goto ERROR
@@ -104,33 +142,44 @@ func (p *cinderProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		goto ERROR_DELETE
 	}
 
-	connection, err = p.vsb.connectCinderVolume(p.VolumeService, volumeID)
+	connection, err = p.vsb.connectCinderVolume(p.VolumeService, initiatorName, volumeID)
 	if err != nil {
 		glog.Errorf("Failed to connect volume %s: %v", volumeID, err)
 		goto ERROR_UNRESERVE
 	}
 
+	err = p.vsb.attachCinderVolume(p.VolumeService, volumeID)
+	if err != nil {
+		glog.Errorf("Failed to attach volume %s: %v", volumeID, err)
+		goto ERROR_DISCONNECT
+	}
+
 	mapper, err = p.mb.newVolumeMapperFromConnection(connection)
 	if err != nil {
 		glog.Errorf("Unable to create volume mapper: %v", err)
-		goto ERROR_DISCONNECT
+		goto ERROR_DETACH
 	}
 
 	err = mapper.AuthSetup(p, options, connection)
 	if err != nil {
 		glog.Errorf("Failed to prepare volume auth: %v", err)
-		goto ERROR_DISCONNECT
+		goto ERROR_DETACH
 	}
 
 	pv, err = p.mb.buildPV(mapper, p, options, connection, volumeID)
 	if err != nil {
 		glog.Errorf("Failed to build PV: %v", err)
-		goto ERROR_DISCONNECT
+		goto ERROR_DETACH
 	}
 	return pv, nil
 
+ERROR_DETACH:
+	cleanupErr = p.vsb.detachCinderVolume(p.VolumeService, volumeID)
+	if cleanupErr != nil {
+		glog.Errorf("Failed to detach volume %s: %v", volumeID, cleanupErr)
+	}
 ERROR_DISCONNECT:
-	cleanupErr = p.vsb.disconnectCinderVolume(p.VolumeService, volumeID)
+	cleanupErr = p.vsb.disconnectCinderVolume(p.VolumeService, initiatorName, volumeID)
 	if cleanupErr != nil {
 		glog.Errorf("Failed to disconnect volume %s: %v", volumeID, cleanupErr)
 	}
@@ -166,9 +215,9 @@ func (p *cinderProvisioner) Delete(pv *v1.PersistentVolume) error {
 	// TODO when beta is removed, have to check kube version and pick v1/beta
 	// accordingly: maybe the controller lib should offer a function for that
 
-	volumeID, ok := pv.Annotations[CinderVolumeID]
+	volumeID, ok := pv.Annotations[CinderVolumeIDAnn]
 	if !ok {
-		return errors.New(CinderVolumeID + " annotation not found on PV")
+		return errors.New(CinderVolumeIDAnn + " annotation not found on PV")
 	}
 
 	mapper, err := p.mb.newVolumeMapperFromPV(pv)
@@ -179,7 +228,13 @@ func (p *cinderProvisioner) Delete(pv *v1.PersistentVolume) error {
 
 	mapper.AuthTeardown(p, pv)
 
-	err = p.vsb.disconnectCinderVolume(p.VolumeService, volumeID)
+	err = p.vsb.detachCinderVolume(p.VolumeService, volumeID)
+	if err != nil {
+		glog.Errorf("Failed to detach volume %s: %v", volumeID, err)
+		return err
+	}
+
+	err = p.vsb.disconnectCinderVolume(p.VolumeService, initiatorName, volumeID)
 	if err != nil {
 		glog.Errorf("Failed to disconnect volume %s: %v", volumeID, err)
 		return err

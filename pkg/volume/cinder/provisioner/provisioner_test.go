@@ -17,10 +17,10 @@ limitations under the License.
 package provisioner
 
 import (
-	"bytes"
 	"errors"
 
 	"github.com/gophercloud/gophercloud"
+	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,6 +30,48 @@ import (
 )
 
 var _ = Describe("Provisioner", func() {
+	Describe("Create volume options parsing", func() {
+		var (
+			err           error
+			options       controller.VolumeOptions
+			createOptions volumes_v2.CreateOpts
+		)
+		BeforeEach(func() {
+			options = createVolumeOptions()
+		})
+		JustBeforeEach(func() {
+			createOptions, err = getCreateOptions(options)
+		})
+
+		Context("when an unrecognized option is specified in the storage class", func() {
+			BeforeEach(func() {
+				options.Parameters = map[string]string{
+					"foo": "bar",
+				}
+			})
+
+			It("should fail", func() {
+				Expect(createOptions).To(Equal(volumes_v2.CreateOpts{}))
+				Expect(err).ToNot(BeNil())
+			})
+		})
+
+		Context("when recognized options are used", func() {
+			BeforeEach(func() {
+				options.Parameters = map[string]string{
+					"type":         "gold",
+					"availability": "zone",
+				}
+			})
+
+			It("should be reflected in the create options", func() {
+				Expect(err).To(BeNil())
+				Expect(createOptions.AvailabilityZone).To(Equal("zone"))
+				Expect(createOptions.VolumeType).To(Equal("gold"))
+			})
+		})
+	})
+
 	Describe("A provision operation", func() {
 		var (
 			pv      *v1.PersistentVolume
@@ -70,6 +112,19 @@ var _ = Describe("Provisioner", func() {
 			})
 		})
 
+		Context("when an unrecognized option is specified in the storage class", func() {
+			BeforeEach(func() {
+				options.Parameters = map[string]string{
+					"foo": "bar",
+				}
+			})
+
+			It("should fail", func() {
+				Expect(pv).To(BeNil())
+				Expect(err).To(Not(BeNil()))
+			})
+		})
+
 		Context("when creating a volume fails", func() {
 			BeforeEach(func() {
 				vsb.mightFail.set("createCinderVolume")
@@ -88,7 +143,7 @@ var _ = Describe("Provisioner", func() {
 			It("should fail and delete the volume", func() {
 				Expect(pv).To(BeNil())
 				Expect(err).To(Not(BeNil()))
-				Expect(vsb.cleanupLog.String()).To(Equal(cleanup))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
 			})
 		})
 
@@ -100,7 +155,7 @@ var _ = Describe("Provisioner", func() {
 			It("should fail and delete the volume", func() {
 				Expect(pv).To(BeNil())
 				Expect(err).To(Not(BeNil()))
-				Expect(vsb.cleanupLog.String()).To(Equal(cleanup))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
 			})
 		})
 
@@ -112,43 +167,55 @@ var _ = Describe("Provisioner", func() {
 			It("should fail and the volume should be unreserved and deleted", func() {
 				Expect(pv).To(BeNil())
 				Expect(err).To(Not(BeNil()))
-				Expect(vsb.cleanupLog.String()).To(Equal(cleanup))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
+			})
+		})
+
+		Context("when attaching the volume fails", func() {
+			BeforeEach(func() {
+				vsb.mightFail.set("attachCinderVolume")
+				cleanup = "disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
+			})
+			It("should fail and the volume should be disconnected, unreserved and deleted", func() {
+				Expect(pv).To(BeNil())
+				Expect(err).To(Not(BeNil()))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
 			})
 		})
 
 		Context("when getting a volumeMapper fails", func() {
 			BeforeEach(func() {
 				mb.mightFail.set("newVolumeMapperFromConnection")
-				cleanup = "disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
+				cleanup = "detachCinderVolume.disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
 			})
-			It("should fail and the volume should be disconnected, unreserved and deleted", func() {
+			It("should fail and the volume should be detached, disconnected, unreserved and deleted", func() {
 				Expect(pv).To(BeNil())
 				Expect(err).To(Not(BeNil()))
-				Expect(vsb.cleanupLog.String()).To(Equal(cleanup))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
 			})
 		})
 
 		Context("when preparing volume authentication fails", func() {
 			BeforeEach(func() {
 				mb.FakeVolumeMapper.mightFail.set("AuthSetup")
-				cleanup = "disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
+				cleanup = "detachCinderVolume.disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
 			})
-			It("should fail and the volume should be disconnected, unreserved and deleted", func() {
+			It("should fail and the volume should be detached, disconnected, unreserved and deleted", func() {
 				Expect(pv).To(BeNil())
 				Expect(err).To(Not(BeNil()))
-				Expect(vsb.cleanupLog.String()).To(Equal(cleanup))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
 			})
 		})
 
 		Context("when building the PV fails", func() {
 			BeforeEach(func() {
 				mb.mightFail.set("buildPV")
-				cleanup = "disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
+				cleanup = "detachCinderVolume.disconnectCinderVolume.unreserveCinderVolume.deleteCinderVolume."
 			})
-			It("should fail and the volume should be disconnected, unreserved and deleted", func() {
+			It("should fail and the volume should be detached, disconnected, unreserved and deleted", func() {
 				Expect(pv).To(BeNil())
 				Expect(err).To(Not(BeNil()))
-				Expect(vsb.cleanupLog.String()).To(Equal(cleanup))
+				Expect(vsb.mightFail.operationLog.String()).To(Equal(cleanup))
 			})
 		})
 	})
@@ -202,7 +269,7 @@ var _ = Describe("Provisioner", func() {
 
 		Context("when the cinder volume ID annotation is missing from the PV", func() {
 			BeforeEach(func() {
-				delete(pv.Annotations, CinderVolumeID)
+				delete(pv.Annotations, CinderVolumeIDAnn)
 			})
 
 			It("should fail", func() {
@@ -258,12 +325,11 @@ var _ = Describe("Provisioner", func() {
 })
 
 type fakeVolumeServiceBroker struct {
-	cleanupLog bytes.Buffer
-	mightFail  failureInjector
+	mightFail failureInjector
 	volumeServiceBroker
 }
 
-func (vsb *fakeVolumeServiceBroker) createCinderVolume(vs *gophercloud.ServiceClient, options controller.VolumeOptions) (string, error) {
+func (vsb *fakeVolumeServiceBroker) createCinderVolume(vs *gophercloud.ServiceClient, options volumes_v2.CreateOpts) (string, error) {
 	if vsb.mightFail.isSet("createCinderVolume") {
 		return "", errors.New("injected error for testing")
 	}
@@ -278,32 +344,31 @@ func (vsb *fakeVolumeServiceBroker) reserveCinderVolume(vs *gophercloud.ServiceC
 	return vsb.mightFail.ret("reserveCinderVolume")
 }
 
-func (vsb *fakeVolumeServiceBroker) connectCinderVolume(vs *gophercloud.ServiceClient, volumeID string) (volumeservice.VolumeConnection, error) {
+func (vsb *fakeVolumeServiceBroker) connectCinderVolume(vs *gophercloud.ServiceClient, initiator string, volumeID string) (volumeservice.VolumeConnection, error) {
 	if vsb.mightFail.isSet("connectCinderVolume") {
 		return volumeservice.VolumeConnection{}, errors.New("injected error for testing")
 	}
 	return volumeservice.VolumeConnection{}, nil
 }
 
-func (vsb *fakeVolumeServiceBroker) _cleanupRet(fn string) error {
-	if vsb.mightFail.isSet(fn) {
-		return errors.New("injected error for testing")
-	}
-	vsb.cleanupLog.WriteString(fn)
-	vsb.cleanupLog.WriteString(".")
-	return nil
+func (vsb *fakeVolumeServiceBroker) attachCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
+	return vsb.mightFail.ret("attachCinderVolume")
 }
 
-func (vsb *fakeVolumeServiceBroker) disconnectCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
-	return vsb._cleanupRet("disconnectCinderVolume")
+func (vsb *fakeVolumeServiceBroker) detachCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
+	return vsb.mightFail.logRet("detachCinderVolume")
+}
+
+func (vsb *fakeVolumeServiceBroker) disconnectCinderVolume(vs *gophercloud.ServiceClient, initiator string, volumeID string) error {
+	return vsb.mightFail.logRet("disconnectCinderVolume")
 }
 
 func (vsb *fakeVolumeServiceBroker) unreserveCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
-	return vsb._cleanupRet("unreserveCinderVolume")
+	return vsb.mightFail.logRet("unreserveCinderVolume")
 }
 
 func (vsb *fakeVolumeServiceBroker) deleteCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
-	return vsb._cleanupRet("deleteCinderVolume")
+	return vsb.mightFail.logRet("deleteCinderVolume")
 }
 
 type fakeMapperBroker struct {

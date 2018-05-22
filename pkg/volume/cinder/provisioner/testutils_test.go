@@ -17,7 +17,9 @@ limitations under the License.
 package provisioner
 
 import (
+	"bytes"
 	"errors"
+
 	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
@@ -26,31 +28,37 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 )
 
-func createVolumeOptions() controller.VolumeOptions {
+func createPVC(name string, size string) *v1.PersistentVolumeClaim {
 	var storageClass = "storageclass"
 
 	capacity, err := resource.ParseQuantity("1Gi")
 	if err != nil {
 		glog.Error("Programmer error, cannot parse quantity string")
-		return controller.VolumeOptions{}
+		return &v1.PersistentVolumeClaim{}
 	}
-
-	return controller.VolumeOptions{
-		PVName: "testpv",
-		PVC: &v1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "testns",
-			},
-			Spec: v1.PersistentVolumeClaimSpec{
-				StorageClassName: &storageClass,
-				AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
-				Resources: v1.ResourceRequirements{
-					Requests: v1.ResourceList{
-						v1.ResourceName(v1.ResourceStorage): capacity,
-					},
+	return &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   "testns",
+			Annotations: make(map[string]string),
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			StorageClassName: &storageClass,
+			AccessModes:      []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceName(v1.ResourceStorage): capacity,
 				},
 			},
 		},
+	}
+}
+
+func createVolumeOptions() controller.VolumeOptions {
+	return controller.VolumeOptions{
+		PVName:                        "testpv",
+		PVC:                           createPVC("curPVC", "1G"),
+		Parameters:                    make(map[string]string),
 		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimDelete,
 	}
 }
@@ -59,8 +67,8 @@ func createPersistentVolume() *v1.PersistentVolume {
 	return &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				ProvisionerIDAnn: "identity",
-				CinderVolumeID:   "cinderVolumeID",
+				ProvisionerIDAnn:  "identity",
+				CinderVolumeIDAnn: "cinderVolumeID",
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
@@ -79,31 +87,41 @@ func createCinderProvisioner() *cinderProvisioner {
 }
 
 type failureInjector struct {
-	failOn map[string]bool
+	operationLog bytes.Buffer
+	failOn       map[string]bool
 }
 
-func (vsb *failureInjector) set(method string) {
-	if vsb.failOn == nil {
-		vsb.failOn = make(map[string]bool)
+func (fi *failureInjector) set(method string) {
+	if fi.failOn == nil {
+		fi.failOn = make(map[string]bool)
 	}
-	vsb.failOn[method] = true
+	fi.failOn[method] = true
 }
 
-func (vsb *failureInjector) isSet(method string) bool {
-	if vsb.failOn == nil {
+func (fi *failureInjector) isSet(method string) bool {
+	if fi.failOn == nil {
 		return false
 	}
-	value, ok := vsb.failOn[method]
+	value, ok := fi.failOn[method]
 	if !ok {
 		return false
 	}
 	return value
 }
 
-func (vsb *failureInjector) ret(method string) error {
-	if vsb.isSet(method) {
+func (fi *failureInjector) ret(method string) error {
+	if fi.isSet(method) {
 		return errors.New("injected error for testing")
 	}
+	return nil
+}
+
+func (fi *failureInjector) logRet(fn string) error {
+	if fi.isSet(fn) {
+		return errors.New("injected error for testing")
+	}
+	fi.operationLog.WriteString(fn)
+	fi.operationLog.WriteString(".")
 	return nil
 }
 
@@ -126,4 +144,23 @@ func (m *fakeMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeOp
 
 func (m *fakeMapper) AuthTeardown(p *cinderProvisioner, pv *v1.PersistentVolume) error {
 	return m.mightFail.ret("AuthTeardown")
+}
+
+type fakeClusterBroker struct {
+	clusterBroker
+	CreatedSecret *v1.Secret
+	DeletedSecret string
+	Namespace     string
+}
+
+func (cb *fakeClusterBroker) createSecret(p *cinderProvisioner, ns string, secret *v1.Secret) error {
+	cb.CreatedSecret = secret
+	cb.Namespace = ns
+	return nil
+}
+
+func (cb *fakeClusterBroker) deleteSecret(p *cinderProvisioner, ns string, secretName string) error {
+	cb.DeletedSecret = secretName
+	cb.Namespace = ns
+	return nil
 }
