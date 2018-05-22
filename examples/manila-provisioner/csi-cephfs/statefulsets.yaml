@@ -1,0 +1,72 @@
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-attacher
+spec:
+  serviceName: "csi-attacher"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-attacher
+    spec:
+      serviceAccount: csi-attacher
+      containers:
+        - name: csi-cephfsplugin-attacher
+          image: quay.io/k8scsi/csi-attacher:v0.2.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/kubelet/plugins/csi-cephfsplugin/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: csi-cephfsplugin-socket-dir
+              mountPath: /var/lib/kubelet/plugins/csi-cephfsplugin
+      volumes:
+        - name: csi-cephfsplugin-socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-cephfsplugin
+            type: DirectoryOrCreate
+        - name: csi-cvmfsplugin-socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-cvmfsplugin
+            type: DirectoryOrCreate
+---
+kind: StatefulSet
+apiVersion: apps/v1beta1
+metadata:
+  name: csi-provisioner
+spec:
+  serviceName: "csi-provisioner"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-provisioner
+    spec:
+      serviceAccount: csi-provisioner
+      containers:
+        - name: csi-cephfsplugin-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v0.2.0
+          args:
+            - "--provisioner=csi-cephfsplugin"
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/kubelet/plugins/csi-cephfsplugin/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: csi-cephfsplugin-socket-dir
+              mountPath: /var/lib/kubelet/plugins/csi-cephfsplugin
+      volumes:
+        - name: csi-cephfsplugin-socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-cephfsplugin
+            type: DirectoryOrCreate
+        - name: csi-cvmfsplugin-socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-cvmfsplugin
+            type: DirectoryOrCreate

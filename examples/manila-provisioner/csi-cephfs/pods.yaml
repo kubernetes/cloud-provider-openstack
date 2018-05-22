@@ -1,0 +1,35 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: manila-provisioner
+spec:
+  serviceAccount: manila-provisioner
+  hostNetwork: true
+  containers:
+    - name: manila-provisioner
+      image: k8scloudprovider/manila-provisioner:d43720c9-dirty
+      imagePullPolicy: "IfNotPresent"
+      args: [ "--provisioner=manila-provisioner" ]
+      securityContext:
+        privileged: true
+        capabilities:
+          add: ["SYS_ADMIN"]
+        allowPrivilegeEscalation: true
+      volumeMounts:
+        - name: host-sys
+          mountPath: /sys
+        - name: lib-modules
+          mountPath: /lib/modules
+          readOnly: true
+        - name: host-dev
+          mountPath: /dev
+  volumes:
+    - name: host-sys
+      hostPath:
+        path: /sys
+    - name: lib-modules
+      hostPath:
+        path: /lib/modules
+    - name: host-dev
+      hostPath:
+        path: /dev
