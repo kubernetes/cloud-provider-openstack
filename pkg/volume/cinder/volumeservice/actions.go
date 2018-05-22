@@ -17,20 +17,20 @@ limitations under the License.
 package volumeservice
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-const initiatorName = "iqn.1994-05.com.redhat:a13fc3d1cc22"
+const attachMountPoint = "/k8s.io/standalone-cinder"
+const attachHostName = "standalone-cinder.k8s.io"
+
+const pollInterval = 3 * time.Second
+const pollTimeout = 60 * time.Second
 
 // VolumeConnectionDetails represent the type-specific values for a given
 // DriverVolumeType.  Depending on the volume type, fields may be absent or
@@ -65,38 +65,10 @@ type rcvVolumeConnection struct {
 }
 
 // CreateCinderVolume creates a new volume in cinder according to the PVC specifications
-func CreateCinderVolume(vs *gophercloud.ServiceClient, options controller.VolumeOptions) (string, error) {
-	name := fmt.Sprintf("cinder-dynamic-pvc-%s", uuid.NewUUID())
-	capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
-	sizeBytes := capacity.Value()
-	// Cinder works with gigabytes, convert to GiB with rounding up
-	sizeGB := int((sizeBytes + 1024*1024*1024 - 1) / (1024 * 1024 * 1024))
-	volType := ""
-	availability := ""
-	// Apply ProvisionerParameters (case-insensitive). We leave validation of
-	// the values to the cloud provider.
-	for k, v := range options.Parameters {
-		switch strings.ToLower(k) {
-		case "type":
-			volType = v
-		case "availability":
-			availability = v
-		default:
-			return "", fmt.Errorf("invalid option %q", k)
-		}
-	}
-
-	opts := volumes_v2.CreateOpts{
-		Name:             name,
-		Size:             sizeGB,
-		VolumeType:       volType,
-		AvailabilityZone: availability,
-	}
-
-	vol, err := volumes_v2.Create(vs, &opts).Extract()
-
+func CreateCinderVolume(vs *gophercloud.ServiceClient, options volumes_v2.CreateOpts) (string, error) {
+	vol, err := volumes_v2.Create(vs, &options).Extract()
 	if err != nil {
-		glog.Errorf("Failed to create a %d GiB volume: %v", sizeGB, err)
+		glog.Errorf("Failed to create a %d GiB volume: %v", options.Size, err)
 		return "", err
 	}
 
@@ -108,12 +80,10 @@ func CreateCinderVolume(vs *gophercloud.ServiceClient, options controller.Volume
 // become available.  The connection information cannot be retrieved from cinder
 // until the volume is available.
 func WaitForAvailableCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
-	// TODO: Implement proper polling instead of brain-dead timers
-	c := make(chan error)
-	go time.AfterFunc(5*time.Second, func() {
-		c <- nil
+	return wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+		volume, err := GetCinderVolume(vs, volumeID)
+		return volume.Status == "available", err
 	})
-	return <-c
 }
 
 // ReserveCinderVolume marks the volume as 'Attaching' in cinder.  This prevents
@@ -125,11 +95,11 @@ func ReserveCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
 // ConnectCinderVolume retrieves connection information for a cinder volume.
 // Depending on the type of volume, cinder may perform setup on a storage server
 // such as mapping a LUN to a particular ISCSI initiator.
-func ConnectCinderVolume(vs *gophercloud.ServiceClient, volumeID string) (VolumeConnection, error) {
+func ConnectCinderVolume(vs *gophercloud.ServiceClient, initiator string, volumeID string) (VolumeConnection, error) {
 	opt := volumeactions.InitializeConnectionOpts{
 		Host:      "localhost",
 		IP:        "127.0.0.1",
-		Initiator: initiatorName,
+		Initiator: initiator,
 	}
 	var rcv rcvVolumeConnection
 	err := volumeactions.InitializeConnection(vs, volumeID, &opt).ExtractInto(&rcv)
@@ -141,14 +111,28 @@ func ConnectCinderVolume(vs *gophercloud.ServiceClient, volumeID string) (Volume
 	return rcv.ConnectionInfo, nil
 }
 
+// AttachCinderVolume marks the volume as attached in the cinder database.
+func AttachCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
+	opts := volumeactions.AttachOpts{
+		MountPoint: attachMountPoint,
+		HostName:   attachHostName,
+		Mode:       volumeactions.ReadWrite,
+	}
+	return volumeactions.Attach(vs, volumeID, opts).ExtractErr()
+}
+
+func DetachCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
+	return volumeactions.Detach(vs, volumeID, volumeactions.DetachOpts{}).ExtractErr()
+}
+
 // DisconnectCinderVolume removes a connection to a cinder volume.  Depending on
 // the volume type, this may cause cinder to clean up the connection at a
 // storage server (i.e. remove a LUN mapping).
-func DisconnectCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
+func DisconnectCinderVolume(vs *gophercloud.ServiceClient, initiator string, volumeID string) error {
 	opt := volumeactions.TerminateConnectionOpts{
 		Host:      "localhost",
 		IP:        "127.0.0.1",
-		Initiator: initiatorName,
+		Initiator: initiator,
 	}
 
 	err := volumeactions.TerminateConnection(vs, volumeID, &opt).Result.Err
@@ -175,4 +159,14 @@ func DeleteCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
 	}
 
 	return err
+}
+
+// GetCinderVolume retrieves a volume from the cinder API.
+func GetCinderVolume(vs *gophercloud.ServiceClient, volumeID string) (*volumes_v2.Volume, error) {
+	volume, err := volumes_v2.Get(vs, volumeID).Extract()
+	if err != nil {
+		glog.Errorf("Failed to get volume:%v ", volumeID)
+		return nil, err
+	}
+	return volume, nil
 }
