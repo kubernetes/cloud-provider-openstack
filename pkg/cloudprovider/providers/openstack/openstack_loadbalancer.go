@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,6 +72,7 @@ const (
 
 	ServiceAnnotationLoadBalancerFloatingNetworkID = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
+	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 
 	// ServiceAnnotationLoadBalancerInternal is the annotation used on the service
 	// to indicate that we want an internal loadbalancer service.
@@ -749,12 +751,22 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 	}
 	for portIndex, port := range ports {
 		listener := getListenerForPort(oldListeners, port)
+		climit := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerConnLimit, "-1")
+		connLimit := -1
+		tmp, err := strconv.Atoi(climit)
+		if err != nil {
+			glog.V(4).Infof("Could not parse int value from \"%s\" error \"%v\" failing back to default", climit, err)
+		} else {
+			connLimit = tmp
+		}
+
 		if listener == nil {
 			glog.V(4).Infof("Creating listener for port %d", int(port.Port))
 			listener, err = listeners.Create(lbaas.lb, listeners.CreateOpts{
 				Name:           fmt.Sprintf("listener_%s_%d", name, portIndex),
 				Protocol:       listeners.Protocol(port.Protocol),
 				ProtocolPort:   int(port.Port),
+				ConnLimit:      &connLimit,
 				LoadbalancerID: loadbalancer.ID,
 			}).Extract()
 			if err != nil {
@@ -764,6 +776,24 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+			}
+		} else {
+			if connLimit != listener.ConnLimit {
+				glog.V(4).Infof("Updating listener connection limit from %d to %d", listener.ConnLimit, connLimit)
+
+				updateOpts := listeners.UpdateOpts{
+					ConnLimit: &connLimit,
+				}
+
+				_, err := listeners.Update(lbaas.lb, listener.ID, updateOpts).Extract()
+				if err != nil {
+					return nil, fmt.Errorf("Error updating LB listener: %v", err)
+				}
+
+				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+				}
 			}
 		}
 
