@@ -19,7 +19,7 @@ encode() {
 	if [[ -z "${!1}" ]]; then
 		die "OpenRC variable $1 not set"
 	fi
-	echo -n ${!1} | base64
+	echo -n "${!1}" | base64
 }
 
 extract_value() {
