@@ -117,7 +117,7 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 		return nil, fmt.Errorf("backend %s failed to create volume source for share %s: %v", shareBackend.Name(), share.ID, err)
 	}
 
-	glog.Infof("share %s (%s/%s) provisioned successfuly", share.ID, shareOptions.Protocol, shareOptions.Backend)
+	glog.Infof("share %s (%s/%s) provisioned successfully", share.ID, shareOptions.Protocol, shareOptions.Backend)
 
 	return buildPersistentVolume(share, volSource, &volOptions, shareOptions), nil
 }
@@ -148,7 +148,7 @@ func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to delete share %s: %v", shareID, err)
 	}
 
-	glog.Infof("share %s deleted successfuly", shareID)
+	glog.Infof("share %s deleted successfully", shareID)
 
 	return nil
 }
