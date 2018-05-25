@@ -67,8 +67,8 @@ func deleteShare(shareID, secretNamespace string, client *gophercloud.ServiceCli
 		err = shareBackend.RevokeAccess(&sharebackends.RevokeAccessArgs{
 			ShareID:         shareID,
 			SecretNamespace: secretNamespace,
-			Clientset:       c},
-		)
+			Clientset:       c,
+		})
 
 		if err != nil {
 			return err
