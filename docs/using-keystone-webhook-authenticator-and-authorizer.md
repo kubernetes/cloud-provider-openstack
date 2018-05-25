@@ -50,9 +50,9 @@ users:
 - Run `openstack token issue` to generate a token
 - Run `kubectl --token $TOKEN get po` or `curl -k -v -XGET  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN" https://localhost:6443/api/v1/namespaces/default/pods`
 
-### New kubectl clients v1.8.0 and later
+### kubectl clients from v1.8.0 to v1.10.x
 
-The client is able to read the `OS_` env variables used also by the openstackclient. You dont have to pass a token with `--token`, but the client will contact Keystone directly, will get a token and will use it. To configure the client to the following:
+The client is able to read the `OS_` env variables used also by the openstackclient. You don't have to pass a token with `--token`, but the client will contact Keystone directly, will get a token and will use it. To configure the client do the following:
 
 - Run `kubectl config set-credentials openstackuser --auth-provider=openstack`
 
@@ -120,7 +120,92 @@ OS_USERNAME="username"
 ```
 - Try: `kubectl get pods`
 
+### New kubectl clients from v1.11.0 and later
+
+Client auth providers are deprecated in v1.11.0 and to be removed in the next version. The recommended way of client authentication is to use ``exec`` mode with the ``client-keystone-auth`` binary.
+
+To configure the client do the following:
+
+- Run `kubectl config set-credentials openstackuser`
+
+This command creates the following entry in your ~/.kube/config
+
+```
+- name: openstackuser
+  user: {}
+```
+
+To enable ``exec`` mode you have to manually edit the file and add the following lines to the entry:
+
+```
+- name: openstackuser
+  user:
+    exec:
+      command: "/path/to/client-keystone-auth"
+      apiVersion: "client.authentication.k8s.io/v1alpha1"
+```
+
+And then
+
+- Run `kubectl config set-context --cluster=mycluster --user=openstackuser openstackuser@kubernetes`
+- Run `kubectl config use-context openstackuser@kubernetes` to activate the context
+
+After running above commands, your kubeconfig file should be like below:
+
+```
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /tmp/certs/ca.pem
+    server: https://172.24.4.6:6443
+  name: mycluster
+contexts:
+- context:
+    cluster: mycluster
+    user: admin
+  name: default
+- context:
+    cluster: mycluster
+    user: openstackuser
+  name: openstackuser@kubernetes
+current-context: openstackuser@kubernetes
+kind: Config
+preferences: {}
+users:
+- name: admin
+  user:
+    client-certificate: /tmp/certs/cert.pem
+    client-key: /tmp/certs/key.pem
+- name: openstackuser
+  user:
+    exec:
+      command: "/path/to/client-keystone-auth"
+      apiVersion: "client.authentication.k8s.io/v1alpha1"
+```
+
+In above kubeconfig, the cluster name is `mycluster`, the kube API address is `https://172.24.4.6:6443`. And in this kubeconfig file, there are two contexts.
+One for normal certs auth, and one for Keystone auth. Please note, the current context is `openstackuser@kubernetes`.
+
+Next you have several ways to specify additional auth parameters:
+
+1. Source your env vars. Make sure you include `OS_DOMAIN_NAME` or the client will fallback to Keystone V2 that is not supported by the webhook. This env should be ok:
+
+  ```
+  OS_AUTH_URL="https://keystone.example.com:5000/v3"
+  OS_DOMAIN_NAME="default"
+  OS_PASSWORD="mysecret"
+  OS_USERNAME="username"
+  ```
+
+2. Specify auth parameters in the ~/.kube/config file. For more information read [client keystone auth configuaration doc](./using-client-keystone-auth.md) and
+[credential plugins documentation](https://kubernetes.io/docs/admin/authentication/#client-go-credential-plugins)
+
+3. Use the interactive mode. If auth parameters are not specified initially, neither as env variables, nor the ~/.kube/config file, the user will be prompted to enter them from keyboard at the time of the interactive session.
+
+To test that everything works as expected try: `kubectl get pods`
+
 In case you are using this Webhook just for the authentication, you should get an authorization error:
+
 ```
 Error from server (Forbidden): pods is forbidden: User "username" cannot list pods in the namespace "default"
 ```
