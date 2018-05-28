@@ -31,7 +31,7 @@ func getSecretName(shareID string) string {
 }
 
 // Splits ExportLocation path "addr1:port,addr2:port,...:/location" into its address
-// and location parts. The last occurence of ':' is considered as the delimiter
+// and location parts. The last occurrence of ':' is considered as the delimiter
 // between those two parts.
 func splitExportLocation(loc *shares.ExportLocation) (address, location string, err error) {
 	delimPos := strings.LastIndexByte(loc.Path, ':')
