@@ -230,11 +230,11 @@ func TestCreateShare(t *testing.T) {
 		VolumeType:         "default",
 		ConsistencyGroupID: "9397c191-8427-4661-a2e8-b23820dc01d4",
 		Links: []map[string]string{
-			map[string]string{
+			{
 				"href": "http://172.18.198.54:8786/v1/16e1ab15c35a457e9c2b2aa189f544e1/shares/011d21e2-fbc3-4e4a-9993-9ea223f73264",
 				"rel":  "self",
 			},
-			map[string]string{
+			{
 				"href": "http://172.18.198.54:8786/16e1ab15c35a457e9c2b2aa189f544e1/shares/011d21e2-fbc3-4e4a-9993-9ea223f73264",
 				"rel":  "bookmark",
 			},
