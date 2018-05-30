@@ -29,7 +29,11 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11
     periodic:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11
