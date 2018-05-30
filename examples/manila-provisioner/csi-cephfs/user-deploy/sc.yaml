@@ -1,0 +1,14 @@
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  name: manila-csicephfs-share
+provisioner: manila-provisioner
+parameters:
+  type: default
+  zones: nova
+  osSecretName: YOUR-SECRET-NAME
+  osSecretNamespace: default
+
+  protocol: CEPHFS
+  backend: csi-cephfs
+  csi-driver: csi-cephfsplugin

@@ -102,6 +102,12 @@ octavia-ingress-controller: depend $(SOURCES)
 		-o octavia-ingress-controller \
 		cmd/octavia-ingress-controller/main.go
 
+manila-provisioner: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags $(LDFLAGS) \
+		-o manila-provisioner \
+		cmd/manila-provisioner/main.go
+
 test: unit functional
 
 check: depend fmt vet lint
@@ -235,6 +241,15 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
+image-manila-provisioner: depend manila-provisioner
+ifeq ($(GOOS),linux)
+	cp manila-provisioner cluster/images/manila-provisioner
+	docker build -t $(REGISTRY)/manila-provisioner:$(VERSION) cluster/images/manila-provisioner
+	rm cluster/images/manila-provisioner/manila-provisioner
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
 upload-images: images
 	@echo "push images to $(REGISTRY)"
 	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
@@ -244,6 +259,7 @@ upload-images: images
 	docker push $(REGISTRY)/cinder-csi-plugin:$(VERSION)
 	docker push $(REGISTRY)/k8s-keystone-auth:$(VERSION)
 	docker push $(REGISTRY)/octavia-ingress-controller:$(VERSION)
+	docker push $(REGISTRY)/manila-provisioner:$(VERSION)
 
 version:
 	@echo ${VERSION}
@@ -261,6 +277,7 @@ endif
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/k8s-keystone-auth/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/client-keystone-auth/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/octavia-ingress-controller/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/manila-provisioner/
 
 .PHONY: dist
 dist: build-cross
