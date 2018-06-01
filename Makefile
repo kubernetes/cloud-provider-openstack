@@ -48,7 +48,7 @@ work: $(GOBIN)
 
 depend: work
 ifndef HAS_MERCURIAL
-	pip install Mercurial
+	pip install --quiet Mercurial
 endif
 ifndef HAS_DEP
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
