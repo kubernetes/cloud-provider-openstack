@@ -171,11 +171,18 @@ func (h *WebhookHandler) authorizeToken(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	allowed, reason, err := h.Authorizer.Authorize(attrs)
-	glog.V(4).Infof("<<<< authorizeToken: %v, %v, %v\n", allowed, reason, err)
-	if err != nil {
-		http.Error(w, reason, http.StatusInternalServerError)
-		return
+	var allowed authorizer.Decision
+	if h.Authorizer != nil {
+		var reason string
+		allowed, reason, err = h.Authorizer.Authorize(attrs)
+		glog.V(4).Infof("<<<< authorizeToken: %v, %v, %v\n", allowed, reason, err)
+		if err != nil {
+			http.Error(w, reason, http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// The operator didn't set authorization policy or didn't set the policy properly, deny by default.
+		allowed = authorizer.DecisionDeny
 	}
 
 	delete(data, "spec")
