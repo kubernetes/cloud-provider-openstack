@@ -16,10 +16,11 @@ package main
 
 import (
 	"flag"
-	"github.com/golang/glog"
-	"github.com/spf13/pflag"
 	"net/http"
 	"os"
+
+	"github.com/golang/glog"
+	"github.com/spf13/pflag"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -44,6 +45,8 @@ var (
 	keystoneCaFile string
 	policyFile     string
 	version        string
+	configMap      string
+	kubeConfig     string
 )
 
 func main() {
@@ -53,7 +56,9 @@ func main() {
 	pflag.StringVar(&tlsPrivateKey, "tls-private-key-file", os.Getenv("TLS_PRIVATE_KEY_FILE"), "File containing the default x509 private key matching --tls-cert-file.")
 	pflag.StringVar(&keystoneURL, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
 	pflag.StringVar(&keystoneCaFile, "keystone-ca-file", os.Getenv("KEYSTONE_CA_FILE"), "File containing the certificate authority for Keystone Service.")
-	pflag.StringVar(&policyFile, "keystone-policy-file", os.Getenv("KEYSTONE_POLICY_FILE"), "File containing the policy.")
+	pflag.StringVar(&policyFile, "keystone-policy-file", os.Getenv("KEYSTONE_POLICY_FILE"), "File containing the policy, if provided, it takes precedence over the policy configmap.")
+	pflag.StringVar(&configMap, "policies-configmap-name", "", "ConfigMap in kube-system namespace containing the policy configuration, the ConfigMap must contain the key 'policies'")
+	pflag.StringVar(&kubeConfig, "kubeconfig", "", "Kubeconfig file to connect to Kubernetes API to get policy configmap.")
 
 	kflag.InitFlags()
 	logs.InitLogs()
@@ -67,21 +72,21 @@ func main() {
 	if tlsCertFile == "" || tlsPrivateKey == "" {
 		glog.Fatal("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
-	if policyFile == "" {
-		glog.Infof("Argument --keystone-policy-file missing. Only keystone authentication will work. Use RBAC for authorization.")
+	if policyFile == "" && configMap == "" {
+		glog.Warning("Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.")
 	}
 
-	authentication_handler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
+	authenticationHandler, err := keystone.NewKeystoneAuthenticator(keystoneURL, keystoneCaFile)
 	if err != nil {
 		glog.Fatal(err.Error())
 	}
 
-	authorization_handler, err := keystone.NewKeystoneAuthorizer(keystoneURL, keystoneCaFile, policyFile)
+	authorizationHandler, err := keystone.NewKeystoneAuthorizer(keystoneURL, keystoneCaFile, policyFile, configMap, kubeConfig)
 	if err != nil {
 		glog.Fatal(err.Error())
 	}
 
-	http.Handle("/webhook", webhookServer(authentication_handler, authorization_handler))
+	http.Handle("/webhook", webhookServer(authenticationHandler, authorizationHandler))
 	glog.Infof("Starting webhook...")
 	glog.Fatal(
 		http.ListenAndServeTLS(listenAddr,
