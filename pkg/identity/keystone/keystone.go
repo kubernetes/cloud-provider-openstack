@@ -27,8 +27,10 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	netutil "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	certutil "k8s.io/client-go/util/cert"
 )
 
@@ -58,6 +60,28 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 		// The switch statement must be out of date from the versions list.
 		return nil, fmt.Errorf("Unsupported identity API version: %s", chosen.ID)
 	}
+}
+
+func createKubernetesClient(kubeConfig string) (*kubernetes.Clientset, error) {
+	glog.Info("Creating kubernetes API client.")
+
+	cfg, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	v, err := client.Discovery().ServerVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	glog.Infof("Kubernetes API client created, server version %s", fmt.Sprintf("v%v.%v", v.Major, v.Minor))
+	return client, nil
 }
 
 func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceClient, error) {
@@ -108,19 +132,43 @@ func NewKeystoneAuthenticator(authURL string, caFile string) (*Authenticator, er
 }
 
 // NewKeystoneAuthorizer returns a password authorizer that checks whether the user can perform an operation
-func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string) (*Authorizer, error) {
+func NewKeystoneAuthorizer(authURL string, caFile string, policyFile string, configMap string, kubeConfig string) (*Authorizer, error) {
 	client, err := createKeystoneClient(authURL, caFile)
 	if err != nil {
 		return nil, err
 	}
 
-	policyList, err := newFromFile(policyFile)
-	output, err := json.MarshalIndent(policyList, "", "  ")
+	var policy policyList
+
+	if policyFile != "" {
+		policy, err = newFromFile(policyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract policy from policy file %s: %v", policyFile, err)
+		}
+	} else if configMap != "" {
+		k8sClient, err := createKubernetesClient(kubeConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		cm, err := k8sClient.CoreV1().ConfigMaps("kube-system").Get(configMap, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal([]byte(cm.Data["policies"]), &policy); err != nil {
+			return nil, fmt.Errorf("failed to parse policies defined in the configmap %s: %v", configMap, err)
+		}
+	} else {
+		return nil, nil
+	}
+
+	output, err := json.MarshalIndent(policy, "", "  ")
 	if err == nil {
 		glog.V(6).Infof("Policy %s", string(output))
 	} else {
 		glog.V(6).Infof("Error %#v", err)
 	}
 
-	return &Authorizer{authURL: authURL, client: client, pl: policyList}, nil
+	return &Authorizer{authURL: authURL, client: client, pl: policy}, nil
 }
