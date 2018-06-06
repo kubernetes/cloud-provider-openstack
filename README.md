@@ -24,7 +24,7 @@ As such, you must disable these controller loops in the `kube-controller-manager
 flag to `external` when starting the kube-controller-manager.
 
 For more details, please see:
-- https://github.com/kubernetes/community/blob/master/keps/0002-controller-manager.md
+- https://github.com/kubernetes/community/blob/master/keps/sig-cloud-provider/0002-cloud-controller-manager.md
 - https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager
 - https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/
 
