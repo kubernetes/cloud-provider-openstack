@@ -43,7 +43,7 @@ func TestAuthorizer(t *testing.T) {
 	policy, err := newFromFile(path)
 	th.AssertNoErr(t, err)
 
-	a := &Authorizer{"127.0.0.1", client, policy}
+	a := &Authorizer{authURL: "127.0.0.1", client: client, pl: policy}
 
 	// Create two users with different permissions
 	user1 := &user.DefaultInfo{

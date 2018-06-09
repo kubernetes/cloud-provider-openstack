@@ -31,12 +31,12 @@ func GetToken(options gophercloud.AuthOptions) (*tokens3.Token, error) {
 	// Create new identity client
 	client, err := openstack.NewClient(options.IdentityEndpoint)
 	if err != nil {
-		msg := fmt.Errorf("Failed: Initializing openstack authentication client: %v", err)
+		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
 		return token, msg
 	}
 	v3Client, err := openstack.NewIdentityV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
-		msg := fmt.Errorf("Failed: Initializing openstack authentication client: %v", err)
+		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
 		return token, msg
 	}
 
@@ -47,7 +47,7 @@ func GetToken(options gophercloud.AuthOptions) (*tokens3.Token, error) {
 	}
 	token, err = result.ExtractToken()
 	if err != nil {
-		msg := fmt.Errorf("Failed: Cannot extract the token from the response")
+		msg := fmt.Errorf("failed: Cannot extract the token from the response")
 		return token, msg
 	}
 
