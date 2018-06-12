@@ -21,6 +21,10 @@ ignored = ["k8s.io/cloud-provider-openstack"]
   version = "0.0.2"
 
 [[constraint]]
+  name = "github.com/spf13/pflag"
+  version = "1.0.1"
+
+[[constraint]]
   branch = "master"
   name = "golang.org/x/net"
 
