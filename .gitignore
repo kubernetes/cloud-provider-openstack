@@ -143,3 +143,5 @@ zz_generated.openapi.go
 /k8s-keystone-auth
 /cinder-csi-plugin
 /octavia-ingress-controller
+/client-keystone-auth
+
