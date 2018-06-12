@@ -29,7 +29,7 @@ users:
 - Add the following flags to your Kubernetes api server.
   * `--authentication-token-webhook-config-file=/path/to/your/webhook.kubeconfig`
   * `--authorization-mode=Node,RBAC`
-- Start webhook process with the following flags
+- Start a webhook process (k8s-keystone-auth command) with the following flags
   * `--tls-cert-file /var/run/kubernetes/serving-kube-apiserver.crt`
   * `--tls-private-key-file /var/run/kubernetes/serving-kube-apiserver.key`
   * `--keystone-policy-file examples/webhook/policy.json`
