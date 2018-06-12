@@ -65,3 +65,33 @@ openstack cloud provider.
 | | | Call cinder delete | |
 | | | | Delete volume from storage |
 | | Delete PV | | |
+
+### Cloning
+Standalone cinder has support for provisioning new volumes as a clone of an
+existing PVC.  To request a clone, the user should add a clone request
+annotation to the PVC:
+
+```
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: clone-claim
+  annotations:
+    k8s.io/CloneRequest: default/source-pvc
+```
+
+The provisioner will locate the indicated PVC and determine the underlying
+associated cinder volume ID.  The provisioner will use this ID as the
+source-vol-id parameter when provisioning the new volume resulting in a clone
+at the storage level.
+
+Cloning will only work if the cinder backend supports "smart-cloning".  This
+means that the clone will complete without the need for cinder to perform a
+bit-for-bit copy using the host.  Because of this, the cinder provisioner will
+not attempt to clone unless the associated storage class contains the
+parameter: "smartclone" to indicate that volumes provisioned from this storage
+class can be cloned correctly.
+
+If the provisioner was able to clone the volume it will apply the
+'k8s.io/CloneOf' annotation to the PVC.
+
