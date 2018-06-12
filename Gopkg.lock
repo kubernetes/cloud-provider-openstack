@@ -228,11 +228,26 @@
     "openstack/networking/v2/extensions/security/rules",
     "openstack/networking/v2/networks",
     "openstack/networking/v2/ports",
+    "openstack/sharedfilesystems/apiversions",
+    "openstack/sharedfilesystems/v2/shares",
     "openstack/utils",
     "pagination",
-    "testhelper"
+    "testhelper",
+    "testhelper/client"
   ]
   revision = "282f25e4025de0a42015d2e2b5faef1d920aad3c"
+
+[[projects]]
+  name = "github.com/gorilla/context"
+  packages = ["."]
+  revision = "08b5f424b9271eedf6f9f0ce86cb9396ed337a42"
+  version = "v1.1.1"
+
+[[projects]]
+  name = "github.com/gorilla/mux"
+  packages = ["."]
+  revision = "e3702bed27f0d39777b0b37b664b6280e8ef8fbf"
+  version = "v1.6.2"
 
 [[projects]]
   name = "github.com/hashicorp/golang-lru"
@@ -454,7 +469,8 @@
 [[projects]]
   name = "github.com/spf13/pflag"
   packages = ["."]
-  revision = "ee5fd03fd6acfd43e44aea0b4135958546ed8e73"
+  revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
+  version = "v1.0.1"
 
 [[projects]]
   name = "github.com/spf13/viper"
@@ -822,6 +838,7 @@
   name = "k8s.io/client-go"
   packages = [
     "discovery",
+    "discovery/fake",
     "informers",
     "informers/admissionregistration",
     "informers/admissionregistration/v1alpha1",
@@ -863,35 +880,64 @@
     "informers/storage/v1alpha1",
     "informers/storage/v1beta1",
     "kubernetes",
+    "kubernetes/fake",
     "kubernetes/scheme",
     "kubernetes/typed/admissionregistration/v1alpha1",
+    "kubernetes/typed/admissionregistration/v1alpha1/fake",
     "kubernetes/typed/admissionregistration/v1beta1",
+    "kubernetes/typed/admissionregistration/v1beta1/fake",
     "kubernetes/typed/apps/v1",
+    "kubernetes/typed/apps/v1/fake",
     "kubernetes/typed/apps/v1beta1",
+    "kubernetes/typed/apps/v1beta1/fake",
     "kubernetes/typed/apps/v1beta2",
+    "kubernetes/typed/apps/v1beta2/fake",
     "kubernetes/typed/authentication/v1",
+    "kubernetes/typed/authentication/v1/fake",
     "kubernetes/typed/authentication/v1beta1",
+    "kubernetes/typed/authentication/v1beta1/fake",
     "kubernetes/typed/authorization/v1",
+    "kubernetes/typed/authorization/v1/fake",
     "kubernetes/typed/authorization/v1beta1",
+    "kubernetes/typed/authorization/v1beta1/fake",
     "kubernetes/typed/autoscaling/v1",
+    "kubernetes/typed/autoscaling/v1/fake",
     "kubernetes/typed/autoscaling/v2beta1",
+    "kubernetes/typed/autoscaling/v2beta1/fake",
     "kubernetes/typed/batch/v1",
+    "kubernetes/typed/batch/v1/fake",
     "kubernetes/typed/batch/v1beta1",
+    "kubernetes/typed/batch/v1beta1/fake",
     "kubernetes/typed/batch/v2alpha1",
+    "kubernetes/typed/batch/v2alpha1/fake",
     "kubernetes/typed/certificates/v1beta1",
+    "kubernetes/typed/certificates/v1beta1/fake",
     "kubernetes/typed/core/v1",
+    "kubernetes/typed/core/v1/fake",
     "kubernetes/typed/events/v1beta1",
+    "kubernetes/typed/events/v1beta1/fake",
     "kubernetes/typed/extensions/v1beta1",
+    "kubernetes/typed/extensions/v1beta1/fake",
     "kubernetes/typed/networking/v1",
+    "kubernetes/typed/networking/v1/fake",
     "kubernetes/typed/policy/v1beta1",
+    "kubernetes/typed/policy/v1beta1/fake",
     "kubernetes/typed/rbac/v1",
+    "kubernetes/typed/rbac/v1/fake",
     "kubernetes/typed/rbac/v1alpha1",
+    "kubernetes/typed/rbac/v1alpha1/fake",
     "kubernetes/typed/rbac/v1beta1",
+    "kubernetes/typed/rbac/v1beta1/fake",
     "kubernetes/typed/scheduling/v1alpha1",
+    "kubernetes/typed/scheduling/v1alpha1/fake",
     "kubernetes/typed/settings/v1alpha1",
+    "kubernetes/typed/settings/v1alpha1/fake",
     "kubernetes/typed/storage/v1",
+    "kubernetes/typed/storage/v1/fake",
     "kubernetes/typed/storage/v1alpha1",
+    "kubernetes/typed/storage/v1alpha1/fake",
     "kubernetes/typed/storage/v1beta1",
+    "kubernetes/typed/storage/v1beta1/fake",
     "listers/admissionregistration/v1alpha1",
     "listers/admissionregistration/v1beta1",
     "listers/apps/v1",
@@ -922,6 +968,7 @@
     "plugin/pkg/client/auth/exec",
     "rest",
     "rest/watch",
+    "testing",
     "tools/auth",
     "tools/cache",
     "tools/clientcmd",
@@ -991,6 +1038,9 @@
     "pkg/controller/cloud",
     "pkg/controller/route",
     "pkg/controller/service",
+    "pkg/controller/volume/events",
+    "pkg/controller/volume/persistentvolume",
+    "pkg/controller/volume/persistentvolume/metrics",
     "pkg/features",
     "pkg/fieldpath",
     "pkg/kubelet/apis",
@@ -1043,6 +1093,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0a510501a8005ec7c80894200821c74efd9b35811784bc7d417e7a0486caa103"
+  inputs-digest = "1aaf23f53efae626da8791fd7550a82df2eab3693337afb17f087b6686d6cc3b"
   solver-name = "gps-cdcl"
   solver-version = 1
