@@ -28,6 +28,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
 	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v2"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,7 +114,7 @@ func (k *KeystoneAuth) enqueueConfigMap(obj interface{}) {
 		return
 	}
 
-	if namespace == cmNamespace && name == k.config.PolicyConfigMapName {
+	if namespace == cmNamespace && (name == k.config.PolicyConfigMapName || name == k.config.SyncConfigMapName) {
 		k.queue.Add(key)
 	}
 }
@@ -149,6 +150,41 @@ func (k *KeystoneAuth) processNextItem() bool {
 	return true
 }
 
+func (k *KeystoneAuth) updatePolicies(cm *apiv1.ConfigMap, key string) {
+	glog.Info("ConfigMap created or updated, will update the authorization policy.")
+
+	var policy policyList
+	if err := json.Unmarshal([]byte(cm.Data["policies"]), &policy); err != nil {
+		runtimeutil.HandleError(fmt.Errorf("failed to parse policies defined in the configmap %s: %v", key, err))
+	}
+	if len(policy) > 0 {
+		if _, err := json.MarshalIndent(policy, "", "  "); err != nil {
+			runtimeutil.HandleError(fmt.Errorf("failed to parse policies defined in the configmap %s: %v", key, err))
+		}
+	}
+
+	k.authz.mu.Lock()
+	k.authz.pl = policy
+	k.authz.mu.Unlock()
+
+	glog.Infof("Authorization policy updated.")
+}
+
+func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
+	glog.Info("ConfigMap created or updated, will update the sync configuration.")
+
+	var sc *syncConfig
+	if err := json.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
+		runtimeutil.HandleError(fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", key, err))
+	}
+
+	k.authn.mu.Lock()
+	k.authn.syncConfig = sc
+	k.authn.mu.Unlock()
+
+	glog.Infof("Sync configuration updated.")
+}
+
 func (k *KeystoneAuth) processItem(key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -158,30 +194,28 @@ func (k *KeystoneAuth) processItem(key string) error {
 	cm, err := k.cmLister.ConfigMaps(namespace).Get(name)
 	switch {
 	case errors.IsNotFound(err):
-		glog.Infof("Configmap has been deleted.")
-		k.authz.mu.Lock()
-		k.authz.pl = make([]*policy, 0)
-		k.authz.mu.Unlock()
+		if name == k.config.PolicyConfigMapName {
+			glog.Infof("PolicyConfigmap %v has been deleted.", k.config.PolicyConfigMapName)
+			k.authz.mu.Lock()
+			k.authz.pl = make([]*policy, 0)
+			k.authz.mu.Unlock()
+		}
+		if name == k.config.SyncConfigMapName {
+			glog.Infof("SyncConfigmap %v has been deleted.", k.config.SyncConfigMapName)
+			k.authn.mu.Lock()
+			sc := newSyncConfig()
+			k.authn.syncConfig = &sc
+			k.authn.mu.Unlock()
+		}
 	case err != nil:
 		return fmt.Errorf("error fetching object with key %s: %v", key, err)
 	default:
-		glog.Info("ConfigMap created or updated, will update the authorization policy.")
-
-		var policy policyList
-		if err := json.Unmarshal([]byte(cm.Data["policies"]), &policy); err != nil {
-			runtimeutil.HandleError(fmt.Errorf("failed to parse policies defined in the configmap %s: %v", key, err))
+		if name == k.config.PolicyConfigMapName {
+			k.updatePolicies(cm, key)
 		}
-		if len(policy) > 0 {
-			if _, err := json.MarshalIndent(policy, "", "  "); err != nil {
-				runtimeutil.HandleError(fmt.Errorf("failed to parse policies defined in the configmap %s: %v", key, err))
-			}
+		if name == k.config.SyncConfigMapName {
+			k.updateSyncConfig(cm, key)
 		}
-
-		k.authz.mu.Lock()
-		k.authz.pl = policy
-		k.authz.mu.Unlock()
-
-		glog.Infof("Authorization policy updated.")
 	}
 
 	return nil
@@ -340,11 +374,12 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 		return nil, fmt.Errorf("failed to initialize keystone client: %v", err)
 	}
 
+	var k8sClient *kubernetes.Clientset
+
 	// Get policy definition either from a policy file or the policy configmap. Policy file takes precedence
 	// over the configmap, but the policy definition will be refreshed based on the configmap change on-the-fly. It
 	// is possible that both are not provided, in this case, the keytone webhook authorization will always return deny.
 	var policy policyList
-	var k8sClient *kubernetes.Clientset
 	if c.PolicyConfigMapName != "" {
 		k8sClient, err = createKubernetesClient(c.Kubeconfig)
 		if err != nil {
@@ -376,8 +411,49 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 		}
 	}
 
+	// Get sync config either from a policy file or the policy configmap. Sync config file takes precedence
+	// over the configmap, but the sync config definition will be refreshed based on the configmap change on-the-fly. It
+	// is possible that both are not provided, in this case, the keytone webhook authenticator will not synchronize data.
+	var sc *syncConfig
+	if c.SyncConfigMapName != "" {
+		if k8sClient == nil {
+			k8sClient, err = createKubernetesClient(c.Kubeconfig)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get kubernetes client: %v", err)
+			}
+		}
+
+		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(c.SyncConfigMapName, metav1.GetOptions{})
+		if err != nil {
+			glog.Errorf("configmap get err   #%v ", err)
+			return nil, fmt.Errorf("failed to get configmap %s: %v", c.SyncConfigMapName, err)
+		}
+
+		if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
+			glog.Errorf("Unmarshal: %v", err)
+			return nil, fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", c.SyncConfigMapName, err)
+		}
+	}
+	if c.SyncConfigFile != "" {
+		if k8sClient == nil {
+			k8sClient, err = createKubernetesClient(c.Kubeconfig)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get kubernetes client: %v", err)
+			}
+		}
+
+		sc, err = newSyncConfigFromFile(c.SyncConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract data from sync config file %s: %v", c.SyncConfigFile, err)
+		}
+	}
+	if sc != nil {
+		// Validate that config data is correct
+		sc.validate()
+	}
+
 	keystoneAuth := &KeystoneAuth{
-		authn:     &Authenticator{authURL: c.KeystoneURL, client: keystoneClient},
+		authn:     &Authenticator{authURL: c.KeystoneURL, client: keystoneClient, k8sClient: k8sClient, syncConfig: sc},
 		authz:     &Authorizer{authURL: c.KeystoneURL, client: keystoneClient, pl: policy},
 		k8sClient: k8sClient,
 		config:    c,
