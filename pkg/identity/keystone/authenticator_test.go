@@ -96,7 +96,7 @@ func TestAuthenticateToken(t *testing.T) {
 		Endpoint:       th.Endpoint(),
 	}
 
-	a := &Authenticator{th.Endpoint(), cli}
+	a := &Authenticator{authURL: th.Endpoint(), client: cli, k8sClient: nil, syncConfig: nil}
 
 	user, ok, err := a.AuthenticateToken("GoodToken")
 	th.AssertEquals(t, "admin", user.GetName())

@@ -24,7 +24,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Config configures an keystone webhook server
+// Config configures a keystone webhook server
 type Config struct {
 	Address             string
 	CertFile            string
@@ -33,18 +33,24 @@ type Config struct {
 	KeystoneCA          string
 	PolicyFile          string
 	PolicyConfigMapName string
+	SyncConfigFile      string
+	SyncConfigMapName   string
 	Kubeconfig          string
 }
 
 // NewConfig returns a Config
 func NewConfig() *Config {
 	return &Config{
-		Address:     "0.0.0.0:8443",
-		CertFile:    os.Getenv("TLS_CERT_FILE"),
-		KeyFile:     os.Getenv("TLS_PRIVATE_KEY_FILE"),
-		KeystoneURL: os.Getenv("OS_AUTH_URL"),
-		KeystoneCA:  os.Getenv("KEYSTONE_CA_FILE"),
-		PolicyFile:  os.Getenv("KEYSTONE_POLICY_FILE"),
+		Address:             "0.0.0.0:8443",
+		CertFile:            os.Getenv("TLS_CERT_FILE"),
+		KeyFile:             os.Getenv("TLS_PRIVATE_KEY_FILE"),
+		KeystoneURL:         os.Getenv("OS_AUTH_URL"),
+		KeystoneCA:          os.Getenv("KEYSTONE_CA_FILE"),
+		PolicyFile:          os.Getenv("KEYSTONE_POLICY_FILE"),
+		PolicyConfigMapName: os.Getenv("KEYSTONE_POLICY_CONFIGMAP_NAME"),
+		SyncConfigFile:      os.Getenv("KEYSTONE_SYNC_CONFIG_FILE"),
+		SyncConfigMapName:   os.Getenv("KEYSTONE_SYNC_CONFIGMAP_NAME"),
+		Kubeconfig:          os.Getenv("KEYSTONE_KUBECONFIG_FILE"),
 	}
 }
 
@@ -63,6 +69,9 @@ func (c *Config) ValidateFlags() error {
 	if c.PolicyFile == "" && c.PolicyConfigMapName == "" {
 		glog.Warning("Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.")
 	}
+	if c.SyncConfigFile == "" && c.SyncConfigMapName == "" {
+		glog.Warning("Argument --sync-config-file or --sync-configmap-name missing. Data synchronization between Keystone and Kubernetes is disabled.")
+	}
 
 	if errorsFound {
 		return fmt.Errorf("failed to validate the input parameters")
@@ -78,6 +87,8 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.KeystoneURL, "keystone-url", c.KeystoneURL, "URL for the OpenStack Keystone API")
 	fs.StringVar(&c.KeystoneCA, "keystone-ca-file", c.KeystoneCA, "File containing the certificate authority for Keystone Service.")
 	fs.StringVar(&c.PolicyFile, "keystone-policy-file", c.PolicyFile, "File containing the policy, if provided, it takes precedence over the policy configmap.")
-	fs.StringVar(&c.PolicyConfigMapName, "policy-configmap-name", "", "ConfigMap in kube-system namespace containing the policy configuration, the ConfigMap data must contain the key 'policies'")
-	fs.StringVar(&c.Kubeconfig, "kubeconfig", "", "Kubeconfig file used to connect to Kubernetes API to get policy configmap. If the service is running inside the pod, this option is not necessary, will use in-cluster config instead.")
+	fs.StringVar(&c.PolicyConfigMapName, "policy-configmap-name", c.PolicyConfigMapName, "ConfigMap in kube-system namespace containing the policy configuration, the ConfigMap data must contain the key 'policies'")
+	fs.StringVar(&c.SyncConfigFile, "sync-config-file", c.SyncConfigFile, "File containing config values for data synchronization beetween Keystone and Kubernetes.")
+	fs.StringVar(&c.SyncConfigFile, "sync-configmap-name", "", "ConfigMap in kube-system namespace containing config values for data synchronization beetween Keystone and Kubernetes.")
+	fs.StringVar(&c.Kubeconfig, "kubeconfig", c.Kubeconfig, "Kubeconfig file used to connect to Kubernetes API to get policy configmap. If the service is running inside the pod, this option is not necessary, will use in-cluster config instead.")
 }
