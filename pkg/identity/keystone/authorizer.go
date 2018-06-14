@@ -19,6 +19,7 @@ package keystone
 import (
 	"encoding/json"
 	"sort"
+	"sync"
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
@@ -33,6 +34,7 @@ type Authorizer struct {
 	authURL string
 	client  *gophercloud.ServiceClient
 	pl      policyList
+	mu      sync.Mutex
 }
 
 func findString(a string, list []string) bool {
@@ -168,6 +170,8 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 
 // Authorize checks whether the user can perform an operation
 func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	for _, p := range a.pl {
 		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
 			glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
@@ -184,6 +188,6 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 		}
 	}
 
-	glog.Warningf("Authorization failed, user: %#v, attributes: %#v\n", attributes.GetUser(), attributes)
+	glog.V(4).Infof("Authorization failed, user: %#v, attributes: %#v\n", attributes.GetUser(), attributes)
 	return authorizer.DecisionDeny, "No policy matched.", nil
 }
