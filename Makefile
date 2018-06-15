@@ -53,10 +53,10 @@ endif
 ifndef HAS_DEP
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 endif
-	dep ensure
+	dep ensure -v
 
 depend-update: work
-	dep ensure -update
+	dep ensure -update -v
 
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller
 
