@@ -64,11 +64,15 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	obj := struct {
 		Token struct {
 			User struct {
-				Id   string `json:"id"`
-				Name string `json:"name"`
+				ID     string `json:"id"`
+				Name   string `json:"name"`
+				Domain struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"domain"`
 			} `json:"user"`
 			Project struct {
-				Id   string `json:"id"`
+				ID   string `json:"id"`
 				Name string `json:"name"`
 			} `json:"project"`
 			Roles []struct {
@@ -94,15 +98,17 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	}
 
 	extra := map[string][]string{
-		"alpha.kubernetes.io/identity/roles":        roles,
-		"alpha.kubernetes.io/identity/project/id":   {obj.Token.Project.Id},
-		"alpha.kubernetes.io/identity/project/name": {obj.Token.Project.Name},
+		"alpha.kubernetes.io/identity/roles":            roles,
+		"alpha.kubernetes.io/identity/project/id":       {obj.Token.Project.ID},
+		"alpha.kubernetes.io/identity/project/name":     {obj.Token.Project.Name},
+		"alpha.kubernetes.io/identity/user/domain/id":   {obj.Token.User.Domain.ID},
+		"alpha.kubernetes.io/identity/user/domain/name": {obj.Token.User.Domain.Name},
 	}
 
 	authenticatedUser := &user.DefaultInfo{
 		Name:   obj.Token.User.Name,
-		UID:    obj.Token.User.Id,
-		Groups: []string{obj.Token.Project.Id},
+		UID:    obj.Token.User.ID,
+		Groups: []string{obj.Token.Project.ID},
 		Extra:  extra,
 	}
 
