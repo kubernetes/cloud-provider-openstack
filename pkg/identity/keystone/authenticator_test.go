@@ -47,6 +47,20 @@ func TestAuthenticateToken(t *testing.T) {
 						"name": "admin",
 						"password_expires_at": null
 					},
+					"project": {
+						"id": "74a4e7d5f4e24a4c9cd01b8deec4bee5",
+						"name": "the_project"
+					},
+					"roles": [
+						{
+							"id": "51cc68287d524c759f47c811e6463340",
+							"name": "admin"
+						},
+						{
+							"id": "5af76e3aec294349929db2a0a27d3192",
+							"name": "developer"
+						}
+					],
 					"audit_ids": [
 						"mAjXQhiYRyKwkB4qygdLVg"
 					],
@@ -89,6 +103,13 @@ func TestAuthenticateToken(t *testing.T) {
 	th.AssertEquals(t, "10a2e6e717a245d9acad3e5f97aeca3d", user.GetUID())
 	th.AssertNoErr(t, err)
 	th.CheckEquals(t, ok, true)
+
+	th.AssertEquals(t, "74a4e7d5f4e24a4c9cd01b8deec4bee5", user.GetExtra()["alpha.kubernetes.io/identity/project/id"][0])
+	th.AssertEquals(t, "the_project", user.GetExtra()["alpha.kubernetes.io/identity/project/name"][0])
+	th.AssertEquals(t, "default", user.GetExtra()["alpha.kubernetes.io/identity/user/domain/id"][0])
+	th.AssertEquals(t, "Default", user.GetExtra()["alpha.kubernetes.io/identity/user/domain/name"][0])
+	th.AssertEquals(t, "admin", user.GetExtra()["alpha.kubernetes.io/identity/roles"][0])
+	th.AssertEquals(t, "developer", user.GetExtra()["alpha.kubernetes.io/identity/roles"][1])
 
 	_, ok, err = a.AuthenticateToken("WrongToken")
 	th.AssertEquals(t, (err != nil), true)
