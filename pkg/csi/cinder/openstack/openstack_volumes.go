@@ -20,7 +20,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud"
+	volumes_v1 "github.com/gophercloud/gophercloud/openstack/blockstorage/v1/volumes"
+	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
+	volumes_v3 "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -60,37 +63,164 @@ type Volume struct {
 	AZ string
 }
 
-// CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, error) {
-	opts := &volumes.CreateOpts{
-		Name:             name,
-		Size:             size,
-		VolumeType:       vtype,
-		AvailabilityZone: availability,
-	}
-	if tags != nil {
-		opts.Metadata = *tags
+type volumeCreateOpts struct {
+	Size         int
+	Availability string
+	Name         string
+	VolumeType   string
+	Metadata     map[string]string
+}
+
+type volumeService interface {
+	createVolume(opts volumeCreateOpts) (string, string, error)
+	getVolume(volumeID string) (Volume, error)
+	getVolumesByName(volumeName string) ([]Volume, error)
+	deleteVolume(volumeID string) error
+	createSnapshot(opts snapshotCreateOpts) (*Snapshot, error)
+	listSnapshot(opts snapshotListOpts) ([]Snapshot, error)
+	deleteSnapshot(snapshotID string) error
+}
+
+// VolumesV1 is a Volumes implementation for cinder v1
+type VolumesV1 struct {
+	blockstorage *gophercloud.ServiceClient
+	opts         BlockStorageOpts
+}
+
+// VolumesV2 is a Volumes implementation for cinder v2
+type VolumesV2 struct {
+	blockstorage *gophercloud.ServiceClient
+	opts         BlockStorageOpts
+}
+
+// VolumesV3 is a Volumes implementation for cinder v3
+type VolumesV3 struct {
+	blockstorage *gophercloud.ServiceClient
+	opts         BlockStorageOpts
+}
+
+func (volumes *VolumesV1) createVolume(opts volumeCreateOpts) (string, string, error) {
+	createOpts := volumes_v1.CreateOpts{
+		Name:             opts.Name,
+		Size:             opts.Size,
+		VolumeType:       opts.VolumeType,
+		AvailabilityZone: opts.Availability,
+		Metadata:         opts.Metadata,
 	}
 
-	vol, err := volumes.Create(os.blockstorage, opts).Extract()
+	vol, err := volumes_v1.Create(volumes.blockstorage, createOpts).Extract()
 	if err != nil {
 		return "", "", err
 	}
-
 	return vol.ID, vol.AvailabilityZone, nil
 }
 
-// GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
-// Returns a list of Volume references with the specified name
-func (os *OpenStack) GetVolumesByName(n string) ([]Volume, error) {
+func (volumes *VolumesV2) createVolume(opts volumeCreateOpts) (string, string, error) {
+	createOpts := volumes_v2.CreateOpts{
+		Name:             opts.Name,
+		Size:             opts.Size,
+		VolumeType:       opts.VolumeType,
+		AvailabilityZone: opts.Availability,
+		Metadata:         opts.Metadata,
+	}
+
+	vol, err := volumes_v2.Create(volumes.blockstorage, createOpts).Extract()
+	if err != nil {
+		return "", "", err
+	}
+	return vol.ID, vol.AvailabilityZone, nil
+}
+
+func (volumes *VolumesV3) createVolume(opts volumeCreateOpts) (string, string, error) {
+	createOpts := volumes_v3.CreateOpts{
+		Name:             opts.Name,
+		Size:             opts.Size,
+		VolumeType:       opts.VolumeType,
+		AvailabilityZone: opts.Availability,
+		Metadata:         opts.Metadata,
+	}
+
+	vol, err := volumes_v3.Create(volumes.blockstorage, createOpts).Extract()
+	if err != nil {
+		return "", "", err
+	}
+	return vol.ID, vol.AvailabilityZone, nil
+}
+
+func (volumes *VolumesV1) getVolume(volumeID string) (Volume, error) {
+	volumeV1, err := volumes_v1.Get(volumes.blockstorage, volumeID).Extract()
+	if err != nil {
+		return Volume{}, fmt.Errorf("error occurred getting volume by ID: %s, err: %v", volumeID, err)
+	}
+
+	volume := Volume{
+		AZ:     volumeV1.AvailabilityZone,
+		ID:     volumeV1.ID,
+		Name:   volumeV1.Name,
+		Status: volumeV1.Status,
+		Size:   volumeV1.Size,
+	}
+
+	if len(volumeV1.Attachments) > 0 && volumeV1.Attachments[0]["server_id"] != nil {
+		volume.AttachedServerId = volumeV1.Attachments[0]["server_id"].(string)
+		volume.AttachedDevice = volumeV1.Attachments[0]["device"].(string)
+	}
+
+	return volume, nil
+}
+
+func (volumes *VolumesV2) getVolume(volumeID string) (Volume, error) {
+	volumeV2, err := volumes_v2.Get(volumes.blockstorage, volumeID).Extract()
+	if err != nil {
+		return Volume{}, fmt.Errorf("error occurred getting volume by ID: %s, err: %v", volumeID, err)
+	}
+
+	volume := Volume{
+		AZ:     volumeV2.AvailabilityZone,
+		ID:     volumeV2.ID,
+		Name:   volumeV2.Name,
+		Status: volumeV2.Status,
+		Size:   volumeV2.Size,
+	}
+
+	if len(volumeV2.Attachments) > 0 {
+		volume.AttachedServerId = volumeV2.Attachments[0].ServerID
+		volume.AttachedDevice = volumeV2.Attachments[0].Device
+	}
+
+	return volume, nil
+}
+
+func (volumes *VolumesV3) getVolume(volumeID string) (Volume, error) {
+	volumeV3, err := volumes_v3.Get(volumes.blockstorage, volumeID).Extract()
+	if err != nil {
+		return Volume{}, fmt.Errorf("error occurred getting volume by ID: %s, err: %v", volumeID, err)
+	}
+
+	volume := Volume{
+		AZ:     volumeV3.AvailabilityZone,
+		ID:     volumeV3.ID,
+		Name:   volumeV3.Name,
+		Status: volumeV3.Status,
+	}
+
+	if len(volumeV3.Attachments) > 0 {
+		volume.AttachedServerId = volumeV3.Attachments[0].ServerID
+		volume.AttachedDevice = volumeV3.Attachments[0].Device
+	}
+
+	return volume, nil
+}
+
+func (volumes *VolumesV1) getVolumesByName(volumeName string) ([]Volume, error) {
 	var vlist []Volume
-	opts := volumes.ListOpts{Name: n}
-	pages, err := volumes.List(os.blockstorage, opts).AllPages()
+	opts := volumes_v1.ListOpts{Name: volumeName}
+	pages, err := volumes_v1.List(volumes.blockstorage, opts).AllPages()
 	if err != nil {
 		return vlist, err
 	}
 
-	vols, err := volumes.ExtractVolumes(pages)
+	vols, err := volumes_v1.ExtractVolumes(pages)
 	if err != nil {
 		return vlist, err
 	}
@@ -107,6 +237,97 @@ func (os *OpenStack) GetVolumesByName(n string) ([]Volume, error) {
 	return vlist, nil
 }
 
+func (volumes *VolumesV2) getVolumesByName(volumeName string) ([]Volume, error) {
+	var vlist []Volume
+	opts := volumes_v2.ListOpts{Name: volumeName}
+	pages, err := volumes_v2.List(volumes.blockstorage, opts).AllPages()
+	if err != nil {
+		return vlist, err
+	}
+
+	vols, err := volumes_v2.ExtractVolumes(pages)
+	if err != nil {
+		return vlist, err
+	}
+
+	for _, v := range vols {
+		volume := Volume{
+			ID:     v.ID,
+			Name:   v.Name,
+			Status: v.Status,
+			AZ:     v.AvailabilityZone,
+		}
+		vlist = append(vlist, volume)
+	}
+	return vlist, nil
+}
+
+func (volumes *VolumesV3) getVolumesByName(volumeName string) ([]Volume, error) {
+	var vlist []Volume
+	opts := volumes_v3.ListOpts{Name: volumeName}
+	pages, err := volumes_v3.List(volumes.blockstorage, opts).AllPages()
+	if err != nil {
+		return vlist, err
+	}
+
+	vols, err := volumes_v3.ExtractVolumes(pages)
+	if err != nil {
+		return vlist, err
+	}
+
+	for _, v := range vols {
+		volume := Volume{
+			ID:     v.ID,
+			Name:   v.Name,
+			Status: v.Status,
+			AZ:     v.AvailabilityZone,
+		}
+		vlist = append(vlist, volume)
+	}
+	return vlist, nil
+}
+
+func (volumes *VolumesV1) deleteVolume(volumeID string) error {
+	err := volumes_v1.Delete(volumes.blockstorage, volumeID).ExtractErr()
+	return err
+}
+
+func (volumes *VolumesV2) deleteVolume(volumeID string) error {
+	err := volumes_v2.Delete(volumes.blockstorage, volumeID).ExtractErr()
+	return err
+}
+
+func (volumes *VolumesV3) deleteVolume(volumeID string) error {
+	err := volumes_v3.Delete(volumes.blockstorage, volumeID).ExtractErr()
+	return err
+}
+
+// CreateVolume creates a volume of given size
+func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, error) {
+	opts := volumeCreateOpts{
+		Name:         name,
+		Size:         size,
+		VolumeType:   vtype,
+		Availability: availability,
+	}
+	if tags != nil {
+		opts.Metadata = *tags
+	}
+
+	return os.volumes.createVolume(opts)
+}
+
+// GetVolume retrieves Volume by its ID.
+func (os *OpenStack) GetVolume(volumeID string) (Volume, error) {
+	return os.volumes.getVolume(volumeID)
+}
+
+// GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
+// Returns a list of Volume references with the specified name
+func (os *OpenStack) GetVolumesByName(volumeName string) ([]Volume, error) {
+	return os.volumes.getVolumesByName(volumeName)
+}
+
 // DeleteVolume delete a volume
 func (os *OpenStack) DeleteVolume(volumeID string) error {
 	used, err := os.diskIsUsed(volumeID)
@@ -117,30 +338,7 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 		return fmt.Errorf("Cannot delete the volume %q, it's still attached to a node", volumeID)
 	}
 
-	err = volumes.Delete(os.blockstorage, volumeID).ExtractErr()
-	return err
-}
-
-// GetVolume retrieves Volume by its ID.
-func (os *OpenStack) GetVolume(volumeID string) (Volume, error) {
-
-	vol, err := volumes.Get(os.blockstorage, volumeID).Extract()
-	if err != nil {
-		return Volume{}, err
-	}
-
-	volume := Volume{
-		ID:     vol.ID,
-		Name:   vol.Name,
-		Status: vol.Status,
-	}
-
-	if len(vol.Attachments) > 0 {
-		volume.AttachedServerId = vol.Attachments[0].ServerID
-		volume.AttachedDevice = vol.Attachments[0].Device
-	}
-
-	return volume, nil
+	return os.volumes.deleteVolume(volumeID)
 }
 
 // AttachVolume attaches given cinder volume to the compute

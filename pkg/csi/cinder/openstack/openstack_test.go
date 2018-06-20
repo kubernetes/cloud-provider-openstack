@@ -74,7 +74,7 @@ region=` + fakeRegion + `
 	}
 
 	// Invoke GetConfigFromFile
-	actualAuthOpts, actualEpOpts, err := GetConfigFromFile(fakeFileName)
+	actualAuthOpts, actualEpOpts, _, err := GetConfigFromFile(fakeFileName)
 	if err != nil {
 		t.Errorf("failed to GetConfigFromFile: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestGetConfigFromEnv(t *testing.T) {
 	}
 
 	// Invoke GetConfigFromEnv
-	actualAuthOpts, actualEpOpts, err := GetConfigFromEnv()
+	actualAuthOpts, actualEpOpts, _, err := GetConfigFromEnv()
 	if err != nil {
 		t.Errorf("failed to GetConfigFromEnv: %v", err)
 	}

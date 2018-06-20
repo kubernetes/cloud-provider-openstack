@@ -19,7 +19,6 @@ package openstack
 import (
 	"strings"
 
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +36,7 @@ var fakeVol2 = Volume{
 	AZ:     "nova",
 }
 
-var fakeSnapshot = snapshots.Snapshot{
+var fakeSnapshot = Snapshot{
 	ID:       "b4dbab05-b083-4f2b-9341-ca977c6de8c7",
 	Name:     "fake-snapshot",
 	Status:   "available",
@@ -194,15 +193,15 @@ func (_m *OpenStackMock) GetVolumesByName(name string) ([]Volume, error) {
 }
 
 // ListSnapshots provides a mock function with given fields: limit, offset, filters
-func (_m *OpenStackMock) ListSnapshots(limit int, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
+func (_m *OpenStackMock) ListSnapshots(limit int, offset int, filters map[string]string) ([]Snapshot, error) {
 	ret := _m.Called(limit, offset, filters)
 
-	var r0 []snapshots.Snapshot
-	if rf, ok := ret.Get(0).(func(int, int, map[string]string) []snapshots.Snapshot); ok {
+	var r0 []Snapshot
+	if rf, ok := ret.Get(0).(func(int, int, map[string]string) []Snapshot); ok {
 		r0 = rf(limit, offset, filters)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]snapshots.Snapshot)
+			r0 = ret.Get(0).([]Snapshot)
 		}
 	}
 
@@ -217,15 +216,15 @@ func (_m *OpenStackMock) ListSnapshots(limit int, offset int, filters map[string
 }
 
 // CreateSnapshot provides a mock function with given fields: name, volID, description, tags
-func (_m *OpenStackMock) CreateSnapshot(name string, volID string, description string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (_m *OpenStackMock) CreateSnapshot(name string, volID string, description string, tags *map[string]string) (*Snapshot, error) {
 	ret := _m.Called(name, volID, description, tags)
 
-	var r0 *snapshots.Snapshot
-	if rf, ok := ret.Get(0).(func(string, string, string, *map[string]string) *snapshots.Snapshot); ok {
+	var r0 *Snapshot
+	if rf, ok := ret.Get(0).(func(string, string, string, *map[string]string) *Snapshot); ok {
 		r0 = rf(name, volID, description, tags)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*snapshots.Snapshot)
+			r0 = ret.Get(0).(*Snapshot)
 		}
 	}
 

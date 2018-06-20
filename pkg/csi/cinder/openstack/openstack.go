@@ -17,12 +17,13 @@ limitations under the License.
 package openstack
 
 import (
+	"errors"
+	"fmt"
 	"os"
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"gopkg.in/gcfg.v1"
 )
 
@@ -35,14 +36,14 @@ type IOpenStack interface {
 	WaitDiskDetached(instanceID string, volumeID string) error
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
 	GetVolumesByName(name string) ([]Volume, error)
-	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
-	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
+	CreateSnapshot(name, volID, description string, tags *map[string]string) (*Snapshot, error)
+	ListSnapshots(limit, offset int, filters map[string]string) ([]Snapshot, error)
 	DeleteSnapshot(snapID string) error
 }
 
 type OpenStack struct {
-	compute      *gophercloud.ServiceClient
-	blockstorage *gophercloud.ServiceClient
+	compute *gophercloud.ServiceClient
+	volumes volumeService
 }
 
 type Config struct {
@@ -57,6 +58,12 @@ type Config struct {
 		DomainName string `gcfg:"domain-name"`
 		Region     string
 	}
+	BlockStorage BlockStorageOpts
+}
+
+// BlockStorageOpts is used to talk to Cinder service
+type BlockStorageOpts struct {
+	BSVersion string `gcfg:"bs-version"`
 }
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
@@ -75,14 +82,14 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 	}
 }
 
-func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
+func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercloud.EndpointOpts, Config, error) {
 	// Get config from file
 	var authOpts gophercloud.AuthOptions
 	var epOpts gophercloud.EndpointOpts
 	config, err := os.Open(configFilePath)
 	if err != nil {
 		glog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
-		return authOpts, epOpts, err
+		return authOpts, epOpts, Config{}, err
 	}
 	defer config.Close()
 
@@ -91,7 +98,7 @@ func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercl
 	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
 		glog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
-		return authOpts, epOpts, err
+		return authOpts, epOpts, Config{}, err
 	}
 
 	authOpts = cfg.toAuthOptions()
@@ -99,23 +106,86 @@ func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercl
 		Region: cfg.Global.Region,
 	}
 
-	return authOpts, epOpts, nil
+	return authOpts, epOpts, cfg, nil
 }
 
-func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
+func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, Config, error) {
 	// Get config from env
 	authOpts, err := openstack.AuthOptionsFromEnv()
 	var epOpts gophercloud.EndpointOpts
+	cfg := Config{}
 	if err != nil {
 		glog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
-		return authOpts, epOpts, err
+		return authOpts, epOpts, cfg, err
 	}
 
 	epOpts = gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	}
 
-	return authOpts, epOpts, nil
+	return authOpts, epOpts, cfg, nil
+}
+
+func GetBlockStorageClient(
+	provider *gophercloud.ProviderClient,
+	epOpts gophercloud.EndpointOpts,
+	bsOpts BlockStorageOpts) (volumeService, error) {
+
+	// Default value is auto
+	bsVersion := bsOpts.BSVersion
+	if bsVersion == "" {
+		bsVersion = "auto"
+	}
+
+	switch bsVersion {
+	case "v1":
+		sClient, err := openstack.NewBlockStorageV1(provider, epOpts)
+		if err != nil {
+			return nil, err
+		}
+		glog.V(3).Info("Using Blockstorage API V1")
+		return &VolumesV1{sClient, bsOpts}, nil
+	case "v2":
+		sClient, err := openstack.NewBlockStorageV2(provider, epOpts)
+		if err != nil {
+			return nil, err
+		}
+		glog.V(3).Info("Using Blockstorage API V2")
+		return &VolumesV2{sClient, bsOpts}, nil
+	case "v3":
+		sClient, err := openstack.NewBlockStorageV3(provider, epOpts)
+		if err != nil {
+			return nil, err
+		}
+		glog.V(3).Info("Using Blockstorage API V3")
+		return &VolumesV3{sClient, bsOpts}, nil
+	case "auto":
+		// Currently kubernetes support Cinder v1 / Cinder v2 / Cinder v3.
+		// Choose Cinder v3 firstly, if kubernetes can't initialize cinder v3 client, try to initialize cinder v2 client.
+		// If kubernetes can't initialize cinder v2 client, try to initialize cinder v1 client.
+		// Return appropriate message when kubernetes can't initialize them.
+		if sClient, err := openstack.NewBlockStorageV3(provider, epOpts); err == nil {
+			glog.V(3).Info("Using Blockstorage API V3")
+			return &VolumesV3{sClient, bsOpts}, nil
+		}
+
+		if sClient, err := openstack.NewBlockStorageV2(provider, epOpts); err == nil {
+			glog.V(3).Info("Using Blockstorage API V2")
+			return &VolumesV2{sClient, bsOpts}, nil
+		}
+
+		if sClient, err := openstack.NewBlockStorageV1(provider, epOpts); err == nil {
+			glog.V(3).Info("Using Blockstorage API V1")
+			return &VolumesV1{sClient, bsOpts}, nil
+		}
+
+		errTxt := "BlockStorage API version autodetection failed. " +
+			"Please set it explicitly in cloud.conf in section [BlockStorage] with key `bs-version`"
+		return nil, errors.New(errTxt)
+	default:
+		errTxt := fmt.Sprintf("Config error: unrecognised bs-version \"%v\"", bsOpts.BSVersion)
+		return nil, errors.New(errTxt)
+	}
 }
 
 var OsInstance IOpenStack = nil
@@ -130,10 +200,10 @@ func GetOpenStackProvider() (IOpenStack, error) {
 
 	if OsInstance == nil {
 		// Get config from file
-		authOpts, epOpts, err := GetConfigFromFile(configFile)
+		authOpts, epOpts, cfg, err := GetConfigFromFile(configFile)
 		if err != nil {
 			// Get config from env
-			authOpts, epOpts, err = GetConfigFromEnv()
+			authOpts, epOpts, cfg, err = GetConfigFromEnv()
 			if err != nil {
 				return nil, err
 			}
@@ -152,15 +222,15 @@ func GetOpenStackProvider() (IOpenStack, error) {
 		}
 
 		// Init Cinder ServiceClient
-		blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
+		volumes, err := GetBlockStorageClient(provider, epOpts, cfg.BlockStorage)
 		if err != nil {
 			return nil, err
 		}
 
 		// Init OpenStack
 		OsInstance = &OpenStack{
-			compute:      computeclient,
-			blockstorage: blockstorageclient,
+			compute: computeclient,
+			volumes: volumes,
 		}
 	}
 
