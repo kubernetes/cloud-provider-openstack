@@ -1,0 +1,8 @@
+# In format %d, %n and %i wildcards repesent keystone domain id, project name and id respectively
+namespace_format: "prefix-%d-%n-%i-suffix"
+
+# List of Keystone project ids to omit from syncing
+projects_black_list: ["id1", "id2"]
+
+# List of data types to synchronize
+"data_types_to_sync": ["projects"]
