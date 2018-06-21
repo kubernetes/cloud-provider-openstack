@@ -24,9 +24,10 @@ As such, you must disable these controller loops in the `kube-controller-manager
 flag to `external` when starting the kube-controller-manager.
 
 For more details, please see:
-- https://github.com/kubernetes/community/blob/master/keps/sig-cloud-provider/0002-cloud-controller-manager.md
-- https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager
-- https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/
+
+- <https://github.com/kubernetes/community/blob/master/keps/sig-cloud-provider/0002-cloud-controller-manager.md>
+- <https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager>
+- <https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/>
 
 ## Examples
 
@@ -36,7 +37,8 @@ Here are some examples of how you could leverage `openstack-cloud-controller-man
 
 ## Developing
 
-`make` will build, test, and package this project. This project uses trash Glide for dependency management.
+`make` will build, test, and package this project. This project uses [go dep](https://golang.github.io/dep/)
+for dependency management.
 
 If you don't have a Go Environment setup, we also offer the ability to run make
 in a Docker Container.  The only requirement for this is that you have Docker
@@ -52,6 +54,7 @@ attempting to do something like `cd hack && make.sh build` will not work
 because we won't bind mount the source files into the container.
 
 ## License
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
