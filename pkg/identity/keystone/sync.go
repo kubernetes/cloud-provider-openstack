@@ -17,19 +17,28 @@ limitations under the License.
 package keystone
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"regexp"
 	"strings"
-
-	"gopkg.in/yaml.v2"
+	"sync"
 
 	"github.com/golang/glog"
+	"gopkg.in/yaml.v2"
+	"k8s.io/api/core/v1"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // By now only project syncing is supported
 // TODO(mfedosin): Implement syncing of role assignments, system role assignments, and user groups
-var allowedDataTypesToSync = []string{"projects"}
+const (
+	Projects = "projects"
+)
+
+var allowedDataTypesToSync = []string{Projects}
 
 // syncConfig contains configuration data for synchronization between Keystone and Kubernetes
 type syncConfig struct {
@@ -122,4 +131,68 @@ func newSyncConfigFromFile(path string) (*syncConfig, error) {
 	}
 
 	return &sc, nil
+}
+
+// Syncer synchronizes auth data between Keystone and Kubernetes
+type Syncer struct {
+	k8sClient  *kubernetes.Clientset
+	syncConfig *syncConfig
+	mu         sync.Mutex
+}
+
+func (s *Syncer) syncData(u *userInfo) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, dataType := range s.syncConfig.DataTypesToSync {
+		if dataType == Projects {
+			err := s.syncProjectData(u)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Syncer) syncProjectData(u *userInfo) error {
+	for _, p := range s.syncConfig.ProjectBlackList {
+		if u.Extra["alpha.kubernetes.io/identity/project/id"][0] == p {
+			glog.Infof("Project %v is in black list. Skipping.")
+			return nil
+		}
+	}
+
+	if s.k8sClient == nil {
+		return errors.New("cannot sync data because k8s client is not initialized")
+	}
+
+	namespaceName := s.syncConfig.formatNamespaceName(
+		u.Extra["alpha.kubernetes.io/identity/project/id"][0],
+		u.Extra["alpha.kubernetes.io/identity/project/name"][0],
+		u.Extra["alpha.kubernetes.io/identity/user/domain/id"][0],
+	)
+
+	_, err := s.k8sClient.CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
+
+	if k8s_errors.IsNotFound(err) {
+		// The required namespace is not found. Create it then.
+		namespace := &v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespaceName,
+			},
+		}
+		namespace, err = s.k8sClient.CoreV1().Namespaces().Create(namespace)
+		if err != nil {
+			glog.Warningf("Cannot create a namespace for the user: %v", err)
+			return errors.New("Internal server error")
+		}
+	} else if err != nil {
+		// Some other error.
+		glog.Warningf("Cannot get a response from the server: %v", err)
+		return errors.New("Internal server error")
+	}
+
+	return nil
 }
