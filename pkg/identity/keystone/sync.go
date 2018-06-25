@@ -26,7 +26,8 @@ import (
 
 	"github.com/golang/glog"
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/core/v1"
+	core_v1 "k8s.io/api/core/v1"
+	rbac_v1 "k8s.io/api/rbac/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -35,10 +36,11 @@ import (
 // By now only project syncing is supported
 // TODO(mfedosin): Implement syncing of role assignments, system role assignments, and user groups
 const (
-	Projects = "projects"
+	Projects        = "projects"
+	RoleAssignments = "role_assignments"
 )
 
-var allowedDataTypesToSync = []string{Projects}
+var allowedDataTypesToSync = []string{Projects, RoleAssignments}
 
 // syncConfig contains configuration data for synchronization between Keystone and Kubernetes
 type syncConfig struct {
@@ -144,19 +146,6 @@ func (s *Syncer) syncData(u *userInfo) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, dataType := range s.syncConfig.DataTypesToSync {
-		if dataType == Projects {
-			err := s.syncProjectData(u)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *Syncer) syncProjectData(u *userInfo) error {
 	for _, p := range s.syncConfig.ProjectBlackList {
 		if u.Extra["alpha.kubernetes.io/identity/project/id"][0] == p {
 			glog.Infof("Project %v is in black list. Skipping.")
@@ -174,11 +163,34 @@ func (s *Syncer) syncProjectData(u *userInfo) error {
 		u.Extra["alpha.kubernetes.io/identity/user/domain/id"][0],
 	)
 
+	// sync project data first
+	for _, dataType := range s.syncConfig.DataTypesToSync {
+		if dataType == Projects {
+			err := s.syncProjectData(u, namespaceName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, dataType := range s.syncConfig.DataTypesToSync {
+		if dataType == RoleAssignments {
+			err := s.syncRoleAssignmentsData(u, namespaceName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 	_, err := s.k8sClient.CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
 
 	if k8s_errors.IsNotFound(err) {
 		// The required namespace is not found. Create it then.
-		namespace := &v1.Namespace{
+		namespace := &core_v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,
 			},
@@ -192,6 +204,83 @@ func (s *Syncer) syncProjectData(u *userInfo) error {
 		// Some other error.
 		glog.Warningf("Cannot get a response from the server: %v", err)
 		return errors.New("Internal server error")
+	}
+
+	return nil
+}
+
+func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) error {
+	// TODO(mfedosin): add a field separator to filter out unnecessary roles bindings at an early stage
+	roleBindings, err := s.k8sClient.Rbac().RoleBindings(namespaceName).List(metav1.ListOptions{})
+	if err != nil {
+		glog.Warningf("Cannot get a list of role bindings from the server: %v", err)
+		return errors.New("Internal server error")
+	}
+
+	// delete role bindings removed from Keystone
+	for _, roleBinding := range roleBindings.Items {
+		// parts[0] is a user id, parts[1] is a role name
+		parts := strings.SplitN(roleBinding.Name, "_", 2)
+		if len(parts) == 1 || parts[0] != u.UID {
+			// role binding is either created by an admin or belongs to a different user
+			continue
+		}
+
+		var keepRoleBinding bool
+		for _, roleName := range u.Extra["alpha.kubernetes.io/identity/roles"] {
+			roleBindingName := u.UID + "_" + roleName
+			if roleBinding.Name == roleBindingName {
+				keepRoleBinding = true
+			}
+		}
+		if !keepRoleBinding {
+			err = s.k8sClient.Rbac().RoleBindings(namespaceName).Delete(roleBinding.Name, &metav1.DeleteOptions{})
+			if err != nil {
+				glog.Warningf("Cannot delete a role binding from the server: %v", err)
+				return errors.New("Internal server error")
+			}
+		}
+
+	}
+
+	// create new role bindings
+	for _, roleName := range u.Extra["alpha.kubernetes.io/identity/roles"] {
+		roleBindingName := u.UID + "_" + roleName
+
+		// check that role binding doesn't exist
+		var roleBindingExists bool
+		for _, roleBinding := range roleBindings.Items {
+			if roleBindingName == roleBinding.Name {
+				roleBindingExists = true
+				break
+			}
+		}
+		if roleBindingExists {
+			continue
+		}
+
+		roleBinding := &rbac_v1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: roleBindingName,
+			},
+			Subjects: []rbac_v1.Subject{
+				{
+					APIGroup: "rbac.authorization.k8s.io",
+					Kind:     "User",
+					Name:     u.Username,
+				},
+			},
+			RoleRef: rbac_v1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "ClusterRole",
+				Name:     roleName,
+			},
+		}
+		roleBinding, err = s.k8sClient.Rbac().RoleBindings(namespaceName).Create(roleBinding)
+		if err != nil {
+			glog.Warningf("Cannot create a role binding for the user: %v", err)
+			return errors.New("Internal server error")
+		}
 	}
 
 	return nil
