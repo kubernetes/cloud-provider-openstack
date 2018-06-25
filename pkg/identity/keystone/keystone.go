@@ -246,7 +246,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 		userInfo := k.authenticateToken(w, r, token, data)
 
 		// Do synchronization
-		if k.syncer.syncConfig != nil {
+		if k.syncer.syncConfig != nil && userInfo != nil {
 			err = k.syncer.syncData(userInfo)
 			if err != nil {
 				glog.Errorf("an error occurred during data synchronization: %v", err)
