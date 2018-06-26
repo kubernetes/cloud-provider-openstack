@@ -90,6 +90,18 @@
     }]
   },
   {
+    "resource": {
+      "verbs": ["get"],
+      "resources": ["core_resource"],
+      "version": "",
+      "namespace": "*"
+    },
+    "match": [{
+      "type": "role",
+      "values": ["role1"]
+    }]
+  },
+  {
     "nonresource": {
       "verbs": ["get"],
       "path": "/user"
