@@ -68,6 +68,7 @@ type KeystoneAuth struct {
 	authn          *Authenticator
 	authz          *Authorizer
 	k8sClient      *kubernetes.Clientset
+	syncer         *Syncer
 	config         *Config
 	stopCh         chan struct{}
 	queue          workqueue.RateLimitingInterface
@@ -178,9 +179,9 @@ func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
 		runtimeutil.HandleError(fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", key, err))
 	}
 
-	k.authn.mu.Lock()
-	k.authn.syncConfig = sc
-	k.authn.mu.Unlock()
+	k.syncer.mu.Lock()
+	k.syncer.syncConfig = sc
+	k.syncer.mu.Unlock()
 
 	glog.Infof("Sync configuration updated.")
 }
@@ -202,10 +203,10 @@ func (k *KeystoneAuth) processItem(key string) error {
 		}
 		if name == k.config.SyncConfigMapName {
 			glog.Infof("SyncConfigmap %v has been deleted.", k.config.SyncConfigMapName)
-			k.authn.mu.Lock()
+			k.syncer.mu.Lock()
 			sc := newSyncConfig()
-			k.authn.syncConfig = &sc
-			k.authn.mu.Unlock()
+			k.syncer.syncConfig = &sc
+			k.syncer.mu.Unlock()
 		}
 	case err != nil:
 		return fmt.Errorf("error fetching object with key %s: %v", key, err)
@@ -242,7 +243,15 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 
 	if kind == "TokenReview" {
 		var token = data["spec"].(map[string]interface{})["token"].(string)
-		k.authenticateToken(w, r, token, data)
+		userInfo := k.authenticateToken(w, r, token, data)
+
+		// Do synchronization
+		if k.syncer.syncConfig != nil && userInfo != nil {
+			err = k.syncer.syncData(userInfo)
+			if err != nil {
+				glog.Errorf("an error occurred during data synchronization: %v", err)
+			}
+		}
 	} else if kind == "SubjectAccessReview" {
 		k.authorizeToken(w, r, data)
 	} else {
@@ -250,7 +259,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) {
+func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
 	user, authenticated, err := k.authn.AuthenticateToken(token)
 	glog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
 
@@ -262,12 +271,12 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 		output, err := json.MarshalIndent(data, "", "  ")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			return nil
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write(output)
-		return
+		return nil
 	}
 
 	var info userInfo
@@ -285,11 +294,13 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 	output, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(output)
+
+	return &info
 }
 
 func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
@@ -453,8 +464,9 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	}
 
 	keystoneAuth := &KeystoneAuth{
-		authn:     &Authenticator{authURL: c.KeystoneURL, client: keystoneClient, k8sClient: k8sClient, syncConfig: sc},
+		authn:     &Authenticator{authURL: c.KeystoneURL, client: keystoneClient},
 		authz:     &Authorizer{authURL: c.KeystoneURL, client: keystoneClient, pl: policy},
+		syncer:    &Syncer{k8sClient: k8sClient, syncConfig: sc},
 		k8sClient: k8sClient,
 		config:    c,
 		stopCh:    make(chan struct{}),
