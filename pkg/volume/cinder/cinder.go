@@ -516,6 +516,15 @@ func (c *cinderVolumeProvisioner) Provision(selectedNode *v1.Node, allowedTopolo
 		return nil, err
 	}
 
+	var volumeMode *v1.PersistentVolumeMode
+	if utilfeature.DefaultFeatureGate.Enabled(features.BlockVolume) {
+		volumeMode = c.options.PVC.Spec.VolumeMode
+		if volumeMode != nil && *volumeMode == v1.PersistentVolumeBlock {
+			// Block volumes should not have any FSType
+			fstype = ""
+		}
+	}
+
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   c.options.PVName,
@@ -530,6 +539,7 @@ func (c *cinderVolumeProvisioner) Provision(selectedNode *v1.Node, allowedTopolo
 			Capacity: v1.ResourceList{
 				v1.ResourceName(v1.ResourceStorage): resource.MustParse(fmt.Sprintf("%dGi", sizeGB)),
 			},
+			VolumeMode: volumeMode,
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				Cinder: &v1.CinderVolumeSource{
 					VolumeID: volumeID,
@@ -542,10 +552,6 @@ func (c *cinderVolumeProvisioner) Provision(selectedNode *v1.Node, allowedTopolo
 	}
 	if len(c.options.PVC.Spec.AccessModes) == 0 {
 		pv.Spec.AccessModes = c.plugin.GetAccessModes()
-	}
-
-	if utilfeature.DefaultFeatureGate.Enabled(features.BlockVolume) {
-		pv.Spec.VolumeMode = c.options.PVC.Spec.VolumeMode
 	}
 
 	return pv, nil
