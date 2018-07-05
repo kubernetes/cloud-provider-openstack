@@ -127,6 +127,15 @@ func TestAuthorizer(t *testing.T) {
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
+	// Core api group resource match
+	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "get", Resource: "core_resource"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "get", Resource: "core_resource", APIGroup: "NonCoreAPIGroup"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
 	// Nonresource user match
 	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: false, Verb: "get", Path: "/user"}
 	decision, _, _ = a.Authorize(attrs)
