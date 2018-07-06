@@ -7,23 +7,25 @@ A share backend handles share-specific tasks like granting access to the share a
 ## Share options
 Share options are parsed from Storage Class parameters.
 
-Common options
-| Key | Default value | Description |
-|-----|---------------|-------------|
-|`type`|`default`|
-|`zones`|`nova`|comma separated list of zones
-|`osSecretName`|_REQUIRED_|name of the Secret object containing OpenStack credentials
-|`osSecretNamespace`|_REQUIRED_|namespace of the Secret object
-|`protocol`|_REQUIRED_: `CEPHFS`,`NFS`|protocol used when provisioning a share
-|`backend`|_REQUIRED_: `cephfs`,`csi-cephfs`,`nfs`|share backend used for granting access and creating `PersistentVolumeSource`
+**Common options**
 
-Protocol specific options
-(none)
+Key | Required | Default value | Description
+:------ | :------- | :------------ | :-----------
+`type` | No | `default` |
+`zones` | No | `nova` | Comma separated list of zones
+`osSecretName` | Yes | None | Name of the Secret object containing OpenStack credentials
+`osSecretNamespace` | Yes | None | Namespace of the Secret object
+`protocol` | Yes | None | Protocol used when provisioning a share, options `CEPHFS`,`NFS`
+`backend`  | Yes | None | Share backend used for granting access and creating `PersistentVolumeSource` options `cephfs`,`csi-cephfs`,`nfs`
 
-Share-backend specific options
-| Key | For backend | For protocol | Default value | Description |
-|-----|-------------|--------------|---------------|-------------|
-|`csi-driver`|`csi-cephfs`|`CEPHFS`|_REQUIRED_|name of the CSI driver
+**Protocol specific options**  
+None.
+
+**Share-backend specific options**
+
+Key | For backend | For protocol  | Required | Default Value | Description
+--- | ----------- | ------------- | ------------- | ----------- |---------
+`csi-driver` | `csi-cephfs` | `CEPHFS` | Yes | None | Name of the CSI driver
 
 ## Authentication with Manila v2 client
 The provisioner uses `gophercloud` library for talking to the OpenStack Manila service. Authentication credentials are read from Kubernetes Secret object which should contain the same credentials as your OpenRC file.
