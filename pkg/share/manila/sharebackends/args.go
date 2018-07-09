@@ -19,6 +19,7 @@ package sharebackends
 import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 )
@@ -42,7 +43,8 @@ type GrantAccessArgs struct {
 
 // RevokeAccessArgs contains arguments for ShareBaceknd.RevokeAccess()
 type RevokeAccessArgs struct {
-	ShareID         string
-	SecretNamespace string
-	Clientset       clientset.Interface
+	ShareID        string
+	ShareSecretRef *v1.SecretReference
+	Clientset      clientset.Interface
+	Client         *gophercloud.ServiceClient
 }
