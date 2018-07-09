@@ -1,3 +1,19 @@
+/*
+Copyright 2018 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package sharebackends
 
 import (
@@ -26,26 +42,23 @@ func (CephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource, er
 
 	return &v1.PersistentVolumeSource{
 		CephFS: &v1.CephFSPersistentVolumeSource{
-			Monitors: monitors,
-			Path:     path,
-			ReadOnly: false,
-			User:     args.AccessRight.AccessTo,
-			SecretRef: &v1.SecretReference{
-				Name:      getSecretName(args.Share.ID),
-				Namespace: args.Options.OSSecretNamespace,
-			},
+			Monitors:  monitors,
+			Path:      path,
+			ReadOnly:  false,
+			User:      args.AccessRight.AccessTo,
+			SecretRef: &args.Options.ShareSecretRef,
 		},
 	}, nil
 }
 
 // GrantAccess to Ceph share
 func (CephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
-	accessRight, err := grantAccessCephx(args)
+	accessRight, err := getOrCreateCephxAccess(args)
 	if err != nil {
 		return nil, err
 	}
 
-	err = createSecret(getSecretName(args.Share.ID), args.Options.OSSecretNamespace, args.Clientset, map[string][]byte{
+	err = createSecret(&args.Options.ShareSecretRef, args.Clientset, map[string][]byte{
 		"key": []byte(accessRight.AccessKey),
 	})
 
@@ -54,5 +67,5 @@ func (CephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
 
 // RevokeAccess to k8s secret created by GrantAccess()
 func (CephFS) RevokeAccess(args *RevokeAccessArgs) error {
-	return deleteSecret(getSecretName(args.ShareID), args.SecretNamespace, args.Clientset)
+	return deleteSecret(args.ShareSecretRef, args.Clientset)
 }
