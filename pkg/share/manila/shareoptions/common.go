@@ -18,11 +18,16 @@ package shareoptions
 
 // CommonOptions contains options common for any backend/protocol
 type CommonOptions struct {
-	Zones    string `name:"zones"`
-	Type     string `name:"type"`
+	Zones    string `name:"zones" value:"default=default"`
+	Type     string `name:"type" value:"default=nova"`
 	Protocol string `name:"protocol"`
 	Backend  string `name:"backend"`
 
-	OSSecretName      string `name:"osSecretName"`
-	OSSecretNamespace string `name:"osSecretNamespace"`
+	OSSecretName         string `name:"osSecretName"`
+	OSSecretNamespace    string `name:"osSecretNamespace"`
+	ShareSecretNamespace string `name:"shareSecretNamespace" value:"coalesce=osSecretNamespace"`
+
+	OSShareID       string `name:"osShareID" value:"requires=osShareAccessID"`
+	OSShareName     string `name:"osShareName" value:"requires=osShareAccessID"`
+	OSShareAccessID string `name:"osShareAccessID" value:"requires=osShareID|osShareName"`
 }
