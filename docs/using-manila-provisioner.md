@@ -1,5 +1,11 @@
 # Manila external provisioner
-The Manila external provisioner fulfills persistent volume claims by creating Manila shares and mapping them to natively supported volume sources represented by Share backends.
+The Manila external provisioner fulfills persistent volume claims by provisioning Manila shares and mapping them to natively supported volume sources represented by Share backends.
+
+Depending on supplied parameters, the Manila external provisioner is able to work in two modes of operation:
+- dynamic provisioning: a new share along with a corresponding access rule will be created; the reclaim policy is honored when deleting the claim, i.e. the underlying share will be deleted if `reclaimPolicy: Delete`
+- static provisioning: an existing share and its corresponding access rule will be used; deleting the claim leaves the supplied share and its access rule intact
+
+Dynamic provisioning is the default mode. In order to use an existing Manila share, parameters [`osShareID` or `osShareName`] and `osShareAccessID` must be supplied.
 
 ## Share backends
 A share backend handles share-specific tasks like granting access to the share and building a Persistent Volume source. Each share backend may need its own specific configuration, which is handled by Share options.
@@ -13,10 +19,15 @@ Key | Required | Default value | Description
 :------ | :------- | :------------ | :-----------
 `type` | No | `default` |
 `zones` | No | `nova` | Comma separated list of zones
-`osSecretName` | Yes | None | Name of the Secret object containing OpenStack credentials
-`osSecretNamespace` | Yes | None | Namespace of the Secret object
 `protocol` | Yes | None | Protocol used when provisioning a share, options `CEPHFS`,`NFS`
 `backend`  | Yes | None | Share backend used for granting access and creating `PersistentVolumeSource` options `cephfs`,`csi-cephfs`,`nfs`
+`osSecretName` | Yes | None | Name of the Secret object containing OpenStack credentials
+`osSecretNamespace` | Yes | None | Namespace of the OpenStack credentials Secret object
+`shareSecretNamespace` | No | value of `osSecretNamespace` | Namespace of the per-share Secret object (contains backend-specific secrets)
+`osShareID` | No | None | The UUID of an existing share. Used during static provisioning
+`osShareName` | No | None | The name of an exisiting share. Used during static provisioning
+`osShareAccessID` | No | None | The UUID of an existing access rule to a share. Used during static provisioning
+
 
 **Protocol specific options**  
 None.
