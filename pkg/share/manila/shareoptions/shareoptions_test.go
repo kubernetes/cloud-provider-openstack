@@ -165,9 +165,65 @@ func TestExtractOptions(t *testing.T) {
 		t.Errorf("failed to extract parameters with constraints: %v", err)
 	}
 
-	if err = checkExtractFieldsCount(1, n); err != nil {
+	if err = checkExtractFieldsCount(2, n); err != nil {
 		t.Error(err)
 	}
+}
+
+func testExctractParamsAndCheckEquals(t *testing.T, obj, expected interface{}, params map[string]string) {
+	// reset internal maps
+	nameIdxMap = make(map[structName]nameIndexMap)
+	reqsMap = make(map[structName]requirementsMap)
+	coalMap = make(map[structName]coalesceMap)
+
+	// build maps for this type
+	processStruct(obj)
+
+	if _, err := extractParams(&optionConstraints{}, params, obj); err != nil {
+		t.Errorf("failed to extract parameters: %v", err)
+	}
+
+	if !reflect.DeepEqual(obj, expected) {
+		t.Errorf("unexpected result: got %+v, expected %+v", obj, expected)
+	}
+}
+
+func TestOptionsOptionalValue(t *testing.T) {
+	type s struct {
+		A string `name:"a" value:"optional"`
+	}
+
+	testExctractParamsAndCheckEquals(t, &s{}, &s{}, map[string]string{})
+}
+
+func TestOptionsDefaultValue(t *testing.T) {
+	type s struct {
+		A string `name:"a" value:"default=xxx"`
+	}
+
+	testExctractParamsAndCheckEquals(t, &s{}, &s{A: "xxx"}, map[string]string{})
+}
+
+func TestOptionsCoalesceValue(t *testing.T) {
+	type s struct {
+		A string `name:"a" value:"default=xxx"`
+		B string `name:"b" value:"coalesce=a"`
+	}
+
+	testExctractParamsAndCheckEquals(t, &s{}, &s{A: "xxx", B: "xxx"}, map[string]string{})
+}
+
+func TestOptionRequiresValue(t *testing.T) {
+	type s struct {
+		A string `name:"a" value:"default=aaa"`
+		B string `name:"b" value:"optional"`
+		C string `name:"c" value:"default=ccc"`
+		D string `name:"d" value:"optional"`
+		E string `name:"e" value:"default=eee"`
+		X string `name:"x" value:"requires=a|b,c,d|e"`
+	}
+
+	testExctractParamsAndCheckEquals(t, &s{}, &s{A: "aaa", C: "ccc", E: "eee", X: "xxx"}, map[string]string{"x": "xxx"})
 }
 
 func TestOpenStackOptionsToAuthOptions(t *testing.T) {

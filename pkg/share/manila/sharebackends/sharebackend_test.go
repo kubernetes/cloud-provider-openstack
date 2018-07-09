@@ -61,6 +61,10 @@ func TestCSICephFSBuildSource(t *testing.T) {
 		},
 		Options: &shareoptions.ShareOptions{
 			ShareName: "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264",
+			ShareSecretRef: v1.SecretReference{
+				Name:      "manila-011d21e2-fbc3-4e4a-9993-9ea223f73264",
+				Namespace: "default",
+			},
 		},
 		Location: &shares.ExportLocation{
 			Path: "192.168.2.1:6789,192.168.2.2:6789:/shares/011d21e2-fbc3-4e4a-9993-9ea223f73264",
@@ -76,7 +80,7 @@ func TestCSICephFSBuildSource(t *testing.T) {
 		t.Errorf("failed to build PV source: %v	", err)
 	}
 
-	eq := reflect.DeepEqual(source, &v1.PersistentVolumeSource{
+	expected := v1.PersistentVolumeSource{
 		CSI: &v1.CSIPersistentVolumeSource{
 			Driver:       "csi-cephfs",
 			VolumeHandle: args.Options.ShareName,
@@ -91,10 +95,12 @@ func TestCSICephFSBuildSource(t *testing.T) {
 				Namespace: "default",
 			},
 		},
-	})
+	}
+
+	eq := reflect.DeepEqual(source, &expected)
 
 	if !eq {
-		t.Error("unexpected PV source contents")
+		t.Errorf("unexpected PV source contents: got %+v, expected %+v", source, &expected)
 	}
 }
 
