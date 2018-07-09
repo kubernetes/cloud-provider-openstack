@@ -27,10 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-var (
-	errAnnotationNotFoundFmt = "PV object for volume %s is missing key %s in its annotations"
-)
-
 func getPVAccessMode(PVCAccessMode []v1.PersistentVolumeAccessMode) []v1.PersistentVolumeAccessMode {
 	if len(PVCAccessMode) > 0 {
 		return PVCAccessMode
@@ -107,31 +103,47 @@ func chooseExportLocation(locs []shares.ExportLocation) (shares.ExportLocation, 
 	return shares.ExportLocation{}, fmt.Errorf("cannot find any non-admin export location")
 }
 
-func getShareIDfromPV(volume *v1.PersistentVolume) (string, error) {
-	if shareID, ok := volume.ObjectMeta.Annotations[manilaAnnotationID]; ok {
-		return shareID, nil
+func getAnnotationFromPV(volume *v1.PersistentVolume, annotationKey string) (string, error) {
+	if provisionType, ok := volume.ObjectMeta.Annotations[annotationKey]; ok {
+		return provisionType, nil
 	}
 
-	return "", fmt.Errorf(errAnnotationNotFoundFmt, volume.GetName(), manilaAnnotationID)
+	return "", fmt.Errorf("PV object for volume %s is missing key %s in its annotations", volume.GetName(), annotationKey)
 }
 
-func getSecretRefFromPV(pv *v1.PersistentVolume) (*v1.SecretReference, error) {
+func getProvisionTypeFromPV(volume *v1.PersistentVolume) (string, error) {
+	return getAnnotationFromPV(volume, manilaAnnotationProvisionType)
+}
+
+func getShareIDfromPV(volume *v1.PersistentVolume) (string, error) {
+	return getAnnotationFromPV(volume, manilaAnnotationID)
+}
+
+func getSecretRefFromPV(nameKey, namespaceKey string, pv *v1.PersistentVolume) (*v1.SecretReference, error) {
 	var (
 		ref = &v1.SecretReference{}
-		ok  bool
+		err error
 	)
 
-	ref.Name, ok = pv.ObjectMeta.Annotations[manilaAnnotationSecretName]
-	if !ok {
-		return nil, fmt.Errorf(errAnnotationNotFoundFmt, pv.GetName(), manilaAnnotationSecretName)
+	ref.Name, err = getAnnotationFromPV(pv, nameKey)
+	if err != nil {
+		return nil, err
 	}
 
-	ref.Namespace, ok = pv.ObjectMeta.Annotations[manilaAnnotationSecretNamespace]
-	if !ok {
-		return nil, fmt.Errorf(errAnnotationNotFoundFmt, pv.GetName(), manilaAnnotationSecretNamespace)
+	ref.Namespace, err = getAnnotationFromPV(pv, namespaceKey)
+	if err != nil {
+		return nil, err
 	}
 
 	return ref, nil
+}
+
+func getOSSecretRefFromPV(pv *v1.PersistentVolume) (*v1.SecretReference, error) {
+	return getSecretRefFromPV(manilaAnnotationOSSecretName, manilaAnnotationOSSecretNamespace, pv)
+}
+
+func getShareSecretRefFromPV(pv *v1.PersistentVolume) (*v1.SecretReference, error) {
+	return getSecretRefFromPV(manilaAnnotationShareSecretName, manilaAnnotationShareSecretNamespace, pv)
 }
 
 func waitForShareStatus(shareID string, client *gophercloud.ServiceClient, desiredStatus string) error {

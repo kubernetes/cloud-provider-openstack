@@ -32,11 +32,18 @@ import (
 )
 
 const (
-	manilaAnnotationPrefix          = "manila.cloud-provider-openstack.kubernetes.io/"
-	manilaAnnotationID              = manilaAnnotationPrefix + "ID"
-	manilaAnnotationSecretName      = manilaAnnotationPrefix + "SecretName"
-	manilaAnnotationSecretNamespace = manilaAnnotationPrefix + "SecretNamespace"
-	shareAvailabilityTimeout        = 120 /* secs */
+	shareAvailabilityTimeout = 120 /* secs */
+
+	manilaAnnotationPrefix               = "manila.cloud-provider-openstack.kubernetes.io/"
+	manilaAnnotationID                   = manilaAnnotationPrefix + "ID"
+	manilaAnnotationProvisionType        = manilaAnnotationPrefix + "ProvisionType"
+	manilaAnnotationOSSecretName         = manilaAnnotationPrefix + "OSSecretName"
+	manilaAnnotationOSSecretNamespace    = manilaAnnotationPrefix + "OSSecretNamespace"
+	manilaAnnotationShareSecretName      = manilaAnnotationPrefix + "ShareSecretName"
+	manilaAnnotationShareSecretNamespace = manilaAnnotationPrefix + "ShareSecretNamespace"
+
+	manilaProvisionTypeDynamic = "dynamic"
+	manilaProvisionTypeStatic  = "static"
 )
 
 func createShare(
@@ -52,12 +59,7 @@ func createShare(
 	return shares.Create(client, *req).Extract()
 }
 
-func deleteShare(shareID, secretNamespace string, client *gophercloud.ServiceClient, c clientset.Interface) error {
-	r := shares.Delete(client, shareID)
-	if r.Err != nil {
-		return r.Err
-	}
-
+func deleteShare(shareID, provisionType string, shareSecretRef *v1.SecretReference, client *gophercloud.ServiceClient, c clientset.Interface) error {
 	if backendName, err := getBackendNameForShare(shareID); err == nil {
 		shareBackend, err := getShareBackend(backendName)
 		if err != nil {
@@ -65,9 +67,10 @@ func deleteShare(shareID, secretNamespace string, client *gophercloud.ServiceCli
 		}
 
 		err = shareBackend.RevokeAccess(&sharebackends.RevokeAccessArgs{
-			ShareID:         shareID,
-			SecretNamespace: secretNamespace,
-			Clientset:       c,
+			ShareID:        shareID,
+			ShareSecretRef: shareSecretRef,
+			Clientset:      c,
+			Client:         client,
 		})
 
 		if err != nil {
@@ -75,7 +78,30 @@ func deleteShare(shareID, secretNamespace string, client *gophercloud.ServiceCli
 		}
 	}
 
+	if provisionType == manilaProvisionTypeDynamic {
+		// manila-provisioner is allowed to delete only those shares which it created
+		r := shares.Delete(client, shareID)
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+
 	return nil
+}
+
+func getShare(shareOptions *shareoptions.ShareOptions, client *gophercloud.ServiceClient) (*shares.Share, error) {
+	if shareOptions.OSShareID != "" {
+		return shares.Get(client, shareOptions.OSShareID).Extract()
+	} else if shareOptions.OSShareName != "" {
+		shareID, err := shares.IDFromName(client, shareOptions.OSShareName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get share ID from name: %v", err)
+		}
+
+		return shares.Get(client, shareID).Extract()
+	}
+
+	return nil, fmt.Errorf("both OSShareName and OSShareID are empty")
 }
 
 func buildCreateRequest(volOptions *controller.VolumeOptions, shareOptions *shareoptions.ShareOptions) (*shares.CreateOpts, error) {
@@ -97,16 +123,28 @@ func buildCreateRequest(volOptions *controller.VolumeOptions, shareOptions *shar
 	}, nil
 }
 
-func buildPersistentVolume(share *shares.Share, volSource *v1.PersistentVolumeSource,
-	volOptions *controller.VolumeOptions, shareOptions *shareoptions.ShareOptions,
+func buildPersistentVolume(
+	share *shares.Share,
+	accessRight *shares.AccessRight,
+	volSource *v1.PersistentVolumeSource,
+	volOptions *controller.VolumeOptions,
+	shareOptions *shareoptions.ShareOptions,
 ) *v1.PersistentVolume {
+	provisionType := manilaProvisionTypeDynamic
+	if shareOptions.OSShareAccessID != "" {
+		provisionType = manilaProvisionTypeStatic
+	}
+
 	return &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: volOptions.PVName,
 			Annotations: map[string]string{
-				manilaAnnotationID:              share.ID,
-				manilaAnnotationSecretName:      shareOptions.OSSecretName,
-				manilaAnnotationSecretNamespace: shareOptions.OSSecretNamespace,
+				manilaAnnotationID:                   share.ID,
+				manilaAnnotationOSSecretName:         shareOptions.OSSecretName,
+				manilaAnnotationOSSecretNamespace:    shareOptions.OSSecretNamespace,
+				manilaAnnotationShareSecretName:      shareOptions.ShareSecretRef.Name,
+				manilaAnnotationShareSecretNamespace: shareOptions.ShareSecretRef.Namespace,
+				manilaAnnotationProvisionType:        provisionType,
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
