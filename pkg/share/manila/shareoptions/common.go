@@ -18,8 +18,8 @@ package shareoptions
 
 // CommonOptions contains options common for any backend/protocol
 type CommonOptions struct {
-	Zones    string `name:"zones" value:"default=default"`
-	Type     string `name:"type" value:"default=nova"`
+	Zones    string `name:"zones" value:"default=nova"`
+	Type     string `name:"type" value:"default=default"`
 	Protocol string `name:"protocol"`
 	Backend  string `name:"backend"`
 
