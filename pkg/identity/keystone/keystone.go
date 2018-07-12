@@ -423,7 +423,7 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 		}
 	}
 
-	// Get sync config either from a policy file or the policy configmap. Sync config file takes precedence
+	// Get sync config either from a sync config file or the sync configmap. Sync config file takes precedence
 	// over the configmap, but the sync config definition will be refreshed based on the configmap change on-the-fly. It
 	// is possible that both are not provided, in this case, the keytone webhook authenticator will not synchronize data.
 	var sc *syncConfig
