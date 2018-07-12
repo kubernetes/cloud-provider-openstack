@@ -4,6 +4,20 @@ Proof-Of-Concept : Kubernetes webhook authentication and authorization for OpenS
 
 Steps to use this webook with Kubernetes
 
+## Make k8s-keystone-auth command
+
+- Build k8s-keystone-auth binary with
+```
+$ cd cloud-provider-openstack
+$ sudo hack/make.sh build
+...
+$ ls k8s-keystone-auth
+k8s-keystone-auth
+$
+```
+
+## Configuration on K8s master for authentication
+
 - Save the following into webhook.kubeconfig.
 ```
 apiVersion: v1
@@ -23,9 +37,6 @@ preferences: {}
 users:
 - name: webhook
 ```
-
-## Configuration on K8s master for authentication
-
 - Start a webhook process (k8s-keystone-auth command) with the following flags
   * `--tls-cert-file /var/run/kubernetes/serving-kube-apiserver.crt`
   * `--tls-private-key-file /var/run/kubernetes/serving-kube-apiserver.key`
@@ -41,7 +52,8 @@ users:
 - When you start the webhook process make sure you also have the following flags (in addition to the flags in the case of authentication)
   * `--keystone-policy-file examples/webhook/policy.json`
 - Add the following flags to your Kubernetes api server.
-  * `--authorization-mode=Node,Webhook,RBAC --authorization-webhook-config-file=/path/to/your/webhook.kubeconfig`
+  * `--authorization-webhook-config-file=/path/to/your/webhook.kubeconfig`
+  * `--authorization-mode=Node,Webhook,RBAC`
 
 ## K8s kubectl Client configuration
 
