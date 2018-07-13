@@ -18,49 +18,61 @@ package shareoptions
 
 import (
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 )
 
 // OpenStackOptions contains fields used for authenticating to OpenStack
 type OpenStackOptions struct {
-	OSAuthURL     string `name:"os-authURL"`
-	OSUserID      string `name:"os-userID"`
-	OSUsername    string `name:"os-userName"`
-	OSPassword    string `name:"os-password"`
-	OSProjectID   string `name:"os-projectID"`
-	OSProjectName string `name:"os-projectName"`
-	OSDomainID    string `name:"os-domainID"`
-	OSDomainName  string `name:"os-domainName"`
-	OSRegionName  string `name:"os-region"`
+	// Mandatory options
+
+	OSAuthURL    string `name:"os-authURL" value:"alwaysRequires=os-password|os-trustID"`
+	OSRegionName string `name:"os-region"`
+
+	// User authentication
+
+	OSPassword    string `name:"os-password" value:"requires=os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
+	OSUserID      string `name:"os-userID" value:"requires=os-password"`
+	OSUsername    string `name:"os-userName" value:"requires=os-password"`
+	OSDomainID    string `name:"os-domainID" value:"requires=os-password"`
+	OSDomainName  string `name:"os-domainName" value:"requires=os-password"`
+	OSProjectID   string `name:"os-projectID" value:"requires=os-password"`
+	OSProjectName string `name:"os-projectName" value:"requires=os-password"`
+
+	// Trustee authentication
+
+	OSTrustID         string `name:"os-trustID" value:"requires=os-trusteeID,os-trusteePassword"`
+	OSTrusteeID       string `name:"os-trusteeID" value:"requires=os-trustID"`
+	OSTrusteePassword string `name:"os-trusteePassword" value:"requires=os-trustID"`
+	// TODO:
+	// OSCertAuthority   string `name:"os-certAuthority" value:"requires=os-trustID"`
 }
 
-// NewOpenStackOptions reads k8s secrets and constructs a new instance of OpenStackOptions
-func NewOpenStackOptions(c clientset.Interface, secretRef *v1.SecretReference) (*OpenStackOptions, error) {
-	o := &OpenStackOptions{}
-	return o, buildOpenStackOptionsTo(c, o, secretRef)
-}
-
-func buildOpenStackOptionsTo(c clientset.Interface, o *OpenStackOptions, secretRef *v1.SecretReference) error {
-	secrets, err := c.CoreV1().Secrets(secretRef.Namespace).Get(secretRef.Name, metav1.GetOptions{})
+// NewOpenStackOptionsFromSecret reads k8s secrets, validates and populates OpenStackOptions
+func NewOpenStackOptionsFromSecret(c clientset.Interface, secretRef *v1.SecretReference) (*OpenStackOptions, error) {
+	params, err := readSecrets(c, secretRef)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	secretsData := make(map[string]string)
-	for k, v := range secrets.Data {
-		secretsData[k] = string(v)
-	}
+	return NewOpenStackOptionsFromMap(params)
+}
 
-	_, err = extractParams(&optionConstraints{allOptional: true}, secretsData, o)
+// NewOpenStackOptionsFromMap validates and populates OpenStackOptions
+func NewOpenStackOptionsFromMap(params map[string]string) (*OpenStackOptions, error) {
+	opts := &OpenStackOptions{}
+	return opts, buildOpenStackOptionsTo(opts, params)
+}
 
+func buildOpenStackOptionsTo(opts *OpenStackOptions, params map[string]string) error {
+	_, err := extractParams(&optionConstraints{}, params, opts)
 	return err
 }
 
 // ToAuthOptions converts OpenStackOptions to gophercloud.AuthOptions
 func (o *OpenStackOptions) ToAuthOptions() *gophercloud.AuthOptions {
-	return &gophercloud.AuthOptions{
+	authOpts := &gophercloud.AuthOptions{
 		IdentityEndpoint: o.OSAuthURL,
 		UserID:           o.OSUserID,
 		Username:         o.OSUsername,
@@ -69,5 +81,21 @@ func (o *OpenStackOptions) ToAuthOptions() *gophercloud.AuthOptions {
 		TenantName:       o.OSProjectName,
 		DomainID:         o.OSDomainID,
 		DomainName:       o.OSDomainName,
+	}
+
+	if o.OSTrustID != "" {
+		// gophercloud doesn't have dedicated options for trustee credentials
+		authOpts.UserID = o.OSTrusteeID
+		authOpts.Password = o.OSTrusteePassword
+	}
+
+	return authOpts
+}
+
+// ToAuthOptionsExt converts OpenStackOptions to trusts.AuthOptsExt
+func (o *OpenStackOptions) ToAuthOptionsExt() *trusts.AuthOptsExt {
+	return &trusts.AuthOptsExt{
+		AuthOptionsBuilder: o.ToAuthOptions(),
+		TrustID:            o.OSTrustID,
 	}
 }

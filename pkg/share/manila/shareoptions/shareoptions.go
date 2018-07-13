@@ -44,6 +44,7 @@ func init() {
 	processStruct(&CommonOptions{})
 	processStruct(&ProtocolOptions{})
 	processStruct(&BackendOptions{})
+	processStruct(&OpenStackOptions{})
 }
 
 // NewShareOptions creates new share options
@@ -95,11 +96,15 @@ func NewShareOptions(volOptions *controller.VolumeOptions, c clientset.Interface
 
 	// Retrieve and parse secrets
 
-	err = buildOpenStackOptionsTo(c, &opts.OpenStackOptions, &v1.SecretReference{
+	sec, err := readSecrets(c, &v1.SecretReference{
 		Name:      opts.OSSecretName,
 		Namespace: opts.OSSecretNamespace,
 	})
 	if err != nil {
+		return nil, err
+	}
+
+	if err = buildOpenStackOptionsTo(&opts.OpenStackOptions, sec); err != nil {
 		return nil, err
 	}
 
