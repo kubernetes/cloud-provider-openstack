@@ -41,6 +41,8 @@ const (
 	// * d and e must be not-empty
 	// * exactly one of (f,g) must be non-empty
 	requiresValueTag = "requires="
+	// The same behaviour as requiresValueTag, but the field is always treated as required instead of optional
+	alwaysRequiresValueTag = "alwaysRequires="
 
 	requiresValueGroupSeparator     = ","
 	requiresValueExclGroupSeparator = "|"
@@ -125,12 +127,12 @@ func buildRequirementsFor(t reflect.Type) requirementsMap {
 			continue
 		}
 
-		if !checkValueMode(value, requiresValueTag) {
-			continue
-		}
-
 		// Parse the tag and store the result
-		m[name] = requirements{idx: idx, opts: parseRequiresTag(value[len(requiresValueTag):], idxMap)}
+		if checkValueMode(value, requiresValueTag) {
+			m[name] = requirements{idx: idx, opts: parseRequiresTag(value[len(requiresValueTag):], idxMap)}
+		} else if checkValueMode(value, alwaysRequiresValueTag) {
+			m[name] = requirements{idx: idx, opts: parseRequiresTag(value[len(alwaysRequiresValueTag):], idxMap)}
+		}
 	}
 
 	return m
@@ -239,8 +241,8 @@ func checkValueMode(valueTag, mode string) bool {
 }
 
 type optionConstraints struct {
-	protocol, backend string
-	allOptional       bool
+	protocol string
+	backend  string
 }
 
 func (c *optionConstraints) constraintsMet(tag reflect.StructTag) bool {
@@ -288,6 +290,8 @@ func handleValueOrSkip(name string, params map[string]string, valueTag string) b
 		skip = true
 	} else if checkValueMode(valueTag, requiresValueTag) {
 		skip = true
+	} else if checkValueMode(valueTag, alwaysRequiresValueTag) {
+		// Intentionally empty - we don't want to skip any checks.
 	} else {
 		panic(fmt.Sprintf("invalid value tag '%s'", valueTag))
 	}
@@ -336,7 +340,7 @@ func extractParams(c *optionConstraints, params map[string]string, opts interfac
 		}
 
 		value, err := extractParam(name, params)
-		if err != nil && !c.allOptional {
+		if err != nil {
 			return 0, err
 		}
 
