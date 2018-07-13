@@ -25,6 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions"
+	gophercloudutils "github.com/gophercloud/gophercloud/openstack/utils"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 )
 
@@ -68,9 +69,36 @@ func compareVersionsLessThan(a, b string) bool {
 func NewManilaV2Client(osOptions *shareoptions.OpenStackOptions) (*gophercloud.ServiceClient, error) {
 	// Authenticate
 
-	provider, err := openstack.AuthenticatedClient(*osOptions.ToAuthOptions())
+	provider, err := openstack.NewClient(osOptions.OSAuthURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate Manila v2 client: %v", err)
+		return nil, fmt.Errorf("failed to create Keystone client: %v", err)
+	}
+
+	const (
+		v2 = "v2.0"
+		v3 = "v3"
+	)
+
+	chosenVersion, _, err := gophercloudutils.ChooseVersion(provider, []*gophercloudutils.Version{
+		{ID: v2, Priority: 20, Suffix: "/v2.0/"},
+		{ID: v3, Priority: 30, Suffix: "/v3/"},
+	})
+
+	switch chosenVersion.ID {
+	case v2:
+		if osOptions.OSTrustID != "" {
+			return nil, fmt.Errorf("Keystone %s does not support trustee authentication", chosenVersion.ID)
+		}
+
+		err = openstack.AuthenticateV2(provider, *osOptions.ToAuthOptions(), gophercloud.EndpointOpts{})
+	case v3:
+		err = openstack.AuthenticateV3(provider, *osOptions.ToAuthOptionsExt(), gophercloud.EndpointOpts{})
+	default:
+		return nil, fmt.Errorf("unrecognized Keystone version: %s", chosenVersion.ID)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate with Keystone: %v", err)
 	}
 
 	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{Region: osOptions.OSRegionName})
