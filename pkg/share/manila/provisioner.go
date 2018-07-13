@@ -161,7 +161,7 @@ func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to get provision type for volume %s: %v", pv.GetName(), err)
 	}
 
-	osOptions, err := shareoptions.NewOpenStackOptions(p.clientset, osSecretRef)
+	osOptions, err := shareoptions.NewOpenStackOptionsFromSecret(p.clientset, osSecretRef)
 	if err != nil {
 		return fmt.Errorf("failed to create OpenStack options for share %s: %v", shareID, err)
 	}
