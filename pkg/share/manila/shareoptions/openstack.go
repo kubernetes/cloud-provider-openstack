@@ -25,18 +25,23 @@ import (
 
 // OpenStackOptions contains fields used for authenticating to OpenStack
 type OpenStackOptions struct {
-	// Mandatory options
+	// Common options
 
 	OSAuthURL    string `name:"os-authURL" value:"alwaysRequires=os-password|os-trustID"`
 	OSRegionName string `name:"os-region"`
 
+	OSCertAuthority string `name:"os-certAuthority" value:"optional"`
+	OSTLSInsecure   string `name:"os-TLSInsecure" value:"requires=os-certAuthority"`
+
 	// User authentication
 
-	OSPassword    string `name:"os-password" value:"requires=os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
-	OSUserID      string `name:"os-userID" value:"requires=os-password"`
-	OSUsername    string `name:"os-userName" value:"requires=os-password"`
-	OSDomainID    string `name:"os-domainID" value:"requires=os-password"`
-	OSDomainName  string `name:"os-domainName" value:"requires=os-password"`
+	OSPassword string `name:"os-password" value:"requires=os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
+	OSUserID   string `name:"os-userID" value:"requires=os-password"`
+	OSUsername string `name:"os-userName" value:"requires=os-password"`
+
+	OSDomainID   string `name:"os-domainID" value:"requires=os-password"`
+	OSDomainName string `name:"os-domainName" value:"requires=os-password"`
+
 	OSProjectID   string `name:"os-projectID" value:"requires=os-password"`
 	OSProjectName string `name:"os-projectName" value:"requires=os-password"`
 
@@ -45,8 +50,6 @@ type OpenStackOptions struct {
 	OSTrustID         string `name:"os-trustID" value:"requires=os-trusteeID,os-trusteePassword"`
 	OSTrusteeID       string `name:"os-trusteeID" value:"requires=os-trustID"`
 	OSTrusteePassword string `name:"os-trusteePassword" value:"requires=os-trustID"`
-	// TODO:
-	// OSCertAuthority   string `name:"os-certAuthority" value:"requires=os-trustID"`
 }
 
 // NewOpenStackOptionsFromSecret reads k8s secrets, validates and populates OpenStackOptions
