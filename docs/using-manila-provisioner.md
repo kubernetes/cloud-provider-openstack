@@ -39,7 +39,13 @@ Key | For backend | For protocol  | Required | Default Value | Description
 `csi-driver` | `csi-cephfs` | `CEPHFS` | Yes | None | Name of the CSI driver
 
 ## Authentication with Manila v2 client
-The provisioner uses `gophercloud` library for talking to the OpenStack Manila service. Authentication credentials are read from Kubernetes Secret object which should contain the same credentials as your OpenRC file.
+The provisioner authenticates to the OpenStack Manila service with the credentials supplied from the Kubernetes Secret object referenced by `osSecretNamespace` : `osSecretName`. One can authenticate either as a user or as a trustee, with each of those having its own set of parameters. Note that if the Secret object is created from a manifest, the Secret's values need to be encoded in base64.
+
+Available Secret parameters: `os-authURL`, `os-region`, `os-certAuthority`, `os-TLSInsecure`, `os-userID`, `os-userName`, `os-password`, `os-projectID`, `os-projectName`, `os-domainID`, `os-domainName`, `os-trustID`, `os-trusteeID` and `os-trusteePassword`.
+
+Parameters `os-authURL` and `os-region` are required for both user and trustee authentication.
+
+Optionally, you can also supply a custom certificate via `os-certAuthority` secret parameter (PEM file contents). By default, the usual TLS verification is performed. To override this behaviour and accept insecure certificates, set `os-TLSInsecure: "true"` (optional, defaults to `false`).
 
 The recommended way to create a Secret manifest with OpenStack credentials is following:
 ```bash
