@@ -22,7 +22,7 @@ Key | Required | Default value | Description
 `protocol` | Yes | None | Protocol used when provisioning a share, options `CEPHFS`,`NFS`
 `backend`  | Yes | None | Share backend used for granting access and creating `PersistentVolumeSource` options `cephfs`,`csi-cephfs`,`nfs`
 `osSecretName` | Yes | None | Name of the Secret object containing OpenStack credentials
-`osSecretNamespace` | Yes | None | Namespace of the OpenStack credentials Secret object
+`osSecretNamespace` | No | `default` | Namespace of the OpenStack credentials Secret object
 `shareSecretNamespace` | No | value of `osSecretNamespace` | Namespace of the per-share Secret object (contains backend-specific secrets)
 `osShareID` | No | None | The UUID of an existing share. Used during static provisioning
 `osShareName` | No | None | The name of an exisiting share. Used during static provisioning
