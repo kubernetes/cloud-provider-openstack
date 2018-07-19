@@ -47,23 +47,27 @@ func findString(a string, list []string) bool {
 }
 
 func resourceMatches(p policy, a authorizer.Attributes) bool {
-	if *p.ResourceSpec.APIGroup == "*" || *p.ResourceSpec.APIGroup == a.GetAPIGroup() {
-		if *p.ResourceSpec.Namespace == "*" || *p.ResourceSpec.Namespace == a.GetNamespace() {
-			if findString("*", p.ResourceSpec.Resources) || findString(a.GetResource(), p.ResourceSpec.Resources) {
-				if findString("*", p.ResourceSpec.Verbs) || findString(a.GetVerb(), p.ResourceSpec.Verbs) {
-					allowed := match(p.Match, a)
-					if allowed {
-						output, err := json.MarshalIndent(p, "", "  ")
-						if err == nil {
-							glog.V(6).Infof("matched rule : %s", string(output))
-						}
-						return true
-					}
-				}
-			}
-		}
+	if *p.ResourceSpec.APIGroup != "*" && *p.ResourceSpec.APIGroup != a.GetAPIGroup() {
+		return false
 	}
-	return false
+	if *p.ResourceSpec.Namespace != "*" && *p.ResourceSpec.Namespace != a.GetNamespace() {
+		return false
+	}
+	if !findString("*", p.ResourceSpec.Resources) && !findString(a.GetResource(), p.ResourceSpec.Resources) {
+		return false
+	}
+	if !findString("*", p.ResourceSpec.Verbs) && !findString(a.GetVerb(), p.ResourceSpec.Verbs) {
+		return false
+	}
+	allowed := match(p.Match, a)
+	if !allowed {
+		return false
+	}
+	output, err := json.MarshalIndent(p, "", "  ")
+	if err == nil {
+		glog.V(6).Infof("matched rule : %s", string(output))
+	}
+	return true
 }
 
 func nonResourceMatches(p policy, a authorizer.Attributes) bool {
@@ -77,19 +81,21 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 		return false
 	}
 
-	if findString("*", p.NonResourceSpec.Verbs) || findString(a.GetVerb(), p.NonResourceSpec.Verbs) {
-		if *p.NonResourceSpec.NonResourcePath == "*" || *p.NonResourceSpec.NonResourcePath == a.GetPath() {
-			allowed := match(p.Match, a)
-			if allowed {
-				output, err := json.MarshalIndent(p, "", "  ")
-				if err == nil {
-					glog.V(6).Infof("matched rule : %s", string(output))
-				}
-				return true
-			}
-		}
+	if !findString("*", p.NonResourceSpec.Verbs) && !findString(a.GetVerb(), p.NonResourceSpec.Verbs) {
+		return false
 	}
-	return false
+	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() {
+		return false
+	}
+	allowed := match(p.Match, a)
+	if !allowed {
+		return false
+	}
+	output, err := json.MarshalIndent(p, "", "  ")
+	if err == nil {
+		glog.V(6).Infof("matched rule : %s", string(output))
+	}
+	return true
 }
 
 func match(match []policyMatch, attributes authorizer.Attributes) bool {
