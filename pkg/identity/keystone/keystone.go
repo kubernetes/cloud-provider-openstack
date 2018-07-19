@@ -386,17 +386,18 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	}
 
 	var k8sClient *kubernetes.Clientset
+	if c.PolicyConfigMapName != "" || c.SyncConfigMapName != "" || c.SyncConfigFile != "" {
+		k8sClient, err = createKubernetesClient(c.Kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get kubernetes client: %v", err)
+		}
+	}
 
 	// Get policy definition either from a policy file or the policy configmap. Policy file takes precedence
 	// over the configmap, but the policy definition will be refreshed based on the configmap change on-the-fly. It
 	// is possible that both are not provided, in this case, the keytone webhook authorization will always return deny.
 	var policy policyList
 	if c.PolicyConfigMapName != "" {
-		k8sClient, err = createKubernetesClient(c.Kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get kubernetes client: %v", err)
-		}
-
 		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(c.PolicyConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.PolicyConfigMapName, err)
@@ -422,18 +423,11 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 		}
 	}
 
-	// Get sync config either from a policy file or the policy configmap. Sync config file takes precedence
+	// Get sync config either from a sync config file or the sync configmap. Sync config file takes precedence
 	// over the configmap, but the sync config definition will be refreshed based on the configmap change on-the-fly. It
 	// is possible that both are not provided, in this case, the keytone webhook authenticator will not synchronize data.
 	var sc *syncConfig
 	if c.SyncConfigMapName != "" {
-		if k8sClient == nil {
-			k8sClient, err = createKubernetesClient(c.Kubeconfig)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get kubernetes client: %v", err)
-			}
-		}
-
 		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(c.SyncConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			glog.Errorf("configmap get err   #%v ", err)
@@ -446,13 +440,6 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 		}
 	}
 	if c.SyncConfigFile != "" {
-		if k8sClient == nil {
-			k8sClient, err = createKubernetesClient(c.Kubeconfig)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get kubernetes client: %v", err)
-			}
-		}
-
 		sc, err = newSyncConfigFromFile(c.SyncConfigFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract data from sync config file %s: %v", c.SyncConfigFile, err)
