@@ -38,6 +38,21 @@ use them to talk to kube api server. However you need the auth webhook to authen
 The authorization is a WIP. the initial thought was to provide a way similar to OpenStack Keystone policy files
 to do some authorization checks. You can just use the kubernetes builtin RBAC support.
 
+### Auth data synchronization
+
+An additional feature of the authentication webhook is the ability to
+[synchronize data](./using-auth-data-synchronization.md) between Keystone and Kubernetes.
+
+For example, if a user belongs to some project in Keystone, then when attempting to authenticate in Kubernetes
+using k8s-keystone-auth, a kubernetes namespace with the same name as the project id will be automatically created
+for him along with his role assignments in the project.
+
+To enable the feature two new arguments were added to the k8s-keystone-auth binary:
+
+- ``--sync-config-file`` - points to a local file with sync configuration.
+- ``--sync-configmap-name`` - defines a configmap containing the configuration.
+  The ConfigMap must have ``syncConfig`` key containing config data.
+
 ### Cinder Standalone provisioner
 
 Tested with `LVM / iSCSI` and `Ceph / RBD` scenarios. The provisioner name is `openstack.org/standalone-cinder`.
