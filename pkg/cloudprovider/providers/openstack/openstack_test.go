@@ -620,7 +620,7 @@ func TestLoadBalancer(t *testing.T) {
 		t.Skip("No config found in environment")
 	}
 
-	versions := []string{"v2", ""}
+	versions := []string{"v2"}
 
 	for _, v := range versions {
 		t.Logf("Trying LBVersion = '%s'\n", v)

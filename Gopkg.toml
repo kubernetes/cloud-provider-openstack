@@ -8,6 +8,14 @@ ignored = ["k8s.io/cloud-provider-openstack"]
   branch = "master"
   name = "github.com/golang/glog"
 
+[[override]]
+  name = "k8s.io/kube-openapi"
+  revision = "0cf8f7e6ed1d2e3d47d02e3b6e559369af24d803"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.11.0"
+
 [[constraint]]
   branch = "master"
   name = "github.com/kubernetes-csi/drivers"
@@ -38,23 +46,23 @@ ignored = ["k8s.io/cloud-provider-openstack"]
 
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.10.0"
+  version = "kubernetes-1.11.0"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.10.0"
+  version = "kubernetes-1.11.0"
 
 [[constraint]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.10.0"
+  version = "kubernetes-1.11.0"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.10.0"
+  version = "kubernetes-1.11.0"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  version = "1.10.0"
+  version = "1.11.0"
 
 [prune]
   go-tests = true
