@@ -24,7 +24,7 @@ type CommonOptions struct {
 	Backend  string `name:"backend"`
 
 	OSSecretName         string `name:"osSecretName"`
-	OSSecretNamespace    string `name:"osSecretNamespace"`
+	OSSecretNamespace    string `name:"osSecretNamespace" value:"default=default"`
 	ShareSecretNamespace string `name:"shareSecretNamespace" value:"coalesce=osSecretNamespace"`
 
 	OSShareID       string `name:"osShareID" value:"requires=osShareAccessID"`
