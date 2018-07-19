@@ -235,7 +235,7 @@
     "testhelper",
     "testhelper/client"
   ]
-  revision = "282f25e4025de0a42015d2e2b5faef1d920aad3c"
+  revision = "45c2d035713fa44f366921035a44610ac5d45beb"
 
 [[projects]]
   name = "github.com/gorilla/context"
@@ -1093,6 +1093,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1aaf23f53efae626da8791fd7550a82df2eab3693337afb17f087b6686d6cc3b"
+  inputs-digest = "2dbbca769a156df1afe12cc0d268cf9069c9e0db5e2a183ae88091c48a86c3a7"
   solver-name = "gps-cdcl"
   solver-version = 1

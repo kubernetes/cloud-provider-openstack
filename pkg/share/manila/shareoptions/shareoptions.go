@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"github.com/pborman/uuid"
 	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
@@ -27,7 +28,11 @@ import (
 
 // ShareOptions contains options for provisioning and attaching a share
 type ShareOptions struct {
-	ShareName string
+	ShareName string // Used in CreateOpts when creating a new share
+
+	// If applicable, to be used when creating a k8s Secret in GrantAccess.
+	// The same SecretReference will be retrieved for RevokeAccess.
+	ShareSecretRef v1.SecretReference
 
 	CommonOptions    // Required common options
 	ProtocolOptions  // Protocol specific options
@@ -35,11 +40,10 @@ type ShareOptions struct {
 	OpenStackOptions // OpenStack credentials
 }
 
-// Sets a default value in params in case the field `fieldName` is absent.
-func setDefaultValue(fieldName string, params map[string]string, defaultValue string) {
-	if _, ok := params[fieldName]; !ok {
-		params[fieldName] = defaultValue
-	}
+func init() {
+	processStruct(&CommonOptions{})
+	processStruct(&ProtocolOptions{})
+	processStruct(&BackendOptions{})
 }
 
 // NewShareOptions creates new share options
@@ -49,11 +53,6 @@ func NewShareOptions(volOptions *controller.VolumeOptions, c clientset.Interface
 	nParams := len(params)
 
 	opts.ShareName = "pvc-" + string(volOptions.PVC.GetUID())
-
-	// Set default values
-
-	setDefaultValue("type", params, "default")
-	setDefaultValue("zones", params, "nova")
 
 	var (
 		n   int
@@ -83,8 +82,8 @@ func NewShareOptions(volOptions *controller.VolumeOptions, c clientset.Interface
 	}
 	nParams -= n
 
-	if nParams != 0 {
-		return nil, fmt.Errorf("parameters contain invalid field(s)")
+	if nParams > 0 {
+		return nil, fmt.Errorf("parameters contain invalid field(s): %d", nParams)
 	}
 
 	setOfZones, err := volumeutil.ZonesToSet(opts.Zones)
@@ -103,6 +102,9 @@ func NewShareOptions(volOptions *controller.VolumeOptions, c clientset.Interface
 	if err != nil {
 		return nil, err
 	}
+
+	// Share secret name and namespace
+	opts.ShareSecretRef = v1.SecretReference{Name: "manila-" + uuid.NewUUID().String(), Namespace: opts.ShareSecretNamespace}
 
 	return opts, nil
 }

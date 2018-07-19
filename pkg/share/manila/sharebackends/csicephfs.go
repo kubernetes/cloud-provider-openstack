@@ -47,22 +47,19 @@ func (CSICephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource,
 				"mounter":         "fuse",
 				"provisionVolume": "false",
 			},
-			NodePublishSecretRef: &v1.SecretReference{
-				Name:      getSecretName(args.Share.ID),
-				Namespace: args.Options.OSSecretNamespace,
-			},
+			NodePublishSecretRef: &args.Options.ShareSecretRef,
 		},
 	}, nil
 }
 
 // GrantAccess to Ceph share and creates a k8s Secret
 func (CSICephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
-	accessRight, err := grantAccessCephx(args)
+	accessRight, err := getOrCreateCephxAccess(args)
 	if err != nil {
 		return nil, err
 	}
 
-	err = createSecret(getSecretName(args.Share.ID), args.Options.OSSecretNamespace, args.Clientset, map[string][]byte{
+	err = createSecret(&args.Options.ShareSecretRef, args.Clientset, map[string][]byte{
 		"userID":  []byte(accessRight.AccessTo),
 		"userKey": []byte(accessRight.AccessKey),
 	})
@@ -72,5 +69,5 @@ func (CSICephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error)
 
 // RevokeAccess to k8s secret created by GrantAccess()
 func (CSICephFS) RevokeAccess(args *RevokeAccessArgs) error {
-	return deleteSecret(getSecretName(args.ShareID), args.SecretNamespace, args.Clientset)
+	return deleteSecret(args.ShareSecretRef, args.Clientset)
 }
