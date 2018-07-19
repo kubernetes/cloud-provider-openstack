@@ -63,25 +63,40 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
 	}
 
-	// Share creation
+	// Share provision
 
-	share, err := createShare(&volOptions, shareOptions, client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create a share: %v", err)
-	}
+	var share *shares.Share
 
-	defer func() {
-		// Delete the share if any of its setup operations fail
+	if shareOptions.OSShareAccessID == "" {
+		// Dynamic provision - we're creating a new share
+
+		share, err = createShare(&volOptions, shareOptions, client)
 		if err != nil {
-			if delErr := deleteShare(share.ID, shareOptions.OSSecretNamespace, client, p.clientset); delErr != nil {
-				glog.Errorf("failed to delete share %s in a rollback procedure: %v", share.ID, delErr)
-			}
+			return nil, fmt.Errorf("failed to create a share: %v", err)
 		}
-	}()
 
-	if err = waitForShareStatus(share.ID, client, "available"); err != nil {
-		return nil, fmt.Errorf("waiting for share %s to become created failed: %v", share.ID, err)
+		defer func() {
+			// Delete the share if any of its setup operations fail
+			if err != nil {
+				if delErr := deleteShare(share.ID, manilaProvisionTypeDynamic, &shareOptions.ShareSecretRef, client, p.clientset); delErr != nil {
+					glog.Errorf("failed to delete share %s in a rollback procedure: %v", share.ID, delErr)
+				}
+			}
+		}()
+
+		if err = waitForShareStatus(share.ID, client, "available"); err != nil {
+			return nil, fmt.Errorf("waiting for share %s to become created failed: %v", share.ID, err)
+		}
+	} else {
+		// Static provision - we're using an existing share
+
+		share, err = getShare(shareOptions, client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get share %s: %v", shareOptions.OSShareID, err)
+		}
 	}
+
+	// Get the export location
 
 	availableExportLocations, err := shares.GetExportLocations(client, share.ID).Extract()
 	if err != nil {
@@ -119,22 +134,34 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 
 	glog.Infof("share %s (%s/%s) provisioned successfully", share.ID, shareOptions.Protocol, shareOptions.Backend)
 
-	return buildPersistentVolume(share, volSource, &volOptions, shareOptions), nil
+	return buildPersistentVolume(share, accessRight, volSource, &volOptions, shareOptions), nil
 }
 
 // Delete a share from Manila service
 func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
+	// Initialization
+
 	shareID, err := getShareIDfromPV(pv)
 	if err != nil {
 		return fmt.Errorf("failed to get share ID for volume %s: %v", pv.GetName(), err)
 	}
 
-	secretRef, err := getSecretRefFromPV(pv)
+	osSecretRef, err := getOSSecretRefFromPV(pv)
 	if err != nil {
-		return fmt.Errorf("failed to get secret reference from PV for share %s: %v", shareID, err)
+		return fmt.Errorf("failed to get OpenStack secret reference from PV for share %s: %v", shareID, err)
 	}
 
-	osOptions, err := shareoptions.NewOpenStackOptions(p.clientset, secretRef)
+	shareSecretRef, err := getShareSecretRefFromPV(pv)
+	if err != nil {
+		return fmt.Errorf("failed to get share secret reference from PV for share %s: %v", shareID, err)
+	}
+
+	provisionType, err := getProvisionTypeFromPV(pv)
+	if err != nil {
+		return fmt.Errorf("failed to get provision type for volume %s: %v", pv.GetName(), err)
+	}
+
+	osOptions, err := shareoptions.NewOpenStackOptions(p.clientset, osSecretRef)
 	if err != nil {
 		return fmt.Errorf("failed to create OpenStack options for share %s: %v", shareID, err)
 	}
@@ -144,7 +171,9 @@ func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to create Manila v2 client for share %s: %v", shareID, err)
 	}
 
-	if err = deleteShare(shareID, secretRef.Namespace, client, p.clientset); err != nil {
+	// Share deletion
+
+	if err = deleteShare(shareID, provisionType, shareSecretRef, client, p.clientset); err != nil {
 		return fmt.Errorf("failed to delete share %s: %v", shareID, err)
 	}
 
