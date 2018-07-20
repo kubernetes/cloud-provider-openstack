@@ -32,6 +32,7 @@ import (
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app/options"
 	_ "k8s.io/kubernetes/pkg/client/metrics/prometheus" // for client metric registration
+	_ "k8s.io/kubernetes/pkg/features"                  // add the kubernetes feature gates
 	utilflag "k8s.io/kubernetes/pkg/util/flag"
 	_ "k8s.io/kubernetes/pkg/version/prometheus" // for version metric registration
 	"k8s.io/kubernetes/pkg/version/verflag"
@@ -53,7 +54,11 @@ func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	goflag.CommandLine.Parse([]string{})
-	s := options.NewCloudControllerManagerOptions()
+	s, err := options.NewCloudControllerManagerOptions()
+	if err != nil {
+		glog.Fatalf("unable to initialize command options: %v", err)
+	}
+
 	command := &cobra.Command{
 		Use: "cloud-controller-manager",
 		Long: `The Cloud controller manager is a daemon that embeds
@@ -88,7 +93,7 @@ the cloud specific control loops shipped with Kubernetes.`,
 
 	glog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
 
-	s.Generic.ComponentConfig.CloudProvider = openstack.ProviderName
+	s.CloudProvider.Name = openstack.ProviderName
 	if err := command.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
