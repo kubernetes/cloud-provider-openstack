@@ -26,13 +26,13 @@ import (
 
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	volutil "k8s.io/cloud-provider-openstack/pkg/volume/util"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	clientset "k8s.io/client-go/kubernetes"
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	"k8s.io/kubernetes/pkg/volume"
+	volutil "k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/utils/exec"
 )
 
@@ -211,10 +211,10 @@ func (util *DiskUtil) CreateVolume(c *cinderVolumeProvisioner) (volumeID string,
 		}
 	}
 
-	volumeID, volumeAZ, IgnoreVolumeAZ, errr := cloud.CreateVolume(name, volSizeGB, vtype, availability, c.options.CloudTags)
-	if errr != nil {
-		glog.V(2).Infof("Error creating cinder volume: %v", errr)
-		return "", 0, nil, "", errr
+	volumeID, volumeAZ, volumeRegion, IgnoreVolumeAZ, err := cloud.CreateVolume(name, volSizeGB, vtype, availability, c.options.CloudTags)
+	if err != nil {
+		glog.V(2).Infof("Error creating cinder volume: %v", err)
+		return "", 0, nil, "", err
 	}
 	glog.V(2).Infof("Successfully created cinder volume %s", volumeID)
 
@@ -222,6 +222,7 @@ func (util *DiskUtil) CreateVolume(c *cinderVolumeProvisioner) (volumeID string,
 	volumeLabels = make(map[string]string)
 	if IgnoreVolumeAZ == false {
 		volumeLabels[kubeletapis.LabelZoneFailureDomain] = volumeAZ
+		volumeLabels[kubeletapis.LabelZoneRegion] = volumeRegion
 	}
 	return volumeID, volSizeGB, volumeLabels, fstype, nil
 }
