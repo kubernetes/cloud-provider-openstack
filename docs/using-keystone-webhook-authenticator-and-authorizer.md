@@ -55,6 +55,56 @@ users:
   * `--authorization-webhook-config-file=/path/to/your/webhook.kubeconfig`
   * `--authorization-mode=Node,Webhook,RBAC`
 
+## Sample configuration on ubuntu 16.04 for both authentication and authorization
+
+- Save the above webhook.kubeconfig as /home/ubuntu/webhook.kubeconfig
+- Start a webhook process (k8s-keystone-auth command):
+```
+$ cd cloud-provider-openstack
+$ sudo ./k8s-keystone-auth \
+  --tls-cert-file /etc/kubernetes/pki/apiserver.crt \
+  --tls-private-key-file /etc/kubernetes/pki/apiserver.key \
+  --keystone-policy-file examples/webhook/policy.json \
+  --keystone-url https://my.keystone:5000/v3 -v 4
+```
+The flag values of --tls-cert-file and --tls-private-key-file are specified as the same as the ones of kube-apiserver process.
+
+- Change the manifest of kube-apiserver for adding flags:
+```
+--- kube-apiserver.yaml.orig
++++ /etc/kubernetes/manifests/kube-apiserver.yaml
+@@ -13,7 +13,9 @@
+   containers:
+   - command:
+     - kube-apiserver
+-    - --authorization-mode=Node,RBAC
++    - --authorization-mode=Node,Webhook,RBAC
++    - --authorization-webhook-config-file=/etc/kubernetes/webhook.kubeconfig
++    - --authentication-token-webhook-config-file=/etc/kubernetes/webhook.kubeconfig
+     - --advertise-address=192.168.1.108
+     - --allow-privileged=true
+     - --client-ca-file=/etc/kubernetes/pki/ca.crt
+@@ -71,6 +73,9 @@
+     - mountPath: /usr/local/share/ca-certificates
+       name: usr-local-share-ca-certificates
+       readOnly: true
++    - mountPath: /etc/kubernetes/webhook.kubeconfig
++      name: webhook-kubeconfig
++      readOnly: true
+   hostNetwork: true
+   priorityClassName: system-cluster-critical
+   volumes:
+@@ -94,4 +99,8 @@
+       path: /etc/ca-certificates
+       type: DirectoryOrCreate
+     name: etc-ca-certificates
++  - hostPath:
++      path: /home/ubuntu/webhook.kubeconfig
++      type: File
++    name: webhook-kubeconfig
+ status: {}
+```
+
 ## K8s kubectl Client configuration
 
 ### Old kubectl clients
