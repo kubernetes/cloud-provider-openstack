@@ -75,7 +75,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 
 // prompt pulls keystone auth url, domain, username and password from stdin,
 // if they are not specified initially (i.e. equal "").
-func prompt(url string, domain string, user string, password string) (gophercloud.AuthOptions, error) {
+func prompt(url string, domain string, user string, project string, password string) (gophercloud.AuthOptions, error) {
 	var err error
 	var options gophercloud.AuthOptions
 
@@ -84,8 +84,6 @@ func prompt(url string, domain string, user string, password string) (gopherclou
 		if err != nil {
 			return options, err
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "Keystone auth url is \"%s\"\n", url)
 	}
 
 	if domain == "" {
@@ -93,8 +91,6 @@ func prompt(url string, domain string, user string, password string) (gopherclou
 		if err != nil {
 			return options, err
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "Domain name is \"%s\"\n", domain)
 	}
 
 	if user == "" {
@@ -102,8 +98,13 @@ func prompt(url string, domain string, user string, password string) (gopherclou
 		if err != nil {
 			return options, err
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "User name is \"%s\"\n", user)
+	}
+
+	if project == "" {
+		project, err = promptForString("project name", os.Stdin, true)
+		if err != nil {
+			return options, err
+		}
 	}
 
 	if password == "" {
@@ -111,13 +112,12 @@ func prompt(url string, domain string, user string, password string) (gopherclou
 		if err != nil {
 			return options, err
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "Password is set\n")
 	}
 
 	options = gophercloud.AuthOptions{
 		IdentityEndpoint: url,
 		Username:         user,
+		TenantName:       project,
 		Password:         password,
 		DomainName:       domain,
 	}
@@ -150,6 +150,7 @@ func main() {
 	var url string
 	var domain string
 	var user string
+	var project string
 	var password string
 	var options gophercloud.AuthOptions
 	var err error
@@ -157,6 +158,7 @@ func main() {
 	pflag.StringVar(&url, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
 	pflag.StringVar(&domain, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
 	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
+	pflag.StringVar(&project, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
 	kflag.InitFlags()
 
@@ -188,7 +190,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain, user, password)
+		options, err = prompt(url, domain, user, project, password)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
