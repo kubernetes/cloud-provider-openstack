@@ -59,7 +59,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 	fmt.Fprintf(os.Stderr, "Please enter %s: ", field)
 
 	if show {
-		_, err = fmt.Fscan(r, &result)
+		_, err = fmt.Fscanln(r, &result)
 	} else {
 		var data []byte
 		if terminal.IsTerminal(int(os.Stdin.Fd())) {
@@ -70,59 +70,92 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 			return "", fmt.Errorf("error reading input for %s", field)
 		}
 	}
+
+	// intentionally ignore "unexpected newline" errors to allow read empty lines from the console
+	if err != nil && err.Error() == "unexpected newline" {
+		return "", nil
+	}
+
 	return result, err
 }
 
-// prompt pulls keystone auth url, domain, username and password from stdin,
-// if they are not specified initially (i.e. equal "").
-func prompt(url string, domain string, user string, project string, password string) (gophercloud.AuthOptions, error) {
+// prompt pulls missing auth parameters from stdin, if they were not specified initially (i.e. equal "")
+func prompt(options *gophercloud.AuthOptions) error {
 	var err error
-	var options gophercloud.AuthOptions
 
-	if url == "" {
-		url, err = promptForString("Keystone Auth URL", os.Stdin, true)
+	if options.IdentityEndpoint == "" {
+		options.IdentityEndpoint, err = promptForString("Keystone auth URL", os.Stdin, true)
 		if err != nil {
-			return options, err
+			return err
+		}
+
+		if options.IdentityEndpoint == "" {
+			return fmt.Errorf("Keystone url must be specified")
 		}
 	}
 
-	if domain == "" {
-		domain, err = promptForString("domain name", os.Stdin, true)
+	if options.DomainID == "" && options.DomainName == "" {
+		options.DomainName, err = promptForString("domain name (leave empty to set domain id instead)", os.Stdin, true)
 		if err != nil {
-			return options, err
+			return err
+		}
+
+		if options.DomainName == "" {
+			options.DomainID, err = promptForString("domain ID", os.Stdin, true)
+			if err != nil {
+				return err
+			}
+		}
+
+		if options.DomainID == "" && options.DomainName == "" {
+			return fmt.Errorf("either domain ID or domain name must be specified")
 		}
 	}
 
-	if user == "" {
-		user, err = promptForString("user name", os.Stdin, true)
+	if options.UserID == "" && options.Username == "" {
+		options.Username, err = promptForString("user name (leave empty to set user id instead)", os.Stdin, true)
 		if err != nil {
-			return options, err
+			return err
+		}
+
+		if options.Username == "" {
+			options.UserID, err = promptForString("user ID", os.Stdin, true)
+			if err != nil {
+				return err
+			}
+		}
+
+		if options.UserID == "" && options.Username == "" {
+			return fmt.Errorf("either user ID or user name must be specified")
 		}
 	}
 
-	if project == "" {
-		project, err = promptForString("project name", os.Stdin, true)
+	if options.TenantID == "" && options.TenantName == "" {
+		options.TenantName, err = promptForString("project name (leave empty to set project id instead)", os.Stdin, true)
 		if err != nil {
-			return options, err
+			return err
+		}
+
+		if options.TenantName == "" {
+			options.UserID, err = promptForString("project ID", os.Stdin, true)
+			if err != nil {
+				return err
+			}
+		}
+
+		if options.TenantID == "" && options.TenantName == "" {
+			fmt.Fprintf(os.Stderr, "Neither project ID nor project name have been specified. Proceed with domain-scoped token.")
 		}
 	}
 
-	if password == "" {
-		password, err = promptForString("password", nil, false)
+	if options.Password == "" {
+		options.Password, err = promptForString("password", nil, false)
 		if err != nil {
-			return options, err
+			return err
 		}
 	}
 
-	options = gophercloud.AuthOptions{
-		IdentityEndpoint: url,
-		Username:         user,
-		TenantName:       project,
-		Password:         password,
-		DomainName:       domain,
-	}
-
-	return options, nil
+	return nil
 }
 
 // KuberneteExecInfo holds information passed to the plugin by the transport. This
@@ -148,30 +181,36 @@ func validateKebernetesExecInfo(kei KuberneteExecInfo) error {
 
 func main() {
 	var url string
-	var domain string
-	var user string
-	var project string
+	var domainID string
+	var domainName string
+	var userID string
+	var userName string
+	var projectID string
+	var projectName string
 	var password string
 	var options gophercloud.AuthOptions
 	var err error
 
 	pflag.StringVar(&url, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
-	pflag.StringVar(&domain, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
-	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
-	pflag.StringVar(&project, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
+	pflag.StringVar(&domainID, "domain-id", os.Getenv("OS_DOMAIN_ID"), "Keystone domain identifier")
+	pflag.StringVar(&domainName, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
+	pflag.StringVar(&userID, "user-id", os.Getenv("OS_USERID"), "User identifier")
+	pflag.StringVar(&userName, "user-name", os.Getenv("OS_USERNAME"), "User name")
+	pflag.StringVar(&projectID, "project-id", os.Getenv("OS_PROJECT_ID"), "Keystone project identifier")
+	pflag.StringVar(&projectName, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
 	kflag.InitFlags()
 
 	keiData := os.Getenv("KUBERNETES_EXEC_INFO")
 	if keiData == "" {
-		fmt.Fprintln(os.Stderr, "KUBERNETES_EXEC_INFO env variable must be set.")
+		fmt.Fprintln(os.Stderr, "KUBERNETES_EXEC_INFO env variable must be set")
 		os.Exit(1)
 	}
 
 	kei := KuberneteExecInfo{}
 	err = json.Unmarshal([]byte(keiData), &kei)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to parse KUBERNETES_EXEC_INFO value.")
+		fmt.Fprintln(os.Stderr, "Failed to parse KUBERNETES_EXEC_INFO value")
 		os.Exit(1)
 	}
 
@@ -190,7 +229,19 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain, user, project, password)
+		options = gophercloud.AuthOptions{
+			IdentityEndpoint: url,
+			UserID:           userID,
+			Username:         userName,
+			TenantID:         projectID,
+			TenantName:       projectName,
+			Password:         password,
+			DomainID:         domainID,
+			DomainName:       domainName,
+		}
+
+		// Read missing auth options from stdin
+		err = prompt(&options)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
