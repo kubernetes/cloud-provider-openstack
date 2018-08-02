@@ -144,6 +144,7 @@ zz_generated.openapi.go
 /cinder-csi-plugin
 /octavia-ingress-controller
 /client-keystone-auth
+/manila-provisioner
 
 # snap temp files
 /parts
