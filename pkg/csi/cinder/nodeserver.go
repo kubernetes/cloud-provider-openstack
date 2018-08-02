@@ -56,6 +56,35 @@ func (ns *nodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) 
 	return ns.DefaultNodeServer.NodeGetId(ctx, req)
 }
 
+func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+
+	m, err := mount.GetMountProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		return nil, err
+	}
+
+	nodeID, err := m.GetInstanceID()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetInstanceID: %v", err)
+		return nil, err
+	}
+
+	if len(nodeID) > 0 {
+		return &csi.NodeGetInfoResponse{
+			NodeId: nodeID,
+			// TODO: Maximum Volumes that can be published to the node
+			// Default 0 means CO will decide how many volumes can be published
+			MaxVolumesPerNode: 0,
+			// TODO: It Specifies where (regions, zones, racks, etc.) the node is accessible from
+			AccessibleTopology: nil,
+		}, nil
+	}
+
+	// Using default function
+	return ns.DefaultNodeServer.NodeGetInfo(ctx, req)
+}
+
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 
 	targetPath := req.GetTargetPath()
