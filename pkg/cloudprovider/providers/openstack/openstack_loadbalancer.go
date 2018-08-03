@@ -45,7 +45,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/api/v1/service"
-	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
@@ -86,6 +85,16 @@ type LbaasV2 struct {
 }
 
 type empty struct{}
+
+func getLoadBalancerName(clusterName string, apiService *v1.Service) string {
+	shortId := strings.Split(string(apiService.UID), "-")[0]
+	ret := clusterName + "-" + shortId
+
+	if len(ret) > 255 {
+		ret = ret[:255]
+	}
+	return ret
+}
 
 func networkExtensions(client *gophercloud.ServiceClient) (map[string]bool, error) {
 	seen := make(map[string]bool)
@@ -443,7 +452,7 @@ func createNodeSecurityGroup(client *gophercloud.ServiceClient, nodeSecurityGrou
 func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName string, internalAnnotation bool) (*loadbalancers.LoadBalancer, error) {
 	createOpts := loadbalancers.CreateOpts{
 		Name:        name,
-		Description: fmt.Sprintf("Kubernetes external service %s from cluster %s", name, clusterName),
+		Description: fmt.Sprintf("Kubernetes external service id: %s", service.UID),
 		VipSubnetID: lbaas.opts.SubnetID,
 		Provider:    lbaas.opts.LBProvider,
 	}
@@ -462,7 +471,7 @@ func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName 
 
 // GetLoadBalancer returns whether the specified load balancer exists and its status
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
-	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerName := getLoadBalancerName(clusterName, service)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, loadBalancerName)
 	if err == ErrNotFound {
 		return nil, false, nil
@@ -733,7 +742,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		return nil, fmt.Errorf("unsupported load balancer affinity: %v", affinity)
 	}
 
-	name := cloudprovider.GetLoadBalancerName(apiService)
+	name := getLoadBalancerName(clusterName, apiService)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name)
 	if err != nil {
 		if err != ErrNotFound {
@@ -1203,7 +1212,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Ser
 
 // UpdateLoadBalancer updates hosts under the specified load balancer.
 func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
-	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerName := getLoadBalancerName(clusterName, service)
 	glog.V(4).Infof("UpdateLoadBalancer(%v, %v, %v)", clusterName, loadBalancerName, nodes)
 
 	lbaas.opts.SubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
@@ -1426,7 +1435,7 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *v1.Ser
 
 // EnsureLoadBalancerDeleted deletes the specified load balancer
 func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error {
-	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerName := getLoadBalancerName(clusterName, service)
 	glog.V(4).Infof("EnsureLoadBalancerDeleted(%v, %v)", clusterName, loadBalancerName)
 
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, loadBalancerName)
