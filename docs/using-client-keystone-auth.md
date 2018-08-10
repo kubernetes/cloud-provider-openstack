@@ -55,6 +55,8 @@ users:
         value: "admin"
       - name: "OS_PASSWORD"
         value: "passw0rd"
+      - name: "OS_PROJECT_NAME"
+        value: "myproject"
 
       # Arguments to pass when executing the plugin. Optional.
       args:
