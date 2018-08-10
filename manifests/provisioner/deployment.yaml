@@ -26,3 +26,5 @@ spec:
           value: 522e341dd2884e88a466a5c68ca54aa4
         - name: OS_REGION_NAME
           value: RegionOne
+        - name: OS_DOMAIN_NAME
+          value: Default
