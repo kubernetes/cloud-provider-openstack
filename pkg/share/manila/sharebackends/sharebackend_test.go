@@ -90,7 +90,7 @@ func TestCSICephFSBuildSource(t *testing.T) {
 				"mounter":         "fuse",
 				"provisionVolume": "false",
 			},
-			NodePublishSecretRef: &v1.SecretReference{
+			NodeStageSecretRef: &v1.SecretReference{
 				Name:      "manila-011d21e2-fbc3-4e4a-9993-9ea223f73264",
 				Namespace: "default",
 			},
