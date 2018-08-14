@@ -47,7 +47,7 @@ func (CSICephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource,
 				"mounter":         "fuse",
 				"provisionVolume": "false",
 			},
-			NodePublishSecretRef: &args.Options.ShareSecretRef,
+			NodeStageSecretRef: &args.Options.ShareSecretRef,
 		},
 	}, nil
 }

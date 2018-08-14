@@ -23,16 +23,4 @@ spec:
   ports:
     - name: dummy
       port: 12345
----
-kind: Service
-apiVersion: v1
-metadata:
-  name: manila-provisioner
-  labels:
-    app: manila-provisioner
-spec:
-  selector:
-    app: manila-provisioner
-  ports:
-    - name: dummy
-      port: 12345
+
