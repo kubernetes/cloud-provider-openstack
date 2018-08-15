@@ -27,6 +27,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
+	octavialb "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
@@ -1451,51 +1452,39 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		}
 	}
 
-	// get all listeners associated with this loadbalancer
-	listenerList, err := getListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
-	if err != nil {
-		return fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.ID, err)
-	}
-
-	// get all pools (and health monitors) associated with this loadbalancer
-	var poolIDs []string
-	var monitorIDs []string
-	for _, listener := range listenerList {
-		pool, err := getPoolByListenerID(lbaas.lb, loadbalancer.ID, listener.ID)
-		if err != nil && err != ErrNotFound {
-			return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
+	// delete the loadbalancer and all its sub-resources.
+	if lbaas.opts.UseOctavia {
+		deleteOpts := octavialb.DeleteOpts{Cascade: true}
+		if err := octavialb.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
+			return fmt.Errorf("failed to delete loadbalancer %s: %v", loadbalancer.ID, err)
 		}
-		if pool != nil {
-			poolIDs = append(poolIDs, pool.ID)
-			// If create-monitor of cloud-config is false, pool has not monitor.
-			if pool.MonitorID != "" {
-				monitorIDs = append(monitorIDs, pool.MonitorID)
+	} else {
+		// get all listeners associated with this loadbalancer
+		listenerList, err := getListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
+		if err != nil {
+			return fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.ID, err)
+		}
+
+		// get all pools (and health monitors) associated with this loadbalancer
+		var poolIDs []string
+		var monitorIDs []string
+		for _, listener := range listenerList {
+			pool, err := getPoolByListenerID(lbaas.lb, loadbalancer.ID, listener.ID)
+			if err != nil && err != ErrNotFound {
+				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
+			}
+			if pool != nil {
+				poolIDs = append(poolIDs, pool.ID)
+				// If create-monitor of cloud-config is false, pool has not monitor.
+				if pool.MonitorID != "" {
+					monitorIDs = append(monitorIDs, pool.MonitorID)
+				}
 			}
 		}
-	}
 
-	// delete all monitors
-	for _, monitorID := range monitorIDs {
-		err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
-		if err != nil && !isNotFound(err) {
-			return err
-		}
-		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-		if err != nil {
-			return fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
-		}
-	}
-
-	// delete all members and pools
-	for _, poolID := range poolIDs {
-		// get members for current pool
-		membersList, err := getMembersByPoolID(lbaas.lb, poolID)
-		if err != nil && !isNotFound(err) {
-			return fmt.Errorf("error getting pool members %s: %v", poolID, err)
-		}
-		// delete all members for this pool
-		for _, member := range membersList {
-			err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
+		// delete all monitors
+		for _, monitorID := range monitorIDs {
+			err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
 			if err != nil && !isNotFound(err) {
 				return err
 			}
@@ -1505,44 +1494,64 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 			}
 		}
 
-		// delete pool
-		err = v2pools.Delete(lbaas.lb, poolID).ExtractErr()
+		// delete all members and pools
+		for _, poolID := range poolIDs {
+			// get members for current pool
+			membersList, err := getMembersByPoolID(lbaas.lb, poolID)
+			if err != nil && !isNotFound(err) {
+				return fmt.Errorf("error getting pool members %s: %v", poolID, err)
+			}
+			// delete all members for this pool
+			for _, member := range membersList {
+				err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
+				if err != nil && !isNotFound(err) {
+					return err
+				}
+				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+				if err != nil {
+					return fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+				}
+			}
+
+			// delete pool
+			err = v2pools.Delete(lbaas.lb, poolID).ExtractErr()
+			if err != nil && !isNotFound(err) {
+				return err
+			}
+			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+			if err != nil {
+				return fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+			}
+		}
+
+		// delete all listeners
+		for _, listener := range listenerList {
+			err := listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
+			if err != nil && !isNotFound(err) {
+				return err
+			}
+			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+			if err != nil {
+				return fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+			}
+		}
+
+		// delete loadbalancer
+		err = loadbalancers.Delete(lbaas.lb, loadbalancer.ID).ExtractErr()
 		if err != nil && !isNotFound(err) {
 			return err
 		}
-		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+		err = waitLoadbalancerDeleted(lbaas.lb, loadbalancer.ID)
 		if err != nil {
-			return fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+			return fmt.Errorf("failed to delete loadbalancer: %v", err)
 		}
-	}
-
-	// delete all listeners
-	for _, listener := range listenerList {
-		err := listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
-		if err != nil && !isNotFound(err) {
-			return err
-		}
-		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-		if err != nil {
-			return fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
-		}
-	}
-
-	// delete loadbalancer
-	err = loadbalancers.Delete(lbaas.lb, loadbalancer.ID).ExtractErr()
-	if err != nil && !isNotFound(err) {
-		return err
-	}
-	err = waitLoadbalancerDeleted(lbaas.lb, loadbalancer.ID)
-	if err != nil {
-		return fmt.Errorf("failed to delete loadbalancer: %v", err)
 	}
 
 	// Delete the Security Group
 	if lbaas.opts.ManageSecurityGroups {
 		err := lbaas.EnsureSecurityGroupDeleted(clusterName, service)
 		if err != nil {
-			return fmt.Errorf("Failed to delete Security Group for loadbalancer service %s/%s: %v", service.Namespace, service.Name, err)
+			return fmt.Errorf("failed to delete Security Group for loadbalancer service %s/%s: %v", service.Namespace, service.Name, err)
 		}
 	}
 
