@@ -23,6 +23,9 @@
     cloud-provider-openstack-acceptance-test-flexvolume-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-flexvolume-cinder
+    cloud-provider-openstack-acceptance-test-manila-provisioner:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-manila-provisioner
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance
