@@ -61,7 +61,7 @@ type Volume struct {
 }
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, error) {
+func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error) {
 	opts := &volumes.CreateOpts{
 		Name:             name,
 		Size:             size,
@@ -74,10 +74,10 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 
 	vol, err := volumes.Create(os.blockstorage, opts).Extract()
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 
-	return vol.ID, vol.AvailabilityZone, nil
+	return vol.ID, vol.AvailabilityZone, vol.Size, nil
 }
 
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName

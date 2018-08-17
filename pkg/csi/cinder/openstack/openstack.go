@@ -27,7 +27,7 @@ import (
 )
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, error)
+	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
