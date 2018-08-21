@@ -138,7 +138,7 @@ and versioning information.
 ### Getting and Building Cloud Provider OpenStack
 
 Following the [GitHub Workflow](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md)
-guidlines for Kubernetes development, set up your environment and get the latest development repository. Begin
+guidelines for Kubernetes development, set up your environment and get the latest development repository. Begin
 by forking both the Kubernetes and Cloud-Provider-OpenStack projects into your GitHub into your local
 workspace (or bringing your current fork up to date with the current state of both repositories).
 
