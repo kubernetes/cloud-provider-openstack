@@ -7,4 +7,4 @@ metadata:
   labels:
     kubernetes.io/cluster-service: "true"
     addonmanager.kubernetes.io/mode: EnsureExists
-provisioner: kubernetes.io/cinder
+provisioner: openstack.org/standalone-cinder

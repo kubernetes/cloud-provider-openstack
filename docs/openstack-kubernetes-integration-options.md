@@ -11,6 +11,7 @@ command line params. Need to set `--cloud-provider=external` for the other kuber
 
 Also use the `--external-cloud-volume-plugin` command line parameter in `kube-controller-manager` to use the
 in-tree cinder volume plugin. Note that the provisioner name for the in-tree volume plugin is `kubernetes.io/cinder`
+instead of `openstack.org/standalone-cinder` which is the provisioner name for the external cloud-openstack-provider.
 
 ### External OpenStack provider
 
