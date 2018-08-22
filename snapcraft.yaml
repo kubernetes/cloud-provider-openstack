@@ -12,11 +12,9 @@ parts:
   client-keystone-auth:
     source: .
     plugin: go
+    go-packages:
+      - k8s.io/cloud-provider-openstack/cmd/client-keystone-auth
     go-importpath: k8s.io/cloud-provider-openstack
-    override-build: |
-      docker run -i -v "$PWD":/go/src/k8s.io/cloud-provider-openstack:z \
-        -w /go/src/k8s.io/cloud-provider-openstack \
-        golang:1.10 make build
 
 apps:
   client-keystone-auth:
