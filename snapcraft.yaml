@@ -1,0 +1,24 @@
+name: client-keystone-auth
+version: git
+summary: Client plugin for kubectl to enable keystone authentication.
+description: |
+  client-keystone-auth is a plugin for kubectl. It allows kubectl to get an
+  auth token from Keystone and use that to authenticate to the Kubernetes
+  api server.
+grade: stable
+confinement: strict
+
+parts:
+  client-keystone-auth:
+    source: .
+    plugin: go
+    go-importpath: k8s.io/cloud-provider-openstack
+    override-build: |
+      docker run -i -v "$PWD":/go/src/k8s.io/cloud-provider-openstack:z \
+        -w /go/src/k8s.io/cloud-provider-openstack \
+        golang:1.10 make build
+
+apps:
+  client-keystone-auth:
+    command: client-keystone-auth
+    plugs: [ network ]

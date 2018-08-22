@@ -145,3 +145,8 @@ zz_generated.openapi.go
 /octavia-ingress-controller
 /client-keystone-auth
 
+# snap temp files
+/parts
+/snap
+/prime
+*.snap
