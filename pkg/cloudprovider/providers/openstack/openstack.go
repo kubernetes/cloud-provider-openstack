@@ -53,7 +53,10 @@ import (
 
 const (
 	// ProviderName is the name of the openstack provider
-	ProviderName     = "openstack"
+	ProviderName = "openstack"
+
+	// TypeHostName is the name type of openstack instance
+	TypeHostName     = "hostname"
 	availabilityZone = "availability_zone"
 	defaultTimeOut   = 60 * time.Second
 )
@@ -514,6 +517,15 @@ func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.Nod
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv6,
+			},
+		)
+	}
+
+	if srv.Metadata[TypeHostName] != "" {
+		v1helper.AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeHostName,
+				Address: srv.Metadata[TypeHostName],
 			},
 		)
 	}
