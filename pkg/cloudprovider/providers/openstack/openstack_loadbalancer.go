@@ -1460,21 +1460,24 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		return nil
 	}
 
-	if loadbalancer.VipPortID != "" {
-		portID := loadbalancer.VipPortID
-		floatingIP, err := getFloatingIPByPortID(lbaas.network, portID)
-		if err != nil && err != ErrNotFound {
-			return err
-		}
+	keepFloatingAnnotation, err := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerKeepFloatingIP, false)
+	if err != nil {
+		return err
+	}
 
-		keepFloatingAnnotation, err := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerKeepFloatingIP, false)
-		if err != nil {
-			return err
-		}
-		if !keepFloatingAnnotation && floatingIP != nil {
-			err = floatingips.Delete(lbaas.network, floatingIP.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+	if !keepFloatingAnnotation {
+		if loadbalancer.VipPortID != "" {
+			portID := loadbalancer.VipPortID
+			floatingIP, err := getFloatingIPByPortID(lbaas.network, portID)
+			if err != nil && err != ErrNotFound {
 				return err
+			}
+
+			if floatingIP != nil {
+				err = floatingips.Delete(lbaas.network, floatingIP.ID).ExtractErr()
+				if err != nil && !isNotFound(err) {
+					return err
+				}
 			}
 		}
 	}
