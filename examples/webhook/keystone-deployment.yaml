@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-keystone-auth
+  namespace: kube-system
+  labels:
+    app: k8s-keystone-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-keystone-auth
+  template:
+    metadata:
+      labels:
+        app: k8s-keystone-auth
+    spec:
+      serviceAccountName: k8s-keystone
+      containers:
+        - name: k8s-keystone-auth
+          image: k8scloudprovider/k8s-keystone-auth:latest
+          args:
+            - ./bin/k8s-keystone-auth
+            - --tls-cert-file
+            - /etc/kubernetes/pki/cert-file
+            - --tls-private-key-file
+            - /etc/kubernetes/pki/key-file
+            - --policy-configmap-name
+            - k8s-auth-policy
+            - --keystone-url
+            - {{ keystone-server-url }}
+          volumeMounts:
+            - mountPath: /etc/kubernetes/pki
+              name: k8s-certs
+              readOnly: true
+          ports:
+            - containerPort: 8443
+      volumes:
+      - name: k8s-certs
+        secret:
+          secretName: keystone-auth-certs
