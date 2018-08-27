@@ -132,8 +132,19 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
 
+	// Publish Volume Info
+	pvInfo := map[string]string{}
+
 	_, err = cloud.AttachVolume(instanceID, volumeID)
 	if err != nil {
+		_, err = cloud.GetInstance(instanceID)
+		if err != nil {
+			glog.V(3).Infof("Attach failed because instance %s doesn't exist. Trying local-attach", instanceID)
+			pvInfo["DevicePath"] = ""
+			return &csi.ControllerPublishVolumeResponse{
+				PublishInfo: pvInfo,
+			}, nil
+		}
 		glog.V(3).Infof("Failed to AttachVolume: %v", err)
 		return nil, err
 	}
@@ -151,9 +162,6 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	}
 
 	glog.V(4).Infof("ControllerPublishVolume %s on %s", volumeID, instanceID)
-
-	// Publish Volume Info
-	pvInfo := map[string]string{}
 	pvInfo["DevicePath"] = devicePath
 
 	return &csi.ControllerPublishVolumeResponse{

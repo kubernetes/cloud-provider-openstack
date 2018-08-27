@@ -269,7 +269,7 @@ func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
 		return false, err
 	}
 
-	return instanceID == volume.AttachedServerId, nil
+	return (instanceID != "" && instanceID == volume.AttachedServerId), nil
 }
 
 // diskIsUsed returns true a disk is attached to any node.

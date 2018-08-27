@@ -25,6 +25,7 @@ import (
 
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type nodeServer struct {
@@ -58,6 +59,7 @@ func (ns *nodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) 
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 
+	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 	fsType := req.GetVolumeCapability().GetMount().GetFsType()
 	devicePath := req.GetPublishInfo()["DevicePath"]
@@ -67,6 +69,22 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if err != nil {
 		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
 		return nil, err
+	}
+
+	// Likely a BM/standalone attach, try to do it locally
+	//
+	// We could check the status of the Cinder Volume but,
+	// that would require an extra query to OpenStack's API.
+	// We can assume the volume has been attached whenever
+	// the device path is present in the NodePublishVolume
+	// request.
+	if devicePath == "" {
+		glog.V(3).Infof("No device path, attempting local attach: %v", err)
+		devicePath, err = m.LocalAttach(volumeID)
+		if err != nil {
+			glog.Errorf("No device path and local attach failed: %v", err)
+			return nil, status.Error(codes.Internal, err.Error())
+		}
 	}
 
 	// Device Scan
@@ -106,6 +124,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 
+	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 
 	// Get Mount Provider
@@ -126,6 +145,25 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	err = m.UnmountPath(req.GetTargetPath())
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	instanceID, err := m.GetInstanceID()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetInstanceID: %v", err)
+		return nil, err
+	}
+
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	_, err = cloud.GetInstance(instanceID)
+	if err != nil {
+		glog.V(3).Infof("Node %s is not managed by OpenStack. Trying local detach", instanceID)
+		m.LocalDetach(volumeID)
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
