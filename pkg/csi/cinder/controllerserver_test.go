@@ -40,8 +40,8 @@ func TestCreateVolume(t *testing.T) {
 
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
-	// CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, error)
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, nil)
+	// CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
 	openstack.OsInstance = osmock
 
 	// Init assert
@@ -62,9 +62,12 @@ func TestCreateVolume(t *testing.T) {
 	// Assert
 	assert.NotNil(actualRes.Volume)
 
+	assert.NotNil(actualRes.Volume.CapacityBytes)
+
 	assert.NotEqual(0, len(actualRes.Volume.Id), "Volume Id is nil")
 
 	assert.Equal(fakeAvailability, actualRes.Volume.Attributes["availability"])
+
 }
 
 // Test CreateVolumeDuplicate
@@ -72,7 +75,7 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, nil)
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
 	openstack.OsInstance = osmock
 
 	// Init assert

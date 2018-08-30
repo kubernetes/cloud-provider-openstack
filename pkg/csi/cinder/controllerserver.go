@@ -68,6 +68,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	resID := ""
 	resAvailability := ""
+	resSize := 0
 
 	if len(volumes) == 1 {
 		resID = volumes[0].ID
@@ -77,19 +78,20 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, errors.New("multiple volumes reported by Cinder with same name")
 	} else {
 		// Volume Create
-		resID, resAvailability, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, nil)
+		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, nil)
 		if err != nil {
 			glog.V(3).Infof("Failed to CreateVolume: %v", err)
 			return nil, err
 		}
 
-		glog.V(4).Infof("Create volume %s in Availability Zone: %s", resID, resAvailability)
+		glog.V(4).Infof("Create volume %s in Availability Zone: %s of size %s GiB", resID, resAvailability, resSize)
 
 	}
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			Id: resID,
+			Id:            resID,
+			CapacityBytes: int64(resSize * 1024 * 1024 * 1024),
 			Attributes: map[string]string{
 				"availability": resAvailability,
 			},

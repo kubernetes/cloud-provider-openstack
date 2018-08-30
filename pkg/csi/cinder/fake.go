@@ -27,6 +27,7 @@ var fakeConfig = "/etc/cloud.conf"
 var fakeCtx = context.Background()
 var fakeVolName = "CSIVolumeName"
 var fakeVolID = "CSIVolumeID"
+var fakeCapacityGiB = 1
 var fakeVolType = ""
 var fakeAvailability = ""
 var fakeDevicePath = "/dev/xxx"
