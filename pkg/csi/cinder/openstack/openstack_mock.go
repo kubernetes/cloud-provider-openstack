@@ -74,7 +74,7 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, tags *map[string]string) (string, string, error) {
+func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, tags *map[string]string) (string, string, int, error) {
 	ret := _m.Called(name, size, vtype, availability, tags)
 
 	var r0 string
@@ -91,14 +91,21 @@ func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, avail
 		r1 = ret.Get(1).(string)
 	}
 
-	var r2 error
-	if rf, ok := ret.Get(2).(func(string, int, string, string, *map[string]string) error); ok {
+	var r2 int
+	if rf, ok := ret.Get(2).(func(string, int, string, string, *map[string]string) int); ok {
 		r2 = rf(name, size, vtype, availability, tags)
 	} else {
-		r2 = ret.Error(2)
+		r2 = ret.Get(2).(int)
 	}
 
-	return r0, r1, r2
+	var r3 error
+	if rf, ok := ret.Get(3).(func(string, int, string, string, *map[string]string) error); ok {
+		r3 = rf(name, size, vtype, availability, tags)
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
 }
 
 // DeleteVolume provides a mock function with given fields: volumeID
