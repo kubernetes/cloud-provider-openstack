@@ -74,6 +74,7 @@ const (
 	ServiceAnnotationLoadBalancerFloatingNetworkID = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
+	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
 
 	// ServiceAnnotationLoadBalancerInternal is the annotation used on the service
 	// to indicate that we want an internal loadbalancer service.
@@ -537,6 +538,27 @@ func getStringFromServiceAnnotation(service *v1.Service, annotationKey string, d
 	//if there is no annotation, set "settings" var to the value from cloud config
 	glog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting: %v = %v", annotationKey, defaultSetting)
 	return defaultSetting
+}
+
+//getBoolFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
+func getBoolFromServiceAnnotation(service *v1.Service, annotationKey string, defaultSetting bool) (bool, error) {
+	glog.V(4).Infof("getBoolFromServiceAnnotation(%v, %v, %v)", service, annotationKey, defaultSetting)
+	if annotationValue, ok := service.Annotations[annotationKey]; ok {
+		returnValue := false
+		switch annotationValue {
+		case "true":
+			returnValue = true
+		case "false":
+			returnValue = false
+		default:
+			return returnValue, fmt.Errorf("unknown %s annotation: %v, specify \"true\" or \"false\" ", annotationKey, annotationValue)
+		}
+
+		glog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, returnValue)
+		return returnValue, nil
+	}
+	glog.V(4).Infof("Could not find a Service Annotation; falling back to default setting: %v = %v", annotationKey, defaultSetting)
+	return defaultSetting, nil
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
@@ -1474,16 +1496,24 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		return nil
 	}
 
-	if loadbalancer.VipPortID != "" {
-		portID := loadbalancer.VipPortID
-		floatingIP, err := getFloatingIPByPortID(lbaas.network, portID)
-		if err != nil && err != ErrNotFound {
-			return err
-		}
-		if floatingIP != nil {
-			err = floatingips.Delete(lbaas.network, floatingIP.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+	keepFloatingAnnotation, err := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerKeepFloatingIP, false)
+	if err != nil {
+		return err
+	}
+
+	if !keepFloatingAnnotation {
+		if loadbalancer.VipPortID != "" {
+			portID := loadbalancer.VipPortID
+			floatingIP, err := getFloatingIPByPortID(lbaas.network, portID)
+			if err != nil && err != ErrNotFound {
 				return err
+			}
+
+			if floatingIP != nil {
+				err = floatingips.Delete(lbaas.network, floatingIP.ID).ExtractErr()
+				if err != nil && !isNotFound(err) {
+					return err
+				}
 			}
 		}
 	}
