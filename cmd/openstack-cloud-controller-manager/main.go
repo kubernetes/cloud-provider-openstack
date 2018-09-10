@@ -26,6 +26,7 @@ import (
 	"os"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
@@ -60,7 +61,7 @@ func main() {
 	}
 
 	command := &cobra.Command{
-		Use: "cloud-controller-manager",
+		Use: "openstack-cloud-controller-manager",
 		Long: `The Cloud controller manager is a daemon that embeds
 the cloud specific control loops shipped with Kubernetes.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -73,14 +74,18 @@ the cloud specific control loops shipped with Kubernetes.`,
 				os.Exit(1)
 			}
 
-			if err := app.Run(c.Complete()); err != nil {
+			if err := app.Run(c.Complete(), wait.NeverStop); err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
-
 		},
 	}
-	s.AddFlags(command.Flags())
+
+	fs := command.Flags()
+	namedFlagSets := s.Flags()
+	for _, f := range namedFlagSets.FlagSets {
+		fs.AddFlagSet(f)
+	}
 
 	// TODO: once we switch everything over to Cobra commands, we can go back to calling
 	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
@@ -93,7 +98,7 @@ the cloud specific control loops shipped with Kubernetes.`,
 
 	glog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
 
-	s.CloudProvider.Name = openstack.ProviderName
+	s.KubeCloudShared.CloudProvider.Name = openstack.ProviderName
 	if err := command.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
