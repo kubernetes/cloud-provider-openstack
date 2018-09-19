@@ -172,11 +172,26 @@ type Config struct {
 	Networking   NetworkingOpts
 }
 
+func logcfg(cfg Config) {
+	glog.V(3).Infof("AuthURL: %s", cfg.Global.AuthURL)
+	glog.V(3).Infof("Username: %s", cfg.Global.Username)
+	glog.V(3).Infof("UserID: %s", cfg.Global.UserID)
+	glog.V(3).Infof("Password: %s", cfg.Global.Password)
+	glog.V(3).Infof("TenantID: %s", cfg.Global.TenantID)
+	glog.V(3).Infof("TenantName: %s", cfg.Global.TenantName)
+	glog.V(3).Infof("DomainName: %s", cfg.Global.DomainName)
+	glog.V(3).Infof("DomainID: %s", cfg.Global.DomainID)
+	glog.V(3).Infof("TrustID: %s", cfg.Global.TrustID)
+	glog.V(3).Infof("Region: %s", cfg.Global.Region)
+	glog.V(3).Infof("CAFile: %s", cfg.Global.CAFile)
+}
+
 func init() {
 	registerMetrics()
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := readConfig(config)
+		logcfg(cfg)
 		if err != nil {
 			return nil, err
 		}
