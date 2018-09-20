@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
@@ -30,6 +31,9 @@ var fakeNs *nodeServer
 // Init Node Server
 func init() {
 	if fakeNs == nil {
+		// to avoid annoying ERROR: logging before flag.Parse
+		flag.Parse()
+
 		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
 		fakeNs = NewNodeServer(d)
 	}
