@@ -34,9 +34,9 @@ import (
 
 const (
 	// metadataURLTemplate allows building an OpenStack Metadata service URL.
-	// It's a hardcoded IPv4 link-local address as documented in "OpenStack Cloud
-	// Administrator Guide", chapter Compute - Networking with nova-network.
-	//https://docs.openstack.org/nova/latest/admin/networking-nova.html#metadata-service
+	// It's a hardcoded IPv4 link-local address as documented in "User Documentation"
+	// section "Metadata service
+	// https://docs.openstack.org/nova/latest/user/metadata-service.html
 	defaultMetadataVersion = "2012-08-10"
 	metadataURLTemplate    = "http://169.254.169.254/openstack/%s/meta_data.json"
 
