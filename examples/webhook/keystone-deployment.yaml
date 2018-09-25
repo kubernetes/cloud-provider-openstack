@@ -28,7 +28,7 @@ spec:
             - --policy-configmap-name
             - k8s-auth-policy
             - --keystone-url
-            - {{ keystone-server-url }}
+            - {{ keystone_server_url }}
           volumeMounts:
             - mountPath: /etc/kubernetes/pki
               name: k8s-certs
