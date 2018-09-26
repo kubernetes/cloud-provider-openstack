@@ -34,13 +34,18 @@ by using the result of the above command.
 
 ## Using CSC tool
 
-### Start Cinder driver
-```
-$ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
-```
-
 ### Test using csc
 Get ```csc``` tool from https://github.com/thecodeteam/gocsi/tree/master/csc
+
+### Start Cinder driver
+
+First, you need start the plugin as daemon to accept request from csc
+Following example is starting listening at localhost port 10000 with cloud configuration
+given in /etc/cloud.conf and the node id is CSINodeID.
+
+```
+$ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
+```
 
 #### Get plugin info
 ```
@@ -48,22 +53,25 @@ $ csc identity plugin-info --endpoint tcp://127.0.0.1:10000
 "csi-cinderplugin"	"0.1.0"
 ```
 
-#### Get supported versions
+#### Get supported capabilities
 ```
-$ csc identity supported-versions --endpoint tcp://127.0.0.1:10000
-0.1.0
+$ csc identity plugin-capabilities --endpoint tcp://127.0.0.1:10000
+CONTROLLER_SERVICE
 ```
 
 #### Create a volume
+Following sample creates a volume named ``CSIVolumeName`` and the
+volume id returned is ``8a55f98f-e987-43ab-a9f5-973352bee19c`` with size ``1073741824`` bytes (1Gb)
 ```
-$ csc controller new --endpoint tcp://127.0.0.1:10000 CSIVolumeName
-CSIVolumeID
+$  csc controller create-volume --endpoint tcp://127.0.0.1:10000 CSIVolumeName
+"8a55f98f-e987-43ab-a9f5-973352bee19c"  1073741824      "availability"="nova"
 ```
 
 #### Delete a volume
+Following sample deletes a volume ``01217e93-bd1b-4760-b5d8-18b8b3d47f91``
 ```
-$ csc controller del --endpoint tcp://127.0.0.1:10000 CSIVolumeID
-CSIVolumeID
+$ csc controller delete-volume --endpoint tcp://127.0.0.1:10000 01217e93-bd1b-4760-b5d8-18b8b3d47f91
+01217e93-bd1b-4760-b5d8-18b8b3d47f91
 ```
 
 #### ControllerPublish a volume
