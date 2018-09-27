@@ -14,4 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cinder contains the internal representation of cinder volumes.
 package cinder // import "k8s.io/cloud-provider-openstack/pkg/volume/cinder"
