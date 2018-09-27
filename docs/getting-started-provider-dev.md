@@ -219,4 +219,14 @@ export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
 ./cluster/kubectl.sh
 ```
 
+The cluster/addons/rbac has a set of yaml files, currently it has 
+cloud-controller-manager-role-bindings.yaml
+cloud-controller-manager-roles.yaml
+
+you need use following command to create ClusterRole and ClusterRoleBinding
+otherwise the cloud-controller-manager is not able to access k8s API.
+```
+./cluster/kubectl.sh create -f cluster/addons/rbac/
+```
+
 Have a good time with OpenStack and Kubernetes!
