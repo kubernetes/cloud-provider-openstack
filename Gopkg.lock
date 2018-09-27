@@ -1386,7 +1386,6 @@
     "k8s.io/client-go/kubernetes/fake",
     "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/listers/extensions/v1beta1",
-    "k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
