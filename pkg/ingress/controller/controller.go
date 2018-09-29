@@ -420,12 +420,12 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 			return err
 		}
 
-		if _, err = c.osClient.EnsurePoolMembers(false, defaultPoolName, "", listener.ID, &nodePort, nodeObjs); err != nil {
+		if _, err = c.osClient.EnsurePoolMembers(false, defaultPoolName, lb.ID, listener.ID, &nodePort, nodeObjs); err != nil {
 			return err
 		}
 	} else {
 		// Delete default pool and its members
-		if _, err = c.osClient.EnsurePoolMembers(true, defaultPoolName, lb.ID, listener.ID, nil, nil); err != nil {
+		if _, err = c.osClient.EnsurePoolMembers(true, defaultPoolName, lb.ID, "", nil, nil); err != nil {
 			return err
 		}
 	}
