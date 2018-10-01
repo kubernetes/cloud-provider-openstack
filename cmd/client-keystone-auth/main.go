@@ -62,7 +62,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 	return result, err
 }
 
-// prompt pulls keystone auth url, domain, username and password from stdin,
+// prompt pulls keystone auth url, domain, project, username and password from stdin,
 // if they are not specified initially (i.e. equal "").
 func prompt(url string, domain string, user string, project string, password string) (gophercloud.AuthOptions, error) {
 	var err error
@@ -157,5 +157,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf(respTemplate, token.ID, token.ExpiresAt.Format(time.RFC3339Nano))
+	out := fmt.Sprintf(respTemplate, token.ID, token.ExpiresAt.Format(time.RFC3339Nano))
+	fmt.Println(out)
 }
