@@ -45,4 +45,4 @@
             branches: release-1.11
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
             #TODO: change branch to release-1.12 when we have it
-            branches: release-1.11
+            branches: master
