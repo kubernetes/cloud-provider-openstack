@@ -75,15 +75,53 @@ $ csc controller delete-volume --endpoint tcp://127.0.0.1:10000 01217e93-bd1b-47
 ```
 
 #### ControllerPublish a volume
+The action has similar result to ``nova volume-attach`` command:
+
+Assume we have following result in openstack now:
 ```
-$ csc controller publish --endpoint tcp://127.0.0.1:10000 --node-id=CSINodeID CSIVolumeID
-CSIVolumeID	"DevicePath"="/dev/xxx"
+jichen@kolla:~$ openstack server list
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| ID                                   | Name  | Status | Networks                       | Image  | Flavor  |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| 17e540e6-8d08-4a5a-8835-668bc8fe913c | demo1 | ACTIVE | demo-net=10.0.0.13             | cirros | m1.tiny |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+jichen@kolla:~$ openstack volume list
++--------------------------------------+-----------------------------------+-----------+------+-------------+
+| ID                                   | Name                              | Status    | Size | Attached to |
++--------------------------------------+-----------------------------------+-----------+------+-------------+
+| ed893ce1-807d-4c6e-a558-88c61b439659 | v1                                | available |    1 |             |
++--------------------------------------+-----------------------------------+-----------+------+-------------+
+```
+
+Then execute:
+
+```
+[root@kvm-017212 docs]# csc controller publish --endpoint tcp://127.0.0.1:10000 --node-id=17e540e6-8d08-4a5a-8835-668bc8fe913c ed893ce1-807d-4c6e-a558-88c61b439659
+"ed893ce1-807d-4c6e-a558-88c61b439659"  "DevicePath"="/dev/vdb"
+```
+
+From openstack side you will see following result:
+```
+jichen@kolla:~$ openstack server list
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| ID                                   | Name  | Status | Networks                       | Image  | Flavor  |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| 17e540e6-8d08-4a5a-8835-668bc8fe913c | demo1 | ACTIVE | demo-net=10.0.0.13             | cirros | m1.tiny |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+jichen@kolla:~$ openstack volume list
++--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
+| ID                                   | Name                              | Status    | Size | Attached to                    |
++--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
+| ed893ce1-807d-4c6e-a558-88c61b439659 | v1                                | in-use    |    1 | Attached to demo1 on /dev/vdb  |
++--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
 ```
 
 #### ControllerUnpublish a volume
+ControllerUnpublish is reserver action of ControllerPublish, which is similar to ``nova volume-detach``
 ```
-$ csc controller unpublish --endpoint tcp://127.0.0.1:10000 --node-id=CSINodeID CSIVolumeID
-CSIVolumeID
+[root@kvm-017212 docs]# csc controller unpublish --endpoint tcp://127.0.0.1:10000 --node-id=17e540e6-8d08-4a5a-8835-668bc8fe913c ed893ce1-807d-4c6e-a558-88c61b439659
+
+ed893ce1-807d-4c6e-a558-88c61b439659
 ```
 
 #### NodePublish a volume
