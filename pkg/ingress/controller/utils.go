@@ -34,41 +34,6 @@ func getResourceName(ing *ext_v1beta1.Ingress, suffix string) string {
 	return name
 }
 
-func loadBalancerStatusDeepCopy(lb *apiv1.LoadBalancerStatus) *apiv1.LoadBalancerStatus {
-	c := &apiv1.LoadBalancerStatus{}
-	c.Ingress = make([]apiv1.LoadBalancerIngress, len(lb.Ingress))
-	for i := range lb.Ingress {
-		c.Ingress[i] = lb.Ingress[i]
-	}
-	return c
-}
-
-func loadBalancerStatusEqual(l, r *apiv1.LoadBalancerStatus) bool {
-	return ingressSliceEqual(l.Ingress, r.Ingress)
-}
-
-func ingressSliceEqual(lhs, rhs []apiv1.LoadBalancerIngress) bool {
-	if len(lhs) != len(rhs) {
-		return false
-	}
-	for i := range lhs {
-		if !ingressEqual(&lhs[i], &rhs[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func ingressEqual(lhs, rhs *apiv1.LoadBalancerIngress) bool {
-	if lhs.IP != rhs.IP {
-		return false
-	}
-	if lhs.Hostname != rhs.Hostname {
-		return false
-	}
-	return true
-}
-
 func nodeNames(nodes []*apiv1.Node) []string {
 	ret := make([]string, len(nodes))
 	for i, node := range nodes {
