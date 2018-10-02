@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller/openstack"
 )
@@ -415,7 +416,7 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 	defaultPoolName := listenerName + "-pool"
 	if ing.Spec.Backend != nil {
 		serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, ing.Spec.Backend.ServiceName)
-		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort.IntValue())
+		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
 		if err != nil {
 			return err
 		}
@@ -457,7 +458,7 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 			// make the pool name unique
 			poolName := hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
 			serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, path.Backend.ServiceName)
-			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort.IntValue())
+			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort)
 			if err != nil {
 				return err
 			}
@@ -526,7 +527,7 @@ func (c *Controller) getService(key string) (*apiv1.Service, error) {
 	return service, nil
 }
 
-func (c *Controller) getServiceNodePort(name string, port int) (int, error) {
+func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (int, error) {
 	svc, err := c.getService(name)
 	if err != nil {
 		return 0, err
@@ -535,8 +536,13 @@ func (c *Controller) getServiceNodePort(name string, port int) (int, error) {
 	var nodePort int
 	ports := svc.Spec.Ports
 	for _, p := range ports {
-		if int(p.Port) == port {
+		if port.Type == intstr.Int && int(p.Port) == port.IntValue() {
 			nodePort = int(p.NodePort)
+			break
+		}
+		if port.Type == intstr.String && p.Name == port.StrVal {
+			nodePort = int(p.NodePort)
+			break
 		}
 	}
 
