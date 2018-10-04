@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Config
+preferences: {}
+clusters:
+  - cluster:
+      insecure-skip-tls-verify: true
+      server: https://{{ keystone_auth_service_ip }}:8443/webhook
+    name: webhook
+users:
+  - name: webhook
+contexts:
+  - context:
+      cluster: webhook
+      user: webhook
+    name: webhook
+current-context: webhook
