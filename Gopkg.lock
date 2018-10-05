@@ -985,7 +985,6 @@
   version = "v2.2.1"
 
 [[projects]]
-  branch = "master"
   digest = "1:5a6800974eb644ef203fef871e6ac74448e93f3c81a2ec1e10f4c3b17f37b99c"
   name = "k8s.io/api"
   packages = [
@@ -1023,7 +1022,8 @@
     "storage/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "f456898a08e4bbc5891694118f3819f324de12ff"
+  revision = "fd83cbc87e7632ccd8bbab63d2b673d4e0c631cc"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
   branch = "master"
@@ -1034,7 +1034,7 @@
   revision = "d65f4428c04f2d28f924a47d1d2177d0cbf45a16"
 
 [[projects]]
-  digest = "1:f2ed2e4512ba39829427bd9b57742a08a9c9ad2b4ea40fdfe297cc9eadf8851b"
+  digest = "1:df506fdedd1b6352ca65ed05a755163efe03dd96a91b612e7eeb2a71375ebbc7"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -1090,8 +1090,8 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "705814234c8085247e99946887b0fbbd801efa08"
-  version = "kubernetes-1.12.0-rc.2"
+  revision = "6dd46049f39503a1fc8d65de4bd566829e95faff"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
   digest = "1:075c0fd0b2b160fa42e021f73cfe9c47a8fcc0e3a9a1f28c3d433b56978d39a1"
@@ -1194,8 +1194,8 @@
     "plugin/pkg/authorizer/webhook",
   ]
   pruneopts = "UT"
-  revision = "d9d60f3d1def56591b8695b83c2c4f2f649f7c42"
-  version = "kubernetes-1.12.0-rc.2"
+  revision = "e85ad7b666fef0476185731329f4cff1536efff8"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
   digest = "1:6868bcda64771d9c6617eddae93ec44cdeaa1c991e66e553f86bcea464ef8815"
@@ -1372,8 +1372,8 @@
     "util/workqueue",
   ]
   pruneopts = "UT"
-  revision = "8ad43087cf1443662581b6c92a9f66208cc3556a"
-  version = "kubernetes-1.12.0-rc.2"
+  revision = "1638f8970cefaa404ff3a62950f88b08292b2696"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
   branch = "master"
@@ -1495,8 +1495,8 @@
     "pkg/volume/util/volumepathhandler",
   ]
   pruneopts = "UT"
-  revision = "5a80e28431c7469d677c5b17277266d1da4e5c8d"
-  version = "v1.12.0-rc.2"
+  revision = "0ed33881dc4355495f623c6f22e7dd0b7632b7c0"
+  version = "v1.12.0"
 
 [[projects]]
   branch = "master"
