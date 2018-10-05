@@ -388,6 +388,8 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 		if err != nil {
 			return nil, fmt.Errorf("error creating listener: %v", err)
 		}
+
+		log.WithFields(log.Fields{"lb": lbID, "listenerName": name}).Info("listener created")
 	}
 
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
@@ -395,23 +397,21 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 		return nil, fmt.Errorf("error creating listener: %v", err)
 	}
 
-	log.WithFields(log.Fields{"lb": lbID, "listenerName": name}).Info("listener created")
 	return listener, nil
 }
 
-// EnsurePoolMembers deletes the old pool with its members, then creates a new pool with members if deleted flag is not set.
-func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName, lbID, listenerID string, servicePort *int, nodes []*apiv1.Node) (*string, error) {
-	pool, err := os.getPoolByName(poolName, lbID)
-	if err != nil {
-		if err != ErrNotFound {
-			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
-		}
-
-		if deleted {
+// EnsurePoolMembers ensure the pool and its members exist if deleted flag is not set, delete the pool and all its members otherwise.
+func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID string, listenerID string, servicePort *int, nodes []*apiv1.Node) (*string, error) {
+	if deleted {
+		pool, err := os.getPoolByName(poolName, lbID)
+		if err != nil {
+			if err != ErrNotFound {
+				return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
+			}
 			return nil, nil
 		}
-	} else {
-		// Delete the existing pool, members will be deleted automatically
+
+		// Delete the existing pool, members are deleted automatically
 		err = pools.Delete(os.octavia, pool.ID).ExtractErr()
 		if err != nil && !isNotFound(err) {
 			return nil, fmt.Errorf("error deleting pool %s: %v", pool.ID, err)
@@ -422,46 +422,47 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName, lbID, listenerID 
 			return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 		}
 
-		if deleted {
-			log.WithFields(log.Fields{"name": poolName, "ID": pool.ID}).Info("pool deleted")
-			return nil, nil
-		}
+		return nil, nil
 	}
 
-	// Creates new pool
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName}).Info("creating pool")
-
-	var opts pools.CreateOptsBuilder
-	if lbID != "" {
-		opts = pools.CreateOpts{
-			Name:           poolName,
-			Protocol:       "HTTP",
-			LBMethod:       pools.LBMethodRoundRobin,
-			LoadbalancerID: lbID,
-			Persistence:    nil,
-		}
-	} else {
-		opts = pools.CreateOpts{
-			Name:        poolName,
-			Protocol:    "HTTP",
-			LBMethod:    pools.LBMethodRoundRobin,
-			ListenerID:  listenerID,
-			Persistence: nil,
-		}
-	}
-	pool, err = pools.Create(os.octavia, opts).Extract()
+	pool, err := os.getPoolByName(poolName, lbID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating pool for listener %s: %v", listenerID, err)
+		if err != ErrNotFound {
+			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
+		}
+
+		// Create new pool
+		var opts pools.CreateOptsBuilder
+		if lbID != "" {
+			opts = pools.CreateOpts{
+				Name:           poolName,
+				Protocol:       "HTTP",
+				LBMethod:       pools.LBMethodRoundRobin,
+				LoadbalancerID: lbID,
+				Persistence:    nil,
+			}
+		} else {
+			opts = pools.CreateOpts{
+				Name:        poolName,
+				Protocol:    "HTTP",
+				LBMethod:    pools.LBMethodRoundRobin,
+				ListenerID:  listenerID,
+				Persistence: nil,
+			}
+		}
+		pool, err = pools.Create(os.octavia, opts).Extract()
+		if err != nil {
+			return nil, fmt.Errorf("error creating pool: %v", err)
+		}
+		_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
+		if err != nil {
+			return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
+		}
+		log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
 	}
 
-	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
-	if err != nil {
-		return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
-	}
-
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
-
-	// Adds members to the new pool
+	// Batch update pool members
+	var members []pools.BatchUpdateMemberOpts
 	for _, node := range nodes {
 		addr, err := getNodeAddressForLB(node)
 		if err != nil {
@@ -470,23 +471,20 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName, lbID, listenerID 
 			continue
 		}
 
-		log.WithFields(log.Fields{"addr": addr, "poolID": pool.ID, "port": *servicePort}).Info("adding new member to pool")
-
-		_, err = pools.CreateMember(os.octavia, pool.ID, pools.CreateMemberOpts{
-			ProtocolPort: *servicePort,
+		member := pools.BatchUpdateMemberOpts{
 			Address:      addr,
-		}).Extract()
-		if err != nil {
-			return nil, fmt.Errorf("error creating pool member %s: %v", addr, err)
+			ProtocolPort: *servicePort,
 		}
-
-		_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
-		if err != nil {
-			return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
-		}
-
-		log.WithFields(log.Fields{"addr": addr, "poolID": pool.ID, "port": *servicePort}).Info("member added to pool")
+		members = append(members, member)
 	}
+	if err := pools.BatchUpdateMembers(os.octavia, pool.ID, members).ExtractErr(); err != nil {
+		return nil, fmt.Errorf("error batch updating members for pool %s: %v", pool.ID, err)
+	}
+	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
+	if err != nil {
+		return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
+	}
+	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool members updated")
 
 	return &pool.ID, nil
 }
