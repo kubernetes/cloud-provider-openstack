@@ -39,7 +39,7 @@ Get ```csc``` tool from https://github.com/thecodeteam/gocsi/tree/master/csc
 
 ### Start Cinder driver
 
-First, you need start the plugin as daemon to accept request from csc
+First, you need to start the plugin as daemon to accept request from csc.
 Following example is starting listening at localhost port 10000 with cloud configuration
 given in /etc/cloud.conf and the node id is CSINodeID.
 
@@ -50,7 +50,7 @@ $ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cl
 #### Get plugin info
 ```
 $ csc identity plugin-info --endpoint tcp://127.0.0.1:10000
-"csi-cinderplugin"	"0.1.0"
+"csi-cinderplugin"      "0.1.0"
 ```
 
 #### Get supported capabilities
@@ -79,13 +79,14 @@ The action has similar result to ``nova volume-attach`` command:
 
 Assume we have following result in openstack now:
 ```
-jichen@kolla:~$ openstack server list
+$ openstack server list
 +--------------------------------------+-------+--------+--------------------------------+--------+---------+
 | ID                                   | Name  | Status | Networks                       | Image  | Flavor  |
 +--------------------------------------+-------+--------+--------------------------------+--------+---------+
 | 17e540e6-8d08-4a5a-8835-668bc8fe913c | demo1 | ACTIVE | demo-net=10.0.0.13             | cirros | m1.tiny |
 +--------------------------------------+-------+--------+--------------------------------+--------+---------+
-jichen@kolla:~$ openstack volume list
+
+$ openstack volume list
 +--------------------------------------+-----------------------------------+-----------+------+-------------+
 | ID                                   | Name                              | Status    | Size | Attached to |
 +--------------------------------------+-----------------------------------+-----------+------+-------------+
@@ -96,24 +97,29 @@ jichen@kolla:~$ openstack volume list
 Then execute:
 
 ```
-[root@kvm-017212 docs]# csc controller publish --endpoint tcp://127.0.0.1:10000 --node-id=17e540e6-8d08-4a5a-8835-668bc8fe913c ed893ce1-807d-4c6e-a558-88c61b439659
+# csc controller publish --endpoint tcp://127.0.0.1:10000 --node-id=17e540e6-8d08-4a5a-8835-668bc8fe913c ed893ce1-807d-4c6e-a558-88c61b439659
 "ed893ce1-807d-4c6e-a558-88c61b439659"  "DevicePath"="/dev/vdb"
 ```
 
 From openstack side you will see following result:
+
 ```
-jichen@kolla:~$ openstack server list
+$ openstack server list
 +--------------------------------------+-------+--------+--------------------------------+--------+---------+
 | ID                                   | Name  | Status | Networks                       | Image  | Flavor  |
 +--------------------------------------+-------+--------+--------------------------------+--------+---------+
 | 17e540e6-8d08-4a5a-8835-668bc8fe913c | demo1 | ACTIVE | demo-net=10.0.0.13             | cirros | m1.tiny |
 +--------------------------------------+-------+--------+--------------------------------+--------+---------+
-jichen@kolla:~$ openstack volume list
+$ openstack volume list
 +--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
 | ID                                   | Name                              | Status    | Size | Attached to                    |
 +--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
 | ed893ce1-807d-4c6e-a558-88c61b439659 | v1                                | in-use    |    1 | Attached to demo1 on /dev/vdb  |
 +--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
+
+Note:
+volume "Status" field will change to "in-use" afterwards.
+"Attached to" field will change to volume mount point.
 ```
 
 #### ControllerUnpublish a volume
