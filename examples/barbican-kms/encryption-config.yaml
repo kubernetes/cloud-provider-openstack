@@ -1,0 +1,11 @@
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+    - secrets
+    providers:
+    - identity: {}
+    - kms:
+        name : barbican
+        endpoint: unix:///tmp/socketfile.sock
+        cachesize: 100
