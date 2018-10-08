@@ -148,7 +148,7 @@ func (s *Syncer) syncData(u *userInfo) error {
 
 	for _, p := range s.syncConfig.ProjectBlackList {
 		if u.Extra["alpha.kubernetes.io/identity/project/id"][0] == p {
-			glog.Infof("Project %v is in black list. Skipping.")
+			glog.Infof("Project %v is in black list. Skipping.", p)
 			return nil
 		}
 	}
