@@ -64,7 +64,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 
 // prompt pulls keystone auth url, domain, project, username and password from stdin,
 // if they are not specified initially (i.e. equal "").
-func prompt(url string, domain string, user string, project string, password string) (gophercloud.AuthOptions, error) {
+func prompt(url string, domain string, user string, project string, password string, application_credential_id string, application_credential_name string, application_credential_secret string) (gophercloud.AuthOptions, error) {
 	var err error
 	var options gophercloud.AuthOptions
 
@@ -89,14 +89,14 @@ func prompt(url string, domain string, user string, project string, password str
 		}
 	}
 
-	if project == "" {
+	if project == "" && application_credential_id == "" && application_credential_name == "" {
 		project, err = promptForString("project name", os.Stdin, true)
 		if err != nil {
 			return options, err
 		}
 	}
 
-	if password == "" {
+	if password == "" && application_credential_id == "" && application_credential_name == "" {
 		password, err = promptForString("password", nil, false)
 		if err != nil {
 			return options, err
@@ -104,11 +104,14 @@ func prompt(url string, domain string, user string, project string, password str
 	}
 
 	options = gophercloud.AuthOptions{
-		IdentityEndpoint: url,
-		Username:         user,
-		TenantName:       project,
-		Password:         password,
-		DomainName:       domain,
+		IdentityEndpoint:            url,
+		Username:                    user,
+		TenantName:                  project,
+		Password:                    password,
+		DomainName:                  domain,
+		ApplicationCredentialID:     application_credential_id,
+		ApplicationCredentialName:   application_credential_name,
+		ApplicationCredentialSecret: application_credential_secret,
 	}
 
 	return options, nil
@@ -122,12 +125,18 @@ func main() {
 	var password string
 	var options gophercloud.AuthOptions
 	var err error
+	var applicationCredentialID string
+	var applicationCredentialName string
+	var applicationCredentialSecret string
 
 	pflag.StringVar(&url, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
 	pflag.StringVar(&domain, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
 	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
 	pflag.StringVar(&project, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
+	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
+	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
+	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
 	kflag.InitFlags()
 
 	// Generate Gophercloud Auth Options based on input data from stdin
@@ -139,7 +148,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain, user, project, password)
+		options, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
