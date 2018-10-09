@@ -83,7 +83,7 @@ func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status 
 }
 
 func TestReadConfig(t *testing.T) {
-	_, err := readConfig(nil)
+	_, err := ReadConfig(nil)
 	if err == nil {
 		t.Errorf("Should fail when no config is provided: %s", err)
 	}
@@ -99,7 +99,7 @@ func TestReadConfig(t *testing.T) {
 	os.Setenv("OS_TENANT_NAME", "admin")
 	defer os.Unsetenv("OS_TENANT_NAME")
 
-	cfg, err := readConfig(strings.NewReader(`
+	cfg, err := ReadConfig(strings.NewReader(`
  [Global]
  auth-url = http://auth.url
  user-id = user
@@ -613,7 +613,7 @@ func TestNewOpenStack(t *testing.T) {
 		t.Skip("No config found in environment")
 	}
 
-	_, err := newOpenStack(cfg)
+	_, err := NewOpenStack(cfg)
 	if err != nil {
 		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}
@@ -631,7 +631,7 @@ func TestLoadBalancer(t *testing.T) {
 		t.Logf("Trying LBVersion = '%s'\n", v)
 		cfg.LoadBalancer.LBVersion = v
 
-		os, err := newOpenStack(cfg)
+		os, err := NewOpenStack(cfg)
 		if err != nil {
 			t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 		}
@@ -689,7 +689,7 @@ func TestVolumes(t *testing.T) {
 		t.Skip("No config found in environment")
 	}
 
-	os, err := newOpenStack(cfg)
+	os, err := NewOpenStack(cfg)
 	if err != nil {
 		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}
