@@ -16,7 +16,10 @@ limitations under the License.
 
 package openstack
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/golang/glog"
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 const (
 	openstackSubsystem         = "openstack"
@@ -44,7 +47,11 @@ var (
 	)
 )
 
-func registerMetrics() {
-	prometheus.MustRegister(openstackOperationsLatency)
-	prometheus.MustRegister(openstackAPIRequestErrors)
+func RegisterMetrics() {
+	if err := prometheus.Register(openstackOperationsLatency); err != nil {
+		glog.V(5).Infof("unable to register for latency metrics")
+	}
+	if err := prometheus.Register(openstackAPIRequestErrors); err != nil {
+		glog.V(5).Infof("unable to register for error metrics")
+	}
 }
