@@ -35,7 +35,7 @@ func TestRoutes(t *testing.T) {
 		t.Skipf("No config found in environment")
 	}
 
-	os, err := newOpenStack(cfg)
+	os, err := NewOpenStack(cfg)
 	if err != nil {
 		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}
