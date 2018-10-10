@@ -26,7 +26,7 @@ Key | Required | Default value | Description
 `osSecretNamespace` | No | `default` | Namespace of the OpenStack credentials Secret object
 `shareSecretNamespace` | No | value of `osSecretNamespace` | Namespace of the per-share Secret object (contains backend-specific secrets)
 `osShareID` | No | None | The UUID of an existing share. Used for static provisioning
-`osShareName` | No | None | The name of an exisiting share. Used for static provisioning
+`osShareName` | No | None | The name of an existing share. Used for static provisioning
 `osShareAccessID` | No | None | The UUID of an existing access rule to a share. Used for static provisioning
 
 
