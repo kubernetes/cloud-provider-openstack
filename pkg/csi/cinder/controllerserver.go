@@ -192,3 +192,34 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
+
+func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
+
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	vlist, err := cloud.ListVolumes()
+	if err != nil {
+		glog.V(3).Infof("Failed to ListVolumes: %v", err)
+		return nil, err
+	}
+
+	var ventries []*csi.ListVolumesResponse_Entry
+	for _, v := range vlist {
+		ventry := csi.ListVolumesResponse_Entry{
+			Volume: &csi.Volume{
+				Id:            v.ID,
+				CapacityBytes: int64(v.Size * 1024 * 1024 * 1024),
+			},
+		}
+		ventries = append(ventries, &ventry)
+	}
+	return &csi.ListVolumesResponse{
+		Entries: ventries,
+	}, nil
+
+}
