@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -64,16 +65,15 @@ func Execute() {
 }
 
 func init() {
+	// the following line exists to make glog happy, for more information, see: https://github.com/kubernetes/kubernetes/issues/17162
+	flag.CommandLine.Parse([]string{})
+
 	log.SetOutput(os.Stdout)
 
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ingress_openstack.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&isDebug, "debug", false, "Print more detailed information.")
-
-	if isDebug {
-		log.SetLevel(log.DebugLevel)
-	}
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -108,5 +108,9 @@ func initConfig() {
 	}
 	if conf.ClusterName == "" {
 		log.Fatal("clusterName configuration is required")
+	}
+
+	if isDebug {
+		log.SetLevel(log.DebugLevel)
 	}
 }
