@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -26,6 +27,7 @@ import (
 	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -35,8 +37,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
-
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller/openstack"
 )
@@ -62,10 +62,6 @@ const (
 	// LabelNodeRoleMaster specifies that a node is a master
 	// It's copied over to kubeadm until it's merged in core: https://github.com/kubernetes/kubernetes/pull/39112
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
-)
-
-var (
-	nodePort int
 )
 
 // Controller ...
@@ -364,7 +360,7 @@ func (c *Controller) processItem(key string) error {
 			return nil
 		}
 
-		log.WithFields(log.Fields{"key": key, "ingress": ing}).Info("ingress created or updated, will create or update octavia resources")
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress created or updated, will create or update octavia resources")
 
 		err = c.ensureIngress(ing)
 		if err != nil {
@@ -395,9 +391,15 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 
 func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 	var lbName = getResourceName(ing, "lb")
+
 	lb, err := c.osClient.EnsureLoadBalancer(lbName, c.config.Octavia.SubnetID)
 	if err != nil {
 		return err
+	}
+
+	if strings.Contains(lb.Description, ing.ResourceVersion) {
+		log.WithFields(log.Fields{"ingress": ing.Name}).Info("ingress not change")
+		return nil
 	}
 
 	var listenerName = getResourceName(ing, "listener")
@@ -486,31 +488,34 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 	}
 
 	// Update ingress status
-	if err = c.updateIngressStatus(ing, address); err != nil {
+	newIng, err := c.updateIngressStatus(ing, address)
+	if err != nil {
 		return err
 	}
 
-	log.Info("openstack resources for ingress created")
+	// Add ingress resource version to the load balancer description
+	newDes := fmt.Sprintf("Created by Kubernetes ingress %s, version: %s", newIng.Name, newIng.ResourceVersion)
+	if err = c.osClient.UpdateLoadBalancerDescription(lb.ID, newDes); err != nil {
+		return err
+	}
+
+	log.WithFields(log.Fields{"ingress": newIng.Name, "lbID": lb.ID}).Info("openstack resources for ingress created")
+
 	return nil
 }
 
-func (c *Controller) updateIngressStatus(ing *ext_v1beta1.Ingress, vip string) error {
-	previousState := loadBalancerStatusDeepCopy(&ing.Status.LoadBalancer)
-
+func (c *Controller) updateIngressStatus(ing *ext_v1beta1.Ingress, vip string) (*ext_v1beta1.Ingress, error) {
 	newState := new(apiv1.LoadBalancerStatus)
 	newState.Ingress = []apiv1.LoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	// This is to make sure we don't send duplicate update event.
-	if !loadBalancerStatusEqual(previousState, newState) {
-		if _, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng); err != nil {
-			return err
-		}
-		log.Info("ingress status updated")
+	new, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return new, nil
 }
 
 func (c *Controller) getService(key string) (*apiv1.Service, error) {

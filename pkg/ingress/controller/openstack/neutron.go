@@ -63,7 +63,8 @@ func (os *OpenStack) EnsureFloatingIP(portID string, floatingIPNetwork string) (
 		if err != ErrNotFound {
 			return "", fmt.Errorf("error getting floating ip for port %s: %v", portID, err)
 		}
-		log.WithFields(log.Fields{"portID": portID}).Info("creating floating ip for port")
+
+		log.WithFields(log.Fields{"portID": portID}).Debug("creating floating ip for port")
 
 		floatIPOpts := floatingips.CreateOpts{
 			FloatingNetworkID: floatingIPNetwork,
@@ -87,7 +88,10 @@ func (os *OpenStack) DeleteFloatingIP(portID string) error {
 		if err != ErrNotFound {
 			return fmt.Errorf("error getting floating ip for port %s: %v", portID, err)
 		}
-		log.WithFields(log.Fields{"portID": portID}).Info("floating ip not exists")
+
+		log.WithFields(log.Fields{"portID": portID}).Debug("floating ip not exists")
+
+		return nil
 	}
 
 	err = floatingips.Delete(os.neutron, fip.ID).ExtractErr()
@@ -96,5 +100,6 @@ func (os *OpenStack) DeleteFloatingIP(portID string) error {
 	}
 
 	log.WithFields(log.Fields{"floatingip": fip.FloatingIP}).Info("floating ip deleted")
+
 	return nil
 }
