@@ -33,6 +33,7 @@ import (
 
 var (
 	cfgFile string
+	isDebug bool
 	conf    config.Config
 )
 
@@ -64,11 +65,15 @@ func Execute() {
 
 func init() {
 	log.SetOutput(os.Stdout)
-	log.SetLevel(log.DebugLevel)
 
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ingress_openstack.yaml)")
+	rootCmd.PersistentFlags().BoolVar(&isDebug, "debug", false, "Print more detailed information.")
+
+	if isDebug {
+		log.SetLevel(log.DebugLevel)
+	}
 }
 
 // initConfig reads in config file and ENV variables if set.
