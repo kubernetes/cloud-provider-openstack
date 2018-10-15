@@ -194,7 +194,7 @@ func (os *OpenStack) getPoolByName(name string, lbID string) (*pools.Pool, error
 	return &listenerPools[0], nil
 }
 
-// GetPools retrives the pools belong to the loadbalancer.
+// GetPools retrives the pools belong to the loadbalancer. If shared is true, only return the shared pools.
 func (os *OpenStack) GetPools(lbID string, shared bool) ([]pools.Pool, error) {
 	var lbPools []pools.Pool
 
@@ -414,7 +414,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 }
 
 // EnsurePoolMembers ensure the pool and its members exist if deleted flag is not set, delete the pool and all its members otherwise.
-func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID string, listenerID string, servicePort *int, nodes []*apiv1.Node) (*string, error) {
+func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID string, listenerID string, nodePort *int, nodes []*apiv1.Node) (*string, error) {
 	if deleted {
 		pool, err := os.getPoolByName(poolName, lbID)
 		if err != nil {
@@ -490,7 +490,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 
 		member := pools.BatchUpdateMemberOpts{
 			Address:      addr,
-			ProtocolPort: *servicePort,
+			ProtocolPort: *nodePort,
 		}
 		members = append(members, member)
 	}
@@ -573,21 +573,11 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 	return nil
 }
 
-// UpdateLoadbalancerMembers update members for all the pools in the specified loadbalancer.
+// UpdateLoadbalancerMembers update members for all the pools in the specified load balancer.
 func (os *OpenStack) UpdateLoadbalancerMembers(lbID string, nodes []*apiv1.Node) error {
 	lbPools, err := os.GetPools(lbID, false)
 	if err != nil {
 		return err
-	}
-
-	addrs := map[string]empty{}
-	for _, node := range nodes {
-		addr, err := getNodeAddressForLB(node)
-		if err != nil {
-			log.WithFields(log.Fields{"name": node.ObjectMeta.Name}).Warningf("Failed to get node address: %v", err)
-			continue
-		}
-		addrs[addr] = empty{}
 	}
 
 	for _, pool := range lbPools {
@@ -600,60 +590,13 @@ func (os *OpenStack) UpdateLoadbalancerMembers(lbID string, nodes []*apiv1.Node)
 		}
 
 		// Members have the same ProtocolPort
-		servicePort := members[0].ProtocolPort
+		nodePort := members[0].ProtocolPort
 
-		addrMemberMapping := make(map[string]pools.Member)
-		for _, member := range members {
-			addrMemberMapping[member.Address] = member
+		if _, err = os.EnsurePoolMembers(false, pool.Name, lbID, "", &nodePort, nodes); err != nil {
+			return err
 		}
 
-		// Add any new members for this port
-		for addr := range addrs {
-			if _, ok := addrMemberMapping[addr]; ok {
-				continue
-			}
-
-			log.WithFields(log.Fields{"poolID": pool.ID, "memberAddress": addr}).Debug("Adding new member to the pool")
-
-			// This is a new node joined to the cluster
-			if _, err = pools.CreateMember(os.octavia, pool.ID, pools.CreateMemberOpts{
-				ProtocolPort: servicePort,
-				Address:      addr,
-			}).Extract(); err != nil {
-				return err
-			}
-
-			log.WithFields(log.Fields{"poolID": pool.ID, "memberAddress": addr}).Debug("Finished to add new member to the pool")
-
-			_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
-			if err != nil {
-				return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
-			}
-		}
-
-		// Remove any old members
-		for _, member := range addrMemberMapping {
-			if _, ok := addrs[member.Address]; ok {
-				continue
-			}
-
-			log.WithFields(log.Fields{"poolID": pool.ID, "memberAddress": member.Address}).Debug("Deleting old member from the pool")
-
-			err = pools.DeleteMember(os.octavia, pool.ID, member.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
-				log.WithFields(log.Fields{"poolID": pool.ID, "memberAddress": member.Address}).Error("Failed to delete old member from the pool")
-				return err
-			}
-
-			log.WithFields(log.Fields{"poolID": pool.ID, "memberAddress": member.Address}).Debug("Finished to delete old member from the pool")
-
-			_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
-			if err != nil {
-				return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
-			}
-		}
-
-		log.WithFields(log.Fields{"poolID": pool.ID}).Info("Finished to update pool members")
+		log.WithFields(log.Fields{"poolID": pool.ID, "lbID": lbID}).Info("Finished to update pool members")
 	}
 
 	return nil
