@@ -281,11 +281,15 @@ func (c *Controller) nodeSyncLoop() {
 		return
 	}
 
-	// Update each ingress
+	// Update each valid ingress
 	for _, ing := range ings.Items {
-		log.WithFields(log.Fields{"ingress": ing.ObjectMeta.Name}).Info("Starting to handle ingress")
+		if !IsValid(&ing) {
+			continue
+		}
 
-		lbName := getResourceName(ing.Namespace, ing.Name, "lb")
+		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Debug("Starting to handle ingress")
+
+		lbName := getResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 		loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 		if err != nil {
 			if err != openstack.ErrNotFound {
@@ -297,14 +301,16 @@ func (c *Controller) nodeSyncLoop() {
 		}
 
 		if err = c.osClient.UpdateLoadbalancerMembers(loadbalancer.ID, newNodes); err != nil {
-			log.WithFields(log.Fields{"ingress": ing.ObjectMeta.Name}).Errorf("Failed to handle ingress")
+			log.WithFields(log.Fields{"ingress": ing.Name}).Error("Failed to handle ingress")
 			continue
 		}
 
-		log.WithFields(log.Fields{"ingress": ing.ObjectMeta.Name}).Info("Finished to handle ingress")
+		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Info("Finished to handle ingress")
 	}
 
 	c.knownNodes = newNodes
+
+	log.Info("Finished to handle node change")
 }
 
 func (c *Controller) runWorker() {
