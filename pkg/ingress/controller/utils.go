@@ -22,16 +22,14 @@ import (
 	"sort"
 
 	apiv1 "k8s.io/api/core/v1"
-	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
 )
 
 func hash(data string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(data)))
 }
 
-func getResourceName(ing *ext_v1beta1.Ingress, suffix string) string {
-	name := fmt.Sprintf("k8s-%s-%s-%s", ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, suffix)
-	return name
+func getResourceName(namespace, name, clusterName string) string {
+	return fmt.Sprintf("k8s_%s_%s_%s", clusterName, namespace, name)
 }
 
 func nodeNames(nodes []*apiv1.Node) []string {

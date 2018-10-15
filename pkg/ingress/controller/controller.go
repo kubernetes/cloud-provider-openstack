@@ -106,7 +106,7 @@ func createApiserverClient(apiserverHost string, kubeConfig string) (*kubernetes
 	cfg.Burst = defaultBurst
 	cfg.ContentType = "application/vnd.kubernetes.protobuf"
 
-	log.Info("creating kubernetes API client")
+	log.Debug("creating kubernetes API client")
 
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -119,7 +119,7 @@ func createApiserverClient(apiserverHost string, kubeConfig string) (*kubernetes
 	}
 	log.WithFields(log.Fields{
 		"version": fmt.Sprintf("v%v.%v", v.Major, v.Minor),
-	}).Info("kubernetes API client created")
+	}).Debug("kubernetes API client created")
 
 	return client, nil
 }
@@ -225,7 +225,7 @@ func (c *Controller) Start() {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	log.Info("starting Ingress controller")
+	log.Debug("starting Ingress controller")
 	go c.informer.Start(c.stopCh)
 
 	// wait for the caches to synchronize before starting the worker
@@ -285,7 +285,7 @@ func (c *Controller) nodeSyncLoop() {
 	for _, ing := range ings.Items {
 		log.WithFields(log.Fields{"ingress": ing.ObjectMeta.Name}).Info("Starting to handle ingress")
 
-		lbName := getResourceName(&ing, "lb")
+		lbName := getResourceName(ing.Namespace, ing.Name, "lb")
 		loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 		if err != nil {
 			if err != openstack.ErrNotFound {
@@ -372,13 +372,13 @@ func (c *Controller) processItem(key string) error {
 }
 
 func (c *Controller) deleteIngress(namespace, name string) error {
-	lbName := fmt.Sprintf("k8s-%s-%s-lb", namespace, name)
+	lbName := getResourceName(namespace, name, c.config.ClusterName)
 	loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 	if err != nil {
 		if err != openstack.ErrNotFound {
 			return fmt.Errorf("error getting loadbalancer %s: %v", name, err)
 		}
-		log.WithFields(log.Fields{"lbName": lbName, "ingressName": name, "ingressNamespace": namespace}).Info("loadbalancer for ingress deleted")
+		log.WithFields(log.Fields{"lbName": lbName, "ingressName": name, "namespace": namespace}).Info("loadbalancer for ingress deleted")
 		return nil
 	}
 
@@ -390,9 +390,9 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 }
 
 func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
-	var lbName = getResourceName(ing, "lb")
+	name := getResourceName(ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
 
-	lb, err := c.osClient.EnsureLoadBalancer(lbName, c.config.Octavia.SubnetID)
+	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID)
 	if err != nil {
 		return err
 	}
@@ -402,8 +402,7 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 		return nil
 	}
 
-	var listenerName = getResourceName(ing, "listener")
-	listener, err := c.osClient.EnsureListener(listenerName, lb.ID)
+	listener, err := c.osClient.EnsureListener(name, lb.ID)
 	if err != nil {
 		return err
 	}
@@ -415,7 +414,6 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 	}
 
 	// Add default pool for the listener if 'backend' is defined
-	defaultPoolName := listenerName + "-pool"
 	if ing.Spec.Backend != nil {
 		serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, ing.Spec.Backend.ServiceName)
 		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
@@ -423,12 +421,12 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 			return err
 		}
 
-		if _, err = c.osClient.EnsurePoolMembers(false, defaultPoolName, lb.ID, listener.ID, &nodePort, nodeObjs); err != nil {
+		if _, err = c.osClient.EnsurePoolMembers(false, name, lb.ID, listener.ID, &nodePort, nodeObjs); err != nil {
 			return err
 		}
 	} else {
 		// Delete default pool and its members
-		if _, err = c.osClient.EnsurePoolMembers(true, defaultPoolName, lb.ID, "", nil, nil); err != nil {
+		if _, err = c.osClient.EnsurePoolMembers(true, name, lb.ID, "", nil, nil); err != nil {
 			return err
 		}
 	}
@@ -457,8 +455,9 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 		host := rule.Host
 
 		for _, path := range rule.HTTP.Paths {
-			// make the pool name unique
+			// make the pool name unique in the load balancer
 			poolName := hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
+
 			serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, path.Backend.ServiceName)
 			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort)
 			if err != nil {
@@ -470,9 +469,7 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 				return err
 			}
 
-			// make the policy name unique
-			policyName := hash(fmt.Sprintf("%s+%s", host, path.Path))
-			if err = c.osClient.EnsurePolicyRules(false, policyName, lb.ID, listener.ID, *poolID, host, path.Path); err != nil {
+			if err = c.osClient.CreatePolicyRules(lb.ID, listener.ID, *poolID, host, path.Path); err != nil {
 				return err
 			}
 		}
