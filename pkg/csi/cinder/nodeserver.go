@@ -25,6 +25,7 @@ import (
 
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type nodeServer struct {
@@ -164,7 +165,7 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 	}, nil
 }
 
-func getNodeID() (string, error) {
+func getNodeIDMountProvider() (string, error) {
 
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
@@ -179,5 +180,30 @@ func getNodeID() (string, error) {
 		return "", err
 	}
 
+	return nodeID, nil
+}
+
+func getNodeIDMetdataService() (string, error) {
+	nodeID, err := openstack.GetInstanceID()
+	if err != nil {
+		return "", err
+	}
+	return nodeID, nil
+}
+
+func getNodeID() (string, error) {
+	// First try to get instance id from mount provider
+	nodeID, err := getNodeIDMountProvider()
+	if err == nil || nodeID != "" {
+		return nodeID, nil
+	}
+
+	glog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
+	glog.V(3).Infof("Trying to GetInstanceID from metadata service")
+	nodeID, err = getNodeIDMetdataService()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
+		return "", err
+	}
 	return nodeID, nil
 }
