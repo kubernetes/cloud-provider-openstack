@@ -22,20 +22,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
-	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	apimeta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	extv1beta1 "k8s.io/api/extensions/v1beta1"
+	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	ext_listers "k8s.io/client-go/listers/extensions/v1beta1"
+	extlisters "k8s.io/client-go/listers/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller/openstack"
@@ -64,13 +67,32 @@ const (
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
 )
 
+// EventType type of event associated with an informer
+type EventType string
+
+const (
+	// CreateEvent event associated with new objects in an informer
+	CreateEvent EventType = "CREATE"
+	// UpdateEvent event associated with an object update in an informer
+	UpdateEvent EventType = "UPDATE"
+	// DeleteEvent event associated when an object is removed from an informer
+	DeleteEvent EventType = "DELETE"
+)
+
+// Event holds the context of an event
+type Event struct {
+	Type EventType
+	Obj  interface{}
+}
+
 // Controller ...
 type Controller struct {
 	stopCh              chan struct{}
 	knownNodes          []*apiv1.Node
 	queue               workqueue.RateLimitingInterface
 	informer            informers.SharedInformerFactory
-	ingressLister       ext_listers.IngressLister
+	recorder            record.EventRecorder
+	ingressLister       extlisters.IngressLister
 	ingressListerSynced cache.InformerSynced
 	serviceLister       corelisters.ServiceLister
 	serviceListerSynced cache.InformerSynced
@@ -84,7 +106,7 @@ type Controller struct {
 // IsValid returns true if the given Ingress either doesn't specify
 // the ingress.class annotation, or it's set to the configured in the
 // ingress controller.
-func IsValid(ing *ext_v1beta1.Ingress) bool {
+func IsValid(ing *extv1beta1.Ingress) bool {
 	ingress, ok := ing.GetAnnotations()[IngressKey]
 	if !ok {
 		log.WithFields(log.Fields{
@@ -180,11 +202,19 @@ func NewController(conf config.Config) *Controller {
 	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
+		Interface: kubeClient.CoreV1().Events(""),
+	})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "openstack-ingress-controller"})
+
 	controller := &Controller{
 		config:              conf,
 		queue:               queue,
 		stopCh:              make(chan struct{}),
 		informer:            kubeInformerFactory,
+		recorder:            recorder,
 		serviceLister:       serviceInformer.Lister(),
 		serviceListerSynced: serviceInformer.Informer().HasSynced,
 		nodeLister:          nodeInformer.Lister(),
@@ -196,21 +226,68 @@ func NewController(conf config.Config) *Controller {
 
 	ingInformer := kubeInformerFactory.Extensions().V1beta1().Ingresses()
 	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.enqueueIng,
+		AddFunc: func(obj interface{}) {
+			addIng := obj.(*extv1beta1.Ingress)
+			key := fmt.Sprintf("%s/%s", addIng.Namespace, addIng.Name)
+
+			if !IsValid(addIng) {
+				log.Infof("ignore ingress %s", key)
+				return
+			}
+
+			recorder.Event(addIng, apiv1.EventTypeNormal, "Creating", fmt.Sprintf("Ingress %s", key))
+			controller.queue.AddRateLimited(Event{Obj: addIng, Type: CreateEvent})
+		},
 		UpdateFunc: func(old, new interface{}) {
-			newIng := new.(*ext_v1beta1.Ingress)
-			oldIng := old.(*ext_v1beta1.Ingress)
+			newIng := new.(*extv1beta1.Ingress)
+			oldIng := old.(*extv1beta1.Ingress)
 			if newIng.ResourceVersion == oldIng.ResourceVersion {
 				// Periodic resync will send update events for all known Ingresses.
 				// Two different versions of the same Ingress will always have different RVs.
 				return
 			}
-			if reflect.DeepEqual(newIng.Spec, oldIng.Spec) {
+
+			key := fmt.Sprintf("%s/%s", newIng.Namespace, newIng.Name)
+			validOld := IsValid(oldIng)
+			validCur := IsValid(newIng)
+			if !validOld && validCur {
+				recorder.Event(newIng, apiv1.EventTypeNormal, "Creating", fmt.Sprintf("Ingress %s", key))
+				controller.queue.AddRateLimited(Event{Obj: newIng, Type: CreateEvent})
+			} else if validOld && !validCur {
+				recorder.Event(newIng, apiv1.EventTypeNormal, "Deleting", fmt.Sprintf("Ingress %s", key))
+				controller.queue.AddRateLimited(Event{Obj: newIng, Type: DeleteEvent})
+			} else if validCur && !reflect.DeepEqual(newIng.Spec, oldIng.Spec) {
+				recorder.Event(newIng, apiv1.EventTypeNormal, "Updating", fmt.Sprintf("Ingress %s", key))
+				controller.queue.AddRateLimited(Event{Obj: newIng, Type: UpdateEvent})
+			} else {
 				return
 			}
-			controller.enqueueIng(new)
 		},
-		DeleteFunc: controller.enqueueIng,
+		DeleteFunc: func(obj interface{}) {
+			delIng, ok := obj.(*extv1beta1.Ingress)
+			if !ok {
+				// If we reached here it means the ingress was deleted but its final state is unrecorded.
+				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					log.Errorf("couldn't get object from tombstone %#v", obj)
+					return
+				}
+				delIng, ok = tombstone.Obj.(*extv1beta1.Ingress)
+				if !ok {
+					log.Errorf("Tombstone contained object that is not an Ingress: %#v", obj)
+					return
+				}
+			}
+
+			key := fmt.Sprintf("%s/%s", delIng.Namespace, delIng.Name)
+			if !IsValid(delIng) {
+				log.Infof("ignore ingress %s", key)
+				return
+			}
+
+			recorder.Event(delIng, apiv1.EventTypeNormal, "Deleting", fmt.Sprintf("Ingress %s", key))
+			controller.queue.AddRateLimited(Event{Obj: delIng, Type: DeleteEvent})
+		},
 	})
 
 	controller.ingressLister = ingInformer.Lister()
@@ -273,9 +350,9 @@ func (c *Controller) nodeSyncLoop() {
 
 	log.Infof("Detected change in list of current cluster nodes. New node set: %v", nodeNames(newNodes))
 
-	ings := new(ext_v1beta1.IngressList)
+	ings := new(extv1beta1.IngressList)
 	// TODO: only take ingresses without ip address into consideration
-	opts := apimeta_v1.ListOptions{}
+	opts := apimetav1.ListOptions{}
 	if ings, err = c.kubeClient.ExtensionsV1beta1().Ingresses("").List(opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
@@ -320,58 +397,62 @@ func (c *Controller) runWorker() {
 }
 
 func (c *Controller) processNextItem() bool {
-	key, quit := c.queue.Get()
+	obj, quit := c.queue.Get()
 
 	if quit {
 		return false
 	}
-	defer c.queue.Done(key)
+	defer c.queue.Done(obj)
 
-	err := c.processItem(key.(string))
+	err := c.processItem(obj.(Event))
 	if err == nil {
 		// No error, reset the ratelimit counters
-		c.queue.Forget(key)
-	} else if c.queue.NumRequeues(key) < maxRetries {
-		log.WithFields(log.Fields{"key": key, "error": err}).Error("Failed to process key (will retry)")
-		c.queue.AddRateLimited(key)
+		c.queue.Forget(obj)
+	} else if c.queue.NumRequeues(obj) < maxRetries {
+		log.WithFields(log.Fields{"obj": obj, "error": err}).Error("Failed to process obj (will retry)")
+		c.queue.AddRateLimited(obj)
 	} else {
 		// err != nil and too many retries
-		log.WithFields(log.Fields{"key": key, "error": err}).Error("Failed to process key (giving up)")
-		c.queue.Forget(key)
+		log.WithFields(log.Fields{"obj": obj, "error": err}).Error("Failed to process obj (giving up)")
+		c.queue.Forget(obj)
 		utilruntime.HandleError(err)
 	}
 
 	return true
 }
 
-func (c *Controller) processItem(key string) error {
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		return err
-	}
+func (c *Controller) processItem(event Event) error {
+	ing := event.Obj.(*extv1beta1.Ingress)
+	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 
-	ing, err := c.ingressLister.Ingresses(namespace).Get(name)
-	switch {
-	case errors.IsNotFound(err):
-		log.WithFields(log.Fields{"key": key}).Info("ingress has been deleted, will delete octavia resources")
-		err = c.deleteIngress(namespace, name)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("failed to delete openstack resources for ingress %s: %v", key, err))
-		}
-	case err != nil:
-		return fmt.Errorf("error fetching object with key %s from store: %v", key, err)
-	default:
-		if !IsValid(ing) {
-			log.WithFields(log.Fields{"key": key}).Info("ignore ingress")
-			return nil
-		}
+	switch event.Type {
+	case CreateEvent:
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress created, will create openstack resources")
 
-		log.WithFields(log.Fields{"ingress": key}).Info("ingress created or updated, will create or update octavia resources")
-
-		err = c.ensureIngress(ing)
-		if err != nil {
+		if err := c.ensureIngress(ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to create openstack resources for ingress %s: %v", key, err))
+			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to create openstack resources for ingress %s: %v", key, err))
 		}
+
+		c.recorder.Event(ing, apiv1.EventTypeNormal, "Created", fmt.Sprintf("Ingress %s", key))
+	case UpdateEvent:
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress updated, will update openstack resources")
+
+		if err := c.ensureIngress(ing); err != nil {
+			utilruntime.HandleError(fmt.Errorf("failed to update openstack resources for ingress %s: %v", key, err))
+			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to update openstack resources for ingress %s: %v", key, err))
+		}
+
+		c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Ingress %s", key))
+	case DeleteEvent:
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress has been deleted, will delete openstack resources")
+
+		if err := c.deleteIngress(ing.Namespace, ing.Name); err != nil {
+			utilruntime.HandleError(fmt.Errorf("failed to delete openstack resources for ingress %s: %v", key, err))
+			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to delete openstack resources for ingress %s: %v", key, err))
+		}
+
+		c.recorder.Event(ing, apiv1.EventTypeNormal, "Deleted", fmt.Sprintf("Ingress %s", key))
 	}
 
 	return nil
@@ -395,7 +476,8 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 	return c.osClient.DeleteLoadbalancer(loadbalancer.ID)
 }
 
-func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
+func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
+	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 	name := getResourceName(ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
 
 	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID)
@@ -495,6 +577,7 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 	if err != nil {
 		return err
 	}
+	c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Successfully associated IP address %s to ingress %s", address, key))
 
 	// Add ingress resource version to the load balancer description
 	newDes := fmt.Sprintf("Created by Kubernetes ingress %s, version: %s", newIng.Name, newIng.ResourceVersion)
@@ -507,18 +590,18 @@ func (c *Controller) ensureIngress(ing *ext_v1beta1.Ingress) error {
 	return nil
 }
 
-func (c *Controller) updateIngressStatus(ing *ext_v1beta1.Ingress, vip string) (*ext_v1beta1.Ingress, error) {
+func (c *Controller) updateIngressStatus(ing *extv1beta1.Ingress, vip string) (*extv1beta1.Ingress, error) {
 	newState := new(apiv1.LoadBalancerStatus)
 	newState.Ingress = []apiv1.LoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	new, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
+	newObj, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
 	if err != nil {
 		return nil, err
 	}
 
-	return new, nil
+	return newObj, nil
 }
 
 func (c *Controller) getService(key string) (*apiv1.Service, error) {
