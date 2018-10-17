@@ -31,8 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-type empty struct{}
-
 const (
 	loadbalancerActiveInitDealy = 3 * time.Second
 	loadbalancerActiveFactor    = 1
@@ -394,7 +392,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 
 		listener, err = listeners.Create(os.octavia, listeners.CreateOpts{
 			Name:           name,
-			Protocol:       "HTTP",
+			Protocol:       "TCP",
 			ProtocolPort:   80, // Ingress Controller only supports http/https for now
 			LoadbalancerID: lbID,
 		}).Extract()
@@ -450,7 +448,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 			if listenerID != "" {
 				opts = pools.CreateOpts{
 					Name:        poolName,
-					Protocol:    "HTTP",
+					Protocol:    "TCP",
 					LBMethod:    pools.LBMethodRoundRobin,
 					ListenerID:  listenerID,
 					Persistence: nil,
@@ -458,7 +456,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 			} else {
 				opts = pools.CreateOpts{
 					Name:           poolName,
-					Protocol:       "HTTP",
+					Protocol:       "TCP",
 					LBMethod:       pools.LBMethodRoundRobin,
 					LoadbalancerID: lbID,
 					Persistence:    nil,
