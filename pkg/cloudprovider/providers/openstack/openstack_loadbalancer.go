@@ -45,8 +45,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/kubernetes/pkg/api/v1/service"
-	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
@@ -475,7 +475,7 @@ func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName 
 
 // GetLoadBalancer returns whether the specified load balancer exists and its status
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
-	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, loadBalancerName)
 	if err == ErrNotFound {
 		return nil, false, nil
@@ -498,6 +498,12 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	}
 
 	return status, true, err
+}
+
+// GetLoadBalancerName is an implementation of LoadBalancer.GetLoadBalancerName.
+func (lbaas *LbaasV2) GetLoadBalancerName(ctx context.Context, clusterName string, service *v1.Service) string {
+	// TODO: replace DefaultLoadBalancerName to generate more meaningful loadbalancer names.
+	return cloudprovider.DefaultLoadBalancerName(service)
 }
 
 // The LB needs to be configured with instance addresses on the same
@@ -767,7 +773,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		return nil, fmt.Errorf("unsupported load balancer affinity: %v", affinity)
 	}
 
-	name := cloudprovider.GetLoadBalancerName(apiService)
+	name := lbaas.GetLoadBalancerName(ctx, clusterName, apiService)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name)
 	if err != nil {
 		if err != ErrNotFound {
@@ -1262,7 +1268,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Ser
 
 // UpdateLoadBalancer updates hosts under the specified load balancer.
 func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
-	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	glog.V(4).Infof("UpdateLoadBalancer(%v, %v, %v)", clusterName, loadBalancerName, nodes)
 
 	lbaas.opts.SubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
@@ -1485,7 +1491,7 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *v1.Ser
 
 // EnsureLoadBalancerDeleted deletes the specified load balancer
 func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error {
-	loadBalancerName := cloudprovider.GetLoadBalancerName(service)
+	loadBalancerName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	glog.V(4).Infof("EnsureLoadBalancerDeleted(%v, %v)", clusterName, loadBalancerName)
 
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, loadBalancerName)

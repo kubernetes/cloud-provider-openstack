@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
@@ -30,6 +31,9 @@ var fakeNs *nodeServer
 // Init Node Server
 func init() {
 	if fakeNs == nil {
+		// to avoid annoying ERROR: logging before flag.Parse
+		flag.Parse()
+
 		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
 		fakeNs = NewNodeServer(d)
 	}
@@ -59,6 +63,36 @@ func TestNodeGetId(t *testing.T) {
 	actualRes, err := fakeNs.NodeGetId(fakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to NodeGetId: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+// Test NodeGetInfo
+func TestNodeGetInfo(t *testing.T) {
+
+	// mock MountMock
+	mmock := new(mount.MountMock)
+	// GetInstanceID() (string, error)
+	mmock.On("GetInstanceID").Return(fakeNodeID, nil)
+	mount.MInstance = mmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodeGetInfoResponse{
+		NodeId: fakeNodeID,
+	}
+
+	// Fake request
+	fakeReq := &csi.NodeGetInfoRequest{}
+
+	// Invoke NodeGetId
+	actualRes, err := fakeNs.NodeGetInfo(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodeGetInfo: %v", err)
 	}
 
 	// Assert

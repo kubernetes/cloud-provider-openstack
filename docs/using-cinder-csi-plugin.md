@@ -34,48 +34,100 @@ by using the result of the above command.
 
 ## Using CSC tool
 
-### Start Cinder driver
-```
-$ sudo ./_output/cinderplugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
-```
-
 ### Test using csc
 Get ```csc``` tool from https://github.com/thecodeteam/gocsi/tree/master/csc
+
+### Start Cinder driver
+
+First, you need to start the plugin as daemon to accept request from csc.
+Following example is starting listening at localhost port 10000 with cloud configuration
+given in /etc/cloud.conf and the node id is CSINodeID.
+
+```
+$ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
+```
 
 #### Get plugin info
 ```
 $ csc identity plugin-info --endpoint tcp://127.0.0.1:10000
-"csi-cinderplugin"	"0.1.0"
+"csi-cinderplugin"      "0.1.0"
 ```
 
-#### Get supported versions
+#### Get supported capabilities
 ```
-$ csc identity supported-versions --endpoint tcp://127.0.0.1:10000
-0.1.0
+$ csc identity plugin-capabilities --endpoint tcp://127.0.0.1:10000
+CONTROLLER_SERVICE
 ```
 
 #### Create a volume
+Following sample creates a volume named ``CSIVolumeName`` and the
+volume id returned is ``8a55f98f-e987-43ab-a9f5-973352bee19c`` with size ``1073741824`` bytes (1Gb)
 ```
-$ csc controller new --endpoint tcp://127.0.0.1:10000 CSIVolumeName
-CSIVolumeID
+$  csc controller create-volume --endpoint tcp://127.0.0.1:10000 CSIVolumeName
+"8a55f98f-e987-43ab-a9f5-973352bee19c"  1073741824      "availability"="nova"
 ```
 
 #### Delete a volume
+Following sample deletes a volume ``01217e93-bd1b-4760-b5d8-18b8b3d47f91``
 ```
-$ csc controller del --endpoint tcp://127.0.0.1:10000 CSIVolumeID
-CSIVolumeID
+$ csc controller delete-volume --endpoint tcp://127.0.0.1:10000 01217e93-bd1b-4760-b5d8-18b8b3d47f91
+01217e93-bd1b-4760-b5d8-18b8b3d47f91
 ```
 
 #### ControllerPublish a volume
+The action has similar result to ``nova volume-attach`` command:
+
+Assume we have following result in openstack now:
 ```
-$ csc controller publish --endpoint tcp://127.0.0.1:10000 --node-id=CSINodeID CSIVolumeID
-CSIVolumeID	"DevicePath"="/dev/xxx"
+$ openstack server list
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| ID                                   | Name  | Status | Networks                       | Image  | Flavor  |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| 17e540e6-8d08-4a5a-8835-668bc8fe913c | demo1 | ACTIVE | demo-net=10.0.0.13             | cirros | m1.tiny |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+
+$ openstack volume list
++--------------------------------------+-----------------------------------+-----------+------+-------------+
+| ID                                   | Name                              | Status    | Size | Attached to |
++--------------------------------------+-----------------------------------+-----------+------+-------------+
+| ed893ce1-807d-4c6e-a558-88c61b439659 | v1                                | available |    1 |             |
++--------------------------------------+-----------------------------------+-----------+------+-------------+
+```
+
+Then execute:
+
+```
+# csc controller publish --endpoint tcp://127.0.0.1:10000 --node-id=17e540e6-8d08-4a5a-8835-668bc8fe913c ed893ce1-807d-4c6e-a558-88c61b439659
+"ed893ce1-807d-4c6e-a558-88c61b439659"  "DevicePath"="/dev/vdb"
+```
+
+From openstack side you will see following result:
+
+```
+$ openstack server list
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| ID                                   | Name  | Status | Networks                       | Image  | Flavor  |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+| 17e540e6-8d08-4a5a-8835-668bc8fe913c | demo1 | ACTIVE | demo-net=10.0.0.13             | cirros | m1.tiny |
++--------------------------------------+-------+--------+--------------------------------+--------+---------+
+$ openstack volume list
++--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
+| ID                                   | Name                              | Status    | Size | Attached to                    |
++--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
+| ed893ce1-807d-4c6e-a558-88c61b439659 | v1                                | in-use    |    1 | Attached to demo1 on /dev/vdb  |
++--------------------------------------+-----------------------------------+-----------+------+--------------------------------+
+
+Note:
+volume "Status" field will change to "in-use" afterwards.
+"Attached to" field will change to volume mount point.
 ```
 
 #### ControllerUnpublish a volume
+ControllerUnpublish is reserver action of ControllerPublish, which is similar to ``nova volume-detach``
 ```
-$ csc controller unpublish --endpoint tcp://127.0.0.1:10000 --node-id=CSINodeID CSIVolumeID
-CSIVolumeID
+[root@kvm-017212 docs]# csc controller unpublish --endpoint tcp://127.0.0.1:10000 --node-id=17e540e6-8d08-4a5a-8835-668bc8fe913c ed893ce1-807d-4c6e-a558-88c61b439659
+
+ed893ce1-807d-4c6e-a558-88c61b439659
 ```
 
 #### NodePublish a volume

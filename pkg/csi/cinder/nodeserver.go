@@ -25,35 +25,11 @@ import (
 
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type nodeServer struct {
 	*csicommon.DefaultNodeServer
-}
-
-func (ns *nodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) (*csi.NodeGetIdResponse, error) {
-
-	// Get Mount Provider
-	m, err := mount.GetMountProvider()
-	if err != nil {
-		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
-		return nil, err
-	}
-
-	nodeID, err := m.GetInstanceID()
-	if err != nil {
-		glog.V(3).Infof("Failed to GetInstanceID: %v", err)
-		return nil, err
-	}
-
-	if len(nodeID) > 0 {
-		return &csi.NodeGetIdResponse{
-			NodeId: nodeID,
-		}, nil
-	}
-
-	// Using default function
-	return ns.DefaultNodeServer.NodeGetId(ctx, req)
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -137,4 +113,97 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	return &csi.NodeStageVolumeResponse{}, nil
+}
+
+func (ns *nodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) (*csi.NodeGetIdResponse, error) {
+
+	nodeID, err := getNodeID()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(nodeID) > 0 {
+		return &csi.NodeGetIdResponse{
+			NodeId: nodeID,
+		}, nil
+	}
+
+	// Using default function
+	return ns.DefaultNodeServer.NodeGetId(ctx, req)
+}
+
+func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+
+	nodeID, err := getNodeID()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(nodeID) > 0 {
+		return &csi.NodeGetInfoResponse{
+			NodeId: nodeID,
+		}, nil
+	}
+
+	// Using default function
+	return ns.DefaultNodeServer.NodeGetInfo(ctx, req)
+}
+
+func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+	glog.V(5).Infof("Using default NodeGetCapabilities")
+
+	return &csi.NodeGetCapabilitiesResponse{
+		Capabilities: []*csi.NodeServiceCapability{
+			{
+				Type: &csi.NodeServiceCapability_Rpc{
+					Rpc: &csi.NodeServiceCapability_RPC{
+						Type: csi.NodeServiceCapability_RPC_UNKNOWN,
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func getNodeIDMountProvider() (string, error) {
+
+	// Get Mount Provider
+	m, err := mount.GetMountProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		return "", err
+	}
+
+	nodeID, err := m.GetInstanceID()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetInstanceID: %v", err)
+		return "", err
+	}
+
+	return nodeID, nil
+}
+
+func getNodeIDMetdataService() (string, error) {
+	nodeID, err := openstack.GetInstanceID()
+	if err != nil {
+		return "", err
+	}
+	return nodeID, nil
+}
+
+func getNodeID() (string, error) {
+	// First try to get instance id from mount provider
+	nodeID, err := getNodeIDMountProvider()
+	if err == nil || nodeID != "" {
+		return nodeID, nil
+	}
+
+	glog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
+	glog.V(3).Infof("Trying to GetInstanceID from metadata service")
+	nodeID, err = getNodeIDMetdataService()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
+		return "", err
+	}
+	return nodeID, nil
 }

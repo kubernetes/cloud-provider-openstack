@@ -69,3 +69,57 @@ projects_black_list: ["id1", "id2"]
 # List of data types to synchronize
 "data_types_to_sync": ["projects", "role_assignments"]
 ```
+
+## Full Example using Keystone for Authentication and RBAC for Authorization and synced namespaces
+
+Run k8s-keystone-auth like this:
+
+```
+k8s-keystone-auth \
+--tls-cert-file /etc/kubernetes/pki/apiserver.crt \
+--tls-private-key-file /etc/kubernetes/pki/apiserver.key \
+--keystone-url https://keystone:5000/v3 \
+--sync-config-file /etc/kubernetes/syncconfig.yaml
+```
+
+This way we use it only for authentication. It will print the following in the log:
+
+```
+W0809 15:23:26.718723       1 config.go:70] Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.
+```
+
+Create a ClusterRole like this:
+```
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: _member_
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+```
+
+Where the important bit of information is `_member_`: the string that represents the role of a user in keystone. If your role is called differently in your keystone setup, like `Member` or `member` you have to change this.
+
+Configure the client to use `client-keystone-auth` as described [here].(https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-client-keystone-auth.md). You need a version higher than v0.2.0 to get keystone project scoped tokens.
+
+Once a user makes the first API request, automatically a namespace is created, and also into that namespace a rolebinding is created per each keystone role of the user in that keystone project.
+
+    kubectl get pods -n keystone-<project_uuid>
+
+Check that also the rolebinding was automatically created. With your admin account use the command:
+
+    kubectl get rolebinding -n keystone-<project_id>
+
+You will find a rolebinding called `<user_uuid>__member_`.
+
+Summarizing: the key idea is that a valid keystone user authenticates with a
+project scoped token. Kubernetes will create a namespace and a rolebinding in
+that namespace using the uuid value of the keystone project and of the keystone
+role of the user in that project. The kubernetes admin should create a
+ClusterRole in advance, giving permissions to users matching the name of the
+keystone role.
+
+Now depending on the keystone roles that you have, you need to implement your ClusterRole.
+

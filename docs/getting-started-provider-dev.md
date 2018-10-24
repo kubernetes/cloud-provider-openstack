@@ -109,10 +109,11 @@ sudo systemctl start docker
 ### Development tools
 
 You're going to need a few basic development tools and applications to get, build, and run
-the source code. With your package manager you can install `git`, `gcc`, `glide`, and `etcd`.
+the source code. With your package manager you can install `git`, `gcc` and `etcd`.
 
 ```
-sudo yum install -y -q git gcc glide etcd
+sudo yum install -y -q git gcc etcd
+
 ```
 
 You will also need a recent version of Go and set your environment variables.
@@ -124,6 +125,13 @@ curl -o go.tgz https://dl.google.com/go/go${GO_VERSION}.${GO_ARCH}.tar.gz
 sudo tar -C /usr/local/ -xvzf go.tgz
 export GOROOT=/usr/local/go
 export GOPATH=$HOME/go
+```
+
+Install go dependency management tool dep
+
+```
+curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+
 ```
 
 Finally, set up your Git identity and GitHub integrations.
@@ -217,6 +225,16 @@ provided by the script:
 ```
 export KUBECONFIG=/var/run/kubernetes/admin.kubeconfig
 ./cluster/kubectl.sh
+```
+
+The cluster/addons/rbac has a set of yaml files, currently it has 
+cloud-controller-manager-role-bindings.yaml
+cloud-controller-manager-roles.yaml
+
+you need use following command to create ClusterRole and ClusterRoleBinding
+otherwise the cloud-controller-manager is not able to access k8s API.
+```
+./cluster/kubectl.sh create -f cluster/addons/rbac/
 ```
 
 Have a good time with OpenStack and Kubernetes!

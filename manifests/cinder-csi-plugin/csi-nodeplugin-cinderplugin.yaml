@@ -22,9 +22,12 @@ spec:
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/csi-cinderplugin/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -33,6 +36,8 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
         - name: cinder
           securityContext:
             privileged: true
@@ -41,6 +46,7 @@ spec:
             allowPrivilegeEscalation: true
           image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
           args :
+            - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
@@ -74,6 +80,10 @@ spec:
           hostPath:
             path: /var/lib/kubelet/plugins/csi-cinderplugin
             type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/
+            type: Directory
         - name: pods-mount-dir
           hostPath:
             path: /var/lib/kubelet/pods

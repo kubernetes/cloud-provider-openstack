@@ -24,7 +24,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/cloudprovider"
+	cloudprovider "k8s.io/cloud-provider"
 )
 
 func TestRoutes(t *testing.T) {
@@ -35,7 +35,7 @@ func TestRoutes(t *testing.T) {
 		t.Skipf("No config found in environment")
 	}
 
-	os, err := newOpenStack(cfg)
+	os, err := NewOpenStack(cfg)
 	if err != nil {
 		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}

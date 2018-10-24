@@ -47,7 +47,7 @@ users:
       # resource. Required.
       #
       # The API version returned by the plugin MUST match the version encoded.
-      apiVersion: "client.authentication.k8s.io/v1alpha1"
+      apiVersion: "client.authentication.k8s.io/v1beta1"
 
       # Environment variables to set when executing the plugin. Optional.
       env:
@@ -55,6 +55,8 @@ users:
         value: "admin"
       - name: "OS_PASSWORD"
         value: "passw0rd"
+      - name: "OS_PROJECT_NAME"
+        value: "myproject"
 
       # Arguments to pass when executing the plugin. Optional.
       args:
@@ -83,35 +85,27 @@ the binary `/home/jane/bin/client-keystone-auth` is executed.
     exec:
       # Path relative to the directory of the kubeconfig
       command: "./bin/client-keystone-auth"
-      apiVersion: "client.authentication.k8s.io/v1alpha1"
+      apiVersion: "client.authentication.k8s.io/v1beta1"
 ```
 
 ## Input and output formats
 
-When executing the command, `k8s.io/client-go` sets the `KUBERNETES_EXEC_INFO` environment
-variable to a JSON serialized [`ExecCredential`](
-https://github.com/kubernetes/client-go/blob/master/pkg/apis/clientauthentication/v1alpha1/types.go)
-resource.
+The executed command prints an `ExecCredential` object to `stdout`. `k8s.io/client-go`
+authenticates against the Kubernetes API using the returned credentials in the `status`.
 
-```
-KUBERNETES_EXEC_INFO='{
-  "apiVersion": "client.authentication.k8s.io/v1alpha1",
-  "kind": "ExecCredential",
-  "spec": {
-    "interactive": true
-  }
-}'
-```
-
-If the variable is not set or its format is invalid, then the executable fails immediately.
+When run from an interactive session, `stdin` is exposed directly to the plugin. The plugin uses a
+[TTY check](https://godoc.org/golang.org/x/crypto/ssh/terminal#IsTerminal) to determine if it's
+appropriate to prompt a user interactively.
 
 When the plugin is executed from an interactive session, `stdin` and `stderr` are directly
 exposed to the plugin so it can prompt the user for input for interactive logins.
 
 To authenticate in Keystone from an interactive session, the user needs to provide the address
-domain name, user name and his password. These values can be specified using environment variables
-(`OS_AUTH_URL`, `OS_DOMAIN_NAME`, `OS_USERNAME` and `OS_PASSWORD`), or through command arguments
-(`--keystone-url`, `--domain-name`, `--user-name` and `--password`), respectively.
+domain name, user name, password, and, optionally, a project name. These values can be specified
+using environment variables
+(`OS_AUTH_URL`, `OS_DOMAIN_NAME`, `OS_USERNAME`, `OS_PASSWORD` and `OS_PROJECT_NAME`), or through command
+arguments
+(`--keystone-url`, `--domain-name`, `--user-name`, `--password` and `--project-name`), respectively.
 If they are not specified, the user will be prompted to enter them at the time of the interactive
 session.
 
@@ -120,7 +114,7 @@ include metadata about the response.
 
 ```json
 {
-  "apiVersion": "client.authentication.k8s.io/v1alpha1",
+  "apiVersion": "client.authentication.k8s.io/v1beta1",
   "kind": "ExecCredential",
   "spec": {
     "response": {
@@ -139,7 +133,7 @@ Kubernetes API.
 
 ```json
 {
-  "apiVersion": "client.authentication.k8s.io/v1alpha1",
+  "apiVersion": "client.authentication.k8s.io/v1beta1",
   "kind": "ExecCredential",
   "status": {
     "token": "my-bearer-token",

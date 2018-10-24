@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -30,23 +29,17 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	kflag "k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
 )
 
 const errRespTemplate string = `{
-	"apiVersion": "client.authentication.k8s.io/v1alpha1",
+	"apiVersion": "client.authentication.k8s.io/v1beta1",
 	"kind": "ExecCredential",
-	"spec": {
-		"response": {
-			"code": 401,
-			"header": {},
-		},
-	}
+	"status": {}
 }`
 
 const respTemplate string = `{
-	"apiVersion": "client.authentication.k8s.io/v1alpha1",
+	"apiVersion": "client.authentication.k8s.io/v1beta1",
 	"kind": "ExecCredential",
 	"status": {
 		"token": "%v",
@@ -62,20 +55,16 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 		_, err = fmt.Fscan(r, &result)
 	} else {
 		var data []byte
-		if terminal.IsTerminal(int(os.Stdin.Fd())) {
-			data, err = terminal.ReadPassword(int(os.Stdin.Fd()))
-			result = string(data)
-			fmt.Fprintf(os.Stderr, "\n")
-		} else {
-			return "", fmt.Errorf("error reading input for %s", field)
-		}
+		data, err = terminal.ReadPassword(int(os.Stdin.Fd()))
+		result = string(data)
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 	return result, err
 }
 
-// prompt pulls keystone auth url, domain, username and password from stdin,
+// prompt pulls keystone auth url, domain, project, username and password from stdin,
 // if they are not specified initially (i.e. equal "").
-func prompt(url string, domain string, user string, project string, password string) (gophercloud.AuthOptions, error) {
+func prompt(url string, domain string, user string, project string, password string, application_credential_id string, application_credential_name string, application_credential_secret string) (gophercloud.AuthOptions, error) {
 	var err error
 	var options gophercloud.AuthOptions
 
@@ -100,14 +89,14 @@ func prompt(url string, domain string, user string, project string, password str
 		}
 	}
 
-	if project == "" {
+	if project == "" && application_credential_id == "" && application_credential_name == "" {
 		project, err = promptForString("project name", os.Stdin, true)
 		if err != nil {
 			return options, err
 		}
 	}
 
-	if password == "" {
+	if password == "" && application_credential_id == "" && application_credential_name == "" {
 		password, err = promptForString("password", nil, false)
 		if err != nil {
 			return options, err
@@ -115,35 +104,17 @@ func prompt(url string, domain string, user string, project string, password str
 	}
 
 	options = gophercloud.AuthOptions{
-		IdentityEndpoint: url,
-		Username:         user,
-		TenantName:       project,
-		Password:         password,
-		DomainName:       domain,
+		IdentityEndpoint:            url,
+		Username:                    user,
+		TenantName:                  project,
+		Password:                    password,
+		DomainName:                  domain,
+		ApplicationCredentialID:     application_credential_id,
+		ApplicationCredentialName:   application_credential_name,
+		ApplicationCredentialSecret: application_credential_secret,
 	}
 
 	return options, nil
-}
-
-// KuberneteExecInfo holds information passed to the plugin by the transport. This
-// contains runtime specific information, such as if the session is interactive,
-// auth API version and kind of request.
-type KuberneteExecInfo struct {
-	APIVersion string                      `json:"apiVersion"`
-	Kind       string                      `json:"kind"`
-	Spec       v1alpha1.ExecCredentialSpec `json:"spec"`
-}
-
-func validateKebernetesExecInfo(kei KuberneteExecInfo) error {
-	if kei.APIVersion != v1alpha1.SchemeGroupVersion.String() {
-		return fmt.Errorf("unsupported API version: %v", kei.APIVersion)
-	}
-
-	if kei.Kind != "ExecCredential" {
-		return fmt.Errorf("incorrect request kind: %v", kei.Kind)
-	}
-
-	return nil
 }
 
 func main() {
@@ -154,43 +125,30 @@ func main() {
 	var password string
 	var options gophercloud.AuthOptions
 	var err error
+	var applicationCredentialID string
+	var applicationCredentialName string
+	var applicationCredentialSecret string
 
 	pflag.StringVar(&url, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
 	pflag.StringVar(&domain, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
 	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
 	pflag.StringVar(&project, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
+	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
+	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
+	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
 	kflag.InitFlags()
 
-	keiData := os.Getenv("KUBERNETES_EXEC_INFO")
-	if keiData == "" {
-		fmt.Fprintln(os.Stderr, "KUBERNETES_EXEC_INFO env variable must be set.")
-		os.Exit(1)
-	}
-
-	kei := KuberneteExecInfo{}
-	err = json.Unmarshal([]byte(keiData), &kei)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to parse KUBERNETES_EXEC_INFO value.")
-		os.Exit(1)
-	}
-
-	err = validateKebernetesExecInfo(kei)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "An error occurred: %v\n", err)
-		os.Exit(1)
-	}
-
 	// Generate Gophercloud Auth Options based on input data from stdin
-	// if "intaractive" is set to true, or from env variables otherwise.
-	if !kei.Spec.Interactive {
+	// if IsTerminal returns "true", or from env variables otherwise.
+	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
 		options, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s", err)
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain, user, project, password)
+		options, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
@@ -201,11 +159,13 @@ func main() {
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrDefault401); ok {
 			fmt.Println(errRespTemplate)
+			os.Stderr.WriteString("Invalid user credentials were provided\n")
 			os.Exit(0)
 		}
 		fmt.Fprintf(os.Stderr, "An error occurred: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf(respTemplate, token.ID, token.ExpiresAt.Format(time.RFC3339Nano))
+	out := fmt.Sprintf(respTemplate, token.ID, token.ExpiresAt.Format(time.RFC3339Nano))
+	fmt.Println(out)
 }

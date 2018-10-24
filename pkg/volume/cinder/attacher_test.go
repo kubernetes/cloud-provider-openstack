@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/cloudprovider"
+	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/kubernetes/pkg/volume"
 	volumetest "k8s.io/kubernetes/pkg/volume/testing"
 
@@ -741,7 +741,7 @@ func (instances *instances) List(filter string) ([]types.NodeName, error) {
 }
 
 func (instances *instances) AddSSHKeyToAllInstances(ctx context.Context, user string, keyData []byte) error {
-	return errors.New("Not implemented")
+	return cloudprovider.NotImplemented
 }
 
 func (instances *instances) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {

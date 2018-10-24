@@ -84,7 +84,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, err
 		}
 
-		glog.V(4).Infof("Create volume %s in Availability Zone: %s of size %s GiB", resID, resAvailability, resSize)
+		glog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
 
 	}
 

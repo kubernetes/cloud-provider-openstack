@@ -22,51 +22,14 @@ import (
 	"sort"
 
 	apiv1 "k8s.io/api/core/v1"
-	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
 )
 
 func hash(data string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(data)))
 }
 
-func getResourceName(ing *ext_v1beta1.Ingress, suffix string) string {
-	name := fmt.Sprintf("k8s-%s-%s-%s", ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, suffix)
-	return name
-}
-
-func loadBalancerStatusDeepCopy(lb *apiv1.LoadBalancerStatus) *apiv1.LoadBalancerStatus {
-	c := &apiv1.LoadBalancerStatus{}
-	c.Ingress = make([]apiv1.LoadBalancerIngress, len(lb.Ingress))
-	for i := range lb.Ingress {
-		c.Ingress[i] = lb.Ingress[i]
-	}
-	return c
-}
-
-func loadBalancerStatusEqual(l, r *apiv1.LoadBalancerStatus) bool {
-	return ingressSliceEqual(l.Ingress, r.Ingress)
-}
-
-func ingressSliceEqual(lhs, rhs []apiv1.LoadBalancerIngress) bool {
-	if len(lhs) != len(rhs) {
-		return false
-	}
-	for i := range lhs {
-		if !ingressEqual(&lhs[i], &rhs[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func ingressEqual(lhs, rhs *apiv1.LoadBalancerIngress) bool {
-	if lhs.IP != rhs.IP {
-		return false
-	}
-	if lhs.Hostname != rhs.Hostname {
-		return false
-	}
-	return true
+func getResourceName(namespace, name, clusterName string) string {
+	return fmt.Sprintf("k8s_%s_%s_%s", clusterName, namespace, name)
 }
 
 func nodeNames(nodes []*apiv1.Node) []string {

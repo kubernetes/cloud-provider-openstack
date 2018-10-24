@@ -93,7 +93,7 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 		config:  cfg,
 	}
 
-	log.Info("openstack client initialized")
+	log.Debug("openstack client initialized")
 
 	return &os, nil
 }

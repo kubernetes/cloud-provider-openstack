@@ -10,7 +10,6 @@ approvers:
 - NickrenREN
 - rootfs
 - zetaab
-- zioproto
 reviewers:
 - anguslees
 - dims
@@ -30,4 +29,3 @@ reviewers:
 - strigazi
 - v1k0d3n
 - zetaab
-- zioproto

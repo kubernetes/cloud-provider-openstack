@@ -6,11 +6,11 @@ The **kubernetes/cloud-provider-openstack** project accepts contribution via git
 
 We'd love to accept your patches! Before we can accept them you need to sign Cloud Native Computing Foundation (CNCF) [CLA](https://github.com/kubernetes/community/blob/master/CLA.md).
 
-<!--- ### Setup the Development Environment --->
-<!---TBD waiting for https://github.com/kubernetes/cloud-provider-openstack/pull/67 to get merged--->
+### Setup the Development Environment 
+Refer [getting started](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/getting-started-provider-dev.md)  document to setup development environment
 
 ### Reporting an issue
-If you find a bug or a feature request related to cloud-provider-openstack you can create a new github issue in this repo.
+If you find a bug or a feature request related to cloud-provider-openstack you can create a new github issue in this repo @[kubernetes/cloud-provider-openstack](https://github.com/kubernetes/cloud-provider-openstack/issues).
 
 ### Contributing a Patch
 1. Submit an issue describing your proposed change to the repo.
