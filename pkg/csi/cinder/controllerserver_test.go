@@ -210,3 +210,30 @@ func TestControllerUnpublishVolume(t *testing.T) {
 	// Assert
 	assert.Equal(expectedRes, actualRes)
 }
+
+func TestListVolumes(t *testing.T) {
+
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+
+	osmock.On("ListVolumes").Return(nil)
+
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	fakeReq := &csi.ListVolumesRequest{}
+
+	// Expected Result
+	expectedRes := &csi.ListVolumesResponse{}
+
+	// Invoke ListVolumes
+	actualRes, err := fakeCs.ListVolumes(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to ListVolumes: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
