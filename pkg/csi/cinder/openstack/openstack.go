@@ -30,6 +30,7 @@ type IOpenStack interface {
 	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
+	ListVolumes() ([]Volume, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error

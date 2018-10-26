@@ -80,6 +80,33 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 	return vol.ID, vol.AvailabilityZone, vol.Size, nil
 }
 
+// ListVolumes list all the volumes
+func (os *OpenStack) ListVolumes() ([]Volume, error) {
+
+	var vlist []Volume
+	opts := volumes.ListOpts{}
+	pages, err := volumes.List(os.blockstorage, opts).AllPages()
+	if err != nil {
+		return vlist, err
+	}
+	vols, err := volumes.ExtractVolumes(pages)
+	if err != nil {
+		return vlist, err
+	}
+
+	for _, v := range vols {
+		volume := Volume{
+			ID:     v.ID,
+			Name:   v.Name,
+			Status: v.Status,
+			AZ:     v.AvailabilityZone,
+			Size:   v.Size,
+		}
+		vlist = append(vlist, volume)
+	}
+	return vlist, nil
+}
+
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
 // Returns a list of Volume references with the specified name
 func (os *OpenStack) GetVolumesByName(n string) ([]Volume, error) {

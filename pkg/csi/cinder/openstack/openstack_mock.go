@@ -259,3 +259,18 @@ func (_m *OpenStackMock) DeleteSnapshot(snapID string) error {
 
 	return r0
 }
+
+// ListVolumes provides a mock function without param
+func (_m *OpenStackMock) ListVolumes() ([]Volume, error) {
+	ret := _m.Called()
+	var vlist []Volume
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return vlist, r0
+}
