@@ -212,7 +212,6 @@ func TestControllerUnpublishVolume(t *testing.T) {
 }
 
 func TestListVolumes(t *testing.T) {
-
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
 
@@ -236,4 +235,33 @@ func TestListVolumes(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+}
+
+// Test CreateVolume
+func TestCreateSnapshot(t *testing.T) {
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+	osmock.On("CreateSnapshot", fakeSnapshotName, fakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&fakeSnapshotRes, nil)
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           fakeSnapshotName,
+		SourceVolumeId: fakeVolID,
+		Parameters:     map[string]string{"tag": "tag1"},
+	}
+
+	// Invoke CreateSnapshot
+	actualRes, err := fakeCs.CreateSnapshot(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot: %v", err)
+	}
+
+	// Assert
+	assert.Equal(fakeVolID, actualRes.Snapshot.SourceVolumeId)
+
+	assert.NotNil(fakeSnapshotID, actualRes.Snapshot.Id)
 }

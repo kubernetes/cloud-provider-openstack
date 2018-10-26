@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"errors"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
@@ -194,7 +195,6 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
@@ -220,6 +220,37 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	}
 	return &csi.ListVolumesResponse{
 		Entries: ventries,
+	}, nil
+}
+
+func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	name := req.Name
+	volumeId := req.SourceVolumeId
+	// No description from csi.CreateSnapshotRequest now
+	description := ""
+
+	// Delegate the check to openstack itself
+	snap, err := cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
+	if err != nil {
+		glog.V(3).Infof("Faled to Create snapshot: %v", err)
+		return nil, err
+	}
+
+	glog.V(4).Infof("CreateSnapshot %s on %s", name, volumeId)
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			Id:             snap.ID,
+			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
+			SourceVolumeId: snap.VolumeID,
+			CreatedAt:      int64(snap.CreatedAt.UnixNano() / int64(time.Millisecond)),
+		},
 	}, nil
 
 }
