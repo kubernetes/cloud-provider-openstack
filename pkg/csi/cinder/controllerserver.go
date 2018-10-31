@@ -18,8 +18,10 @@ package cinder
 
 import (
 	"errors"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
@@ -197,7 +199,6 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
@@ -222,6 +223,107 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		ventries = append(ventries, &ventry)
 	}
 	return &csi.ListVolumesResponse{
+		Entries: ventries,
+	}, nil
+}
+
+func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	name := req.Name
+	volumeId := req.SourceVolumeId
+	// No description from csi.CreateSnapshotRequest now
+	description := ""
+
+	// Verify a snapshot with the provided name doesn't already exist for this tenant
+	snapshots, err := cloud.GetSnapshotByNameAndVolumeID(name, volumeId)
+	if err != nil {
+		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
+	}
+	var snap *ossnapshots.Snapshot
+
+	if len(snapshots) == 1 {
+		snap = &snapshots[0]
+
+		klog.V(3).Infof("Found existing snapshot %s on %s", name, volumeId)
+	} else if len(snapshots) > 1 {
+		klog.V(3).Infof("found multiple existing snapshots with selected name (%s) during create", name)
+		return nil, errors.New("multiple snapshots reported by Cinder with same name")
+	} else {
+		// TODO: Delegate the check to openstack itself and ignore the conflict
+		snap, err = cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
+		if err != nil {
+			klog.V(3).Infof("Failed to Create snapshot: %v", err)
+			return nil, err
+		}
+
+		klog.V(3).Infof("CreateSnapshot %s on %s", name, volumeId)
+	}
+
+	// TODO: add snapshot status
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			Id:             snap.ID,
+			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
+			SourceVolumeId: snap.VolumeID,
+			CreatedAt:      int64(snap.CreatedAt.UnixNano() / int64(time.Millisecond)),
+		},
+	}, nil
+}
+
+func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	id := req.SnapshotId
+
+	// Delegate the check to openstack itself
+	err = cloud.DeleteSnapshot(id)
+	if err != nil {
+		klog.V(3).Infof("Faled to Delete snapshot: %v", err)
+		return nil, err
+	}
+	return &csi.DeleteSnapshotResponse{}, nil
+}
+
+func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	filters := map[string]string{}
+	// FIXME: honor the limit, offset and filters later
+	vlist, err := cloud.ListSnapshots(int(req.MaxEntries), 0, filters)
+	if err != nil {
+		klog.V(3).Infof("Failed to ListSnapshots: %v", err)
+		return nil, err
+	}
+
+	var ventries []*csi.ListSnapshotsResponse_Entry
+	for _, v := range vlist {
+		ventry := csi.ListSnapshotsResponse_Entry{
+			Snapshot: &csi.Snapshot{
+				SizeBytes:      int64(v.Size * 1024 * 1024 * 1024),
+				Id:             v.ID,
+				SourceVolumeId: v.VolumeID,
+				CreatedAt:      int64(v.CreatedAt.UnixNano() / int64(time.Millisecond)),
+			},
+		}
+		ventries = append(ventries, &ventry)
+	}
+	return &csi.ListSnapshotsResponse{
 		Entries: ventries,
 	}, nil
 

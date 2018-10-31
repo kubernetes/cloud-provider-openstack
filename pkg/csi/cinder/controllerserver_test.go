@@ -212,7 +212,6 @@ func TestControllerUnpublishVolume(t *testing.T) {
 }
 
 func TestListVolumes(t *testing.T) {
-
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
 
@@ -236,4 +235,88 @@ func TestListVolumes(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+}
+
+// Test CreateVolume
+func TestCreateSnapshot(t *testing.T) {
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+	osmock.On("CreateSnapshot", fakeSnapshotName, fakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&fakeSnapshotRes, nil)
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           fakeSnapshotName,
+		SourceVolumeId: fakeVolID,
+		Parameters:     map[string]string{"tag": "tag1"},
+	}
+
+	// Invoke CreateSnapshot
+	actualRes, err := fakeCs.CreateSnapshot(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot: %v", err)
+	}
+
+	// Assert
+	assert.Equal(fakeVolID, actualRes.Snapshot.SourceVolumeId)
+
+	assert.NotNil(fakeSnapshotID, actualRes.Snapshot.Id)
+}
+
+// Test DeleteSnapshot
+func TestDeleteSnapshot(t *testing.T) {
+
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+	// DeleteSnapshot(volumeID string) error
+	osmock.On("DeleteSnapshot", fakeSnapshotID).Return(nil)
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.DeleteSnapshotRequest{
+		SnapshotId: fakeSnapshotID,
+	}
+
+	// Expected Result
+	expectedRes := &csi.DeleteSnapshotResponse{}
+
+	// Invoke DeleteSnapshot
+	actualRes, err := fakeCs.DeleteSnapshot(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to DeleteVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+func TestListSnapshots(t *testing.T) {
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+
+	osmock.On("ListSnapshots", 0, 0, map[string]string{}).Return(fakeSnapshotsRes, nil)
+
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	fakeReq := &csi.ListSnapshotsRequest{}
+
+	// Invoke ListVolumes
+	actualRes, err := fakeCs.ListSnapshots(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to ListSnapshots: %v", err)
+	}
+
+	// Assert
+	assert.Equal(fakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
+
+	assert.NotNil(fakeSnapshotID, actualRes.Entries[0].Snapshot.Id)
 }

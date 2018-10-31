@@ -34,6 +34,7 @@ func (os *OpenStack) CreateSnapshot(name, volID, description string, tags *map[s
 	if tags != nil {
 		opts.Metadata = *tags
 	}
+	// TODO: Do some check before really call openstack API on the input
 
 	snap, err := snapshots.Create(os.blockstorage, opts).Extract()
 	if err != nil {
@@ -49,6 +50,7 @@ func (os *OpenStack) CreateSnapshot(name, volID, description string, tags *map[s
 // In addition the filters argument provides a mechanism for passing in valid filter strings to the list
 // operation.  Valid filter keys are:  Name, Status, VolumeID (TenantID has no effect)
 func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
+	// FIXME: honor the limit, offset and filters later
 	opts := snapshots.ListOpts{}
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
 	if err != nil {
@@ -64,6 +66,25 @@ func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string)
 	// return the gophercloud item
 	return snaps, nil
 
+}
+
+// GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
+// Returns a list of Volume references with the specified name
+func (os *OpenStack) GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error) {
+	opts := snapshots.ListOpts{Name: n, VolumeID: volumeId}
+	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
+	if err != nil {
+		klog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
+		return nil, err
+	}
+	snaps, err := snapshots.ExtractSnapshots(pages)
+	if err != nil {
+		klog.V(3).Infof("Failed to extract snapshot pages from Cinder: %v", err)
+		return nil, err
+	}
+	// There's little value in rewrapping these gophercloud types into yet another abstraction/type, instead just
+	// return the gophercloud item
+	return snaps, nil
 }
 
 // DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend

@@ -39,6 +39,7 @@ type IOpenStack interface {
 	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
+	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)
 }
 
 type OpenStack struct {
