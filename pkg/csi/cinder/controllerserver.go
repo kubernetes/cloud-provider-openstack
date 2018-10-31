@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"errors"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
@@ -194,7 +195,6 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
@@ -219,6 +219,89 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		ventries = append(ventries, &ventry)
 	}
 	return &csi.ListVolumesResponse{
+		Entries: ventries,
+	}, nil
+}
+
+func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	name := req.Name
+	volumeId := req.SourceVolumeId
+	// No description from csi.CreateSnapshotRequest now
+	description := ""
+
+	// Delegate the check to openstack itself
+	snap, err := cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
+	if err != nil {
+		glog.V(3).Infof("Faled to Create snapshot: %v", err)
+		return nil, err
+	}
+
+	glog.V(4).Infof("CreateSnapshot %s on %s", name, volumeId)
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			Id:             snap.ID,
+			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
+			SourceVolumeId: snap.VolumeID,
+			CreatedAt:      int64(snap.CreatedAt.UnixNano() / int64(time.Millisecond)),
+		},
+	}, nil
+}
+
+func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	id := req.SnapshotId
+
+	// Delegate the check to openstack itself
+	err = cloud.DeleteSnapshot(id)
+	if err != nil {
+		glog.V(3).Infof("Faled to Delete snapshot: %v", err)
+		return nil, err
+	}
+	return &csi.DeleteSnapshotResponse{}, nil
+}
+
+func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
+	// Get OpenStack Provider
+	cloud, err := openstack.GetOpenStackProvider()
+	if err != nil {
+		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return nil, err
+	}
+
+	filters := map[string]string{}
+	// FIXME: honor the limit, offset and filters later
+	vlist, err := cloud.ListSnapshots(int(req.MaxEntries), 0, filters)
+	if err != nil {
+		glog.V(3).Infof("Failed to ListSnapshots: %v", err)
+		return nil, err
+	}
+
+	var ventries []*csi.ListSnapshotsResponse_Entry
+	for _, v := range vlist {
+		ventry := csi.ListSnapshotsResponse_Entry{
+			Snapshot: &csi.Snapshot{
+				SizeBytes:      int64(v.Size * 1024 * 1024 * 1024),
+				Id:             v.ID,
+				SourceVolumeId: v.VolumeID,
+				CreatedAt:      int64(v.CreatedAt.UnixNano() / int64(time.Millisecond)),
+			},
+		}
+		ventries = append(ventries, &ventry)
+	}
+	return &csi.ListSnapshotsResponse{
 		Entries: ventries,
 	}, nil
 

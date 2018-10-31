@@ -49,6 +49,7 @@ func (os *OpenStack) CreateSnapshot(name, volID, description string, tags *map[s
 // In addition the filters argument provides a mechanism for passing in valid filter strings to the list
 // operation.  Valid filter keys are:  Name, Status, VolumeID (TenantID has no effect)
 func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
+	// FIXME: honor the limit, offset and filters later
 	opts := snapshots.ListOpts{}
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
 	if err != nil {
