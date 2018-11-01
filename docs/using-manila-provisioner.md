@@ -39,6 +39,7 @@ None.
 Key | For backend | For protocol  | Required | Default Value | Description
 --- | ----------- | ------------- | ------------- | ----------- |---------
 `csi-driver` | `csi-cephfs` | `CEPHFS` | Yes | None | Name of the CSI driver
+`mounter` | `csi-cephfs` | `CEPHFS` | No | `fuse` | Mounter to use in. Available options are `fuse` and `kernel`. Please consult the [csi-cephfs docs](https://github.com/ceph/ceph-csi/blob/master/docs/deploy-cephfs.md#configuration) for more info
 `nfs-share-client` | `nfs` | `NFS` | No | `0.0.0.0` | Default NFS client for the share
 
 ## Authentication with Manila v2 client
