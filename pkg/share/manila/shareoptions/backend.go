@@ -18,7 +18,10 @@ package shareoptions
 
 // BackendOptions contains backend-specific options
 type BackendOptions struct {
-	CSICEPHFSdriver string `name:"csi-driver" backend:"csi-cephfs" protocol:"CEPHFS"`
-	NFSShareClient  string `name:"nfs-share-client" backend:"nfs" protocol:"NFS" value:"default=0.0.0.0"`
+	CSICEPHFSdriver  string `name:"csi-driver" backend:"csi-cephfs" protocol:"CEPHFS"`
+	CSICEPHFSmounter string `name:"mounter" backend:"csi-cephfs" protocol:"CEPHFS" value:"default=fuse"`
+
+	NFSShareClient string `name:"nfs-share-client" backend:"nfs" protocol:"NFS" value:"default=0.0.0.0"`
+
 	// Add more backend options here
 }
