@@ -72,6 +72,7 @@ func TestCSICephFSBuildSource(t *testing.T) {
 	}
 
 	args.Options.CSICEPHFSdriver = "csi-cephfs"
+	args.Options.CSICEPHFSmounter = "fuse"
 	args.Options.OSSecretNamespace = "default"
 
 	source, err := b.BuildSource(&args)
