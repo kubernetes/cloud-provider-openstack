@@ -4,7 +4,7 @@
 
 ### Requirements
 
-The following feature gates and runtime config have to be enabled to deploy the driver.
+Enable Following features gates for kubernetes cluster running versions lower than v1.10.
 
 ```
 FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true
@@ -12,6 +12,8 @@ RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true"
 ```
 
 MountPropagation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
+
+Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag details and latest update.
 
 ### Example local-up-cluster.sh
 
