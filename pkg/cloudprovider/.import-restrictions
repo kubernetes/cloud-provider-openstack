@@ -1,0 +1,14 @@
+{
+	"Rules": [{
+		"SelectorRegexp": "k8s[.]io",
+		"AllowedPrefixes": [
+			"k8s.io/api",
+			"k8s.io/client-go",
+			"k8s.io/cloud-provider",
+			"k8s.io/utils"
+		],
+		"ForbiddenPrefixes": [
+			"k8s.io/kubernetes"
+		]
+	}]
+}

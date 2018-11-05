@@ -22,6 +22,7 @@ HAS_MERCURIAL := $(shell command -v hg;)
 HAS_DEP := $(shell command -v dep;)
 HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
+HAS_IMPORT_BOSS := $(shell command -v import-boss;)
 GOX_PARALLEL ?= 3
 TARGETS ?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le
 DIST_DIRS         = find * -type d -exec
@@ -110,7 +111,7 @@ manila-provisioner: depend $(SOURCES)
 
 test: unit functional
 
-check: depend fmt vet lint
+check: depend fmt vet lint import-boss
 
 unit: depend
 	go test -tags=unit $(shell go list ./...) $(TESTARGS)
@@ -127,6 +128,13 @@ ifndef HAS_LINT
 		echo "installing lint"
 endif
 	hack/verify-golint.sh
+
+import-boss:
+ifndef HAS_IMPORT_BOSS
+		go get -u k8s.io/code-generator/cmd/import-boss
+		echo "installing import-boss"
+endif
+	hack/verify-import-boss.sh
 
 vet:
 	go vet ./...
@@ -289,5 +297,5 @@ dist: build-cross
 		$(DIST_DIRS) zip -r cloud-provider-openstack-$(VERSION)-{}.zip {} \; \
 	)
 
-.PHONY: bindep build clean cover depend docs fmt functional lint realclean \
+.PHONY: bindep build clean cover depend docs fmt functional lint import-boss realclean \
 	relnotes test translation version build-cross dist
