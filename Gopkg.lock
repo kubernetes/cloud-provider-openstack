@@ -1405,7 +1405,7 @@
   revision = "9dfdf9be683f61f82cda12362c44c784e0778b56"
 
 [[projects]]
-  digest = "1:c031497b37b3c5e3b47998eb84325f8161f1192fe8d8a574e7aea35b0f747156"
+  digest = "1:419ff08e1f062c2ba13df1cfc77333aa106ce8b98fbf9ac308b237829cbb2844"
   name = "k8s.io/kubernetes"
   packages = [
     "cmd/cloud-controller-manager/app",
@@ -1420,7 +1420,6 @@
     "pkg/api/service",
     "pkg/api/v1/node",
     "pkg/api/v1/pod",
-    "pkg/api/v1/service",
     "pkg/apis/autoscaling",
     "pkg/apis/core",
     "pkg/apis/core/helper",
@@ -1555,6 +1554,7 @@
     "github.com/stretchr/testify/mock",
     "golang.org/x/crypto/ssh/terminal",
     "golang.org/x/net/context",
+    "golang.org/x/sys/unix",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/status",
     "gopkg.in/gcfg.v1",
@@ -1582,11 +1582,14 @@
     "k8s.io/client-go/informers",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/fake",
+    "k8s.io/client-go/kubernetes/scheme",
+    "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/listers/extensions/v1beta1",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
+    "k8s.io/client-go/tools/record",
     "k8s.io/client-go/util/cert",
     "k8s.io/client-go/util/retry",
     "k8s.io/client-go/util/testing",
@@ -1594,8 +1597,6 @@
     "k8s.io/cloud-provider",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app/options",
-    "k8s.io/kubernetes/pkg/api/v1/service",
-    "k8s.io/kubernetes/pkg/apis/core/v1/helper",
     "k8s.io/kubernetes/pkg/client/metrics/prometheus",
     "k8s.io/kubernetes/pkg/controller/volume/persistentvolume",
     "k8s.io/kubernetes/pkg/features",
