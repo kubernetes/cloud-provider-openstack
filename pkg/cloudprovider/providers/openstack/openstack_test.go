@@ -19,7 +19,9 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -29,8 +31,8 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"k8s.io/api/core/v1"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -164,6 +166,112 @@ func TestReadConfig(t *testing.T) {
 	}
 	if cfg.Metadata.SearchOrder != "configDrive, metadataService" {
 		t.Errorf("incorrect md.search-order: %v", cfg.Metadata.SearchOrder)
+	}
+}
+
+func TestReadClouds(t *testing.T) {
+	// Clean up env
+	env := clearEnviron(t)
+	defer resetEnviron(t, env)
+
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		t.Error(err)
+	}
+
+	cloudFile := dir + "/test_clouds.yaml"
+	_ = os.Remove(cloudFile)
+
+	// Environment setup
+	os.Setenv("OS_PASSWORD", "mypass")
+	defer os.Unsetenv("OS_PASSWORD")
+
+	os.Setenv("OS_AUTH_URL", "http://wrong-auth.url")
+	defer os.Unsetenv("OS_AUTH_URL")
+
+	os.Setenv("OS_CLOUD", "default")
+	defer os.Unsetenv("OS_CLOUD")
+
+	var cloud = `
+clouds:
+  default:
+    auth:
+      domain_name: default
+      auth_url: http://not-auth.url
+      project_name: demo
+      username: admin
+      user_id: user
+    region_name: RegionOne
+    identity_api_version: 3
+`
+	data := []byte(cloud)
+	err = ioutil.WriteFile(cloudFile, data, 0644)
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(cloudFile)
+
+	cfg, err := ReadConfig(strings.NewReader(`
+ [Global]
+ auth-url = http://auth.url
+ trust-id = mytrust
+ use-clouds = true
+ clouds-file = ` + cloudFile + `
+ [LoadBalancer]
+ create-monitor = yes
+ monitor-delay = 1m
+ monitor-timeout = 30s
+ monitor-max-retries = 3
+ [BlockStorage]
+ bs-version = auto
+ trust-device-path = yes
+ ignore-volume-az = yes
+ [Metadata]
+ search-order = configDrive, metadataService
+`))
+
+	if err != nil {
+		t.Fatalf("Should succeed when a valid config is provided: %s", err)
+	}
+
+	// config has priority
+	if cfg.Global.AuthURL != "http://auth.url" {
+		t.Errorf("incorrect IdentityEndpoint: %s", cfg.Global.AuthURL)
+	}
+
+	if cfg.Global.UserID != "user" {
+		t.Errorf("incorrect user-id: %s", cfg.Global.UserID)
+	}
+
+	if cfg.Global.Username != "admin" {
+		t.Errorf("incorrect user-name: %s", cfg.Global.Username)
+	}
+
+	if cfg.Global.Password != "mypass" {
+		t.Errorf("incorrect password: %s", cfg.Global.Password)
+	}
+
+	if cfg.Global.Region != "RegionOne" {
+		t.Errorf("incorrect region: %s", cfg.Global.Region)
+	}
+
+	if cfg.Global.TenantName != "demo" {
+		t.Errorf("incorrect tenant name: %s", cfg.Global.TenantName)
+	}
+
+	if cfg.Global.TrustID != "mytrust" {
+		t.Errorf("incorrect tenant name: %s", cfg.Global.TrustID)
+	}
+
+	// Make non-global sections dont get overwritten
+	if cfg.BlockStorage.TrustDevicePath != true {
+		t.Errorf("incorrect bs.trustdevicepath: %v", cfg.BlockStorage.TrustDevicePath)
+	}
+	if cfg.BlockStorage.BSVersion != "auto" {
+		t.Errorf("incorrect bs.bs-version: %v", cfg.BlockStorage.BSVersion)
+	}
+	if !cfg.LoadBalancer.CreateMonitor {
+		t.Errorf("incorrect lb.createmonitor: %t", cfg.LoadBalancer.CreateMonitor)
 	}
 }
 
