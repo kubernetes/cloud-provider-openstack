@@ -39,8 +39,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/gcfg.v1"
+	gcfg "gopkg.in/gcfg.v1"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -169,6 +170,8 @@ type Config struct {
 		DomainName string `gcfg:"domain-name"`
 		Region     string
 		CAFile     string `gcfg:"ca-file"`
+		UseClouds  bool   `gcfg:"use-clouds"`
+		CloudsFile string `gcfg:"clouds-file,omitempty"`
 	}
 	LoadBalancer LoadBalancerOpts
 	BlockStorage BlockStorageOpts
@@ -219,6 +222,7 @@ func (cfg Config) toAuth3Options() tokens3.AuthOptions {
 
 // configFromEnv allows setting up credentials etc using the
 // standard OS_* OpenStack client environment variables.
+// TODO: Replace this with gophercloud upstream once community moves away from cloud.conf
 func configFromEnv() (cfg Config, ok bool) {
 	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
 	cfg.Global.Username = os.Getenv("OS_USERNAME")
@@ -261,6 +265,7 @@ func configFromEnv() (cfg Config, ok bool) {
 	return
 }
 
+// ReadConfig reads values from environment variables and the cloud.conf, prioritizing cloud-config
 func ReadConfig(config io.Reader) (Config, error) {
 	if config == nil {
 		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
@@ -277,7 +282,47 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.Networking.PublicNetworkName = "public"
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
+	if cfg.Global.UseClouds {
+		if cfg.Global.CloudsFile != "" {
+			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
+		}
+		err = ReadClouds(&cfg)
+		if err != nil {
+			return Config{}, err
+		}
+	}
 	return cfg, err
+}
+
+// replaceEmpty is a helper function to replace empty fields with another field
+func replaceEmpty(a string, b string) string {
+	if a == "" {
+		return b
+	}
+	return a
+}
+
+// ReadClouds reads Reads clouds.yaml to generate a Config
+// Allows the cloud-config to have priority
+func ReadClouds(cfg *Config) error {
+	co := new(clientconfig.ClientOpts)
+	cloud, err := clientconfig.GetCloudFromYAML(co)
+	if err != nil && err.Error() != "unable to load clouds.yaml: no clouds.yaml file found" {
+		return err
+	}
+
+	cfg.Global.AuthURL = replaceEmpty(cfg.Global.AuthURL, cloud.AuthInfo.AuthURL)
+	cfg.Global.Username = replaceEmpty(cfg.Global.Username, cloud.AuthInfo.Username)
+	cfg.Global.UserID = replaceEmpty(cfg.Global.UserID, cloud.AuthInfo.UserID)
+	cfg.Global.Password = replaceEmpty(cfg.Global.Password, cloud.AuthInfo.Password)
+	cfg.Global.TenantID = replaceEmpty(cfg.Global.TenantID, cloud.AuthInfo.ProjectID)
+	cfg.Global.TenantName = replaceEmpty(cfg.Global.TenantName, cloud.AuthInfo.ProjectName)
+	cfg.Global.DomainID = replaceEmpty(cfg.Global.DomainID, cloud.AuthInfo.UserDomainID)
+	cfg.Global.DomainName = replaceEmpty(cfg.Global.DomainName, cloud.AuthInfo.UserDomainName)
+	cfg.Global.Region = replaceEmpty(cfg.Global.Region, cloud.RegionName)
+	cfg.Global.CAFile = replaceEmpty(cfg.Global.CAFile, cloud.CACertFile)
+
+	return nil
 }
 
 // caller is a tiny helper for conditional unwind logic
@@ -336,6 +381,7 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
+// NewOpenStack creates a new new instance of the openstack struct from a config struct
 func NewOpenStack(cfg Config) (*OpenStack, error) {
 	provider, err := openstack.NewClient(cfg.Global.AuthURL)
 	if err != nil {

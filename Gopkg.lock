@@ -329,6 +329,14 @@
   revision = "04bc8f551ef2b34dad9d1d26634aa7a4d565f11f"
 
 [[projects]]
+  branch = "master"
+  digest = "1:df12b635fdefd90b1d139a70c45716896552051589b004021c745dcbaf0dad96"
+  name = "github.com/gophercloud/utils"
+  packages = ["openstack/clientconfig"]
+  pruneopts = "UT"
+  revision = "34f5991525d116b3832e0d9409492274f1c06bda"
+
+[[projects]]
   digest = "1:c79fb010be38a59d657c48c6ba1d003a8aa651fa56b579d959d74573b7dff8e1"
   name = "github.com/gorilla/context"
   packages = ["."]
@@ -1516,6 +1524,7 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
+
   input-imports = [
     "github.com/container-storage-interface/spec/lib/go/csi/v0",
     "github.com/golang/glog",
@@ -1555,6 +1564,7 @@
     "github.com/gophercloud/gophercloud/pagination",
     "github.com/gophercloud/gophercloud/testhelper",
     "github.com/gophercloud/gophercloud/testhelper/client",
+    "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/gorilla/mux",
     "github.com/kubernetes-csi/drivers/pkg/csi-common",
     "github.com/kubernetes-incubator/external-storage/lib/controller",

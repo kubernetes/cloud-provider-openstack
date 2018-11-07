@@ -5,22 +5,24 @@ to the OpenStack Cloud Provider.
 
 ## Contents
 
-* [Supported Services](#supported-services)
-* [Cloud Configuration File](#cloud-configuration-file)
-  * [Sample Configuration](#sample-configuration)
-  * [Configuration Options](#configuration-options)
-    * [Global](#global)
-      * [Global Required Parameters](#global-required-parameters)
-      * [Global Optional Parameters](#global-optional-parameters)
-    * [Block Storage](#block-storage)
-      * [Block Storage Optional Parameters](#block-storage-optional-parameters)
-      * [Block Storage Notes](#block-storage-notes)
-    * [Load Balancer](#load-balancer)
-      * [Load Balancer Optional Parameters](#load-balancer-optional-parameters)
-    * [Metadata](#metadata)
-      * [Metadata Optional Parameters](#metadata-optional-parameters)
-    * [Router](#router)
-      * [Router Optional Parameters](#router-optional-parameters)
+- [OpenStack Cloud Provider Configuration Options](#openstack-cloud-provider-configuration-options)
+  - [Contents](#contents)
+  - [Supported Services](#supported-services)
+  - [Cloud Configuration File](#cloud-configuration-file)
+    - [Sample configuration](#sample-configuration)
+    - [Configuration Options](#configuration-options)
+      - [Global](#global)
+        - [Global Required Parameters](#global-required-parameters)
+        - [Global Optional Parameters](#global-optional-parameters)
+      - [Load Balancer](#load-balancer)
+        - [Load Balancer Optional Parameters](#load-balancer-optional-parameters)
+      - [Block Storage](#block-storage)
+        - [Block Storage Optional Parameters](#block-storage-optional-parameters)
+        - [Block Storage Notes](#block-storage-notes)
+      - [Metadata](#metadata)
+        - [Metadata Optional Parameters](#metadata-optional-parameters)
+      - [Router](#router)
+        - [Router Optional Parameters](#router-optional-parameters)
 
 ## Supported Services
 
@@ -123,6 +125,12 @@ file.
   delegate roles to another user (the trustee), and optionally allow the trustee
   to impersonate the trustor. Available trusts are found under the
   `/v3/OS-TRUST/trusts` endpoint of the Keystone API.
+* `UseClouds`: Set this flag to `true` to get authorization credentials from a clouds.yaml file. Options manually set in the `[Global]` section of cloud.conf will be prioritized over values read from clouds.yaml. The recommended usage is to set the option `CloudsFile` with the path to your clouds.yaml file. However, by default a clouds.yaml file will be looked for in the following locations, in order, if it is not set:
+    1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
+    2. The directory `pkg/cloudprovider/providers/openstack/`
+    3. The directory `~/.config/openstack`
+    4. The directory `/etc/openstack`
+* `CloudsFile`: Used to specify the path to a clouds.yaml file that you want read authorization data from
 
 
 ####  Load Balancer
