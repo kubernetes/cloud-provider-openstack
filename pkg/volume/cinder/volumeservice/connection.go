@@ -33,9 +33,9 @@ import (
 
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 
-	"github.com/golang/glog"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/klog"
 )
 
 type cinderConfig struct {
@@ -111,7 +111,7 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 		var configFile *os.File
 		configFile, err := os.Open(configFilePath)
 		if err != nil {
-			glog.Fatalf("Couldn't open configuration %s: %#v",
+			klog.Fatalf("Couldn't open configuration %s: %#v",
 				configFilePath, err)
 			return cinderConfig{}, err
 		}
@@ -120,13 +120,13 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 
 		err = gcfg.FatalOnly(gcfg.ReadInto(&config, configFile))
 		if err != nil {
-			glog.Fatalf("Couldn't read configuration: %#v", err)
+			klog.Fatalf("Couldn't read configuration: %#v", err)
 			return cinderConfig{}, err
 		}
 		return config, nil
 	}
 	if reflect.DeepEqual(config, cinderConfig{}) {
-		glog.Fatal("Configuration missing: no config file specified and " +
+		klog.Fatal("Configuration missing: no config file specified and " +
 			"environment variables are not set.")
 	}
 	return config, nil

@@ -18,7 +18,7 @@ package cinder
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	"github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -46,7 +46,7 @@ var (
 )
 
 func NewDriver(nodeID, endpoint string, cloudconfig string) *driver {
-	glog.Infof("Driver: %v version: %v", driverName, version)
+	klog.Infof("Driver: %v version: %v", driverName, version)
 
 	d := &driver{}
 

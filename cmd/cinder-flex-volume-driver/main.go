@@ -21,7 +21,12 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/flexvolume"
 	"k8s.io/cloud-provider-openstack/pkg/flexvolume/uuid"
+	"k8s.io/klog"
 )
+
+func init() {
+	klog.InitFlags(nil)
+}
 
 func main() {
 	driver := flexvolume.NewFlexVolumeDriver(uuid.NewUUID())
