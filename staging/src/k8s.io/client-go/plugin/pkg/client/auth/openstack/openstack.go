@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud/openstack"
+	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/util/net"
 	restclient "k8s.io/client-go/rest"
@@ -31,7 +31,7 @@ import (
 
 func init() {
 	if err := restclient.RegisterAuthProviderPlugin("openstack", newOpenstackAuthProvider); err != nil {
-		glog.Fatalf("Failed to register openstack auth plugin: %s", err)
+		klog.Fatalf("Failed to register openstack auth plugin: %s", err)
 	}
 }
 
@@ -116,7 +116,7 @@ func (t *tokenRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	if err == nil {
 		req.Header.Set("Authorization", "Bearer "+token)
 	} else {
-		glog.V(4).Infof("failed to get token: %s", err)
+		klog.V(4).Infof("failed to get token: %s", err)
 	}
 
 	return t.RoundTripper.RoundTrip(req)

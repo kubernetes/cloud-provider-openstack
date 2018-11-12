@@ -19,11 +19,11 @@ package openstack
 import (
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"gopkg.in/gcfg.v1"
+	"k8s.io/klog"
 )
 
 type IOpenStack interface {
@@ -82,7 +82,7 @@ func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercl
 	var epOpts gophercloud.EndpointOpts
 	config, err := os.Open(configFilePath)
 	if err != nil {
-		glog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
+		klog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
 		return authOpts, epOpts, err
 	}
 	defer config.Close()
@@ -91,7 +91,7 @@ func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercl
 	var cfg Config
 	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
-		glog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
+		klog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
 		return authOpts, epOpts, err
 	}
 
@@ -108,7 +108,7 @@ func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, erro
 	authOpts, err := openstack.AuthOptionsFromEnv()
 	var epOpts gophercloud.EndpointOpts
 	if err != nil {
-		glog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
+		klog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
 		return authOpts, epOpts, err
 	}
 
@@ -124,7 +124,7 @@ var configFile string = "/etc/cloud.conf"
 
 func InitOpenStackProvider(cfg string) {
 	configFile = cfg
-	glog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
+	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
 }
 
 func GetOpenStackProvider() (IOpenStack, error) {

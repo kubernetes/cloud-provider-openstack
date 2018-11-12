@@ -21,8 +21,8 @@ import (
 	"errors"
 	"io/ioutil"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
+	"k8s.io/klog"
 
 	"k8s.io/apiserver/pkg/authentication/user"
 )
@@ -69,14 +69,14 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	url := a.client.ServiceURL("auth", "tokens")
 	response, err := a.client.Request("GET", url, &requestOpts)
 	if err != nil {
-		glog.Warningf("Failed: bad response from API call: %v", err)
+		klog.Warningf("Failed: bad response from API call: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
 	defer response.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		glog.Warningf("Cannot get HTTP response body from keystone token validate: %v", err)
+		klog.Warningf("Cannot get HTTP response body from keystone token validate: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 
@@ -84,7 +84,7 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 
 	err = json.Unmarshal(bodyBytes, &obj)
 	if err != nil {
-		glog.Warningf("Cannot unmarshal response: %v", err)
+		klog.Warningf("Cannot unmarshal response: %v", err)
 		return nil, false, errors.New("Failed to authenticate")
 	}
 

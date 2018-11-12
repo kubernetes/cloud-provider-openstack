@@ -20,12 +20,12 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
 )
 
 func createPVC(name string, size string) *v1.PersistentVolumeClaim {
@@ -33,7 +33,7 @@ func createPVC(name string, size string) *v1.PersistentVolumeClaim {
 
 	capacity, err := resource.ParseQuantity("1Gi")
 	if err != nil {
-		glog.Error("Programmer error, cannot parse quantity string")
+		klog.Error("Programmer error, cannot parse quantity string")
 		return &v1.PersistentVolumeClaim{}
 	}
 	return &v1.PersistentVolumeClaim{

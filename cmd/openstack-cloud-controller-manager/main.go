@@ -40,14 +40,15 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 )
 
 var version string
 
 func init() {
+	klog.InitFlags(nil)
 	healthz.DefaultHealthz()
 }
 
@@ -57,7 +58,7 @@ func main() {
 	goflag.CommandLine.Parse([]string{})
 	s, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
-		glog.Fatalf("unable to initialize command options: %v", err)
+		klog.Fatalf("unable to initialize command options: %v", err)
 	}
 
 	command := &cobra.Command{
@@ -96,7 +97,7 @@ the cloud specific control loops shipped with Kubernetes.`,
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	glog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
+	klog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
 
 	s.KubeCloudShared.CloudProvider.Name = openstack.ProviderName
 	if err := command.Execute(); err != nil {

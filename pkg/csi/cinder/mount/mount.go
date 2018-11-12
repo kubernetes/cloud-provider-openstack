@@ -27,7 +27,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume/util"
 	utilexec "k8s.io/utils/exec"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 const (
@@ -75,10 +75,9 @@ func probeVolume() error {
 	cmd := executor.Command("udevadm", args...)
 	_, err := cmd.CombinedOutput()
 	if err != nil {
-		glog.V(3).Infof("error running udevadm trigger %v\n", err)
+		klog.V(3).Infof("error running udevadm trigger %v\n", err)
 		return err
 	}
-	glog.V(4).Info("Successfully probed all attachments")
 	return nil
 }
 
@@ -92,14 +91,14 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 	for {
 		select {
 		case <-ticker.C:
-			glog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
+			klog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
 			probeVolume()
 
 			exists, err := util.PathExists(devicePath)
 			if exists && err == nil {
 				return nil
 			} else {
-				glog.V(3).Infof("Could not find attached Cinder disk %s", devicePath)
+				klog.V(3).Infof("Could not find attached Cinder disk %s", devicePath)
 			}
 		case <-timer.C:
 			return fmt.Errorf("Could not find attached Cinder disk %s. Timeout waiting for mount paths to be created.", devicePath)
@@ -152,7 +151,7 @@ func (m *Mount) GetInstanceID() (string, error) {
 	if err == nil {
 		instanceID := string(idBytes)
 		instanceID = strings.TrimSpace(instanceID)
-		glog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
+		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
 		if instanceID != "" {
 			return instanceID, nil
 		}

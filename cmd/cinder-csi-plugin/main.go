@@ -23,6 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	"k8s.io/klog"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 )
 
 func init() {
+	klog.InitFlags(nil)
 	flag.Set("logtostderr", "true")
 }
 
