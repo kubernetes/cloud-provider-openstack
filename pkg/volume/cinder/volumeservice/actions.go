@@ -153,7 +153,7 @@ func UnreserveCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error
 // DeleteCinderVolume removes a volume from cinder which will cause it to be
 // deleted on the storage server.
 func DeleteCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
-	err := volumes_v2.Delete(vs, volumeID).ExtractErr()
+	err := volumes_v2.Delete(vs, volumeID, nil).ExtractErr()
 	if err != nil {
 		glog.Errorf("Cannot delete volume %s: %v", volumeID, err)
 	}
