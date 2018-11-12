@@ -17,6 +17,11 @@ limitations under the License.
 package main
 
 import "k8s.io/cloud-provider-openstack/pkg/ingress/cmd"
+import "k8s.io/klog"
+
+func init() {
+	klog.InitFlags(nil)
+}
 
 func main() {
 	cmd.Execute()

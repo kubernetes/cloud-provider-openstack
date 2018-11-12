@@ -17,13 +17,17 @@ package main
 import (
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 
 	kflag "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
 )
+
+func init() {
+	klog.InitFlags(nil)
+}
 
 func main() {
 	logs.InitLogs()
@@ -34,13 +38,13 @@ func main() {
 	kflag.InitFlags()
 
 	if err := config.ValidateFlags(); err != nil {
-		glog.Errorf("%v", err)
+		klog.Errorf("%v", err)
 		os.Exit(1)
 	}
 
 	keystoneAuth, err := keystone.NewKeystoneAuth(config)
 	if err != nil {
-		glog.Errorf("%v", err)
+		klog.Errorf("%v", err)
 		os.Exit(1)
 	}
 	keystoneAuth.Run()

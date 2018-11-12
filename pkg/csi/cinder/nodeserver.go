@@ -18,10 +18,10 @@ package cinder
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
-	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/klog"
 
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
@@ -41,14 +41,14 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
 		return nil, err
 	}
 
 	// Device Scan
 	err = m.ScanForAttach(devicePath)
 	if err != nil {
-		glog.V(3).Infof("Failed to ScanForAttach: %v", err)
+		klog.V(3).Infof("Failed to ScanForAttach: %v", err)
 		return nil, err
 	}
 
@@ -87,7 +87,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
 		return nil, err
 	}
 
@@ -150,7 +150,7 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 }
 
 func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
-	glog.V(5).Infof("Using default NodeGetCapabilities")
+	klog.V(5).Infof("Using default NodeGetCapabilities")
 
 	return &csi.NodeGetCapabilitiesResponse{
 		Capabilities: []*csi.NodeServiceCapability{
@@ -170,13 +170,13 @@ func getNodeIDMountProvider() (string, error) {
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
 		return "", err
 	}
 
 	nodeID, err := m.GetInstanceID()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetInstanceID: %v", err)
+		klog.V(3).Infof("Failed to GetInstanceID: %v", err)
 		return "", err
 	}
 
@@ -198,11 +198,11 @@ func getNodeID() (string, error) {
 		return nodeID, nil
 	}
 
-	glog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
-	glog.V(3).Info("Trying to GetInstanceID from metadata service")
+	klog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
+	klog.V(3).Info("Trying to GetInstanceID from metadata service")
 	nodeID, err = getNodeIDMetdataService()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
+		klog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
 		return "", err
 	}
 	return nodeID, nil

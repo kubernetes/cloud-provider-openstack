@@ -17,11 +17,11 @@ limitations under the License.
 package provisioner
 
 import (
-	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
 )
 
 const iscsiType = "iscsi"
@@ -64,7 +64,7 @@ func (m *iscsiMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeO
 	// Create a secret for the CHAP credentials
 	secretName := getChapSecretName(conn, options)
 	if secretName == "" {
-		glog.V(3).Info("No CHAP authentication secret necessary")
+		klog.V(3).Info("No CHAP authentication secret necessary")
 		return nil
 	}
 	secret := &v1.Secret{
@@ -84,7 +84,7 @@ func (m *iscsiMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeO
 func (m *iscsiMapper) AuthTeardown(p *cinderProvisioner, pv *v1.PersistentVolume) error {
 	// Delete the CHAP credentials
 	if pv.Spec.ISCSI.SecretRef == nil {
-		glog.V(3).Info("No associated secret to delete")
+		klog.V(3).Info("No associated secret to delete")
 		return nil
 	}
 

@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
 )
 
 const rbdType = "rbd"
@@ -35,7 +35,7 @@ type rbdMapper struct {
 
 func getMonitors(conn volumeservice.VolumeConnection) []string {
 	if len(conn.Data.Hosts) != len(conn.Data.Ports) {
-		glog.Errorf("Error parsing rbd connection info: 'hosts' and 'ports' have different lengths")
+		klog.Errorf("Error parsing rbd connection info: 'hosts' and 'ports' have different lengths")
 		return nil
 	}
 	mons := make([]string, len(conn.Data.Hosts))

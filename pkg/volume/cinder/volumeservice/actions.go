@@ -19,11 +19,11 @@ package volumeservice
 import (
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
 )
 
 const attachMountPoint = "/k8s.io/standalone-cinder"
@@ -68,11 +68,11 @@ type rcvVolumeConnection struct {
 func CreateCinderVolume(vs *gophercloud.ServiceClient, options volumes_v2.CreateOpts) (string, error) {
 	vol, err := volumes_v2.Create(vs, &options).Extract()
 	if err != nil {
-		glog.Errorf("Failed to create a %d GiB volume: %v", options.Size, err)
+		klog.Errorf("Failed to create a %d GiB volume: %v", options.Size, err)
 		return "", err
 	}
 
-	glog.V(2).Infof("Created volume %v in Availability Zone: %v", vol.ID, vol.AvailabilityZone)
+	klog.V(2).Infof("Created volume %v in Availability Zone: %v", vol.ID, vol.AvailabilityZone)
 	return vol.ID, nil
 }
 
@@ -104,10 +104,10 @@ func ConnectCinderVolume(vs *gophercloud.ServiceClient, initiator string, volume
 	var rcv rcvVolumeConnection
 	err := volumeactions.InitializeConnection(vs, volumeID, &opt).ExtractInto(&rcv)
 	if err != nil {
-		glog.Errorf("failed to initialize connection :%v", err)
+		klog.Errorf("failed to initialize connection :%v", err)
 		return VolumeConnection{}, err
 	}
-	glog.V(3).Infof("Received connection info: %v", rcv)
+	klog.V(3).Infof("Received connection info: %v", rcv)
 	return rcv.ConnectionInfo, nil
 }
 
@@ -137,7 +137,7 @@ func DisconnectCinderVolume(vs *gophercloud.ServiceClient, initiator string, vol
 
 	err := volumeactions.TerminateConnection(vs, volumeID, &opt).Result.Err
 	if err != nil {
-		glog.Errorf("Failed to terminate connection to volume %s: %v",
+		klog.Errorf("Failed to terminate connection to volume %s: %v",
 			volumeID, err)
 		return err
 	}
@@ -155,7 +155,7 @@ func UnreserveCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error
 func DeleteCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
 	err := volumes_v2.Delete(vs, volumeID, nil).ExtractErr()
 	if err != nil {
-		glog.Errorf("Cannot delete volume %s: %v", volumeID, err)
+		klog.Errorf("Cannot delete volume %s: %v", volumeID, err)
 	}
 
 	return err
@@ -165,7 +165,7 @@ func DeleteCinderVolume(vs *gophercloud.ServiceClient, volumeID string) error {
 func GetCinderVolume(vs *gophercloud.ServiceClient, volumeID string) (*volumes_v2.Volume, error) {
 	volume, err := volumes_v2.Get(vs, volumeID).Extract()
 	if err != nil {
-		glog.Errorf("Failed to get volume:%v ", volumeID)
+		klog.Errorf("Failed to get volume:%v ", volumeID)
 		return nil, err
 	}
 	return volume, nil

@@ -20,11 +20,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
 )
 
 type volumeMapper interface {
@@ -64,7 +64,7 @@ func newVolumeMapperFromPV(pv *v1.PersistentVolume) (volumeMapper, error) {
 func buildPV(m volumeMapper, p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
 	pvSource, err := m.BuildPVSource(conn, options)
 	if err != nil {
-		glog.Errorf("Failed to build PV Source element: %v", err)
+		klog.Errorf("Failed to build PV Source element: %v", err)
 		return nil, err
 	}
 
