@@ -109,29 +109,29 @@
   name = "gopkg.in/gcfg.v1"
   version = "1.2.3"
 
-[[constraint]]
+[[override]]
   name = "gopkg.in/yaml.v2"
   version = "2.2.1"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.13.0-alpha.1"
+  version = "kubernetes-1.13.0-beta.0"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.0-alpha.1"
+  version = "kubernetes-1.13.0-beta.0"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.13.0-alpha.1"
+  version = "kubernetes-1.13.0-beta.0"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.13.0-alpha.1"
+  version = "kubernetes-1.13.0-beta.0"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/kubernetes"
-  version = "v1.13.0-alpha.1"
+  version = "v1.13.0-beta.0"
 
 [[constraint]]
   branch = "master"
