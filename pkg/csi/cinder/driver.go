@@ -38,7 +38,7 @@ type driver struct {
 }
 
 const (
-	driverName = "csi-cinderplugin"
+	driverName = "cinder.csi.openstack.org"
 )
 
 var (
