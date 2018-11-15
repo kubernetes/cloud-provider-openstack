@@ -61,6 +61,15 @@ $ csc identity plugin-capabilities --endpoint tcp://127.0.0.1:10000
 CONTROLLER_SERVICE
 ```
 
+#### Get controller implemented capabilities
+```
+$ csc controller get-capabilities  --endpoint tcp://127.0.0.1:10000
+&{type:CREATE_DELETE_VOLUME }
+&{type:PUBLISH_UNPUBLISH_VOLUME }
+&{type:LIST_VOLUMES }
+
+```
+
 #### Create a volume
 Following sample creates a volume named ``CSIVolumeName`` and the
 volume id returned is ``8a55f98f-e987-43ab-a9f5-973352bee19c`` with size ``1073741824`` bytes (1Gb)
