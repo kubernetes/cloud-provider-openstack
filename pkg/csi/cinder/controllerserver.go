@@ -73,6 +73,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if len(volumes) == 1 {
 		resID = volumes[0].ID
 		resAvailability = volumes[0].AZ
+		resSize = volumes[0].Size
+
+		glog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
 	} else if len(volumes) > 1 {
 		glog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, errors.New("multiple volumes reported by Cinder with same name")
