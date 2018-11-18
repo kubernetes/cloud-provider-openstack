@@ -87,7 +87,7 @@ func TestTokenGetter(t *testing.T) {
 		DomainName:       "default",
 	}
 
-	token, err := GetToken(options)
+	token, err := GetToken(options, "", "")
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, "0123456789", token.ID)
 	th.AssertEquals(t, "2015-11-09 01:42:57.527363 +0000 UTC", token.ExpiresAt.String())
@@ -95,7 +95,7 @@ func TestTokenGetter(t *testing.T) {
 	// Incorrect password
 	options.Password = "wrongpw"
 
-	token, err = GetToken(options)
+	token, err = GetToken(options, "", "")
 	if _, ok := err.(gophercloud.ErrDefault401); !ok {
 		t.FailNow()
 	}
@@ -103,6 +103,6 @@ func TestTokenGetter(t *testing.T) {
 	// Invalid auth data
 	options.Password = ""
 
-	token, err = GetToken(options)
+	token, err = GetToken(options, "", "")
 	th.AssertEquals(t, "You must provide a password to authenticate", err.Error())
 }
