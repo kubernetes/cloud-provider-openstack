@@ -1010,7 +1010,7 @@
   ]
   pruneopts = "UT"
   revision = "f6dfa44405f0e49522290bd277f3eee3c3fc74d1"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0-beta.1"
 
 [[projects]]
   branch = "master"
@@ -1079,7 +1079,7 @@
   ]
   pruneopts = "UT"
   revision = "ffd2ae06646c02ab214c0fe691dff61cb464ed87"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0-beta.1"
 
 [[projects]]
   digest = "1:7d553606675df9570ff207add7c6df78a6f8059c5df14406fd4ed34ac3906f4c"
@@ -1183,7 +1183,7 @@
   ]
   pruneopts = "UT"
   revision = "fd4989fe40fcacb222a886a56d34643d1a44d0da"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0-beta.1"
 
 [[projects]]
   digest = "1:2eff362f691de5a484a7b63a8e3a0d7c634ab9d1822c601133983a7f60a6e155"
@@ -1366,7 +1366,7 @@
   ]
   pruneopts = "UT"
   revision = "3d0291ef797fa2930ab6889b541fa3c3a9f633d9"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0-beta.1"
 
 [[projects]]
   branch = "master"
@@ -1489,7 +1489,7 @@
   ]
   pruneopts = "UT"
   revision = "9637141d5e2e0d5727307b5d099cefc3b1336555"
-  version = "v1.13.0-beta.0"
+  version = "v1.13.0-beta.1"
 
 [[projects]]
   branch = "master"
