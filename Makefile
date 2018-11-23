@@ -59,7 +59,7 @@ endif
 depend-update: work
 	dep ensure -update -v
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner barbican-kms-plugin
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -108,6 +108,12 @@ manila-provisioner: depend $(SOURCES)
 		-ldflags $(LDFLAGS) \
 		-o manila-provisioner \
 		cmd/manila-provisioner/main.go
+
+barbican-kms-plugin: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags $(LDFLAGS) \
+		-o barbican-kms-plugin \
+		cmd/barbican-kms-plugin/main.go
 
 test: unit functional
 
@@ -193,7 +199,7 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner
+images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-kms-plugin
 
 image-controller-manager: depend openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
@@ -254,6 +260,15 @@ ifeq ($(GOOS),linux)
 	cp manila-provisioner cluster/images/manila-provisioner
 	docker build -t $(REGISTRY)/manila-provisioner:$(VERSION) cluster/images/manila-provisioner
 	rm cluster/images/manila-provisioner/manila-provisioner
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
+image-kms-plugin: depend barbican-kms-plugin
+ifeq ($(GOOS), linux)
+	cp barbican-kms-plugin cluster/images/barbican-kms-plugin
+	docker build -t $(REGISTRY)/barbican-kms-plugin:$(VERSION) cluster/images/barbican-kms-plugin
+	rm cluster/images/barbican-kms-plugin/barbican-kms-plugin
 else
 	$(error Please set GOOS=linux for building the image)
 endif

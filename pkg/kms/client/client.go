@@ -12,7 +12,7 @@ import (
 
 func main() {
 
-	connection, err := grpc.Dial("unix:///tmp/socketfile.sock", grpc.WithInsecure())
+	connection, err := grpc.Dial("unix:///var/lib/kms/kms.sock", grpc.WithInsecure())
 	defer connection.Close()
 	if err != nil {
 		fmt.Printf("\nConnection to KMS plugin failed, error: %v", err)
