@@ -24,22 +24,22 @@ const (
 
 // KMSserver struct
 type KMSserver struct {
-	cfg      *barbican.Config
+	cfg      barbican.Config
 	barbican barbican.BarbicanService
 }
 
-func initConfig(configFilePath string) (cfg *barbican.Config, err error) {
+func initConfig(configFilePath string, cfg *barbican.Config) error {
 
 	config, err := os.Open(configFilePath)
 	defer config.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = gcfg.FatalOnly(gcfg.ReadInto(cfg, config))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return cfg, nil
+	return nil
 }
 
 // Run Grpc server for barbican KMS
@@ -47,7 +47,7 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 
 	glog.Infof("Barbican KMS Plugin Starting Version: %s, RunTimeVersion: %s", version, runtimeversion)
 	s := new(KMSserver)
-	s.cfg, err = initConfig(configFilePath)
+	err = initConfig(configFilePath, &s.cfg)
 	s.barbican = &barbican.Barbican{}
 	if err != nil {
 		glog.V(4).Infof("Error in Getting Config File: %v", err)

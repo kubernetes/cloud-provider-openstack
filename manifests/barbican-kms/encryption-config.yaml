@@ -1,0 +1,11 @@
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+    - secrets
+    providers:
+    - kms:
+        name : barbican
+        endpoint: unix:///var/lib/kms/kms.sock
+        cachesize: 20
+    - identity: {}

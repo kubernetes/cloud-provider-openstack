@@ -8,7 +8,7 @@ import (
 )
 
 type BarbicanService interface {
-	GetSecret(cfg *Config) ([]byte, error)
+	GetSecret(cfg Config) ([]byte, error)
 }
 
 type KMSOpts struct {
@@ -52,7 +52,7 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 }
 
 // NewBarbicanClient creates new BarbicanClient
-func newBarbicanClient(cfg *Config) (client *gophercloud.ServiceClient, err error) {
+func newBarbicanClient(cfg Config) (client *gophercloud.ServiceClient, err error) {
 
 	provider, err := openstack.AuthenticatedClient(cfg.toAuthOptions())
 
@@ -71,7 +71,7 @@ func newBarbicanClient(cfg *Config) (client *gophercloud.ServiceClient, err erro
 }
 
 // GetSecret gets unencrypted secret
-func (barbican *Barbican) GetSecret(cfg *Config) ([]byte, error) {
+func (barbican *Barbican) GetSecret(cfg Config) ([]byte, error) {
 
 	client, err := newBarbicanClient(cfg)
 

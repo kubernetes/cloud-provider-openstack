@@ -7,8 +7,8 @@
   name = "bitbucket.org/ww/goautoneg"
   packages = ["."]
   pruneopts = "UT"
-  source = "https://github.com/munnerz/goautoneg.git"
   revision = "a547fc61f48d567d5b4ec6f8aee5573d8efce11d"
+  source = "https://github.com/munnerz/goautoneg.git"
 
 [[projects]]
   branch = "master"
@@ -279,7 +279,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:507e473e2eed514d471611c2384649571f2b2fc5604705b651d99d8071dedc8c"
+  digest = "1:560d4d5c6f31baa5c79d6921a8cbf6056a0e89da5c7bb6558ca6d1b5c640d268"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -300,6 +300,7 @@
     "openstack/identity/v2/tokens",
     "openstack/identity/v3/extensions/trusts",
     "openstack/identity/v3/tokens",
+    "openstack/keymanager/v1/secrets",
     "openstack/loadbalancer/v2/l7policies",
     "openstack/loadbalancer/v2/listeners",
     "openstack/loadbalancer/v2/loadbalancers",
@@ -1083,7 +1084,7 @@
   version = "kubernetes-1.13.0"
 
 [[projects]]
-  digest = "1:7d553606675df9570ff207add7c6df78a6f8059c5df14406fd4ed34ac3906f4c"
+  digest = "1:cdb0ccc40b1879c8e1826eb9a7461272e7dcd0577739b35a22d87a78d5cca051"
   name = "k8s.io/apiserver"
   packages = [
     "pkg/admission",
@@ -1166,6 +1167,7 @@
     "pkg/storage/storagebackend",
     "pkg/storage/storagebackend/factory",
     "pkg/storage/value",
+    "pkg/storage/value/encrypt/envelope/v1beta1",
     "pkg/util/dryrun",
     "pkg/util/feature",
     "pkg/util/flag",
@@ -1516,6 +1518,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/container-storage-interface/spec/lib/go/csi/v0",
+    "github.com/golang/glog",
     "github.com/gophercloud/gophercloud",
     "github.com/gophercloud/gophercloud/openstack",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions",
@@ -1529,6 +1532,7 @@
     "github.com/gophercloud/gophercloud/openstack/compute/v2/servers",
     "github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts",
     "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens",
+    "github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers",
@@ -1569,6 +1573,7 @@
     "golang.org/x/crypto/ssh/terminal",
     "golang.org/x/net/context",
     "golang.org/x/sys/unix",
+    "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/status",
     "gopkg.in/gcfg.v1",
@@ -1590,6 +1595,7 @@
     "k8s.io/apiserver/pkg/authentication/user",
     "k8s.io/apiserver/pkg/authorization/authorizer",
     "k8s.io/apiserver/pkg/server/healthz",
+    "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1",
     "k8s.io/apiserver/pkg/util/feature",
     "k8s.io/apiserver/pkg/util/flag",
     "k8s.io/apiserver/pkg/util/logs",
