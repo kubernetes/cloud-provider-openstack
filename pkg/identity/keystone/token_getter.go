@@ -17,9 +17,8 @@ limitations under the License.
 package keystone
 
 import (
-	"fmt"
-
 	"crypto/tls"
+	"fmt"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
@@ -27,26 +26,32 @@ import (
 	"net/http"
 )
 
+type Options struct {
+	AuthOptions    gophercloud.AuthOptions
+	ClientCertPath string
+	ClientKeyPath  string
+}
+
 // GetToken creates a token by authenticate with keystone.
-func GetToken(options gophercloud.AuthOptions, clientCertPath string, clientKeyPath string) (*tokens3.Token, error) {
+func GetToken(options Options) (*tokens3.Token, error) {
 	var token *tokens3.Token
 
 	// Create new identity client
-	client, err := openstack.NewClient(options.IdentityEndpoint)
+	client, err := openstack.NewClient(options.AuthOptions.IdentityEndpoint)
 	if err != nil {
 		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
 		return token, msg
 	}
 	tlsConfig := &tls.Config{}
 
-	if clientCertPath != "" && clientKeyPath != "" {
-		clientCert, err := ioutil.ReadFile(clientCertPath)
+	if options.ClientCertPath != "" && options.ClientKeyPath != "" {
+		clientCert, err := ioutil.ReadFile(options.ClientCertPath)
 		if err != nil {
 			msg := fmt.Errorf("failed: Cannot read cert file: %v", err)
 			return token, msg
 		}
 
-		clientKey, err := ioutil.ReadFile(clientKeyPath)
+		clientKey, err := ioutil.ReadFile(options.ClientKeyPath)
 		if err != nil {
 			msg := fmt.Errorf("failed: Cannot read key file: %v", err)
 			return token, msg
@@ -71,7 +76,7 @@ func GetToken(options gophercloud.AuthOptions, clientCertPath string, clientKeyP
 	}
 
 	// Issue new unscoped token
-	result := tokens3.Create(v3Client, &options)
+	result := tokens3.Create(v3Client, &options.AuthOptions)
 	if result.Err != nil {
 		return token, result.Err
 	}
