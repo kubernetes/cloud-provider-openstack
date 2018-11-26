@@ -125,7 +125,7 @@ func main() {
 	var password string
 	var clientCertPath string
 	var clientKeyPath string
-	var options gophercloud.AuthOptions
+	var options keystone.Options
 	var err error
 	var applicationCredentialID string
 	var applicationCredentialName string
@@ -146,20 +146,23 @@ func main() {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
-		options, err = openstack.AuthOptionsFromEnv()
+		options.AuthOptions, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s", err)
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
+		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
 		}
 	}
 
-	token, err := keystone.GetToken(options, clientCertPath, clientKeyPath)
+	options.ClientCertPath = clientCertPath
+	options.ClientKeyPath = clientKeyPath
+
+	token, err := keystone.GetToken(options)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrDefault401); ok {
 			fmt.Println(errRespTemplate)
