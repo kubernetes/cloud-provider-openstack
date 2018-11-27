@@ -3,8 +3,6 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: internal-http-nginx-deployment
-  annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
 spec:
   replicas: 2
   template:
@@ -22,6 +20,8 @@ kind: Service
 apiVersion: v1
 metadata:
   name: internal-http-nginx-service
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
 spec:
   selector:
     app: nginx
