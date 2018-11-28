@@ -78,7 +78,7 @@ func probeVolume() error {
 		glog.V(3).Infof("error running udevadm trigger %v\n", err)
 		return err
 	}
-	glog.V(4).Infof("Successfully probed all attachments")
+	glog.V(4).Info("Successfully probed all attachments")
 	return nil
 }
 

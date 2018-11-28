@@ -161,7 +161,7 @@ func (m *Mounter) doMount(mounterPath string, mountCmd string, source string, ta
 // systemd-runs (needed by Mount()) works.
 func detectSystemd() bool {
 	if _, err := exec.LookPath("systemd-run"); err != nil {
-		glog.V(2).Infof("Detected OS without systemd")
+		glog.V(2).Info("Detected OS without systemd")
 		return false
 	}
 	// Try to run systemd-run --scope /bin/true, that should be enough
@@ -176,7 +176,7 @@ func detectSystemd() bool {
 		glog.V(4).Infof("systemd-run output: %s", string(output))
 		return false
 	}
-	glog.V(2).Infof("Detected OS with systemd")
+	glog.V(2).Info("Detected OS with systemd")
 	return true
 }
 
@@ -444,7 +444,7 @@ func (mounter *SafeFormatAndMount) formatAndMount(source string, target string, 
 			ee, isExitError := err.(utilexec.ExitError)
 			switch {
 			case err == utilexec.ErrExecutableNotFound:
-				glog.Warningf("'fsck' not found on system; continuing mount without running 'fsck'.")
+				glog.Warning("'fsck' not found on system; continuing mount without running 'fsck'.")
 			case isExitError && ee.ExitStatus() == fsckErrorsCorrected:
 				glog.Infof("Device %s has errors which were corrected by fsck.", source)
 			case isExitError && ee.ExitStatus() == fsckErrorsUncorrected:
