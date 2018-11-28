@@ -492,6 +492,11 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		}
 		members = append(members, member)
 	}
+	// only allow >= 1 members or it will lead to openstack octavia issue
+	if len(members) == 0 {
+		return nil, fmt.Errorf("error because no members in pool: %s", pool.ID)
+	}
+
 	if err := pools.BatchUpdateMembers(os.octavia, pool.ID, members).ExtractErr(); err != nil {
 		return nil, fmt.Errorf("error batch updating members for pool %s: %v", pool.ID, err)
 	}
