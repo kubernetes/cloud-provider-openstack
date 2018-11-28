@@ -127,6 +127,7 @@ func (os *OpenStack) GetVolumesByName(n string) ([]Volume, error) {
 			ID:     v.ID,
 			Name:   v.Name,
 			Status: v.Status,
+			Size:   v.Size,
 			AZ:     v.AvailabilityZone,
 		}
 		vlist = append(vlist, volume)
