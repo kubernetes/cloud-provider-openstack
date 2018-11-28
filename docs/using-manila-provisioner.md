@@ -39,6 +39,7 @@ None.
 Key | For backend | For protocol  | Required | Default Value | Description
 --- | ----------- | ------------- | ------------- | ----------- |---------
 `csi-driver` | `csi-cephfs` | `CEPHFS` | Yes | None | Name of the CSI driver
+`nfs-share-client` | `nfs` | `NFS` | No | `0.0.0.0` | Default NFS client for the share
 
 ## Authentication with Manila v2 client
 The provisioner authenticates to the OpenStack Manila service with the credentials supplied from the Kubernetes Secret object referenced by `osSecretNamespace` : `osSecretName`. One can authenticate either as a user or as a trustee, with each of those having its own set of parameters. Note that if the Secret object is created from a manifest, the Secret's values need to be encoded in base64.

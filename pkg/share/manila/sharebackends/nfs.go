@@ -45,11 +45,11 @@ func (NFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource, error
 	}, nil
 }
 
-// GrantAccess to NFS share. Allows read-write access to everyone!
+// GrantAccess to NFS share. Allows read-write access to everyone by default!
 func (NFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
 	return shares.GrantAccess(args.Client, args.Share.ID, shares.GrantAccessOpts{
 		AccessType:  "ip",
-		AccessTo:    "0.0.0.0/0",
+		AccessTo:    args.Options.BackendOptions.NFSShareClient,
 		AccessLevel: "rw",
 	}).Extract()
 }
