@@ -199,7 +199,7 @@ func getNodeID() (string, error) {
 	}
 
 	glog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
-	glog.V(3).Infof("Trying to GetInstanceID from metadata service")
+	glog.V(3).Info("Trying to GetInstanceID from metadata service")
 	nodeID, err = getNodeIDMetdataService()
 	if err != nil {
 		glog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
