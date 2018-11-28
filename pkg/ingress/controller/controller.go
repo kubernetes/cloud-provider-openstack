@@ -432,27 +432,27 @@ func (c *Controller) processItem(event Event) error {
 		if err := c.ensureIngress(ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to create openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to create openstack resources for ingress %s: %v", key, err))
+		} else {
+			c.recorder.Event(ing, apiv1.EventTypeNormal, "Created", fmt.Sprintf("Ingress %s", key))
 		}
-
-		c.recorder.Event(ing, apiv1.EventTypeNormal, "Created", fmt.Sprintf("Ingress %s", key))
 	case UpdateEvent:
 		log.WithFields(log.Fields{"ingress": key}).Info("ingress updated, will update openstack resources")
 
 		if err := c.ensureIngress(ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to update openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to update openstack resources for ingress %s: %v", key, err))
+		} else {
+			c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Ingress %s", key))
 		}
-
-		c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Ingress %s", key))
 	case DeleteEvent:
 		log.WithFields(log.Fields{"ingress": key}).Info("ingress has been deleted, will delete openstack resources")
 
 		if err := c.deleteIngress(ing.Namespace, ing.Name); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to delete openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to delete openstack resources for ingress %s: %v", key, err))
+		} else {
+			c.recorder.Event(ing, apiv1.EventTypeNormal, "Deleted", fmt.Sprintf("Ingress %s", key))
 		}
-
-		c.recorder.Event(ing, apiv1.EventTypeNormal, "Deleted", fmt.Sprintf("Ingress %s", key))
 	}
 
 	return nil
