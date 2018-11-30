@@ -30,9 +30,99 @@ by using the result of the above command.
 
 ```kubectl -f manifests/cinder-csi-plugin create```
 
-### Example Nginx application
+This creates a set of cluster roles, cluster role bindings, and statefulsets etc to communicate with openstack(cinder).
+For detailed list of created objects, explore the yaml files in the directory.
+You should make sure following similar pods are ready before proceed:
+
+```
+NAME                                READY   STATUS    RESTARTS   AGE
+csi-attacher-cinderplugin-0         2/2     Running   0          29h
+csi-nodeplugin-cinderplugin-xxfh5   2/2     Running   0          46h
+csi-provisioner-cinderplugin-0      2/2     Running   0          46h
+```
+
+### Example Nginx application usage
+
+After perform above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
+Try following command:
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
+
+You will get pvc which claims one volume from cinder 
+
+```
+$ kubectl get pvc
+NAME                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS          AGE
+csi-pvc-cinderplugin   Bound    pvc-72a8f9c9-f462-11e8-b6b6-fa163e18b7b5   1Gi        RWO            csi-sc-cinderplugin   58m
+
+$ openstack volume list
++--------------------------------------+--------+------------------------------------------+------+-------------+----------+--------------------------------------+
+|                  ID                  | Status |                   Name                   | Size | Volume Type | Bootable |             Attached to              |
++--------------------------------------+--------+------------------------------------------+------+-------------+----------+--------------------------------------+
+| b2e7be02-cdd7-487f-8eb9-6f10f3df790b | in-use | pvc-72a8f9c9-f462-11e8-b6b6-fa163e18b7b5 |  1   | lvmdriver-1 |  false   | 39859899-2985-43cf-8cdf-21de2548dfd9 |
++--------------------------------------+--------+------------------------------------------+------+-------------+----------+--------------------------------------+
+```
+
+Check the volume created and attached to the pod
+```
+$ ls /dev/vdb
+/dev/vdb
+
+$ mount | grep vdb
+/dev/vdb on /var/lib/kubelet/pods/8196212e-f462-11e8-b6b6-fa163e18b7b5/volumes/kubernetes.io~csi/pvc-72a8f9c9-f462-11e8-b6b6-fa163e18b7b5/mount type ext4 (rw,relatime,data=ordered)
+
+$ fdisk -l /dev/vdb | grep Disk
+Disk /dev/vdb: 1 GiB, 1073741824 bytes, 2097152 sectors
+```
+
+Then try to add a file in the pod'd mounted position (in our case, /var/lib/www/html)
+```
+$ kubectl exec -it nginx bash
+
+root@nginx:/# ls /var/lib/www/html
+lost+found
+
+root@nginx:/# touch /var/lib/www/html/index.html
+
+root@nginx:/# exit
+exit
+```
+
+Next, make sure the pod is deleted so that the persistent volume will be freed
+```
+kubectl delete pod nginx
+```
+
+Then the volume is back to available state:
+```
+$ ls /dev/vdb
+ls: cannot access '/dev/vdb': No such file or directory
+
+$ openstack volume list
++--------------------------------------+-----------+------------------------------------------+------+-------------+----------+-------------+
+|                  ID                  |   Status  |                   Name                   | Size | Volume Type | Bootable | Attached to |
++--------------------------------------+-----------+------------------------------------------+------+-------------+----------+-------------+
+| b2e7be02-cdd7-487f-8eb9-6f10f3df790b | available | pvc-72a8f9c9-f462-11e8-b6b6-fa163e18b7b5 |  1   | lvmdriver-1 |  false   |             |
++--------------------------------------+-----------+------------------------------------------+------+-------------+----------+-------------+
+```
+
+Optionally you can verify the volume does contain the info we created in pod by attaching to a VM in openstack:
+```
+$ nova volume-attach ji1 b2e7be02-cdd7-487f-8eb9-6f10f3df790b
++----------+--------------------------------------+
+| Property | Value                                |
++----------+--------------------------------------+
+| device   | /dev/vdb                             |
+| id       | b2e7be02-cdd7-487f-8eb9-6f10f3df790b |
+| serverId | 39859899-2985-43cf-8cdf-21de2548dfd9 |
+| volumeId | b2e7be02-cdd7-487f-8eb9-6f10f3df790b |
++----------+--------------------------------------+
+
+$ ls /dev/vdb
+/dev/vdb
+$ mount /dev/vdb /mnt; ls /mnt
+index.html  lost+found
+```
 
 ## Using CSC tool
 
