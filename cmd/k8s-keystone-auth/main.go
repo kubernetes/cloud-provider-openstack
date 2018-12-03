@@ -15,6 +15,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"os"
 
 	"github.com/spf13/pflag"
@@ -25,11 +26,23 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
 )
 
-func init() {
-	klog.InitFlags(nil)
-}
-
 func main() {
+	// Glog requires this otherwise it complains.
+	flag.CommandLine.Parse(nil)
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
+
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
