@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/klog"
 )
@@ -33,7 +34,6 @@ var (
 )
 
 func init() {
-	klog.InitFlags(nil)
 	flag.Set("logtostderr", "true")
 }
 
@@ -44,6 +44,24 @@ func main() {
 	cmd := &cobra.Command{
 		Use:   "Cinder",
 		Short: "CSI based Cinder driver",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Glog requires this otherwise it complains.
+			flag.CommandLine.Parse(nil)
+
+			// This is a temporary hack to enable proper logging until upstream dependencies
+			// are migrated to fully utilize klog instead of glog.
+			klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+			klog.InitFlags(klogFlags)
+
+			// Sync the glog and klog flags.
+			cmd.Flags().VisitAll(func(f1 *pflag.Flag) {
+				f2 := klogFlags.Lookup(f1.Name)
+				if f2 != nil {
+					value := f1.Value.String()
+					f2.Value.Set(value)
+				}
+			})
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
