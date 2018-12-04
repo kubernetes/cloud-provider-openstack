@@ -19,8 +19,8 @@ limitations under the License.
 package openstack
 
 import (
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"k8s.io/klog"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
@@ -52,12 +52,12 @@ func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string)
 	opts := snapshots.ListOpts{}
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
 	if err != nil {
-		glog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
+		klog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
 		return nil, err
 	}
 	snaps, err := snapshots.ExtractSnapshots(pages)
 	if err != nil {
-		glog.V(3).Infof("Failed to extract snapshot pages from Cinder: %v", err)
+		klog.V(3).Infof("Failed to extract snapshot pages from Cinder: %v", err)
 		return nil, err
 	}
 	// There's little value in rewrapping these gophercloud types into yet another abstraction/type, instead just
@@ -70,7 +70,7 @@ func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string)
 func (os *OpenStack) DeleteSnapshot(snapID string) error {
 	err := snapshots.Delete(os.blockstorage, snapID).ExtractErr()
 	if err != nil {
-		glog.V(3).Infof("Failed to delete snapshot: %v", err)
+		klog.V(3).Infof("Failed to delete snapshot: %v", err)
 	}
 	return err
 }

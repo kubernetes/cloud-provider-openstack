@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -30,6 +31,7 @@ import (
 
 	kflag "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	"k8s.io/klog"
 )
 
 const errRespTemplate string = `{
@@ -118,6 +120,22 @@ func prompt(url string, domain string, user string, project string, password str
 }
 
 func main() {
+	// Glog requires this otherwise it complains.
+	flag.CommandLine.Parse(nil)
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
+
 	var url string
 	var domain string
 	var user string

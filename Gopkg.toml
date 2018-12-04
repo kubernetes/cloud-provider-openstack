@@ -31,7 +31,7 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/golang/glog"
+  name = "k8s.io/klog"
 
 [[constraint]]
   branch = "master"
@@ -115,23 +115,23 @@
 
 [[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[override]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[override]]
   name = "k8s.io/kubernetes"
-  version = "v1.13.0-beta.0"
+  version = "v1.13.0"
 
 [[constraint]]
   branch = "master"
@@ -154,6 +154,10 @@ revision = "a9fbbdc8dd8794b20af358382ab780559bca589d"
 [[override]]
 name = "github.com/docker/distribution"
 revision="edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
+
+[[override]]
+name = "bitbucket.org/ww/goautoneg"
+source = "https://github.com/munnerz/goautoneg.git"
 
 [prune]
   go-tests = true
