@@ -17,8 +17,8 @@ limitations under the License.
 package openstack
 
 import (
-	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/klog"
 )
 
 const (
@@ -49,9 +49,9 @@ var (
 
 func RegisterMetrics() {
 	if err := prometheus.Register(openstackOperationsLatency); err != nil {
-		glog.V(5).Infof("unable to register for latency metrics")
+		klog.V(5).Infof("unable to register for latency metrics")
 	}
 	if err := prometheus.Register(openstackAPIRequestErrors); err != nil {
-		glog.V(5).Infof("unable to register for error metrics")
+		klog.V(5).Infof("unable to register for error metrics")
 	}
 }

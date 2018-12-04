@@ -21,8 +21,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
+	"k8s.io/klog"
 
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
@@ -65,19 +65,19 @@ func resourceMatches(p policy, a authorizer.Attributes) bool {
 	}
 	output, err := json.MarshalIndent(p, "", "  ")
 	if err == nil {
-		glog.V(6).Infof("matched rule : %s", string(output))
+		klog.V(6).Infof("matched rule : %s", string(output))
 	}
 	return true
 }
 
 func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	if findString("", p.NonResourceSpec.Verbs) {
-		glog.Infof("verb is empty. skipping : %#v", p)
+		klog.Infof("verb is empty. skipping : %#v", p)
 		return false
 	}
 
 	if p.NonResourceSpec.NonResourcePath == nil {
-		glog.Infof("path should be set. skipping : %#v", p)
+		klog.Infof("path should be set. skipping : %#v", p)
 		return false
 	}
 
@@ -93,7 +93,7 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	}
 	output, err := json.MarshalIndent(p, "", "  ")
 	if err == nil {
-		glog.V(6).Infof("matched rule : %s", string(output))
+		klog.V(6).Infof("matched rule : %s", string(output))
 	}
 	return true
 }
@@ -105,7 +105,7 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 
 	for _, m := range match {
 		if !findString(m.Type, types) {
-			glog.Warningf("unknown type %s", m.Type)
+			klog.Warningf("unknown type %s", m.Type)
 			return false
 		}
 		if findString("*", m.Values) {
@@ -167,7 +167,7 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 			}
 			return false
 		} else {
-			glog.Infof("unknown type %s. skipping.", m.Type)
+			klog.Infof("unknown type %s. skipping.", m.Type)
 		}
 	}
 
@@ -180,7 +180,7 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 	defer a.mu.Unlock()
 	for _, p := range a.pl {
 		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
-			glog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
+			klog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
 			continue
 		}
 		if p.ResourceSpec != nil {
@@ -194,6 +194,6 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 		}
 	}
 
-	glog.V(4).Infof("Authorization failed, user: %#v, attributes: %#v\n", attributes.GetUser(), attributes)
+	klog.V(4).Infof("Authorization failed, user: %#v, attributes: %#v\n", attributes.GetUser(), attributes)
 	return authorizer.DecisionDeny, "No policy matched.", nil
 }

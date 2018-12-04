@@ -20,11 +20,11 @@ import (
 	"errors"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
-	"github.com/golang/glog"
 	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/klog"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 )
 
@@ -56,14 +56,14 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
 		return nil, err
 	}
 
 	// Verify a volume with the provided name doesn't already exist for this tenant
 	volumes, err := cloud.GetVolumesByName(volName)
 	if err != nil {
-		glog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
+		klog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
 	}
 
 	resID := ""
@@ -75,19 +75,19 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		resAvailability = volumes[0].AZ
 		resSize = volumes[0].Size
 
-		glog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
+		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
 	} else if len(volumes) > 1 {
-		glog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
+		klog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, errors.New("multiple volumes reported by Cinder with same name")
 	} else {
 		// Volume Create
 		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, nil)
 		if err != nil {
-			glog.V(3).Infof("Failed to CreateVolume: %v", err)
+			klog.V(3).Infof("Failed to CreateVolume: %v", err)
 			return nil, err
 		}
 
-		glog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
+		klog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
 
 	}
 
@@ -107,7 +107,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
 		return nil, err
 	}
 
@@ -115,11 +115,11 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	volID := req.GetVolumeId()
 	err = cloud.DeleteVolume(volID)
 	if err != nil {
-		glog.V(3).Infof("Failed to DeleteVolume: %v", err)
+		klog.V(3).Infof("Failed to DeleteVolume: %v", err)
 		return nil, err
 	}
 
-	glog.V(4).Infof("Delete volume %s", volID)
+	klog.V(4).Infof("Delete volume %s", volID)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -129,7 +129,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
 		return nil, err
 	}
 
@@ -139,23 +139,23 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 
 	_, err = cloud.AttachVolume(instanceID, volumeID)
 	if err != nil {
-		glog.V(3).Infof("Failed to AttachVolume: %v", err)
+		klog.V(3).Infof("Failed to AttachVolume: %v", err)
 		return nil, err
 	}
 
 	err = cloud.WaitDiskAttached(instanceID, volumeID)
 	if err != nil {
-		glog.V(3).Infof("Failed to WaitDiskAttached: %v", err)
+		klog.V(3).Infof("Failed to WaitDiskAttached: %v", err)
 		return nil, err
 	}
 
 	devicePath, err := cloud.GetAttachmentDiskPath(instanceID, volumeID)
 	if err != nil {
-		glog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
+		klog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
 		return nil, err
 	}
 
-	glog.V(4).Infof("ControllerPublishVolume %s on %s", volumeID, instanceID)
+	klog.V(4).Infof("ControllerPublishVolume %s on %s", volumeID, instanceID)
 
 	// Publish Volume Info
 	pvInfo := map[string]string{}
@@ -171,7 +171,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
 		return nil, err
 	}
 
@@ -181,17 +181,17 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 
 	err = cloud.DetachVolume(instanceID, volumeID)
 	if err != nil {
-		glog.V(3).Infof("Failed to DetachVolume: %v", err)
+		klog.V(3).Infof("Failed to DetachVolume: %v", err)
 		return nil, err
 	}
 
 	err = cloud.WaitDiskDetached(instanceID, volumeID)
 	if err != nil {
-		glog.V(3).Infof("Failed to WaitDiskDetached: %v", err)
+		klog.V(3).Infof("Failed to WaitDiskDetached: %v", err)
 		return nil, err
 	}
 
-	glog.V(4).Infof("ControllerUnpublishVolume %s on %s", volumeID, instanceID)
+	klog.V(4).Infof("ControllerUnpublishVolume %s on %s", volumeID, instanceID)
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
@@ -201,13 +201,13 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
-		glog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
 		return nil, err
 	}
 
 	vlist, err := cloud.ListVolumes()
 	if err != nil {
-		glog.V(3).Infof("Failed to ListVolumes: %v", err)
+		klog.V(3).Infof("Failed to ListVolumes: %v", err)
 		return nil, err
 	}
 

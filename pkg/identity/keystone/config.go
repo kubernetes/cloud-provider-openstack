@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 )
 
 // Config configures a keystone webhook server
@@ -60,17 +60,17 @@ func (c *Config) ValidateFlags() error {
 
 	if c.KeystoneURL == "" {
 		errorsFound = true
-		glog.Errorf("please specify --keystone-url or set the OS_AUTH_URL environment variable.")
+		klog.Errorf("please specify --keystone-url or set the OS_AUTH_URL environment variable.")
 	}
 	if c.CertFile == "" || c.KeyFile == "" {
 		errorsFound = true
-		glog.Errorf("Please specify --tls-cert-file and --tls-private-key-file arguments.")
+		klog.Errorf("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
 	if c.PolicyFile == "" && c.PolicyConfigMapName == "" {
-		glog.Warning("Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.")
+		klog.Warning("Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.")
 	}
 	if c.SyncConfigFile == "" && c.SyncConfigMapName == "" {
-		glog.Warning("Argument --sync-config-file or --sync-configmap-name missing. Data synchronization between Keystone and Kubernetes is disabled.")
+		klog.Warning("Argument --sync-config-file or --sync-configmap-name missing. Data synchronization between Keystone and Kubernetes is disabled.")
 	}
 
 	if errorsFound {

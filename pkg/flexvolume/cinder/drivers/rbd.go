@@ -22,7 +22,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 const (
@@ -83,7 +83,7 @@ func (d *RBDDriver) Format(volumeData map[string]interface{}, fsType string) err
 		return err
 	}
 
-	glog.V(4).Infof("Format cinder rbd %v to %s", volume, fsType)
+	klog.V(4).Infof("Format cinder rbd %v to %s", volume, fsType)
 
 	rbdPath, err := exec.LookPath("rbd")
 	if err != nil {

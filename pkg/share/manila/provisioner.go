@@ -19,13 +19,13 @@ package manila
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
+	"k8s.io/klog"
 )
 
 // Provisioner struct, implements controller.Provisioner interface
@@ -79,7 +79,7 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 			// Delete the share if any of its setup operations fail
 			if err != nil {
 				if delErr := deleteShare(share.ID, manilaProvisionTypeDynamic, &shareOptions.ShareSecretRef, client, p.clientset); delErr != nil {
-					glog.Errorf("failed to delete share %s in a rollback procedure: %v", share.ID, delErr)
+					klog.Errorf("failed to delete share %s in a rollback procedure: %v", share.ID, delErr)
 				}
 			}
 		}()
@@ -132,7 +132,7 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 		return nil, fmt.Errorf("backend %s failed to create volume source for share %s: %v", shareBackend.Name(), share.ID, err)
 	}
 
-	glog.Infof("successfully provisioned share %s (%s/%s)", share.ID, shareOptions.Protocol, shareOptions.Backend)
+	klog.Infof("successfully provisioned share %s (%s/%s)", share.ID, shareOptions.Protocol, shareOptions.Backend)
 
 	return buildPersistentVolume(share, accessRight, volSource, &volOptions, shareOptions), nil
 }
@@ -177,7 +177,7 @@ func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to delete share %s: %v", shareID, err)
 	}
 
-	glog.Infof("successfully deleted share %s", shareID)
+	klog.Infof("successfully deleted share %s", shareID)
 
 	return nil
 }

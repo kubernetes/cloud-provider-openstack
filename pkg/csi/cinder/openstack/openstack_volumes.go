@@ -24,7 +24,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 const (
@@ -180,7 +180,7 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 
 	if volume.AttachedServerId != "" {
 		if instanceID == volume.AttachedServerId {
-			glog.V(4).Infof("Disk %s is already attached to instance %s", volumeID, instanceID)
+			klog.V(4).Infof("Disk %s is already attached to instance %s", volumeID, instanceID)
 			return volume.ID, nil
 		}
 		return "", fmt.Errorf("disk %s is attached to a different instance (%s)", volumeID, volume.AttachedServerId)
@@ -193,7 +193,7 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
-	glog.V(2).Infof("Successfully attached %s volume to %s compute", volumeID, instanceID)
+	klog.V(2).Infof("Successfully attached %s volume to %s compute", volumeID, instanceID)
 	return volume.ID, nil
 }
 
@@ -227,7 +227,7 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 		return err
 	}
 	if volume.Status == VolumeAvailableStatus {
-		glog.V(2).Infof("volume: %s has been detached from compute: %s ", volume.ID, instanceID)
+		klog.V(2).Infof("volume: %s has been detached from compute: %s ", volume.ID, instanceID)
 		return nil
 	}
 
@@ -242,7 +242,7 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 		if err != nil {
 			return fmt.Errorf("failed to delete volume %s from compute %s attached %v", volume.ID, instanceID, err)
 		}
-		glog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
+		klog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
 	}
 
 	return nil

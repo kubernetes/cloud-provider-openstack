@@ -20,7 +20,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 func GetHostname(hostnameOverride string) string {
@@ -28,7 +28,7 @@ func GetHostname(hostnameOverride string) string {
 	if hostname == "" {
 		nodename, err := os.Hostname()
 		if err != nil {
-			glog.Fatalf("Couldn't determine hostname: %v", err)
+			klog.Fatalf("Couldn't determine hostname: %v", err)
 		}
 		hostname = nodename
 	}

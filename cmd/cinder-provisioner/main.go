@@ -18,8 +18,8 @@ package main
 
 import (
 	"flag"
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
@@ -41,17 +41,32 @@ var (
 )
 
 func main() {
-	flag.CommandLine.Parse([]string{})
 	pflag.StringVar(&master, "master", "", "Master URL")
 	pflag.StringVar(&kubeconfig, "kubeconfig", "", "Absolute path to the kubeconfig")
 	pflag.StringVar(&id, "id", "", "Unique provisioner identity")
 	pflag.StringVar(&cloudconfig, "cloud-config", "", "Path to OpenStack config file")
 
+	// Glog requires this otherwise it complains.
+	flag.CommandLine.Parse(nil)
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
+
 	kflag.InitFlags()
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	glog.V(1).Infof("cinder-provisioner version: %s", version)
+	klog.V(1).Infof("cinder-provisioner version: %s", version)
 
 	var config *rest.Config
 	var err error
@@ -65,25 +80,25 @@ func main() {
 		prID = id
 	}
 	if err != nil {
-		glog.Fatalf("Failed to create config: %v", err)
+		klog.Fatalf("Failed to create config: %v", err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		glog.Fatalf("Failed to create client: %v", err)
+		klog.Fatalf("Failed to create client: %v", err)
 	}
 
 	// The controller needs to know what the server version is because out-of-tree
 	// provisioners aren't officially supported until 1.5
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	if err != nil {
-		glog.Fatalf("Error getting server version: %v", err)
+		klog.Fatalf("Error getting server version: %v", err)
 	}
 
 	// Create the provisioner: it implements the Provisioner interface expected by
 	// the controller
 	cinderProvisioner, err := provisioner.NewCinderProvisioner(clientset, prID, cloudconfig)
 	if err != nil {
-		glog.Fatalf("Error creating Cinder provisioner: %v", err)
+		klog.Fatalf("Error creating Cinder provisioner: %v", err)
 	}
 
 	// Start the provision controller which will dynamically provision cinder

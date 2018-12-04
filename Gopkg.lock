@@ -7,7 +7,8 @@
   name = "bitbucket.org/ww/goautoneg"
   packages = ["."]
   pruneopts = "UT"
-  revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
+  source = "https://github.com/munnerz/goautoneg.git"
+  revision = "a547fc61f48d567d5b4ec6f8aee5573d8efce11d"
 
 [[projects]]
   branch = "master"
@@ -1010,7 +1011,7 @@
   ]
   pruneopts = "UT"
   revision = "f6dfa44405f0e49522290bd277f3eee3c3fc74d1"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[projects]]
   branch = "master"
@@ -1079,7 +1080,7 @@
   ]
   pruneopts = "UT"
   revision = "ffd2ae06646c02ab214c0fe691dff61cb464ed87"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[projects]]
   digest = "1:7d553606675df9570ff207add7c6df78a6f8059c5df14406fd4ed34ac3906f4c"
@@ -1183,7 +1184,7 @@
   ]
   pruneopts = "UT"
   revision = "fd4989fe40fcacb222a886a56d34643d1a44d0da"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[projects]]
   digest = "1:2eff362f691de5a484a7b63a8e3a0d7c634ab9d1822c601133983a7f60a6e155"
@@ -1366,7 +1367,7 @@
   ]
   pruneopts = "UT"
   revision = "3d0291ef797fa2930ab6889b541fa3c3a9f633d9"
-  version = "kubernetes-1.13.0-beta.0"
+  version = "kubernetes-1.13.0"
 
 [[projects]]
   branch = "master"
@@ -1388,6 +1389,14 @@
   ]
   pruneopts = "UT"
   revision = "f540d27a99d70ee0ff24e809715c69a5fbdb220c"
+
+[[projects]]
+  branch = "master"
+  digest = "1:e2999bf1bb6eddc2a6aa03fe5e6629120a53088926520ca3b4765f77d7ff7eab"
+  name = "k8s.io/klog"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8139d8cb77af419532b33dfa7dd09fbc5f1d344f"
 
 [[projects]]
   branch = "master"
@@ -1489,7 +1498,7 @@
   ]
   pruneopts = "UT"
   revision = "9637141d5e2e0d5727307b5d099cefc3b1336555"
-  version = "v1.13.0-beta.0"
+  version = "v1.13.0"
 
 [[projects]]
   branch = "master"
@@ -1507,7 +1516,6 @@
   analyzer-version = 1
   input-imports = [
     "github.com/container-storage-interface/spec/lib/go/csi/v0",
-    "github.com/golang/glog",
     "github.com/gophercloud/gophercloud",
     "github.com/gophercloud/gophercloud/openstack",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions",
@@ -1601,6 +1609,7 @@
     "k8s.io/client-go/util/testing",
     "k8s.io/client-go/util/workqueue",
     "k8s.io/cloud-provider",
+    "k8s.io/klog",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app/options",
     "k8s.io/kubernetes/pkg/client/metrics/prometheus",

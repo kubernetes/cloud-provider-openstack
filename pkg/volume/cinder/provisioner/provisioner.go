@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/kubernetes-incubator/external-storage/lib/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
 
 	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 )
@@ -126,7 +126,7 @@ func (p *cinderProvisioner) getCreateOptions(options controller.VolumeOptions) (
 				return volumes_v2.CreateOpts{}, fmt.Errorf("Unable to get PVC %s/%s", ns, sourcePVCName)
 			}
 			if sourceVolID, ok = sourcePVC.Annotations[CinderVolumeIDAnn]; ok {
-				glog.Infof("Requesting clone of cinder volumeID %s", sourceVolID)
+				klog.Infof("Requesting clone of cinder volumeID %s", sourceVolID)
 			} else {
 				return volumes_v2.CreateOpts{}, fmt.Errorf("PVC %s/%s missing %s annotation",
 					ns, sourcePVCName, CinderVolumeIDAnn)
@@ -150,7 +150,7 @@ func (p *cinderProvisioner) annotatePVC(cinderVolID string, pvc *v1.PersistentVo
 	// Add clone annotation if this is a cloned volume
 	if sourcePVCName, ok := pvc.Annotations[CloneRequestAnn]; ok {
 		if createOptions.SourceVolID != "" {
-			glog.Infof("Annotating PVC %s/%s as a clone of PVC %s/%s",
+			klog.Infof("Annotating PVC %s/%s as a clone of PVC %s/%s",
 				pvc.Namespace, pvc.Name, pvc.Namespace, sourcePVCName)
 			annotations[CloneOfAnn] = sourcePVCName
 		}
@@ -176,60 +176,60 @@ func (p *cinderProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 	// TODO: Check access mode
 	createOptions, err := p.getCreateOptions(options)
 	if err != nil {
-		glog.Error(err)
+		klog.Error(err)
 		goto ERROR
 	}
 	volumeID, err = p.vsb.createCinderVolume(p.VolumeService, createOptions)
 	if err != nil {
-		glog.Errorf("Failed to create volume")
+		klog.Errorf("Failed to create volume")
 		goto ERROR
 	}
 
 	err = p.vsb.waitForAvailableCinderVolume(p.VolumeService, volumeID)
 	if err != nil {
-		glog.Errorf("Volume %s did not become available", volumeID)
+		klog.Errorf("Volume %s did not become available", volumeID)
 		goto ERROR_DELETE
 	}
 
 	err = p.vsb.reserveCinderVolume(p.VolumeService, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to reserve volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to reserve volume %s: %v", volumeID, err)
 		goto ERROR_DELETE
 	}
 
 	connection, err = p.vsb.connectCinderVolume(p.VolumeService, initiatorName, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to connect volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to connect volume %s: %v", volumeID, err)
 		goto ERROR_UNRESERVE
 	}
 
 	err = p.vsb.attachCinderVolume(p.VolumeService, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to attach volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to attach volume %s: %v", volumeID, err)
 		goto ERROR_DISCONNECT
 	}
 
 	mapper, err = p.mb.newVolumeMapperFromConnection(connection)
 	if err != nil {
-		glog.Errorf("Unable to create volume mapper: %v", err)
+		klog.Errorf("Unable to create volume mapper: %v", err)
 		goto ERROR_DETACH
 	}
 
 	err = mapper.AuthSetup(p, options, connection)
 	if err != nil {
-		glog.Errorf("Failed to prepare volume auth: %v", err)
+		klog.Errorf("Failed to prepare volume auth: %v", err)
 		goto ERROR_DETACH
 	}
 
 	pv, err = p.mb.buildPV(mapper, p, options, connection, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to build PV: %v", err)
+		klog.Errorf("Failed to build PV: %v", err)
 		goto ERROR_DETACH
 	}
 
 	err = p.annotatePVC(volumeID, options.PVC, createOptions)
 	if err != nil {
-		glog.Errorf("Failed to annotate cloned PVC: %v", err)
+		klog.Errorf("Failed to annotate cloned PVC: %v", err)
 		goto ERROR_DETACH
 	}
 
@@ -238,26 +238,26 @@ func (p *cinderProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 ERROR_DETACH:
 	cleanupErr = p.vsb.detachCinderVolume(p.VolumeService, volumeID)
 	if cleanupErr != nil {
-		glog.Errorf("Failed to detach volume %s: %v", volumeID, cleanupErr)
+		klog.Errorf("Failed to detach volume %s: %v", volumeID, cleanupErr)
 	}
 ERROR_DISCONNECT:
 	cleanupErr = p.vsb.disconnectCinderVolume(p.VolumeService, initiatorName, volumeID)
 	if cleanupErr != nil {
-		glog.Errorf("Failed to disconnect volume %s: %v", volumeID, cleanupErr)
+		klog.Errorf("Failed to disconnect volume %s: %v", volumeID, cleanupErr)
 	}
-	glog.V(3).Infof("Volume %s disconnected", volumeID)
+	klog.V(3).Infof("Volume %s disconnected", volumeID)
 ERROR_UNRESERVE:
 	cleanupErr = p.vsb.unreserveCinderVolume(p.VolumeService, volumeID)
 	if cleanupErr != nil {
-		glog.Errorf("Failed to unreserve volume %s: %v", volumeID, cleanupErr)
+		klog.Errorf("Failed to unreserve volume %s: %v", volumeID, cleanupErr)
 	}
-	glog.V(3).Infof("Volume %s unreserved", volumeID)
+	klog.V(3).Infof("Volume %s unreserved", volumeID)
 ERROR_DELETE:
 	cleanupErr = p.vsb.deleteCinderVolume(p.VolumeService, volumeID)
 	if cleanupErr != nil {
-		glog.Errorf("Failed to delete volume %s: %v", volumeID, cleanupErr)
+		klog.Errorf("Failed to delete volume %s: %v", volumeID, cleanupErr)
 	}
-	glog.V(3).Infof("Volume %s deleted", volumeID)
+	klog.V(3).Infof("Volume %s deleted", volumeID)
 ERROR:
 	return nil, err // Return the original error
 }
@@ -284,7 +284,7 @@ func (p *cinderProvisioner) Delete(pv *v1.PersistentVolume) error {
 
 	mapper, err := p.mb.newVolumeMapperFromPV(pv)
 	if err != nil {
-		glog.Errorf("Failed to instantiate mapper: %s", err)
+		klog.Errorf("Failed to instantiate mapper: %s", err)
 		return err
 	}
 
@@ -292,29 +292,29 @@ func (p *cinderProvisioner) Delete(pv *v1.PersistentVolume) error {
 
 	err = p.vsb.detachCinderVolume(p.VolumeService, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to detach volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to detach volume %s: %v", volumeID, err)
 		return err
 	}
 
 	err = p.vsb.disconnectCinderVolume(p.VolumeService, initiatorName, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to disconnect volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to disconnect volume %s: %v", volumeID, err)
 		return err
 	}
 
 	err = p.vsb.unreserveCinderVolume(p.VolumeService, volumeID)
 	if err != nil {
 		// TODO: Create placeholder PV?
-		glog.Errorf("Failed to unreserve volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to unreserve volume %s: %v", volumeID, err)
 		return err
 	}
 
 	err = p.vsb.deleteCinderVolume(p.VolumeService, volumeID)
 	if err != nil {
-		glog.Errorf("Failed to delete volume %s: %v", volumeID, err)
+		klog.Errorf("Failed to delete volume %s: %v", volumeID, err)
 		return err
 	}
 
-	glog.V(2).Infof("Successfully deleted cinder volume %s", volumeID)
+	klog.V(2).Infof("Successfully deleted cinder volume %s", volumeID)
 	return nil
 }
