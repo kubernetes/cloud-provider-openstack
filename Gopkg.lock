@@ -7,7 +7,8 @@
   name = "bitbucket.org/ww/goautoneg"
   packages = ["."]
   pruneopts = "UT"
-  revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
+  source = "https://github.com/munnerz/goautoneg.git"
+  revision = "a547fc61f48d567d5b4ec6f8aee5573d8efce11d"
 
 [[projects]]
   branch = "master"
