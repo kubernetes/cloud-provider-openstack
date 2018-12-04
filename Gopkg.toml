@@ -155,6 +155,10 @@ revision = "a9fbbdc8dd8794b20af358382ab780559bca589d"
 name = "github.com/docker/distribution"
 revision="edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
 
+[[override]]
+name = "bitbucket.org/ww/goautoneg"
+source = "https://github.com/munnerz/goautoneg.git"
+
 [prune]
   go-tests = true
   unused-packages = true
