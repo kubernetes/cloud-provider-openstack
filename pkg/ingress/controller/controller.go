@@ -338,6 +338,13 @@ func (c *Controller) nodeSyncLoop() {
 
 	log.Infof("Detected change in list of current cluster nodes. New node set: %v", nodeNames(readyWorkerNodes))
 
+	// if no new nodes, then avoid update member
+	if len(readyWorkerNodes) == 0 {
+		c.knownNodes = readyWorkerNodes
+		log.Info("Finished to handle node change, it's [] now")
+		return
+	}
+
 	ings := new(extv1beta1.IngressList)
 	// TODO: only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
