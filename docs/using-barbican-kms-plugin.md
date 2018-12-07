@@ -1,25 +1,21 @@
 # OpenStack Barbican KMS Plugin
+Kubernetes Supports providers for Encrypting secret data at REST. From Kubernetes v1.10 support for KMS encryption provider is also added. KMS encryption provider encrypt using a data encryption key (DEK), The DEKs are encrypted with a key encryption key (KEK) that is stored and managed in a remote KMS. The KMS provider uses gRPC to communicate with a specific KMS plugin.
 
-Please Read the following documents to familizarize yourself with Encryption at REST
-https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#providers     
-https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/    
+It is recommended to read following kubernetes documents  
 
-Kubernetes Supports many providers(https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#providers) for Encrypting secret data at REST. From Kubernetes v1.10 support for KMS encryption provider is also added. KMS encryption provider encrypt using a data encryption key (DEK), The DEKs are encrypted with a key encryption key (KEK) that is stored and managed in a remote KMS. The KMS provider uses gRPC to communicate with a specific KMS plugin. 
+[Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted)  
+[Using a KMS provider for data encryption](https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/)
 
-Barbican KMS Plugin is the grpc server implemenation for KMS provider.
+## Installation Steps:
+The following installation steps assumes that you have a Kubernetes cluster(v1.10+) running on OpenStack Cloud.
 
-## Prerequisites:
-Kubernetes Cluster v1.10+ on OpenStack Cloud
-
-### Installation:
-
-### Create Key
-* create 256bit(32 byte) cbc key and store in barbican
-openstack secret order create --name k8s_key2 --algorithm aes --mode cbc --bit-length 256 key  --payload-content-type=application/octet-stream key
-+----------------+----------------------------------------------------------------------+
-| Field          | Value                                                                |
-+----------------+----------------------------------------------------------------------+
-| Order href     | http://localhost:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e |
+1. Create 256bit(32 byte) cbc key and store in barbican
+```
+$ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-length 256 key  --payload-content-type=application/octet-stream key
++----------------+-----------------------------------------------------------------------+
+| Field          | Value                                                                 |
++----------------+-----------------------------------------------------------------------+
+| Order href     | http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e  |
 | Type           | Key                                                                  |
 | Container href | N/A                                                                  |
 | Secret href    | None                                                                 |
@@ -28,39 +24,73 @@ openstack secret order create --name k8s_key2 --algorithm aes --mode cbc --bit-l
 | Error code     | None                                                                 |
 | Error message  | None                                                                 |
 +----------------+----------------------------------------------------------------------+
+```
 
-
-* get the key-id
-openstack secret order get http://localhost:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e
+2. Get the Key Id
+```
+$ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e
  +----------------+-----------------------------------------------------------------------+
 | Field          | Value                                                                 |
 +----------------+-----------------------------------------------------------------------+
-| Order href     | http://localhost:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e  |
+| Order href     | http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e   |
 | Type           | Key                                                                   |
 | Container href | N/A                                                                   |
-| Secret href    | http://localhost:9311/v1/secrets/b5309dfb-b326-4148-b0ad-e9cd1ec223a8 |
+| Secret href    | http://hostname:9311/v1/secrets/b5309dfb-b326-4148-b0ad-e9cd1ec223a8  |
 | Created        | 2018-10-10T06:29:56+00:00                                             |
 | Status         | ACTIVE                                                                |
 | Error code     | None                                                                  |
 | Error message  | None                                                                  |
 +----------------+-----------------------------------------------------------------------+
+```
 
-* Add the key-id in your cloud-config file (config file depends on how you created k8s cluster on OpenStack)
-/etc/kubernetes/cloud-config
+3. Add the key-id in your cloud-config file
+```
+[Global]
+username = <username>
+password = <password>
+domain-name = <domain-name>
+auth-url =  <keystone-url>
+tenant-id = <project-id>
+region = <region>
+
 [KeyManager]
-key-id=b5309dfb-b326-4148-b0ad-e9cd1ec223a8
+key-id = <key-id>
+```
 
-* Create encryption-config.yaml
-cat encryption-config.yaml
+4. Clone the cloud-provider-openstack repo and build the docker image for barbican-kms-plugin
+```
+$ git clone https://github.com/kubernetes/cloud-provider-openstack.git $GOPATH/k8s.io/src/
+$ cd $GOPATH/k8s.io/src/cloud-provider-openstack/
+$ cp barbican-kms-plugin cluster/images/barbican-kms-plugin
+$ docker build -t docker.io/k8scloudprovider/barbican-kms-plugin:latest cluster/images/barbican-kms-plugin
+```
 
-* Enable --experimental-encryption-provider-config flag in kube-apiserver and point to encryption-config.yaml 
+5. Run the KMS Plugin in docker container
+```
+$ docker run -d --volume=/var/lib/kms:/var/lib/kms \
+--volume=/etc/kubernetes:/etc/kubernetes \
+-e socketpath=/var/lib/kms/kms.sock \
+-e cloudconfig=/etc/kubernetes/cloud-config \
+docker.io/k8scloudprovider/barbican-kms-plugin:latest
+```
+6. Create /etc/kubernetes/encryption-config.yaml
+```
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+    - secrets
+    providers:
+    - kms:
+        name : barbican
+        endpoint: unix:///var/lib/kms/kms.sock
+        cachesize: 100
+    - identity: {}
+ ```
+7. Enable --experimental-encryption-provider-config flag in kube-apiserver and restart it.
+```
+--experimental-encryption-provider-config=/etc/kubernetes/encryption-config.yaml
+```
 
-* start barbican kms plugin using
-TODO: create pod yamls, docker file
-kubectl create -f k8s.io/cloud-provider-openstack/manifests/barbican-kms/
-
-### Run Example to verify
-* Test encryption
-kubectl.sh create secret generic secret1 -n default --from-literal=mykey=mydata
-kubectl.sh get secret secret1 -o yaml
-echo 'bXlkYXRh' | base64 --decode
+### Verify
+Verify the secret data is encrypted
