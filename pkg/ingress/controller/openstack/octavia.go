@@ -361,7 +361,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbala
 
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(loadbalancer.ID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating loadbalancer: %v", err)
+		return nil, fmt.Errorf("failed to wait for loadbalancer to be active: %v", err)
 	}
 
 	return loadbalancer, nil
@@ -405,7 +405,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating listener: %v", err)
+		return nil, fmt.Errorf("failed to wait for loadbalancer to be active: %v", err)
 	}
 
 	return listener, nil
