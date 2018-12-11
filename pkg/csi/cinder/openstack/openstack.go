@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"net/http"
 	"os"
 
 	"github.com/gophercloud/gophercloud"
@@ -75,6 +76,20 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 		// Persistent service, so we need to be able to renew tokens.
 		AllowReauth: true,
 	}
+}
+
+func isNotFound(err error) bool {
+	if _, ok := err.(gophercloud.ErrDefault404); ok {
+		return true
+	}
+
+	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
+		if errCode.Actual == http.StatusNotFound {
+			return true
+		}
+	}
+
+	return false
 }
 
 func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {

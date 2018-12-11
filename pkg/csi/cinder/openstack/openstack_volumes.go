@@ -207,7 +207,9 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		attached, err := os.diskIsAttached(instanceID, volumeID)
-		if err != nil {
+		if err != nil && !isNotFound(err) {
+			// if this is a race condition indicate the volume is deleted
+			// during sleep phase, ignore the error and return attach=false
 			return false, err
 		}
 		return attached, nil
