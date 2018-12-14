@@ -287,6 +287,13 @@ func (c *caller) call(f func()) {
 }
 
 func readInstanceID(searchOrder string) (string, error) {
+	// First, try to get data from metadata service because local
+	// data might be changed by accident
+	md, err := getMetadata(searchOrder)
+	if err == nil {
+		return md.UUID, nil
+	}
+
 	// Try to find instance ID on the local filesystem (created by cloud-init)
 	const instanceIDFile = "/var/lib/cloud/data/instance-id"
 	idBytes, err := ioutil.ReadFile(instanceIDFile)
@@ -297,15 +304,9 @@ func readInstanceID(searchOrder string) (string, error) {
 		if instanceID != "" && instanceID != "iid-datasource-none" {
 			return instanceID, nil
 		}
-		// Fall through to metadata server lookup
 	}
 
-	md, err := getMetadata(searchOrder)
-	if err != nil {
-		return "", err
-	}
-
-	return md.UUID, nil
+	return "", err
 }
 
 // check opts for OpenStack
