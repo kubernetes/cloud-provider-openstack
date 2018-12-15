@@ -1,40 +1,101 @@
 - project:
     cloud-provider-openstack-unittest:
       jobs:
-        - cloud-provider-openstack-unittest
+        - cloud-provider-openstack-unittest:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+
     cloud-provider-openstack-acceptance-test-lb-octavia:
       jobs:
-        - cloud-provider-openstack-acceptance-test-lb-octavia
+        - cloud-provider-openstack-acceptance-test-lb-octavia:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-format:
       jobs:
-        - cloud-provider-openstack-format
+        - cloud-provider-openstack-format:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
-        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization
+        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-k8s-cinder:
       jobs:
-        - cloud-provider-openstack-acceptance-test-k8s-cinder
+        - cloud-provider-openstack-acceptance-test-k8s-cinder:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-standalone-cinder:
       jobs:
-        - cloud-provider-openstack-acceptance-test-standalone-cinder
+        - cloud-provider-openstack-acceptance-test-standalone-cinder:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-csi-cinder:
       jobs:
-        - cloud-provider-openstack-acceptance-test-csi-cinder
+        - cloud-provider-openstack-acceptance-test-csi-cinder:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-flexvolume-cinder:
       jobs:
-        - cloud-provider-openstack-acceptance-test-flexvolume-cinder
+        - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance
+        - cloud-provider-openstack-acceptance-test-e2e-conformance:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     periodic:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
