@@ -17,6 +17,8 @@ limitations under the License.
 package sharebackends
 
 import (
+	"fmt"
+
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/api/core/v1"
 )
@@ -36,6 +38,10 @@ func (CSICephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource,
 		return nil, err
 	}
 
+	if args.Options.CSICEPHFSmounter != "fuse" && args.Options.CSICEPHFSmounter != "kernel" {
+		return nil, fmt.Errorf("unrecognized mounter option '%s'", args.Options.CSICEPHFSmounter)
+	}
+
 	return &v1.PersistentVolumeSource{
 		CSI: &v1.CSIPersistentVolumeSource{
 			Driver:       args.Options.CSICEPHFSdriver,
@@ -44,7 +50,7 @@ func (CSICephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource,
 			VolumeAttributes: map[string]string{
 				"monitors":        monitors,
 				"rootPath":        rootPath,
-				"mounter":         "fuse",
+				"mounter":         args.Options.CSICEPHFSmounter,
 				"provisionVolume": "false",
 			},
 			NodeStageSecretRef: &args.Options.ShareSecretRef,
