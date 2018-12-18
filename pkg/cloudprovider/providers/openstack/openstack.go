@@ -34,6 +34,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
@@ -134,6 +135,11 @@ type RouterOpts struct {
 type MetadataOpts struct {
 	SearchOrder    string     `gcfg:"search-order"`
 	RequestTimeout MyDuration `gcfg:"request-timeout"`
+}
+
+type ServerAttributesExt struct {
+	servers.Server
+	availabilityzones.ServerAvailabilityZoneExt
 }
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -437,18 +443,18 @@ func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuild
 	return err
 }
 
-func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*servers.Server, error) {
+func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
 	opts := servers.ListOpts{
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
 	}
 
 	pager := servers.List(client, opts)
 
-	serverList := make([]servers.Server, 0, 1)
+	var s []ServerAttributesExt
+	serverList := make([]ServerAttributesExt, 0, 1)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		s, err := servers.ExtractServers(page)
-		if err != nil {
+		if err := servers.ExtractServersInto(page, &s); err != nil {
 			return false, err
 		}
 		serverList = append(serverList, s...)
@@ -540,7 +546,7 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 		return nil, err
 	}
 
-	return nodeAddresses(srv, networkingOpts)
+	return nodeAddresses(&srv.Server, networkingOpts)
 }
 
 func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
@@ -698,16 +704,16 @@ func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string)
 		return cloudprovider.Zone{}, err
 	}
 
-	srv, err := servers.Get(compute, instanceID).Extract()
-	if err != nil {
+	var serverWithAttributesExt ServerAttributesExt
+	if err := servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt); err != nil {
 		return cloudprovider.Zone{}, err
 	}
 
 	zone := cloudprovider.Zone{
-		FailureDomain: srv.Metadata[availabilityZone],
+		FailureDomain: serverWithAttributesExt.AvailabilityZone,
 		Region:        os.region,
 	}
-	klog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)
+	klog.V(4).Infof("The instance %s in zone %v", serverWithAttributesExt.Name, zone)
 	return zone, nil
 }
 
@@ -729,7 +735,7 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 	}
 
 	zone := cloudprovider.Zone{
-		FailureDomain: srv.Metadata[availabilityZone],
+		FailureDomain: srv.AvailabilityZone,
 		Region:        os.region,
 	}
 	klog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)

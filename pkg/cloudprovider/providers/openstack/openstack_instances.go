@@ -215,7 +215,7 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 		return "", err
 	}
 
-	return srvInstanceType(srv)
+	return srvInstanceType(&srv.Server)
 }
 
 func srvInstanceType(srv *servers.Server) (string, error) {
