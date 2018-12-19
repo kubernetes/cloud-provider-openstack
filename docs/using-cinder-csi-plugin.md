@@ -43,7 +43,7 @@ csi-provisioner-cinderplugin-0      2/2     Running   0          46h
 
 ### Example Nginx application usage
 
-After perform above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
+After performing above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
 Try following command:
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
