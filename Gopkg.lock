@@ -450,14 +450,6 @@
   version = "v1.0.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:c486ed8ec89f0702d16043caada5a9ad0be2f639ca33621665d2614582d32154"
-  name = "github.com/kubernetes-csi/drivers"
-  packages = ["pkg/csi-common"]
-  pruneopts = "UT"
-  revision = "a38ee8520f16657511de3d1063ddbe06aeeee4c6"
-
-[[projects]]
   digest = "1:49926b919c58842fe6ec1e1f3fd46e32071e1f96c7187fb4c38bb85be6c78389"
   name = "github.com/kubernetes-incubator/external-storage"
   packages = [
@@ -1526,10 +1518,8 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-
   input-imports = [
     "github.com/container-storage-interface/spec/lib/go/csi/v0",
-    "github.com/golang/glog",
     "github.com/gophercloud/gophercloud",
     "github.com/gophercloud/gophercloud/openstack",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions",
@@ -1569,7 +1559,6 @@
     "github.com/gophercloud/gophercloud/testhelper/client",
     "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/gorilla/mux",
-    "github.com/kubernetes-csi/drivers/pkg/csi-common",
     "github.com/kubernetes-incubator/external-storage/lib/controller",
     "github.com/mitchellh/go-homedir",
     "github.com/mitchellh/mapstructure",
