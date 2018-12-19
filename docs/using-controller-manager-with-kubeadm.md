@@ -1,63 +1,88 @@
 # Using with kubeadm
 
-Step 1: Edit your /etc/systemd/system/kubelet.service.d/10-kubeadm.conf to add `--cloud-provider=external` to the kubelet arguments
-```
-Environment="KUBELET_KUBECONFIG_ARGS=--cloud-provider=external --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
-```
+## Prerequisites
 
-Step 2: Use the `kubeadm.conf` in manifests directory, edit it as appropriate and use the kubeadm.conf like so.
-```
-kubeadm init --config kubeadm.conf
-```
+- kubeadm, kubelet and kubectl has been installed.
+- This guide only deploys cloud-controller-manager, no cinder-provisioner, no cinder-csi-plugin.
 
-Then follow the usual steps to bootstrap the other nodes using `kubeadm join`
+## Steps
 
-Step 3: build the container image using the following (`make bootstrap` will download go SDK and dep if needed)
-```
-GOOS=linux make images
-```
+- Config kubelet arguments on each node.
 
-Save the image using:
-```
-docker save openstack/openstack-cloud-controller-manager:v0.1.0 | gzip > openstack-cloud-controller-manager.tgz
-```
+    Edit `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` to add `--cloud-provider=external` to the kubelet arguments, e.g.
 
-Copy the tgz over to the nodes and load them up:
-```
-gzip -d openstack-cloud-controller-manager.tgz
-docker load < openstack-cloud-controller-manager.tar
-```
+    ```
+    Environment="KUBELET_KUBECONFIG_ARGS=--cloud-provider=external --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+    ```
 
-Step 4: Create a configmap with the openstack cloud configuration (see `manifests/controller-manager/cloud-config`)
-```
-kubectl create configmap cloud-config --from-file=/etc/kubernetes/cloud-config -n kube-system
-```
+    Restart kubelet service after the modification.
 
-Step 5: Deploy controller manager
+- Create the cloud config file `/etc/kubernetes/cloud-config` on each node. You can find an example file in `manifests/controller-manager/cloud-config`.
 
-Option #1 - Using a single pod with the definition in `manifests/controller-manager/openstack-cloud-controller-manager-pod.yaml`
-```
-kubectl create -f manifests/controller-manager/openstack-cloud-controller-manager-pod.yaml
-```
-Option #2 - Using a daemonset
-```
-kubectl create -f manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
-```
+    > `/etc/kubernetes/cloud-config` is the default cloud config file path used by controller-manager and kubelet.
 
-Step 6: Monitor using kubectl, for example:
+- Bootstrap the cluster on the master node.
 
-for Option #1:
-```
-kubectl get pods -n kube-system
-kubectl get pods -n kube-system openstack-cloud-controller-manager -o json
-kubectl describe pod/openstack-cloud-controller-manager -n kube-system
-```
+    ```
+    kubeadm init --config kubeadm.conf
+    ```
 
-for Option #2:
-```
-kubectl get ds -n kube-system
-kubectl get ds -n kube-system openstack-cloud-controller-manager -o json
-kubectl describe ds/openstack-cloud-controller-manager -n kube-system
-```
+    You can find an example kubeadm.conf in `manifests/controller-manager/kubeadm.conf`. Follow the usual steps to install the network plugin and then bootstrap the other nodes using `kubeadm join`.
 
-Step 7: TBD - test features
+- Allow controller-manager to have access `/etc/kubernetes/cloud-config`.
+
+    Modify `/etc/kubernetes/manifests/kube-controller-manager.yaml` file to mount an extra volume to the controller manager pod.
+
+    ```
+    ...
+        volumeMounts:
+        - mountPath: /etc/kubernetes/cloud-config
+          name: cloud-config
+          readOnly: true
+    ...
+      volumes:
+      - name: cloud-config
+        hostPath:
+          path: /etc/kubernetes/cloud-config
+          type: FileOrCreate
+    ...
+    ```
+
+    Then wait for the controller manager to be restarted and running.
+
+- Create a configmap containing the cloud configuration for cloud-controller-manager.
+
+    ```shell
+    kubectl create configmap cloud-config --from-file=/etc/kubernetes/cloud-config -n kube-system
+    ```
+
+- Create InitializerConfiguration for the cloud-controller-manager to label persistent volumes, see more details [here](https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
+
+    ```
+    cat <<EOF | kubectl apply -f -
+    kind: InitializerConfiguration
+    apiVersion: admissionregistration.k8s.io/v1alpha1
+    metadata:
+      name: pvlabel.kubernetes.io
+    initializers:
+      - name: pvlabel.kubernetes.io
+        rules:
+        - apiGroups:
+          - ""
+          apiVersions:
+          - "*"
+          resources:
+          - persistentvolumes
+    EOF
+    ```
+- Before we create cloud-controller-manager deamonset, you can find all the nodes have the taint `node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule` and waiting for being initialized by cloud-controller-manager.
+
+- Create RBAC resources and cloud-controller-manager deamonset.
+
+    ```shell
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+    ```
+
+- After the cloud-controller-manager deamonset is up and running, the node taint above will be removed by cloud-controller-manager, you can also see some more information in the node label.
