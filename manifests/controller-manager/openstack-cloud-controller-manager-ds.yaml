@@ -39,21 +39,17 @@ spec:
           image: docker.io/k8scloudprovider/openstack-cloud-controller-manager:latest
           args:
             - /bin/openstack-cloud-controller-manager
-            - --v=2
+            - --v=1
             - --cloud-config=/etc/cloud/cloud-config
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
             - --address=127.0.0.1
-            - --kubeconfig=/etc/kubernetes/controller-manager.conf
           volumeMounts:
             - mountPath: /etc/kubernetes/pki
               name: k8s-certs
               readOnly: true
             - mountPath: /etc/ssl/certs
               name: ca-certs
-              readOnly: true
-            - mountPath: /etc/kubernetes/controller-manager.conf
-              name: kubeconfig
               readOnly: true
             - mountPath: /etc/cloud
               name: cloud-config-volume
@@ -77,10 +73,6 @@ spec:
           path: /etc/ssl/certs
           type: DirectoryOrCreate
         name: ca-certs
-      - hostPath:
-          path: /etc/kubernetes/controller-manager.conf
-          type: FileOrCreate
-        name: kubeconfig
       - name: cloud-config-volume
         configMap:
           name: cloud-config
