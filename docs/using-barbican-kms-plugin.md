@@ -1,10 +1,11 @@
 # OpenStack Barbican KMS Plugin
-Kubernetes Supports providers for Encrypting secret data at REST. From Kubernetes v1.10 support for KMS encryption provider is also added. KMS encryption provider encrypt using a data encryption key (DEK), The DEKs are encrypted with a key encryption key (KEK) that is stored and managed in a remote KMS. The KMS provider uses gRPC to communicate with a specific KMS plugin.
+Kubernetes supports to encrypt etcd data with various providers listed [here](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#providers), one of which is *kms*. The Kubernetes *kms provider* uses envelope encryption scheme. The data is encrypted using *DEK's* by kubernetes *kms provider*, *DEK's* are encrypted by *kms plugin* (e.g. barbican) using *KEK*. *Barbican-kms-plugin* uses *key* from barbican to encrypt/decrypt the *DEK's* as requested by kubernetes api server. 
+The *KMS provider* uses gRPC to communicate with a specific *KMS plugin*.
 
 It is recommended to read following kubernetes documents  
 
-[Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted)  
-[Using a KMS provider for data encryption](https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/)
+* [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted)  
+* [Using a KMS provider for data encryption](https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/)
 
 ## Installation Steps:
 The following installation steps assumes that you have a Kubernetes cluster(v1.10+) running on OpenStack Cloud.
@@ -26,7 +27,7 @@ $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-
 +----------------+----------------------------------------------------------------------+
 ```
 
-2. Get the Key Id
+2. Get the Key Id, It is the uuid in *Secret href*
 ```
 $ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e
  +----------------+-----------------------------------------------------------------------+
@@ -61,6 +62,7 @@ key-id = <key-id>
 ```
 $ git clone https://github.com/kubernetes/cloud-provider-openstack.git $GOPATH/k8s.io/src/
 $ cd $GOPATH/k8s.io/src/cloud-provider-openstack/
+$ make build barbican-kms-plugin
 $ cp barbican-kms-plugin cluster/images/barbican-kms-plugin
 $ docker build -t docker.io/k8scloudprovider/barbican-kms-plugin:latest cluster/images/barbican-kms-plugin
 ```
@@ -93,4 +95,5 @@ resources:
 ```
 
 ### Verify
-Verify the secret data is encrypted
+[Verify the secret data is encrypted](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted
+)
