@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"golang.org/x/net/context"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
@@ -27,6 +28,8 @@ var fakeConfig = "/etc/cloud.conf"
 var fakeCtx = context.Background()
 var fakeVolName = "CSIVolumeName"
 var fakeVolID = "CSIVolumeID"
+var fakeSnapshotName = "CSISnapshotName"
+var fakeSnapshotID = "261a8b81-3660-43e5-bab8-6470b65ee4e8"
 var fakeCapacityGiB = 1
 var fakeVolType = ""
 var fakeAvailability = ""
@@ -44,3 +47,9 @@ var fakeVol2 = openstack.Volume{
 	Status: "available",
 	AZ:     "",
 }
+var fakeSnapshotRes = snapshots.Snapshot{
+	ID:       fakeSnapshotID,
+	Name:     "fake-snapshot",
+	VolumeID: fakeVolID,
+}
+var fakeSnapshotsRes = []snapshots.Snapshot{fakeSnapshotRes}

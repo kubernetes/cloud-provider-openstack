@@ -38,11 +38,11 @@ var fakeVol2 = Volume{
 }
 
 var fakeSnapshot = snapshots.Snapshot{
-	ID:       "b4dbab05-b083-4f2b-9341-ca977c6de8c7",
+	ID:       "261a8b81-3660-43e5-bab8-6470b65ee4e8",
 	Name:     "fake-snapshot",
 	Status:   "available",
 	Size:     1,
-	VolumeID: "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	VolumeID: "CSIVolumeID",
 	Metadata: make(map[string]string),
 }
 
@@ -273,4 +273,10 @@ func (_m *OpenStackMock) ListVolumes() ([]Volume, error) {
 	}
 
 	return vlist, r0
+}
+
+func (_m *OpenStackMock) GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error) {
+	var slist []snapshots.Snapshot
+	slist = append(slist, fakeSnapshot)
+	return slist, nil
 }
