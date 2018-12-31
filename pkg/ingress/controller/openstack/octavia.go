@@ -441,7 +441,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		if err != ErrNotFound {
 			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
 		} else {
-			log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName}).Debug("creating pool")
+			log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName}).Debug("creating pool")
 
 			// Create new pool
 			var opts pools.CreateOptsBuilder
@@ -467,7 +467,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 				return nil, fmt.Errorf("error creating pool: %v", err)
 			}
 
-			log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
+			log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
 		}
 	}
 
@@ -505,14 +505,14 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 	}
 
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool members updated")
+	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool members updated")
 
 	return &pool.ID, nil
 }
 
 // CreatePolicyRules creates l7 policy and its rules for the listener
 func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path string) error {
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID}).Debug("creating policy")
+	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID}).Debug("creating policy")
 
 	policy, err := l7policies.Create(os.octavia, l7policies.CreateOpts{
 		ListenerID:     listenerID,
@@ -529,10 +529,10 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 		return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 	}
 
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "policyID": policy.ID}).Info("policy created")
+	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "policyID": policy.ID}).Info("policy created")
 
 	if host != "" {
-		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenserID": listenerID}).Debug("creating policy rule")
+		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
 		// Create HOST_NAME type rule
 		_, err = l7policies.CreateRule(os.octavia, policy.ID, l7policies.CreateRuleOpts{
@@ -549,11 +549,11 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 			return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 		}
 
-		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenserID": listenerID}).Info("policy rule created")
+		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenerID": listenerID}).Info("policy rule created")
 	}
 
 	if path != "" {
-		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenserID": listenerID}).Debug("creating policy rule")
+		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
 		// Create PATH type rule
 		_, err = l7policies.CreateRule(os.octavia, policy.ID, l7policies.CreateRuleOpts{
@@ -570,7 +570,7 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 			return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 		}
 
-		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenserID": listenerID}).Info("policy rule created")
+		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenerID": listenerID}).Info("policy rule created")
 	}
 
 	return nil
