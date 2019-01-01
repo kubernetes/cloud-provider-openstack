@@ -312,12 +312,12 @@ func (c *Controller) Start() {
 	}
 	log.Info("ingress controller synced and ready")
 
-	newNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
 	}
-	c.knownNodes = newNodes
+	c.knownNodes = readyWorkerNodes
 
 	go wait.Until(c.runWorker, time.Second, c.stopCh)
 	go wait.Until(c.nodeSyncLoop, 60*time.Second, c.stopCh)
@@ -339,16 +339,16 @@ func (c *Controller) enqueueIng(obj interface{}) {
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
 func (c *Controller) nodeSyncLoop() {
-	newNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
 	}
-	if nodeSlicesEqualForLB(newNodes, c.knownNodes) {
+	if nodeSlicesEqualForLB(readyWorkerNodes, c.knownNodes) {
 		return
 	}
 
-	log.Infof("Detected change in list of current cluster nodes. New node set: %v", nodeNames(newNodes))
+	log.Infof("Detected change in list of current cluster nodes. New node set: %v", nodeNames(readyWorkerNodes))
 
 	ings := new(extv1beta1.IngressList)
 	// TODO: only take ingresses without ip address into consideration
@@ -377,7 +377,7 @@ func (c *Controller) nodeSyncLoop() {
 			continue
 		}
 
-		if err = c.osClient.UpdateLoadbalancerMembers(loadbalancer.ID, newNodes); err != nil {
+		if err = c.osClient.UpdateLoadbalancerMembers(loadbalancer.ID, readyWorkerNodes); err != nil {
 			log.WithFields(log.Fields{"ingress": ing.Name}).Error("Failed to handle ingress")
 			continue
 		}
@@ -385,7 +385,7 @@ func (c *Controller) nodeSyncLoop() {
 		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Info("Finished to handle ingress")
 	}
 
-	c.knownNodes = newNodes
+	c.knownNodes = readyWorkerNodes
 
 	log.Info("Finished to handle node change")
 }
