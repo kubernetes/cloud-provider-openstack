@@ -1,10 +1,10 @@
 package barbican
 
 import (
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
+	"k8s.io/klog"
 )
 
 type BarbicanService interface {
@@ -78,7 +78,7 @@ func (barbican *Barbican) GetSecret(cfg Config) ([]byte, error) {
 	keyID := cfg.KeyManager.KeyID
 
 	if err != nil {
-		glog.V(4).Infof("Failed to get Barbican client %v: ", err)
+		klog.V(4).Infof("Failed to get Barbican client %v: ", err)
 		return nil, err
 	}
 
