@@ -524,7 +524,10 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		return err
 	}
 	for _, sp := range existingSharedPools {
-		c.osClient.DeletePool(sp.ID, lb.ID)
+		err = c.osClient.DeletePool(sp.ID, lb.ID)
+		if err != nil {
+			log.WithFields(log.Fields{"poolID": sp.ID, "lbID": lb.ID}).Errorf("could not delete shared pool: %v", err)
+		}
 	}
 
 	// Add l7 load balancing rules. Each host and path combination is mapped to a l7 policy in octavia,
