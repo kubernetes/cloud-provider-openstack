@@ -512,7 +512,10 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		return err
 	}
 	for _, p := range existingPolicies {
-		c.osClient.DeleteL7policy(p.ID, lb.ID)
+		err = c.osClient.DeleteL7policy(p.ID, lb.ID)
+		if err != nil {
+			log.WithFields(log.Fields{"policyID": p.ID, "lbID": lb.ID}).Errorf("could not delete L7 policy: %v", err)
+		}
 	}
 
 	// Delete all existing shared pools
