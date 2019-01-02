@@ -323,17 +323,6 @@ func (c *Controller) Start() {
 	<-c.stopCh
 }
 
-// obj could be an *v1.Ingress, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) enqueueIng(obj interface{}) {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err != nil {
-		log.WithFields(log.Fields{"error": err, "object": obj}).Error("Couldn't get key for object")
-		return
-	}
-
-	c.queue.Add(key)
-}
-
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
 func (c *Controller) nodeSyncLoop() {
