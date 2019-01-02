@@ -275,38 +275,6 @@ func (os *OpenStack) GetL7policies(listenerID string) ([]l7policies.L7Policy, er
 	return policies, nil
 }
 
-func (os *OpenStack) getL7policy(name string, listenerID, poolID string) (*l7policies.L7Policy, error) {
-	policies := make([]l7policies.L7Policy, 0, 1)
-	opts := l7policies.ListOpts{
-		Name:           name,
-		ListenerID:     listenerID,
-		RedirectPoolID: poolID,
-	}
-	err := l7policies.List(os.octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
-		v, err := l7policies.ExtractL7Policies(page)
-		if err != nil {
-			return false, err
-		}
-		policies = append(policies, v...)
-		if len(policies) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if isNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(policies) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &policies[0], nil
-}
-
 // DeleteL7policy deletes a l7 policy
 func (os *OpenStack) DeleteL7policy(policyID string, lbID string) error {
 	if err := l7policies.Delete(os.octavia, policyID).ExtractErr(); err != nil {
