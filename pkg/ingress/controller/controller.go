@@ -556,8 +556,7 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		}
 	}
 
-	var address string
-	address = lb.VipAddress
+	address := lb.VipAddress
 	if c.config.Octavia.FloatingIPNetwork != "" {
 		// Allocate floating ip for loadbalancer vip.
 		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork); err != nil {
