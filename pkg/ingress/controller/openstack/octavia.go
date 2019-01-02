@@ -408,35 +408,36 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 	if err != nil {
 		if err != ErrNotFound {
 			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
-		} else {
-			log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName}).Debug("creating pool")
-
-			// Create new pool
-			var opts pools.CreateOptsBuilder
-			if listenerID != "" {
-				opts = pools.CreateOpts{
-					Name:        poolName,
-					Protocol:    "HTTP",
-					LBMethod:    pools.LBMethodRoundRobin,
-					ListenerID:  listenerID,
-					Persistence: nil,
-				}
-			} else {
-				opts = pools.CreateOpts{
-					Name:           poolName,
-					Protocol:       "HTTP",
-					LBMethod:       pools.LBMethodRoundRobin,
-					LoadbalancerID: lbID,
-					Persistence:    nil,
-				}
-			}
-			pool, err = pools.Create(os.octavia, opts).Extract()
-			if err != nil {
-				return nil, fmt.Errorf("error creating pool: %v", err)
-			}
-
-			log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
 		}
+
+		log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName}).Debug("creating pool")
+
+		// Create new pool
+		var opts pools.CreateOptsBuilder
+		if listenerID != "" {
+			opts = pools.CreateOpts{
+				Name:        poolName,
+				Protocol:    "HTTP",
+				LBMethod:    pools.LBMethodRoundRobin,
+				ListenerID:  listenerID,
+				Persistence: nil,
+			}
+		} else {
+			opts = pools.CreateOpts{
+				Name:           poolName,
+				Protocol:       "HTTP",
+				LBMethod:       pools.LBMethodRoundRobin,
+				LoadbalancerID: lbID,
+				Persistence:    nil,
+			}
+		}
+		pool, err = pools.Create(os.octavia, opts).Extract()
+		if err != nil {
+			return nil, fmt.Errorf("error creating pool: %v", err)
+		}
+
+		log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
+
 	}
 
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
