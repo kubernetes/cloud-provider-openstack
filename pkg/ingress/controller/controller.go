@@ -146,34 +146,32 @@ func createApiserverClient(apiserverHost string, kubeConfig string) (*kubernetes
 	return client, nil
 }
 
-func getNodeConditionPredicate() corelisters.NodeConditionPredicate {
-	return func(node *apiv1.Node) bool {
-		// We add the master to the node list, but its unschedulable.  So we use this to filter
-		// the master.
-		if node.Spec.Unschedulable {
-			return false
-		}
-
-		// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
-		// Recognize nodes labeled as master, and filter them also, as we were doing previously.
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
-			return false
-		}
-
-		// If we have no info, don't accept
-		if len(node.Status.Conditions) == 0 {
-			return false
-		}
-		for _, cond := range node.Status.Conditions {
-			// We consider the node for load balancing only when its NodeReady condition status
-			// is ConditionTrue
-			if cond.Type == apiv1.NodeReady && cond.Status != apiv1.ConditionTrue {
-				log.WithFields(log.Fields{"name": node.Name, "status": cond.Status}).Info("ignoring node")
-				return false
-			}
-		}
-		return true
+func readyWorkerNodePredicate(node *apiv1.Node) bool {
+	// We add the master to the node list, but its unschedulable.  So we use this to filter
+	// the master.
+	if node.Spec.Unschedulable {
+		return false
 	}
+
+	// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
+	// Recognize nodes labeled as master, and filter them also, as we were doing previously.
+	if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		return false
+	}
+
+	// If we have no info, don't accept
+	if len(node.Status.Conditions) == 0 {
+		return false
+	}
+	for _, cond := range node.Status.Conditions {
+		// We consider the node for load balancing only when its NodeReady condition status
+		// is ConditionTrue
+		if cond.Type == apiv1.NodeReady && cond.Status != apiv1.ConditionTrue {
+			log.WithFields(log.Fields{"name": node.Name, "status": cond.Status}).Info("ignoring node")
+			return false
+		}
+	}
+	return true
 }
 
 // NewController creates a new OpenStack Ingress controller.
@@ -312,7 +310,7 @@ func (c *Controller) Start() {
 	}
 	log.Info("ingress controller synced and ready")
 
-	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
@@ -339,7 +337,7 @@ func (c *Controller) enqueueIng(obj interface{}) {
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
 func (c *Controller) nodeSyncLoop() {
-	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
@@ -496,7 +494,7 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	}
 
 	// get nodes information
-	nodeObjs, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	nodeObjs, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
 	if err != nil {
 		return err
 	}
