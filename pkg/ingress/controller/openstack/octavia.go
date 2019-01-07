@@ -392,7 +392,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 
 		listener, err = listeners.Create(os.octavia, listeners.CreateOpts{
 			Name:           name,
-			Protocol:       "TCP",
+			Protocol:       "HTTP",
 			ProtocolPort:   80, // Ingress Controller only supports http/https for now
 			LoadbalancerID: lbID,
 		}).Extract()
@@ -448,7 +448,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 			if listenerID != "" {
 				opts = pools.CreateOpts{
 					Name:        poolName,
-					Protocol:    "TCP",
+					Protocol:    "HTTP",
 					LBMethod:    pools.LBMethodRoundRobin,
 					ListenerID:  listenerID,
 					Persistence: nil,
@@ -456,7 +456,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 			} else {
 				opts = pools.CreateOpts{
 					Name:           poolName,
-					Protocol:       "TCP",
+					Protocol:       "HTTP",
 					LBMethod:       pools.LBMethodRoundRobin,
 					LoadbalancerID: lbID,
 					Persistence:    nil,
