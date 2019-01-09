@@ -75,6 +75,8 @@ const (
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
+	ServiceAnnotationLoadBalancerTimeoutClientData = "loadbalancer.openstack.org/timeout-client-data"
+	ServiceAnnotationLoadBalancerTimeoutMemberData = "loadbalancer.openstack.org/timeout-member-data"
 
 	// ServiceAnnotationLoadBalancerInternal is the annotation used on the service
 	// to indicate that we want an internal loadbalancer service.
@@ -814,15 +816,39 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			connLimit = tmp
 		}
 
+		ctimeout := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutClientData, "-1")
+		clientTimeout := -1
+		ctmp, cerr := strconv.Atoi(ctimeout)
+		if cerr != nil {
+			klog.V(4).Infof("Could not parse int value for \"%s\" from \"%s\" error \"%v\" failing back to default", ServiceAnnotationLoadBalancerTimeoutClientData, ctimeout, cerr)
+		} else {
+			clientTimeout = ctmp
+		}
+
+		mtimeout := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberData, "-1")
+		memberTimeout := -1
+		mtmp, merr := strconv.Atoi(mtimeout)
+		if merr != nil {
+			klog.V(4).Infof("Could not parse int value for \"%s\" from \"%s\" error \"%v\" failing back to default", ServiceAnnotationLoadBalancerTimeoutMemberData, mtimeout, merr)
+		} else {
+			memberTimeout = mtmp
+		}
+
 		if listener == nil {
 			klog.V(4).Infof("Creating listener for port %d", int(port.Port))
-			listener, err = listeners.Create(lbaas.lb, listeners.CreateOpts{
+			createOpts := listeners.CreateOpts{
 				Name:           fmt.Sprintf("listener_%s_%d", name, portIndex),
 				Protocol:       listeners.Protocol(port.Protocol),
 				ProtocolPort:   int(port.Port),
 				ConnLimit:      &connLimit,
 				LoadbalancerID: loadbalancer.ID,
-			}).Extract()
+			}
+			if lbaas.opts.UseOctavia {
+				createOpts.TimeoutClientData = clientTimeout
+				createOpts.TimeoutMemberData = memberTimeout
+			}
+			listener, err = listeners.Create(lbaas.lb, createOpts).Extract()
+
 			if err != nil {
 				// Unknown error, retry later
 				return nil, fmt.Errorf("error creating LB listener: %v", err)
@@ -834,7 +860,6 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		} else {
 			if connLimit != listener.ConnLimit {
 				klog.V(4).Infof("Updating listener connection limit from %d to %d", listener.ConnLimit, connLimit)
-
 				updateOpts := listeners.UpdateOpts{
 					ConnLimit: &connLimit,
 				}
@@ -847,6 +872,27 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 				if err != nil {
 					return nil, fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+				}
+			}
+			if lbaas.opts.UseOctavia {
+				if clientTimeout != listener.TimeoutClientData || memberTimeout != listener.TimeoutMemberData {
+
+					klog.V(4).Infof("Updating listener client data timeout %d to %d and member data timeout %d to %d", listener.TimeoutClientData, clientTimeout, listener.TimeoutMemberData, memberTimeout)
+
+					updateOpts := listeners.UpdateOpts{
+						TimeoutClientData: &clientTimeout,
+						TimeoutMemberData: &memberTimeout,
+					}
+
+					_, err := listeners.Update(lbaas.lb, listener.ID, updateOpts).Extract()
+					if err != nil {
+						return nil, fmt.Errorf("Error updating LB listener: %v", err)
+					}
+
+					provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+					if err != nil {
+						return nil, fmt.Errorf("failed to loadbalance ACTIVE provisioning status %v: %v", provisioningStatus, err)
+					}
 				}
 			}
 		}
