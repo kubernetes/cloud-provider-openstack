@@ -24,7 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
+	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/cloud-provider-openstack/pkg/kms/server"
+	"k8s.io/klog"
 )
 
 var (
@@ -37,7 +39,24 @@ func init() {
 }
 
 func main() {
-	flag.CommandLine.Parse([]string{})
+	// Glog requires this otherwise it complains.
+	flag.CommandLine.Parse(nil)
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
+
+	logs.InitLogs()
+	defer logs.FlushLogs()
 
 	cmd := &cobra.Command{
 		Use:   "barbican-kms-plugin",
