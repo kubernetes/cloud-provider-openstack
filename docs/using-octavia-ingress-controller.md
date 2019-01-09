@@ -142,6 +142,7 @@ auth_url=$(export | grep OS_AUTH_URL | awk -F'"' '{print $2}')
 subnet_id=$(openstack subnet show private-subnet -c id -f value)
 public_net_id=$(openstack network show public -c id -f value)
 cat <<EOF > /etc/kubernetes/ingress-openstack.yaml
+clusterName: test
 kubernetes:
     kubeconfig: /etc/kubernetes/ingress-openstack.conf
 openstack:
@@ -216,7 +217,7 @@ kube-system   octavia-ingress-controller-lingxian-k8s-master   1/1       Running
 Create a simple service(echo hostname) that listens on a HTTP server on port 8080.
 
 ```bash
-$ cat <<EOF | kc create -f -
+$ cat <<EOF | kubectl apply -f -
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -269,7 +270,7 @@ To make your HTTP web server application publicly accessible, you need to create
 ### Create an Ingress resource
 The following command defines an Ingress resource that directs traffic that requests `http://api.sample.com/hostname` to the `hostname-echo` Service:
 ```bash
-cat <<EOF | kc create -f -
+cat <<EOF | kubectl create -f -
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
