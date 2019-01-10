@@ -1,0 +1,10 @@
+FROM openshift/origin-release:golang-1.10
+COPY . /go/src/k8s.io/cloud-provider-openstack
+RUN cd /go/src/k8s.io/cloud-provider-openstack && \
+    go build -o manila-provisioner cmd/manila-provisioner/main.go
+
+FROM centos:7
+
+COPY --from=0 /go/src/k8s.io/cloud-provider-openstack/manila-provisioner /usr/bin/
+
+ENTRYPOINT ["/usr/bin/manila-provisioner"]
