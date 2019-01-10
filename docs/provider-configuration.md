@@ -131,6 +131,7 @@ file.
     3. The directory `~/.config/openstack`
     4. The directory `/etc/openstack`
 * `CloudsFile`: Used to specify the path to a clouds.yaml file that you want read authorization data from
+* `Cloud`: Used to specify which named cloud in the clouds.yaml file that you want to use
 
 
 ####  Load Balancer
