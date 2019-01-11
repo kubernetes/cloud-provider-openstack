@@ -279,7 +279,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:560d4d5c6f31baa5c79d6921a8cbf6056a0e89da5c7bb6558ca6d1b5c640d268"
+  digest = "1:84f4a50111aeb906b336f15cee8837bbabe7c39c378af9bf529c95b15c361cff"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -292,6 +292,7 @@
     "openstack/blockstorage/v3/volumes",
     "openstack/common/extensions",
     "openstack/compute/v2/extensions/attachinterfaces",
+    "openstack/compute/v2/extensions/availabilityzones",
     "openstack/compute/v2/extensions/volumeattach",
     "openstack/compute/v2/flavors",
     "openstack/compute/v2/images",
@@ -1537,6 +1538,7 @@
     "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes",
     "github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces",
+    "github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones",
     "github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach",
     "github.com/gophercloud/gophercloud/openstack/compute/v2/servers",
     "github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts",
