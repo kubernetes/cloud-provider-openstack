@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
@@ -13,6 +12,7 @@ import (
 	pb "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1"
 	"k8s.io/cloud-provider-openstack/pkg/kms/barbican"
 	"k8s.io/cloud-provider-openstack/pkg/kms/encryption/aescbc"
+	"k8s.io/klog"
 )
 
 const (
@@ -45,23 +45,23 @@ func initConfig(configFilePath string, cfg *barbican.Config) error {
 // Run Grpc server for barbican KMS
 func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (err error) {
 
-	glog.Infof("Barbican KMS Plugin Starting Version: %s, RunTimeVersion: %s", version, runtimeversion)
+	klog.Infof("Barbican KMS Plugin Starting Version: %s, RunTimeVersion: %s", version, runtimeversion)
 	s := new(KMSserver)
 	err = initConfig(configFilePath, &s.cfg)
 	s.barbican = &barbican.Barbican{}
 	if err != nil {
-		glog.V(4).Infof("Error in Getting Config File: %v", err)
+		klog.V(4).Infof("Error in Getting Config File: %v", err)
 		return err
 	}
 
 	// unlink the unix socket
 	if err = unix.Unlink(socketpath); err != nil {
-		glog.V(4).Infof("Error to unlink unix socket: %v", err)
+		klog.V(4).Infof("Error to unlink unix socket: %v", err)
 	}
 
 	listener, err := net.Listen(netProtocol, socketpath)
 	if err != nil {
-		glog.Fatalf("Failed to Listen: %v", err)
+		klog.Fatalf("Failed to Listen: %v", err)
 		return err
 	}
 
@@ -83,7 +83,7 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 // Version returns KMS service version
 func (s *KMSserver) Version(ctx context.Context, req *pb.VersionRequest) (*pb.VersionResponse, error) {
 
-	glog.V(4).Infof("Version Information Requested by Kubernetes api server")
+	klog.V(4).Infof("Version Information Requested by Kubernetes api server")
 
 	res := &pb.VersionResponse{
 		Version:        version,
@@ -97,17 +97,17 @@ func (s *KMSserver) Version(ctx context.Context, req *pb.VersionRequest) (*pb.Ve
 // Decrypt decrypts the cipher
 func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.DecryptResponse, error) {
 
-	glog.V(4).Infof("Decrypt Request by Kubernetes api server")
+	klog.V(4).Infof("Decrypt Request by Kubernetes api server")
 
 	key, err := s.barbican.GetSecret(s.cfg)
 	if err != nil {
-		glog.V(4).Infof("Failed to get key %v: ", err)
+		klog.V(4).Infof("Failed to get key %v: ", err)
 		return nil, err
 	}
 
 	plain, err := aescbc.Decrypt(req.Cipher, key)
 	if err != nil {
-		glog.V(4).Infof("Failed to decrypt data %v: ", err)
+		klog.V(4).Infof("Failed to decrypt data %v: ", err)
 		return nil, err
 	}
 
@@ -117,19 +117,19 @@ func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.De
 // Encrypt encrypts DEK
 func (s *KMSserver) Encrypt(ctx context.Context, req *pb.EncryptRequest) (*pb.EncryptResponse, error) {
 
-	glog.V(4).Infof("Encrypt Request by Kubernetes api server")
+	klog.V(4).Infof("Encrypt Request by Kubernetes api server")
 
 	key, err := s.barbican.GetSecret(s.cfg)
 
 	if err != nil {
-		glog.V(4).Infof("Failed to get key %v: ", err)
+		klog.V(4).Infof("Failed to get key %v: ", err)
 		return nil, err
 	}
 
 	cipher, err := aescbc.Encrypt(req.Plain, key)
 
 	if err != nil {
-		glog.V(4).Infof("Failed to encrypt data %v: ", err)
+		klog.V(4).Infof("Failed to encrypt data %v: ", err)
 		return nil, err
 	}
 	return &pb.EncryptResponse{Cipher: cipher}, nil
