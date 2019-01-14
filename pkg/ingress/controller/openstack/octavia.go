@@ -338,7 +338,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbala
 // UpdateLoadBalancerDescription updates the load balancer description field.
 func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription string) error {
 	_, err := loadbalancers.Update(os.octavia, lbID, loadbalancers.UpdateOpts{
-		Description: newDescription,
+		Description: &newDescription,
 	}).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to update loadbalancer description: %v", err)
