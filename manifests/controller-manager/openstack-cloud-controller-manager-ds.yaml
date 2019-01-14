@@ -74,5 +74,5 @@ spec:
           type: DirectoryOrCreate
         name: ca-certs
       - name: cloud-config-volume
-        configMap:
-          name: cloud-config
+        secret:
+          secretName: cloud-config
