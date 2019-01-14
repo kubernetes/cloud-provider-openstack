@@ -508,7 +508,7 @@ func (mounter *SafeFormatAndMount) formatAndMount(source string, target string, 
 	return mountErr
 }
 
-// GetDiskFormat uses 'blkid' to see if the given disk is unformated
+// GetDiskFormat uses 'blkid' to see if the given disk is unformatted
 func (mounter *SafeFormatAndMount) GetDiskFormat(disk string) (string, error) {
 	args := []string{"-p", "-s", "TYPE", "-s", "PTTYPE", "-o", "export", disk}
 	klog.V(4).Infof("Attempting to determine if disk %q is formatted using blkid with args: (%v)", disk, args)
@@ -592,7 +592,7 @@ type mountInfo struct {
 	source string
 	// Mount point, the pathname of the mount point.
 	mountPoint string
-	// Optional fieds, zero or more fields of the form "tag[:value]".
+	// Optional fields, zero or more fields of the form "tag[:value]".
 	optionalFields []string
 	// The filesystem type in the form "type[.subtype]".
 	fsType string
@@ -953,7 +953,7 @@ func cleanSubPath(mounter Interface, subpath Subpath) error {
 		return err
 	}
 
-	// Recusively remove directories if empty
+	// Recursively remove directories if empty
 	if err := removeEmptyDirs(subpath.PodDir, containerDir); err != nil {
 		return err
 	}
@@ -1052,7 +1052,7 @@ func getMode(pathname string) (os.FileMode, error) {
 }
 
 // This implementation is shared between Linux and NsEnterMounter. Both pathname
-// and base must be either already resolved symlinks or thet will be resolved in
+// and base must be either already resolved symlinks or that will be resolved in
 // kubelet's mount namespace (in case it runs containerized).
 func doSafeMakeDir(pathname string, base string, perm os.FileMode) error {
 	klog.V(4).Infof("Creating directory %q within base %q", pathname, base)
