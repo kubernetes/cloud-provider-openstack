@@ -323,17 +323,6 @@ func (c *Controller) Start() {
 	<-c.stopCh
 }
 
-// obj could be an *v1.Ingress, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) enqueueIng(obj interface{}) {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err != nil {
-		log.WithFields(log.Fields{"error": err, "object": obj}).Error("Couldn't get key for object")
-		return
-	}
-
-	c.queue.Add(key)
-}
-
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
 func (c *Controller) nodeSyncLoop() {
@@ -523,7 +512,10 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		return err
 	}
 	for _, p := range existingPolicies {
-		c.osClient.DeleteL7policy(p.ID, lb.ID)
+		err = c.osClient.DeleteL7policy(p.ID, lb.ID)
+		if err != nil {
+			log.WithFields(log.Fields{"policyID": p.ID, "lbID": lb.ID}).Errorf("could not delete L7 policy: %v", err)
+		}
 	}
 
 	// Delete all existing shared pools
@@ -532,7 +524,10 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		return err
 	}
 	for _, sp := range existingSharedPools {
-		c.osClient.DeletePool(sp.ID, lb.ID)
+		err = c.osClient.DeletePool(sp.ID, lb.ID)
+		if err != nil {
+			log.WithFields(log.Fields{"poolID": sp.ID, "lbID": lb.ID}).Errorf("could not delete shared pool: %v", err)
+		}
 	}
 
 	// Add l7 load balancing rules. Each host and path combination is mapped to a l7 policy in octavia,
@@ -561,8 +556,7 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		}
 	}
 
-	var address string
-	address = lb.VipAddress
+	address := lb.VipAddress
 	if c.config.Octavia.FloatingIPNetwork != "" {
 		// Allocate floating ip for loadbalancer vip.
 		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork); err != nil {
