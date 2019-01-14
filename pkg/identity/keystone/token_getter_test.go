@@ -80,11 +80,13 @@ func TestTokenGetter(t *testing.T) {
 	})
 
 	// Correct password
-	options := gophercloud.AuthOptions{
-		IdentityEndpoint: th.Endpoint(),
-		Username:         "testuser",
-		Password:         "testpw",
-		DomainName:       "default",
+	options := Options{
+		AuthOptions: gophercloud.AuthOptions{
+			IdentityEndpoint: th.Endpoint(),
+			Username:         "testuser",
+			Password:         "testpw",
+			DomainName:       "default",
+		},
 	}
 
 	token, err := GetToken(options)
@@ -93,7 +95,7 @@ func TestTokenGetter(t *testing.T) {
 	th.AssertEquals(t, "2015-11-09 01:42:57.527363 +0000 UTC", token.ExpiresAt.String())
 
 	// Incorrect password
-	options.Password = "wrongpw"
+	options.AuthOptions.Password = "wrongpw"
 
 	token, err = GetToken(options)
 	if _, ok := err.(gophercloud.ErrDefault401); !ok {
@@ -101,7 +103,7 @@ func TestTokenGetter(t *testing.T) {
 	}
 
 	// Invalid auth data
-	options.Password = ""
+	options.AuthOptions.Password = ""
 
 	token, err = GetToken(options)
 	th.AssertEquals(t, "You must provide a password to authenticate", err.Error())
