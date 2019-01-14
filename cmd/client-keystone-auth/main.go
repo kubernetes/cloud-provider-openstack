@@ -141,7 +141,9 @@ func main() {
 	var user string
 	var project string
 	var password string
-	var options gophercloud.AuthOptions
+	var clientCertPath string
+	var clientKeyPath string
+	var options keystone.Options
 	var err error
 	var applicationCredentialID string
 	var applicationCredentialName string
@@ -152,6 +154,8 @@ func main() {
 	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
 	pflag.StringVar(&project, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
+	pflag.StringVar(&clientCertPath, "cert", os.Getenv("OS_CERT"), "Client certificate bundle file")
+	pflag.StringVar(&clientKeyPath, "key", os.Getenv("OS_KEY"), "Client certificate key file")
 	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
 	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
 	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
@@ -160,18 +164,21 @@ func main() {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
-		options, err = openstack.AuthOptionsFromEnv()
+		options.AuthOptions, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s", err)
 			os.Exit(1)
 		}
 	} else {
-		options, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
+		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
 			os.Exit(1)
 		}
 	}
+
+	options.ClientCertPath = clientCertPath
+	options.ClientKeyPath = clientKeyPath
 
 	token, err := keystone.GetToken(options)
 	if err != nil {
