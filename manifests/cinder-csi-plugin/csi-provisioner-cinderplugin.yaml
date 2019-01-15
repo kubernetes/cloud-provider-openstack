@@ -4,6 +4,7 @@
 kind: Service
 apiVersion: v1
 metadata:
+  namespace: kube-system
   name: csi-provisioner-cinderplugin
   labels:
     app: csi-provisioner-cinderplugin
@@ -19,6 +20,7 @@ kind: StatefulSet
 apiVersion: apps/v1beta1
 metadata:
   name: csi-provisioner-cinderplugin
+  namespace: kube-system
 spec:
   serviceName: "csi-provisioner-cinderplugin"
   replicas: 1
@@ -69,4 +71,4 @@ spec:
           emptyDir:
         - name: secret-cinderplugin
           secret:
-            secretName: csi-secret-cinderplugin
+            secretName: cloud-config

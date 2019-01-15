@@ -17,7 +17,7 @@ spec:
   volumes:
   - name: config
     hostPath:
-      path: /etc/kubernetes    
+      path: /etc/kubernetes
   - name: socket-dir
     hostPath:
       path: /var/lib/kms/
