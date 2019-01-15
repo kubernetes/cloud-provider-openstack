@@ -172,6 +172,7 @@ type Config struct {
 		CAFile     string `gcfg:"ca-file"`
 		UseClouds  bool   `gcfg:"use-clouds"`
 		CloudsFile string `gcfg:"clouds-file,omitempty"`
+		Cloud      string `gcfg:"cloud,omitempty"`
 	}
 	LoadBalancer LoadBalancerOpts
 	BlockStorage BlockStorageOpts
@@ -306,6 +307,9 @@ func replaceEmpty(a string, b string) string {
 // Allows the cloud-config to have priority
 func ReadClouds(cfg *Config) error {
 	co := new(clientconfig.ClientOpts)
+	if cfg.Global.Cloud != "" {
+		co.Cloud = cfg.Global.Cloud
+	}
 	cloud, err := clientconfig.GetCloudFromYAML(co)
 	if err != nil && err.Error() != "unable to load clouds.yaml: no clouds.yaml file found" {
 		return err
