@@ -279,7 +279,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:84f4a50111aeb906b336f15cee8837bbabe7c39c378af9bf529c95b15c361cff"
+  digest = "1:e2161cf62eb56389630bbcdab989c2656e8808edca3dc7cadf25cffda88d6a16"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -311,6 +311,7 @@
     "openstack/networking/v2/extensions/external",
     "openstack/networking/v2/extensions/layer3/floatingips",
     "openstack/networking/v2/extensions/layer3/routers",
+    "openstack/networking/v2/extensions/lbaas_v2/l7policies",
     "openstack/networking/v2/extensions/lbaas_v2/listeners",
     "openstack/networking/v2/extensions/lbaas_v2/loadbalancers",
     "openstack/networking/v2/extensions/lbaas_v2/monitors",
@@ -327,7 +328,7 @@
     "testhelper/client",
   ]
   pruneopts = "UT"
-  revision = "04bc8f551ef2b34dad9d1d26634aa7a4d565f11f"
+  revision = "cc2dd4edd0609857e53ef6feba69f84e29f5b60f"
 
 [[projects]]
   branch = "master"
