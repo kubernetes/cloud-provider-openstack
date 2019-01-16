@@ -54,10 +54,10 @@ support for impacted features. Certain features are also enabled or disabled
 based on the list of extensions published by Neutron in the underlying cloud.
 
 ## Cloud Configuration File
-Kubernetes knows how to interact with OpenStack via the file `cloud.conf`. It is
-a standard INI file that provides Kubernetes with an OpenStack cloud endpoint,
-user authentication credentials, and additional configuration specific to the
-host cloud.
+Kubernetes knows how to interact with OpenStack via configuration file
+specified in `CLOUD_CONFIG` environment variable. It is a standard INI file
+that provides Kubernetes with an OpenStack cloud endpoint, user authentication
+credentials, and additional configuration specific to the host cloud.
 
 ### Sample configuration
 This is an example of a typical configuration that touches the values that most
@@ -88,10 +88,11 @@ service it supports. The currently available configuration sections include:
 * [Metadata](#metadata)
 * [Router](#router)
 
+
 #### Global
 
 These configuration options for the OpenStack provider pertain to its global
-configuration and should appear in the `[Global]` section of the `cloud.conf`
+configuration and should appear in the `[Global]` section of the `$CLOUD_CONFIG`
 file.
 
 ##### Global Required Parameters
@@ -125,7 +126,7 @@ file.
   delegate roles to another user (the trustee), and optionally allow the trustee
   to impersonate the trustor. Available trusts are found under the
   `/v3/OS-TRUST/trusts` endpoint of the Keystone API.
-* `UseClouds`: Set this flag to `true` to get authorization credentials from a clouds.yaml file. Options manually set in the `[Global]` section of cloud.conf will be prioritized over values read from clouds.yaml. The recommended usage is to set the option `CloudsFile` with the path to your clouds.yaml file. However, by default a clouds.yaml file will be looked for in the following locations, in order, if it is not set:
+* `UseClouds`: Set this flag to `true` to get authorization credentials from a clouds.yaml file. Options manually set in the `[Global]` section of $CLOUD_CONFIG file will be prioritized over values read from clouds.yaml. The recommended usage is to set the option `CloudsFile` with the path to your clouds.yaml file. However, by default a clouds.yaml file will be looked for in the following locations, in order, if it is not set:
     1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
     2. The directory `pkg/cloudprovider/providers/openstack/`
     3. The directory `~/.config/openstack`
@@ -136,7 +137,7 @@ file.
 
 ####  Load Balancer
 These configuration options for the OpenStack provider pertain to the load
-balancer and should appear in the `[LoadBalancer]` section of the `cloud.conf`
+balancer and should appear in the `[LoadBalancer]` section of the `$CLOUD_CONFIG`
 file.
 
 ##### Load Balancer Optional Parameters
@@ -183,7 +184,7 @@ file.
 #### Block Storage
 
 These configuration options for the OpenStack provider pertain to block storage
-and should appear in the `[BlockStorage]` section of the `cloud.conf` file.
+and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
 
 ##### Block Storage Optional Parameters
 
@@ -226,7 +227,7 @@ bs-version=v2
 #### Metadata
 
 These configuration options for the OpenStack provider pertain to metadata and
-should appear in the `[Metadata]` section of the `cloud.conf` file.
+should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.
 
 ##### Metadata Optional Parameters
 
@@ -252,7 +253,7 @@ should appear in the `[Metadata]` section of the `cloud.conf` file.
 
 These configuration options for the OpenStack provider pertain to the [kubenet]
 Kubernetes network plugin and should appear in the `[Router]` section of the
-`cloud.conf` file.
+`$CLOUD_CONFIG` file.
 
 ##### Router Optional Parameters
 

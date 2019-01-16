@@ -21,7 +21,7 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
-Encode your ```cloud.conf``` file content using base64.
+Encode your ```$CLOUD_CONFIG``` file content using base64.
 
 ```base64 -w 0 cloud.conf```
 
@@ -75,7 +75,7 @@ $ fdisk -l /dev/vdb | grep Disk
 Disk /dev/vdb: 1 GiB, 1073741824 bytes, 2097152 sectors
 ```
 
-Then try to add a file in the pod'd mounted position (in our case, /var/lib/www/html)
+Then try to add a file in the pod's mounted position (in our case, /var/lib/www/html)
 ```
 $ kubectl exec -it nginx bash
 
