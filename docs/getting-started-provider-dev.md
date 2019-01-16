@@ -216,6 +216,7 @@ export EXTERNAL_CLOUD_PROVIDER_BINARY=$GOPATH/src/k8s.io/cloud-provider-openstac
 export EXTERNAL_CLOUD_PROVIDER=true
 export CLOUD_PROVIDER=openstack
 export CLOUD_CONFIG=/etc/kubernetes/cloud-config
+export HOSTNAME_OVERRIDE=$(hostname)
 ./hack/local-up-cluster.sh
 ```
 
