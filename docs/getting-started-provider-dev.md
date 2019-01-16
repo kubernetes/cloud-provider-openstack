@@ -119,7 +119,7 @@ sudo yum install -y -q git gcc etcd
 You will also need a recent version of Go and set your environment variables.
 
 ```
-GO_VERSION=1.10
+GO_VERSION=1.11
 GO_ARCH=linux-amd64
 curl -o go.tgz https://dl.google.com/go/go${GO_VERSION}.${GO_ARCH}.tar.gz
 sudo tar -C /usr/local/ -xvzf go.tgz
@@ -193,7 +193,7 @@ cd kubernetes
 make cross
 ```
 
-### Running the Cloud Provider in MiniKube
+### Running the Cloud Provider
 
 To run the OpenStack provider, integrated with your cloud, be sure to have sourced the
 environment variables. You will also need to create an `/etc/kubernetes/cloud-config` file
