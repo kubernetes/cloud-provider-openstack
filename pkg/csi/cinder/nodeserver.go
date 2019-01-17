@@ -23,13 +23,12 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog"
 
-	csicommon "github.com/kubernetes-csi/drivers/pkg/csi-common"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type nodeServer struct {
-	*csicommon.DefaultNodeServer
+	Driver *CinderDriver
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -122,14 +121,9 @@ func (ns *nodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) 
 		return nil, err
 	}
 
-	if len(nodeID) > 0 {
-		return &csi.NodeGetIdResponse{
-			NodeId: nodeID,
-		}, nil
-	}
-
-	// Using default function
-	return ns.DefaultNodeServer.NodeGetId(ctx, req)
+	return &csi.NodeGetIdResponse{
+		NodeId: nodeID,
+	}, nil
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
@@ -139,14 +133,9 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 		return nil, err
 	}
 
-	if len(nodeID) > 0 {
-		return &csi.NodeGetInfoResponse{
-			NodeId: nodeID,
-		}, nil
-	}
-
-	// Using default function
-	return ns.DefaultNodeServer.NodeGetInfo(ctx, req)
+	return &csi.NodeGetInfoResponse{
+		NodeId: nodeID,
+	}, nil
 }
 
 func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {

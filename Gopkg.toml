@@ -42,10 +42,6 @@
   version = "1.6.2"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/kubernetes-csi/drivers"
-
-[[constraint]]
   name = "github.com/kubernetes-incubator/external-storage"
   version = "v5.3.0-alpha.1"
 
