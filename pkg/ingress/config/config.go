@@ -18,11 +18,12 @@ package config
 
 import (
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 )
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	ClusterName string
+	ClusterName string        `mapstructure:"cluster_name"`
 	Kubernetes  kubeConfig    `mapstructure:"kubernetes"`
 	OpenStack   osConfig      `mapstructure:"openstack"`
 	Octavia     octaviaConfig `mapstructure:"octavia"`
@@ -39,11 +40,16 @@ type kubeConfig struct {
 
 // OpenStack credentials configuration, the section is required.
 type osConfig struct {
-	Username  string
-	Password  string
-	ProjectID string `mapstructure:"project_id"`
-	AuthURL   string `mapstructure:"auth_url"`
-	Region    string
+	Username   string
+	UserID     string `mapstructure:"user_id"`
+	TrustID    string `mapstructure:"trust_id"`
+	Password   string
+	ProjectID  string `mapstructure:"project_id"`
+	AuthURL    string `mapstructure:"auth_url"`
+	Region     string
+	DomainID   string `mapstructure:"domain_id"`
+	DomainName string `mapstructure:"domain_name"`
+	CAFile     string `mapstructure:"ca_file"`
 }
 
 // Octavia service related configuration
@@ -51,9 +57,9 @@ type octaviaConfig struct {
 	// (Required)Subnet ID to create the load balancer.
 	SubnetID string `mapstructure:"subnet_id"`
 
-	// (Optional)Public network to create floating IP.
+	// (Optional)Public network ID to create floating IP.
 	// If empty, no floating IP will be allocated to the load balancer vip.
-	FloatingIPNetwork string `mapstructure:"fip_network"`
+	FloatingIPNetwork string `mapstructure:"floating_network_id"`
 }
 
 // ToAuthOptions gets openstack auth options
@@ -61,9 +67,23 @@ func (cfg Config) ToAuthOptions() gophercloud.AuthOptions {
 	return gophercloud.AuthOptions{
 		IdentityEndpoint: cfg.OpenStack.AuthURL,
 		Username:         cfg.OpenStack.Username,
+		UserID:           cfg.OpenStack.UserID,
 		Password:         cfg.OpenStack.Password,
 		TenantID:         cfg.OpenStack.ProjectID,
-		DomainName:       "default",
+		DomainID:         cfg.OpenStack.DomainID,
+		DomainName:       cfg.OpenStack.DomainName,
+		AllowReauth:      true,
+	}
+}
+
+func (cfg Config) ToV3AuthOptions() tokens.AuthOptions {
+	return tokens.AuthOptions{
+		IdentityEndpoint: cfg.OpenStack.AuthURL,
+		Username:         cfg.OpenStack.Username,
+		UserID:           cfg.OpenStack.UserID,
+		Password:         cfg.OpenStack.Password,
+		DomainID:         cfg.OpenStack.DomainID,
+		DomainName:       cfg.OpenStack.DomainName,
 		AllowReauth:      true,
 	}
 }
