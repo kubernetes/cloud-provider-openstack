@@ -1,4 +1,3 @@
-
 # Manila external provisioner
 The Manila external provisioner fulfills persistent volume claims by provisioning Manila shares and mapping them to natively supported volume sources represented by Share backends.
 
@@ -24,23 +23,19 @@ Key | Required | Default value | Description
 `backend`  | Yes | None | Share backend used for granting access and creating `PersistentVolumeSource` options `cephfs`,`csi-cephfs`,`nfs`
 `osSecretName` | Yes | None | Name of the Secret object containing OpenStack credentials
 `osSecretNamespace` | No | `default` | Namespace of the OpenStack credentials Secret object
-`shareSecretNamespace` | No | value of `osSecretNamespace` | Namespace of the per-share Secret object (contains backend-specific secrets)
+`shareSecretNamespace` | No | `default` | Namespace of the per-share Secret object (contains backend-specific secrets)
 `osShareID` | No | None | The UUID of an existing share. Used for static provisioning
 `osShareName` | No | None | The name of an existing share. Used for static provisioning
 `osShareAccessID` | No | None | The UUID of an existing access rule to a share. Used for static provisioning
 
 
-**Protocol specific options**
-
-None.
-
 **Share-backend specific options**
 
-Key | For backend | For protocol  | Required | Default Value | Description
---- | ----------- | ------------- | ------------- | ----------- |---------
-`csi-driver` | `csi-cephfs` | `CEPHFS` | Yes | None | Name of the CSI driver
-`mounter` | `csi-cephfs` | `CEPHFS` | No | `fuse` | Mounter to use in. Available options are `fuse` and `kernel`. Please consult the [csi-cephfs docs](https://github.com/ceph/ceph-csi/blob/master/docs/deploy-cephfs.md#configuration) for more info
-`nfs-share-client` | `nfs` | `NFS` | No | `0.0.0.0` | Default NFS client for the share
+Key | For backend | Required | Default Value | Description
+--- | ----------- | ------------- | ----------- |---------
+`csi-driver` | `csi-cephfs` | Yes | None | Name of the CSI driver
+`mounter` | `csi-cephfs` | No | `fuse` | Mount method to be used for this volume. Available options are `fuse` and `kernel`. Please consult the [csi-cephfs docs](https://github.com/ceph/ceph-csi/blob/master/docs/deploy-cephfs.md#configuration) for more info
+`nfs-share-client` | `nfs`  | No | `0.0.0.0` | Default NFS client for the share
 
 ## Authentication with Manila v2 client
 The provisioner authenticates to the OpenStack Manila service with the credentials supplied from the Kubernetes Secret object referenced by `osSecretNamespace` : `osSecretName`. One can authenticate either as a user or as a trustee, with each of those having its own set of parameters. Note that if the Secret object is created from a manifest, the Secret's values need to be encoded in base64.
@@ -72,7 +67,3 @@ Required parameters:
 
 Requires `os-trustID`, `os-trusteeID` and `os-trusteePassword`.
 
-### Adding a new Share backend
-1. (optional) Add struct fields to `.../manila/shareoptions/backend.go` with appropriate field tags
-2. Create a separate file in the `sharebackends` package with a struct implementing the `ShareBackend` interface
-3. Register the backend in `.../manila/sharebackend.go` in `init()`
