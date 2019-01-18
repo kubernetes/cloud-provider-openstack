@@ -46,7 +46,7 @@ func (CephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource, er
 			Path:      path,
 			ReadOnly:  false,
 			User:      args.AccessRight.AccessTo,
-			SecretRef: &args.Options.ShareSecretRef,
+			SecretRef: args.ShareSecretRef,
 		},
 	}, nil
 }
@@ -58,7 +58,7 @@ func (CephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
 		return nil, err
 	}
 
-	err = createSecret(&args.Options.ShareSecretRef, args.Clientset, map[string][]byte{
+	err = createSecret(args.ShareSecretRef, args.Clientset, map[string][]byte{
 		"key": []byte(accessRight.AccessKey),
 	})
 
