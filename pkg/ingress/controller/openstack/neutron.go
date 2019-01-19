@@ -57,7 +57,7 @@ func (os *OpenStack) getFloatingIPByPortID(portID string) (*floatingips.Floating
 }
 
 // EnsureFloatingIP makes sure a floating IP is allocated for the port
-func (os *OpenStack) EnsureFloatingIP(portID string, floatingIPNetwork string) (string, error) {
+func (os *OpenStack) EnsureFloatingIP(portID string, floatingIPNetwork string, ingName string, ingNamespace string, clusterName string) (string, error) {
 	fip, err := os.getFloatingIPByPortID(portID)
 	if err != nil {
 		if err != ErrNotFound {
@@ -69,6 +69,7 @@ func (os *OpenStack) EnsureFloatingIP(portID string, floatingIPNetwork string) (
 		floatIPOpts := floatingips.CreateOpts{
 			FloatingNetworkID: floatingIPNetwork,
 			PortID:            portID,
+			Description:       fmt.Sprintf("Floating IP for Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
 		}
 		fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
 		if err != nil {

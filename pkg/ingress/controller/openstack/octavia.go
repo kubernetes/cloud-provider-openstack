@@ -302,7 +302,7 @@ func (os *OpenStack) DeleteLoadbalancer(lbID string) error {
 }
 
 // EnsureLoadBalancer creates a loadbalancer in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
-func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbalancers.LoadBalancer, error) {
+func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespace string, ingName string, clusterName string) (*loadbalancers.LoadBalancer, error) {
 	loadbalancer, err := os.GetLoadbalancerByName(name)
 	if err != nil {
 		if err != ErrNotFound {
@@ -313,7 +313,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbala
 
 		createOpts := loadbalancers.CreateOpts{
 			Name:        name,
-			Description: "Created by Kubernetes",
+			Description: fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
 			VipSubnetID: subnetID,
 			Provider:    "octavia",
 		}
