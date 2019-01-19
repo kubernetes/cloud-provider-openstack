@@ -23,6 +23,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	apiv1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -467,7 +468,7 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 	name := getResourceName(ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
 
-	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID)
+	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID, ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
 	if err != nil {
 		return err
 	}
@@ -559,7 +560,7 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	address := lb.VipAddress
 	if c.config.Octavia.FloatingIPNetwork != "" {
 		// Allocate floating ip for loadbalancer vip.
-		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork); err != nil {
+		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork, ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName); err != nil {
 			return err
 		}
 	}
@@ -572,7 +573,7 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Successfully associated IP address %s to ingress %s", address, key))
 
 	// Add ingress resource version to the load balancer description
-	newDes := fmt.Sprintf("Created by Kubernetes ingress %s, version: %s", newIng.Name, newIng.ResourceVersion)
+	newDes := fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s, version: %s", newIng.Name, newIng.Namespace, c.config.ClusterName, newIng.ResourceVersion)
 	if err = c.osClient.UpdateLoadBalancerDescription(lb.ID, newDes); err != nil {
 		return err
 	}
