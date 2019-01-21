@@ -14,6 +14,8 @@ to the OpenStack Cloud Provider.
       - [Global](#global)
         - [Global Required Parameters](#global-required-parameters)
         - [Global Optional Parameters](#global-optional-parameters)
+      - [Networking](#networking)
+        - [Networking](#networking-optional-parameters)
       - [Load Balancer](#load-balancer)
         - [Load Balancer Optional Parameters](#load-balancer-optional-parameters)
       - [Block Storage](#block-storage)
@@ -135,7 +137,27 @@ file.
 * `Cloud`: Used to specify which named cloud in the clouds.yaml file that you want to use
 
 
+####  Networking
+
+These configuration options for the OpenStack provider pertain to the network
+configuration and should appear in the `[Networking]` section of the `$CLOUD_CONFIG`
+file.
+
+##### Networking Optional Parameters
+
+* `ipv6-support-disabled`: Indicates whether or not to use ipv6 addresses.
+  The default is `false`. When `true` is specified then will ignore any
+  ipv6 addresses assigned to the node.
+* `public-network-name`: Used to specify external network.
+  The default is `public`. Must be a network name, not id.
+* `internal-network-name`: Used to override internal network selection.
+  Where no value is provided automatic detection will select random node interface
+  as internal. This option makes sense and recommended to specify only
+  when you have more than one interface attached to kubernetes nodes.
+  Must be a network name, not id.
+
 ####  Load Balancer
+
 These configuration options for the OpenStack provider pertain to the load
 balancer and should appear in the `[LoadBalancer]` section of the `$CLOUD_CONFIG`
 file.
