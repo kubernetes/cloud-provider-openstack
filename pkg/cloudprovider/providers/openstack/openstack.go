@@ -125,6 +125,7 @@ type BlockStorageOpts struct {
 type NetworkingOpts struct {
 	IPv6SupportDisabled bool   `gcfg:"ipv6-support-disabled"`
 	PublicNetworkName   string `gcfg:"public-network-name"`
+	InternalNetworkName string `gcfg:"internal-network-name"`
 }
 
 // RouterOpts is used for Neutron routes
@@ -548,7 +549,12 @@ func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.Nod
 			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
 				addressType = v1.NodeExternalIP
 			} else {
-				addressType = v1.NodeInternalIP
+				if networkingOpts.InternalNetworkName == "" || network == networkingOpts.InternalNetworkName {
+					addressType = v1.NodeInternalIP
+				} else {
+					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
+					continue
+				}
 			}
 
 			isIPv6 := net.ParseIP(props.Addr).To4() == nil
