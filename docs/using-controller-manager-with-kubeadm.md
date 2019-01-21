@@ -50,9 +50,9 @@
 
     Then wait for the controller manager to be restarted and running.
 
-- Create a configmap containing the cloud configuration for cloud-controller-manager.
+- Create a secret containing the cloud configuration for cloud-controller-manager.
 
-   Encode your `cloud.conf` file content using base64: `base64 -w 0 cloud.conf`
+   Encode your `$CLOUD_CONFIG` file content using base64: `base64 -w 0 $CLOUD_CONFIG`
 
    Update `cloud.conf` configuration in `manifests/controller-manager/cloud-config-secret.yaml` file
 by using the result of the above command.
