@@ -184,7 +184,7 @@ func (mounter *SafeFormatAndMount) FormatAndMount(source string, target string, 
 
 // getMountRefsByDev finds all references to the device provided
 // by mountPath; returns a list of paths.
-// Note that mountPath should be path after the evaluation of any symblolic links.
+// Note that mountPath should be path after the evaluation of any symbolic links.
 func getMountRefsByDev(mounter Interface, mountPath string) ([]string, error) {
 	mps, err := mounter.List()
 	if err != nil {
