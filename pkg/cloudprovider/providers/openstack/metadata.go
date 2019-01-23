@@ -38,7 +38,7 @@ const (
 	// It's a hardcoded IPv4 link-local address as documented in "User Documentation"
 	// section "Metadata service
 	// https://docs.openstack.org/nova/latest/user/metadata-service.html
-	defaultMetadataVersion = "2012-08-10"
+	defaultMetadataVersion = "latest"
 	metadataURLTemplate    = "http://169.254.169.254/openstack/%s/meta_data.json"
 
 	// metadataID is used as an identifier on the metadata search order configuration.
