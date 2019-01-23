@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	defaultMetadataVersion = "2012-08-10"
+	defaultMetadataVersion = "latest"
 	metadataURLTemplate    = "http://169.254.169.254/openstack/%s/meta_data.json"
 )
 
