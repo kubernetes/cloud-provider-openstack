@@ -41,6 +41,7 @@ const (
 	diskDetachInitDelay      = 1 * time.Second
 	diskDetachFactor         = 1.2
 	diskDetachSteps          = 13
+	volumeDescription        = "Created by OpenStack Cinder CSI driver"
 )
 
 type Volume struct {
@@ -67,6 +68,7 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		Size:             size,
 		VolumeType:       vtype,
 		AvailabilityZone: availability,
+		Description:      volumeDescription,
 	}
 	if tags != nil {
 		opts.Metadata = *tags
