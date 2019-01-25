@@ -33,7 +33,7 @@ var (
 
 func NewFakeDriver() *CinderDriver {
 
-	driver := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
+	driver := NewDriver(fakeNodeID, fakeEndpoint, fakeCluster, fakeConfig)
 
 	return driver
 }

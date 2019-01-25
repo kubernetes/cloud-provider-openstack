@@ -34,7 +34,7 @@ func init() {
 		// to avoid annoying ERROR: logging before flag.Parse
 		flag.Parse()
 
-		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
+		d := NewDriver(fakeNodeID, fakeEndpoint, fakeCluster, fakeConfig)
 		fakeCs = NewControllerServer(d)
 	}
 }
@@ -45,7 +45,8 @@ func TestCreateVolume(t *testing.T) {
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
 	// CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
 	openstack.OsInstance = osmock
 
 	// Init assert
@@ -79,7 +80,8 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, (*map[string]string)(nil)).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
 	openstack.OsInstance = osmock
 
 	// Init assert
@@ -237,7 +239,7 @@ func TestListVolumes(t *testing.T) {
 	assert.Equal(expectedRes, actualRes)
 }
 
-// Test CreateVolume
+// Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
