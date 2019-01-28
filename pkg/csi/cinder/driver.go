@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	driverName = "cinder.csi.openstack.org"
+	driverName  = "cinder.csi.openstack.org"
+	topologyKey = "topology." + driverName + "/zone"
 )
 
 var (
