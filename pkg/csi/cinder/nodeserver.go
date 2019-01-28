@@ -122,9 +122,12 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	if err != nil {
 		return nil, err
 	}
+	zone, err := getAvailabilityZoneMetadataService()
+	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
 
 	return &csi.NodeGetInfoResponse{
-		NodeId: nodeID,
+		NodeId:             nodeID,
+		AccessibleTopology: topology,
 	}, nil
 }
 
@@ -167,11 +170,29 @@ func getNodeIDMountProvider() (string, error) {
 }
 
 func getNodeIDMetdataService() (string, error) {
-	nodeID, err := openstack.GetInstanceID()
+	m, err := openstack.GetMetadataProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
+		return "", err
+	}
+	nodeID, err := m.GetInstanceID()
 	if err != nil {
 		return "", err
 	}
 	return nodeID, nil
+}
+
+func getAvailabilityZoneMetadataService() (string, error) {
+	m, err := openstack.GetMetadataProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
+		return "", err
+	}
+	zone, err := m.GetAvailabilityZone()
+	if err != nil {
+		return "", err
+	}
+	return zone, nil
 }
 
 func getNodeID() (string, error) {

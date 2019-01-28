@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 var fakeNs *nodeServer
@@ -48,12 +49,17 @@ func TestNodeGetInfo(t *testing.T) {
 	mmock.On("GetInstanceID").Return(fakeNodeID, nil)
 	mount.MInstance = mmock
 
+	osmock := new(openstack.OpenStackMock)
+	osmock.On("GetAvailabilityZone").Return(fakeAvailability, nil)
+	openstack.MetadataService = osmock
+
 	// Init assert
 	assert := assert.New(t)
 
 	// Expected Result
 	expectedRes := &csi.NodeGetInfoResponse{
-		NodeId: fakeNodeID,
+		NodeId:             fakeNodeID,
+		AccessibleTopology: &csi.Topology{Segments: map[string]string{topologyKey: fakeAvailability}},
 	}
 
 	// Fake request
