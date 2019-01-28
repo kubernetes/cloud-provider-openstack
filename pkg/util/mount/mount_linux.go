@@ -32,10 +32,9 @@ import (
 
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilfile "k8s.io/cloud-provider-openstack/pkg/util/file"
-	utilio "k8s.io/cloud-provider-openstack/pkg/util/io"
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
+	utilio "k8s.io/utils/io"
 )
 
 const (
@@ -416,7 +415,7 @@ func (mounter *Mounter) MakeFile(pathname string) error {
 }
 
 func (mounter *Mounter) ExistsPath(pathname string) (bool, error) {
-	return utilfile.FileExists(pathname)
+	return FileExists(pathname)
 }
 
 func (mounter *Mounter) EvalHostSymlinks(pathname string) (string, error) {

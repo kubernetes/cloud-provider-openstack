@@ -110,24 +110,28 @@
   version = "2.2.1"
 
 [[override]]
+  name = "github.com/Azure/azure-sdk-for-go"
+  version = "v21.3.0"
+
+[[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.13.0"
+  version = "kubernetes-1.14.0-alpha.1"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.0"
+  version = "kubernetes-1.14.0-alpha.1"
 
 [[override]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.13.0"
+  version = "kubernetes-1.14.0-alpha.1"
 
 [[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.13.0"
+  version = "kubernetes-1.14.0-alpha.1"
 
 [[override]]
   name = "k8s.io/kubernetes"
-  version = "v1.13.0"
+  version = "v1.14.0-alpha.1"
 
 [[constraint]]
   branch = "master"

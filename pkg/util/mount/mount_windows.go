@@ -29,8 +29,6 @@ import (
 	"syscall"
 
 	"k8s.io/klog"
-
-	utilfile "k8s.io/cloud-provider-openstack/pkg/util/file"
 )
 
 // Mounter provides the default implementation of mount.Interface
@@ -235,7 +233,7 @@ func (mounter *Mounter) MakeFile(pathname string) error {
 
 // ExistsPath checks whether the path exists
 func (mounter *Mounter) ExistsPath(pathname string) (bool, error) {
-	return utilfile.FileExists(pathname)
+	return FileExists(pathname)
 }
 
 // EvalHostSymlinks returns the path name after evaluating symlinks
