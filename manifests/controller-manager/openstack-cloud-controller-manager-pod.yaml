@@ -15,7 +15,7 @@ spec:
       args:
         - /bin/openstack-cloud-controller-manager
         - --v=1
-        - --cloud-config=/etc/cloud/cloud-config
+        - --cloud-config=$(CLOUD_CONFIG)
         - --cloud-provider=openstack
         - --use-service-account-credentials=true
         - --address=127.0.0.1
@@ -28,12 +28,15 @@ spec:
           readOnly: true
         - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
           name: flexvolume-dir
-        - mountPath: /etc/cloud
+        - mountPath: /etc/config
           name: cloud-config-volume
           readOnly: true
       resources:
         requests:
           cpu: 200m
+      env:
+        - name: CLOUD_CONFIG
+          value: /etc/config/cloud.conf
   hostNetwork: true
   securityContext:
     runAsUser: 1001
