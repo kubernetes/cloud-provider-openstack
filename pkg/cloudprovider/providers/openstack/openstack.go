@@ -390,6 +390,11 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
+
+func getClusterName() string {
+	return os.Getenv("KUBERNETES_CLUSTER")
+}
+
 // NewOpenStack creates a new new instance of the openstack struct from a config struct
 func NewOpenStack(cfg Config) (*OpenStack, error) {
 	provider, err := openstack.NewClient(cfg.Global.AuthURL)
@@ -476,7 +481,16 @@ func mapServerToNodeName(server *servers.Server) types.NodeName {
 	// Node names are always lowercase, and (at least)
 	// routecontroller does case-sensitive string comparisons
 	// assuming this
-	return types.NodeName(strings.ToLower(server.Name))
+
+	serverLower := strings.ToLower(server.Name)
+	if getClusterName() == "" {
+	    return types.NodeName(serverLower)
+	}
+	splitted := strings.Split(serverLower, ".")
+	if len(splitted) > 0 {
+		return types.NodeName(splitted[0])
+	}
+	return types.NodeName(serverLower)
 }
 
 func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuilder, handler func(*servers.Server) (bool, error)) error {
@@ -499,8 +513,14 @@ func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuild
 }
 
 func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
+	servername := mapNodeNameToServerName(name)
+	clusterName := getClusterName()
+	if clusterName != "" {
+		servername = mapNodeNameToServerName(name)+"."+clusterName
+	}
+
 	opts := servers.ListOpts{
-		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
+		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(servername)),
 	}
 
 	pager := servers.List(client, opts)

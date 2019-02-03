@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
@@ -66,6 +67,14 @@ func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types
 	md, err := getMetadata(i.opts.SearchOrder)
 	if err != nil {
 		return "", err
+	}
+
+	if getClusterName() == "" {
+	    return types.NodeName(md.Name), nil
+	}
+	splitted := strings.Split(md.Name, ".")
+	if len(splitted) > 0 {
+		return types.NodeName(splitted[0]), nil
 	}
 	return types.NodeName(md.Name), nil
 }
