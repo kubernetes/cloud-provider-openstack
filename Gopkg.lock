@@ -450,16 +450,16 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:49926b919c58842fe6ec1e1f3fd46e32071e1f96c7187fb4c38bb85be6c78389"
-  name = "github.com/kubernetes-incubator/external-storage"
+  digest = "1:ed7217adfd0a2166b57478acf8adf5eb63244843ef55d2a8d540a5b5c0d8a313"
+  name = "github.com/kubernetes-sigs/sig-storage-lib-external-provisioner"
   packages = [
-    "lib/controller",
-    "lib/controller/metrics",
-    "lib/util",
+    "controller",
+    "controller/metrics",
+    "util",
   ]
   pruneopts = "UT"
-  revision = "a36eb11aa65e1b6890b50db2ee4fd0adb2884a6a"
-  version = "v5.3.0-alpha.1"
+  revision = "eb02dcb0bcd4894de9d7b894c30f2370774d5d1b"
+  version = "v2.1.0"
 
 [[projects]]
   digest = "1:c568d7727aa262c32bdf8a3f7db83614f7af0ed661474b24588de635c20024c7"
@@ -488,6 +488,14 @@
   pruneopts = "UT"
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
   version = "v1.0.1"
+
+[[projects]]
+  digest = "1:1b46adc9e3d878cdf38a164cfdac2e19340f4d2662aa5bee88062f6ee08ac9df"
+  name = "github.com/miekg/dns"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8fc2e5773bbd308ca2fcc962fd8d25c1bd0f6743"
+  version = "v1.1.4"
 
 [[projects]]
   digest = "1:78bbb1ba5b7c3f2ed0ea1eab57bdd3859aec7e177811563edc41198a760b06af"
@@ -754,9 +762,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4b810b02a73d11c884353dcf98ef0541d99cdf8d8c37f656840b13666fc7c683"
+  digest = "1:8ead068f043949c15374a3105a6075fb23216a7bf21abc3b9b07c123f9c41988"
   name = "golang.org/x/net"
   packages = [
+    "bpf",
     "context",
     "context/ctxhttp",
     "html",
@@ -766,7 +775,11 @@
     "http2",
     "http2/hpack",
     "idna",
+    "internal/iana",
+    "internal/socket",
     "internal/timeseries",
+    "ipv4",
+    "ipv6",
     "trace",
     "websocket",
   ]
@@ -1559,7 +1572,7 @@
     "github.com/gophercloud/gophercloud/testhelper/client",
     "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/gorilla/mux",
-    "github.com/kubernetes-incubator/external-storage/lib/controller",
+    "github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller",
     "github.com/mitchellh/go-homedir",
     "github.com/mitchellh/mapstructure",
     "github.com/onsi/ginkgo",
