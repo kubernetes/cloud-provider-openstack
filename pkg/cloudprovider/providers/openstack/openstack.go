@@ -390,7 +390,6 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
-
 func getClusterName() string {
 	return os.Getenv("KUBERNETES_CLUSTER")
 }
@@ -484,7 +483,7 @@ func mapServerToNodeName(server *servers.Server) types.NodeName {
 
 	serverLower := strings.ToLower(server.Name)
 	if getClusterName() == "" {
-	    return types.NodeName(serverLower)
+		return types.NodeName(serverLower)
 	}
 	splitted := strings.Split(serverLower, ".")
 	if len(splitted) > 0 {
@@ -516,7 +515,7 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 	servername := mapNodeNameToServerName(name)
 	clusterName := getClusterName()
 	if clusterName != "" {
-		servername = mapNodeNameToServerName(name)+"."+clusterName
+		servername = mapNodeNameToServerName(name) + "." + clusterName
 	}
 
 	opts := servers.ListOpts{

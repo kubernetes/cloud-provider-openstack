@@ -70,7 +70,7 @@ func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types
 	}
 
 	if getClusterName() == "" {
-	    return types.NodeName(md.Name), nil
+		return types.NodeName(md.Name), nil
 	}
 	splitted := strings.Split(md.Name, ".")
 	if len(splitted) > 0 {
