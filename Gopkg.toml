@@ -42,8 +42,8 @@
   version = "1.6.2"
 
 [[constraint]]
-  name = "github.com/kubernetes-incubator/external-storage"
-  version = "v5.3.0-alpha.1"
+  name = "github.com/kubernetes-sigs/sig-storage-lib-external-provisioner"
+  version = "v2.1.0"
 
 [[constraint]]
   name = "github.com/mitchellh/go-homedir"

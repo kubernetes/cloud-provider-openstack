@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/klog"
 
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
 
 	"k8s.io/apimachinery/pkg/util/wait"
