@@ -17,17 +17,21 @@ spec:
       serviceAccount: csi-nodeplugin
       hostNetwork: true
       containers:
-        - name: driver-registrar
-          image: quay.io/k8scsi/driver-registrar:v0.4.1
+        - name: node-driver-registrar
+          image: quay.io/k8scsi/csi-node-driver-registrar:v1.0.1
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "rm -rf /registration/cinder.csi.openstack.org /registration/cinder.csi.openstack.org-reg.sock"]
           env:
             - name: ADDRESS
               value: /csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
-              value: /var/lib/kubelet/plugins/csi-cinderplugin/csi.sock
+              value: /var/lib/kubelet/plugins/cinder.csi.openstack.org/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -78,11 +82,11 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/csi-cinderplugin
+            path: /var/lib/kubelet/plugins/cinder.csi.openstack.org
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/
+            path: /var/lib/kubelet/plugins_registry/
             type: Directory
         - name: pods-mount-dir
           hostPath:

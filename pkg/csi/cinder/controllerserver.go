@@ -18,9 +18,10 @@ package cinder
 
 import (
 	"errors"
-	"time"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/golang/protobuf/ptypes"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
@@ -96,9 +97,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			Id:            resID,
+			VolumeId:      resID,
 			CapacityBytes: int64(resSize * 1024 * 1024 * 1024),
-			Attributes: map[string]string{
+
+			VolumeContext: map[string]string{
 				"availability": resAvailability,
 			},
 		},
@@ -165,7 +167,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	pvInfo["DevicePath"] = devicePath
 
 	return &csi.ControllerPublishVolumeResponse{
-		PublishInfo: pvInfo,
+		PublishContext: pvInfo,
 	}, nil
 }
 
@@ -217,7 +219,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	for _, v := range vlist {
 		ventry := csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{
-				Id:            v.ID,
+				VolumeId:      v.ID,
 				CapacityBytes: int64(v.Size * 1024 * 1024 * 1024),
 			},
 		}
@@ -266,13 +268,18 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		klog.V(3).Infof("CreateSnapshot %s on %s", name, volumeId)
 	}
 
+	ctime, err := ptypes.TimestampProto(snap.CreatedAt)
+	if err != nil {
+		klog.Errorf("Error to convert time to timestamp: %v", err)
+	}
+
 	// TODO: add snapshot status
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
-			Id:             snap.ID,
+			SnapshotId:     snap.ID,
 			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
 			SourceVolumeId: snap.VolumeID,
-			CreatedAt:      int64(snap.CreatedAt.UnixNano() / int64(time.Millisecond)),
+			CreationTime:   ctime,
 		},
 	}, nil
 }
@@ -314,12 +321,16 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 
 	var ventries []*csi.ListSnapshotsResponse_Entry
 	for _, v := range vlist {
+		ctime, err := ptypes.TimestampProto(v.CreatedAt)
+		if err != nil {
+			klog.Errorf("Error to convert time to timestamp: %v", err)
+		}
 		ventry := csi.ListSnapshotsResponse_Entry{
 			Snapshot: &csi.Snapshot{
 				SizeBytes:      int64(v.Size * 1024 * 1024 * 1024),
-				Id:             v.ID,
+				SnapshotId:     v.ID,
 				SourceVolumeId: v.VolumeID,
-				CreatedAt:      int64(v.CreatedAt.UnixNano() / int64(time.Millisecond)),
+				CreationTime:   ctime,
 			},
 		}
 		ventries = append(ventries, &ventry)
