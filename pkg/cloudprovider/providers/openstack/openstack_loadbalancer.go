@@ -28,7 +28,6 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
-	octavialb "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
 	v2pools "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions"
@@ -1536,8 +1535,8 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 	// delete the loadbalancer and all its sub-resources.
 	if lbaas.opts.UseOctavia {
-		deleteOpts := octavialb.DeleteOpts{Cascade: true}
-		if err := octavialb.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
+		deleteOpts := loadbalancers.DeleteOpts{Cascade: true}
+		if err := loadbalancers.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
 			return fmt.Errorf("failed to delete loadbalancer %s: %v", loadbalancer.ID, err)
 		}
 	} else {
