@@ -21,14 +21,16 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
+If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-controller-manager-with-kubeadm.md#steps) jump directly to the `kubectl apply ...` command.
+
 Encode your ```$CLOUD_CONFIG``` file content using base64.
 
-```base64 -w 0 cloud.conf```
+```base64 -w 0 $CLOUD_CONFIG```
 
 Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
 
-```kubectl -f manifests/cinder-csi-plugin create```
+```kubectl -f manifests/cinder-csi-plugin apply```
 
 This creates a set of cluster roles, cluster role bindings, and statefulsets etc to communicate with openstack(cinder).
 For detailed list of created objects, explore the yaml files in the directory.
