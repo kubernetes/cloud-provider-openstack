@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"k8s.io/klog"

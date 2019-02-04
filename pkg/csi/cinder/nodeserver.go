@@ -17,7 +17,9 @@ limitations under the License.
 package cinder
 
 import (
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"fmt"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,7 +37,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	targetPath := req.GetTargetPath()
 	fsType := req.GetVolumeCapability().GetMount().GetFsType()
-	devicePath := req.GetPublishInfo()["DevicePath"]
+	devicePath := req.GetPublishContext()["DevicePath"]
 
 	// Get Mount Provider
 	m, err := mount.GetMountProvider()
@@ -114,18 +116,6 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodeGetId(ctx context.Context, req *csi.NodeGetIdRequest) (*csi.NodeGetIdResponse, error) {
-
-	nodeID, err := getNodeID()
-	if err != nil {
-		return nil, err
-	}
-
-	return &csi.NodeGetIdResponse{
-		NodeId: nodeID,
-	}, nil
-}
-
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 
 	nodeID, err := getNodeID()
@@ -152,6 +142,10 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 			},
 		},
 	}, nil
+}
+
+func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeGetVolumeStats is not yet implemented"))
 }
 
 func getNodeIDMountProvider() (string, error) {
