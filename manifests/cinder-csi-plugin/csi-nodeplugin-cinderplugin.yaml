@@ -5,6 +5,7 @@ kind: DaemonSet
 apiVersion: apps/v1beta2
 metadata:
   name: csi-nodeplugin-cinderplugin
+  namespace: kube-system
 spec:
   selector:
     matchLabels:
@@ -98,4 +99,4 @@ spec:
             type: Directory
         - name: secret-cinderplugin
           secret:
-            secretName: csi-secret-cinderplugin
+            secretName: cloud-config
