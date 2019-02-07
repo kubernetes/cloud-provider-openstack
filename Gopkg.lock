@@ -279,7 +279,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e2161cf62eb56389630bbcdab989c2656e8808edca3dc7cadf25cffda88d6a16"
+  digest = "1:d8150d750c115155c906f0fc6d4c6390b8cbca17c24601201aec108d55ec698f"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -311,11 +311,6 @@
     "openstack/networking/v2/extensions/external",
     "openstack/networking/v2/extensions/layer3/floatingips",
     "openstack/networking/v2/extensions/layer3/routers",
-    "openstack/networking/v2/extensions/lbaas_v2/l7policies",
-    "openstack/networking/v2/extensions/lbaas_v2/listeners",
-    "openstack/networking/v2/extensions/lbaas_v2/loadbalancers",
-    "openstack/networking/v2/extensions/lbaas_v2/monitors",
-    "openstack/networking/v2/extensions/lbaas_v2/pools",
     "openstack/networking/v2/extensions/security/groups",
     "openstack/networking/v2/extensions/security/rules",
     "openstack/networking/v2/networks",
@@ -328,7 +323,7 @@
     "testhelper/client",
   ]
   pruneopts = "UT"
-  revision = "cc2dd4edd0609857e53ef6feba69f84e29f5b60f"
+  revision = "660c5458a954e9b66e25871703cf727de9d4aaff"
 
 [[projects]]
   branch = "master"
@@ -1538,15 +1533,12 @@
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers",
+    "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers",
-    "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/listeners",
-    "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/loadbalancers",
-    "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/monitors",
-    "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/pools",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/networks",

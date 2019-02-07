@@ -26,14 +26,13 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
-	octavialb "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
+	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
+	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
+	v2pools "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/listeners"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/loadbalancers"
-	v2monitors "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/monitors"
-	v2pools "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/lbaas_v2/pools"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
@@ -75,6 +74,7 @@ const (
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
+	ServiceAnnotationLoadBalancerProxyEnabled      = "loadbalancer.openstack.org/proxy-protocol"
 
 	// ServiceAnnotationLoadBalancerInternal is the annotation used on the service
 	// to indicate that we want an internal loadbalancer service.
@@ -862,10 +862,18 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 		}
 		if pool == nil {
-			klog.V(4).Infof("Creating pool for listener %s", listener.ID)
+			useProxyProtocol, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
+			if err != nil {
+				return nil, err
+			}
+			proto := v2pools.ProtocolTCP
+			if useProxyProtocol {
+				proto = v2pools.ProtocolPROXY
+			}
+			klog.V(4).Infof("Creating pool for listener %s using protocol %s", listener.ID, proto)
 			pool, err = v2pools.Create(lbaas.lb, v2pools.CreateOpts{
 				Name:        fmt.Sprintf("pool_%s_%d", name, portIndex),
-				Protocol:    v2pools.Protocol(port.Protocol),
+				Protocol:    proto,
 				LBMethod:    lbmethod,
 				ListenerID:  listener.ID,
 				Persistence: persistence,
@@ -1527,8 +1535,8 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 	// delete the loadbalancer and all its sub-resources.
 	if lbaas.opts.UseOctavia {
-		deleteOpts := octavialb.DeleteOpts{Cascade: true}
-		if err := octavialb.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
+		deleteOpts := loadbalancers.DeleteOpts{Cascade: true}
+		if err := loadbalancers.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
 			return fmt.Errorf("failed to delete loadbalancer %s: %v", loadbalancer.ID, err)
 		}
 	} else {
@@ -1610,7 +1618,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		}
 
 		// delete loadbalancer
-		err = loadbalancers.Delete(lbaas.lb, loadbalancer.ID).ExtractErr()
+		err = loadbalancers.Delete(lbaas.lb, loadbalancer.ID, loadbalancers.DeleteOpts{}).ExtractErr()
 		if err != nil && !isNotFound(err) {
 			return err
 		}
