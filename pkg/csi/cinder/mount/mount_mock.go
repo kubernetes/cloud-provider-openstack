@@ -38,6 +38,20 @@ func (_m *MountMock) FormatAndMount(source string, target string, fstype string,
 	return r0
 }
 
+// Mount provides a mock function with given fields: source, target, fstype, options
+func (_m *MountMock) Mount(source string, target string, fstype string, options []string) error {
+	ret := _m.Called(source, target, fstype, options)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, string, string, []string) error); ok {
+		r0 = rf(source, target, fstype, options)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetInstanceID provides a mock function with given fields:
 func (_m *MountMock) GetInstanceID() (string, error) {
 	ret := _m.Called()

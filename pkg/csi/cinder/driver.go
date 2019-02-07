@@ -73,6 +73,11 @@ func NewDriver(nodeID, endpoint, cluster, cloudconfig string) *CinderDriver {
 		})
 	d.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 
+	d.AddNodeServiceCapabilities(
+		[]csi.NodeServiceCapability_RPC_Type{
+			csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+		})
+
 	return d
 }
 
@@ -99,7 +104,15 @@ func (d *CinderDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_
 	return vca
 }
 
-// TODO: Add node caps
+func (d *CinderDriver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error {
+	var nsc []*csi.NodeServiceCapability
+	for _, n := range nl {
+		klog.Infof("Enabling node service capability: %v", n.String())
+		nsc = append(nsc, NewNodeServiceCapability(n))
+	}
+	d.nscap = nsc
+	return nil
+}
 
 func (d *CinderDriver) ValidateControllerServiceRequest(c csi.ControllerServiceCapability_RPC_Type) error {
 	if c == csi.ControllerServiceCapability_RPC_UNKNOWN {
