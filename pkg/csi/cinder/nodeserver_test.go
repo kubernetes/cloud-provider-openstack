@@ -84,8 +84,8 @@ func TestNodePublishVolume(t *testing.T) {
 	mmock.On("ScanForAttach", fakeDevicePath).Return(nil)
 	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	mmock.On("IsLikelyNotMountPointAttach", fakeTargetPath).Return(true, nil)
-	// FormatAndMount(source string, target string, fstype string, options []string) error
-	mmock.On("FormatAndMount", fakeDevicePath, fakeTargetPath, mock.AnythingOfType("string"), []string{"rw"}).Return(nil)
+	// Mount(source string, target string, fstype string, options []string) error
+	mmock.On("Mount", fakeStagingTargetPath, fakeTargetPath, mock.AnythingOfType("string"), []string{"bind", "rw"}).Return(nil)
 	mount.MInstance = mmock
 
 	// Init assert
@@ -93,20 +93,73 @@ func TestNodePublishVolume(t *testing.T) {
 
 	// Expected Result
 	expectedRes := &csi.NodePublishVolumeResponse{}
-
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
 	// Fake request
 	fakeReq := &csi.NodePublishVolumeRequest{
-		VolumeId:         fakeVolID,
-		PublishContext:   map[string]string{"DevicePath": fakeDevicePath},
-		TargetPath:       fakeTargetPath,
-		VolumeCapability: nil,
-		Readonly:         false,
+		VolumeId:          fakeVolID,
+		PublishContext:    map[string]string{"DevicePath": fakeDevicePath},
+		TargetPath:        fakeTargetPath,
+		StagingTargetPath: fakeStagingTargetPath,
+		VolumeCapability:  stdVolCap,
+		Readonly:          false,
 	}
 
 	// Invoke NodePublishVolume
 	actualRes, err := fakeNs.NodePublishVolume(fakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to NodePublishVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+// Test NodeStageVolume
+func TestNodeStageVolume(t *testing.T) {
+
+	// mock MountMock
+	mmock := new(mount.MountMock)
+	// ScanForAttach(devicePath string) error
+	mmock.On("ScanForAttach", fakeDevicePath).Return(nil)
+	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
+	mmock.On("IsLikelyNotMountPointAttach", fakeStagingTargetPath).Return(true, nil)
+	// FormatAndMount(source string, target string, fstype string, options []string) error
+	mmock.On("FormatAndMount", fakeDevicePath, fakeStagingTargetPath, "ext4", []string(nil)).Return(nil)
+	mount.MInstance = mmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodeStageVolumeResponse{}
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	// Fake request
+	fakeReq := &csi.NodeStageVolumeRequest{
+		VolumeId:          fakeVolID,
+		PublishContext:    map[string]string{"DevicePath": fakeDevicePath},
+		StagingTargetPath: fakeStagingTargetPath,
+		VolumeCapability:  stdVolCap,
+	}
+
+	// Invoke NodeStageVolume
+	actualRes, err := fakeNs.NodeStageVolume(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodeStageVolume: %v", err)
 	}
 
 	// Assert
@@ -141,6 +194,40 @@ func TestNodeUnpublishVolume(t *testing.T) {
 	actualRes, err := fakeNs.NodeUnpublishVolume(fakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to NodeUnpublishVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+// Test NodeUnstageVolume
+func TestNodeUnstageVolume(t *testing.T) {
+
+	// mock MountMock
+	mmock := new(mount.MountMock)
+
+	// IsLikelyNotMountPointDetach(targetpath string) (bool, error)
+	mmock.On("IsLikelyNotMountPointDetach", fakeStagingTargetPath).Return(false, nil)
+	// UnmountPath(mountPath string) error
+	mmock.On("UnmountPath", fakeStagingTargetPath).Return(nil)
+	mount.MInstance = mmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodeUnstageVolumeResponse{}
+
+	// Fake request
+	fakeReq := &csi.NodeUnstageVolumeRequest{
+		VolumeId:          fakeVolID,
+		StagingTargetPath: fakeStagingTargetPath,
+	}
+
+	// Invoke NodeUnstageVolume
+	actualRes, err := fakeNs.NodeUnstageVolume(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodeUnstageVolume: %v", err)
 	}
 
 	// Assert
