@@ -166,13 +166,13 @@ func main() {
 	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
 		options.AuthOptions, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s", err)
+			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s\n", err)
 			os.Exit(1)
 		}
 	} else {
 		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
+			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s\n", err)
 			os.Exit(1)
 		}
 	}
