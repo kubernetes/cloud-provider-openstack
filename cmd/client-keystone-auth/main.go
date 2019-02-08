@@ -119,6 +119,10 @@ func prompt(url string, domain string, user string, project string, password str
 	return options, nil
 }
 
+// consolidate input and env
+// set env (and a list to rember)
+// after run clean up
+
 func main() {
 	// Glog requires this otherwise it complains.
 	flag.CommandLine.Parse(nil)
@@ -164,10 +168,23 @@ func main() {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
+		// ToDo
 		options.AuthOptions, err = openstack.AuthOptionsFromEnv()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s\n", err)
-			os.Exit(1)
+			//os.Exit(1)
+		}
+
+		// Fallback with arguments
+		options.AuthOptions = gophercloud.AuthOptions{
+			IdentityEndpoint:            url,
+			Username:                    user,
+			TenantName:                  project,
+			Password:                    password,
+			DomainName:                  domain,
+			ApplicationCredentialID:     applicationCredentialID,
+			ApplicationCredentialName:   applicationCredentialName,
+			ApplicationCredentialSecret: applicationCredentialSecret,
 		}
 	} else {
 		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
