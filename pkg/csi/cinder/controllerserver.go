@@ -84,7 +84,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, errors.New("multiple volumes reported by Cinder with same name")
 	} else {
 		// Volume Create
-		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, nil)
+		properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
+		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, &properties)
 		if err != nil {
 			klog.V(3).Infof("Failed to CreateVolume: %v", err)
 			return nil, err

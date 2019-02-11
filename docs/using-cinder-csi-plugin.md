@@ -135,10 +135,11 @@ Get ```csc``` tool from https://github.com/thecodeteam/gocsi/tree/master/csc
 
 First, you need to start the plugin as daemon to accept request from csc.
 Following example is starting listening at localhost port 10000 with cloud configuration
-given in /etc/cloud.conf and the node id is CSINodeID.
+given in /etc/cloud.conf and the node id is CSINodeID. ClusterID is the identifier of
+the cluster in which the plugin is running.
 
 ```
-$ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID
+$ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID --cluster ClusterID
 ```
 
 #### Get plugin info
@@ -159,14 +160,13 @@ $ csc controller get-capabilities  --endpoint tcp://127.0.0.1:10000
 &{type:CREATE_DELETE_VOLUME }
 &{type:PUBLISH_UNPUBLISH_VOLUME }
 &{type:LIST_VOLUMES }
-
 ```
 
 #### Create a volume
 Following sample creates a volume named ``CSIVolumeName`` and the
 volume id returned is ``8a55f98f-e987-43ab-a9f5-973352bee19c`` with size ``1073741824`` bytes (1Gb)
 ```
-$  csc controller create-volume --endpoint tcp://127.0.0.1:10000 CSIVolumeName
+$ csc controller create-volume --endpoint tcp://127.0.0.1:10000 CSIVolumeName
 "8a55f98f-e987-43ab-a9f5-973352bee19c"  1073741824      "availability"="nova"
 ```
 

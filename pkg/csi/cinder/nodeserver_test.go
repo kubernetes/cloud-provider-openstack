@@ -34,7 +34,7 @@ func init() {
 		// to avoid annoying ERROR: logging before flag.Parse
 		flag.Parse()
 
-		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
+		d := NewDriver(fakeNodeID, fakeEndpoint, fakeCluster, fakeConfig)
 		fakeNs = NewNodeServer(d)
 	}
 }
