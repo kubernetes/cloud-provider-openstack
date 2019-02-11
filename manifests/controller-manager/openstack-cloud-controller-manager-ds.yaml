@@ -40,7 +40,7 @@ spec:
           args:
             - /bin/openstack-cloud-controller-manager
             - --v=1
-            - --cloud-config=/etc/cloud/cloud-config
+            - --cloud-config=$(CLOUD_CONFIG)
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
             - --address=127.0.0.1
@@ -51,7 +51,7 @@ spec:
             - mountPath: /etc/ssl/certs
               name: ca-certs
               readOnly: true
-            - mountPath: /etc/cloud
+            - mountPath: /etc/config
               name: cloud-config-volume
               readOnly: true
             - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
@@ -59,6 +59,9 @@ spec:
           resources:
             requests:
               cpu: 200m
+          env:
+            - name: CLOUD_CONFIG
+              value: /etc/config/cloud.conf
       hostNetwork: true
       volumes:
       - hostPath:
@@ -74,5 +77,5 @@ spec:
           type: DirectoryOrCreate
         name: ca-certs
       - name: cloud-config-volume
-        configMap:
-          name: cloud-config
+        secret:
+          secretName: cloud-config

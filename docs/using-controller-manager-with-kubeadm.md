@@ -50,10 +50,13 @@
 
     Then wait for the controller manager to be restarted and running.
 
-- Create a configmap containing the cloud configuration for cloud-controller-manager.
+- Create a secret containing the cloud configuration for cloud-controller-manager.
+
+   Update `cloud.conf` configuration in `manifests/controller-manager/cloud-config-secret.yaml`:
 
     ```shell
-    kubectl create configmap cloud-config --from-file=/etc/kubernetes/cloud-config -n kube-system
+    kubectl create secret -n kube-system generic cloud-config --from-literal=cloud.conf="$(cat $CLOUD_CONFIG)" --dry-run -o yaml > manifests/controller-manager/cloud-config-secret.yaml
+    kubectl -f manifests/controller-manager/cloud-config-secret.yaml apply
     ```
 
 - Create InitializerConfiguration for the cloud-controller-manager to label persistent volumes, see more details [here](https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
