@@ -22,6 +22,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
+var fakeCluster = "cluster"
 var fakeNodeID = "CSINodeID"
 var fakeEndpoint = "tcp://127.0.0.1:10000"
 var fakeConfig = "/etc/cloud.conf"

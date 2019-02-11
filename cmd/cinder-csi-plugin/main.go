@@ -31,6 +31,7 @@ var (
 	endpoint    string
 	nodeID      string
 	cloudconfig string
+	cluster     string
 )
 
 func init() {
@@ -78,6 +79,8 @@ func main() {
 	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "CSI driver cloud config")
 	cmd.MarkPersistentFlagRequired("cloud-config")
 
+	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
+
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
@@ -87,6 +90,6 @@ func main() {
 }
 
 func handle() {
-	d := cinder.NewDriver(nodeID, endpoint, cloudconfig)
+	d := cinder.NewDriver(nodeID, endpoint, cluster, cloudconfig)
 	d.Run()
 }
