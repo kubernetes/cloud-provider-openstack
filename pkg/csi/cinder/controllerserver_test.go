@@ -20,7 +20,7 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -69,9 +69,9 @@ func TestCreateVolume(t *testing.T) {
 
 	assert.NotNil(actualRes.Volume.CapacityBytes)
 
-	assert.NotEqual(0, len(actualRes.Volume.Id), "Volume Id is nil")
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 
-	assert.Equal(fakeAvailability, actualRes.Volume.Attributes["availability"])
+	assert.Equal(fakeAvailability, actualRes.Volume.VolumeContext["availability"])
 
 }
 
@@ -102,11 +102,11 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 	// Assert
 	assert.NotNil(actualRes.Volume)
 
-	assert.NotEqual(0, len(actualRes.Volume.Id), "Volume Id is nil")
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 
-	assert.Equal("nova", actualRes.Volume.Attributes["availability"])
+	assert.Equal("nova", actualRes.Volume.VolumeContext["availability"])
 
-	assert.Equal("261a8b81-3660-43e5-bab8-6470b65ee4e9", actualRes.Volume.Id)
+	assert.Equal("261a8b81-3660-43e5-bab8-6470b65ee4e9", actualRes.Volume.VolumeId)
 }
 
 // Test DeleteVolume
@@ -165,7 +165,7 @@ func TestControllerPublishVolume(t *testing.T) {
 
 	// Expected Result
 	expectedRes := &csi.ControllerPublishVolumeResponse{
-		PublishInfo: map[string]string{
+		PublishContext: map[string]string{
 			"DevicePath": fakeDevicePath,
 		},
 	}
@@ -265,7 +265,7 @@ func TestCreateSnapshot(t *testing.T) {
 	// Assert
 	assert.Equal(fakeVolID, actualRes.Snapshot.SourceVolumeId)
 
-	assert.NotNil(fakeSnapshotID, actualRes.Snapshot.Id)
+	assert.NotNil(fakeSnapshotID, actualRes.Snapshot.SnapshotId)
 }
 
 // Test DeleteSnapshot
@@ -320,5 +320,5 @@ func TestListSnapshots(t *testing.T) {
 	// Assert
 	assert.Equal(fakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
 
-	assert.NotNil(fakeSnapshotID, actualRes.Entries[0].Snapshot.Id)
+	assert.NotNil(fakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
 }

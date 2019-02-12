@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/klog"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 // Defines Non blocking GRPC server interfaces

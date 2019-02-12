@@ -20,7 +20,7 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
@@ -37,36 +37,6 @@ func init() {
 		d := NewDriver(fakeNodeID, fakeEndpoint, fakeCluster, fakeConfig)
 		fakeNs = NewNodeServer(d)
 	}
-}
-
-// Test NodeGetId
-func TestNodeGetId(t *testing.T) {
-
-	// mock MountMock
-	mmock := new(mount.MountMock)
-	// GetInstanceID() (string, error)
-	mmock.On("GetInstanceID").Return(fakeNodeID, nil)
-	mount.MInstance = mmock
-
-	// Init assert
-	assert := assert.New(t)
-
-	// Expected Result
-	expectedRes := &csi.NodeGetIdResponse{
-		NodeId: fakeNodeID,
-	}
-
-	// Fake request
-	fakeReq := &csi.NodeGetIdRequest{}
-
-	// Invoke NodeGetId
-	actualRes, err := fakeNs.NodeGetId(fakeCtx, fakeReq)
-	if err != nil {
-		t.Errorf("failed to NodeGetId: %v", err)
-	}
-
-	// Assert
-	assert.Equal(expectedRes, actualRes)
 }
 
 // Test NodeGetInfo
@@ -121,7 +91,7 @@ func TestNodePublishVolume(t *testing.T) {
 	// Fake request
 	fakeReq := &csi.NodePublishVolumeRequest{
 		VolumeId:         fakeVolID,
-		PublishInfo:      map[string]string{"DevicePath": fakeDevicePath},
+		PublishContext:   map[string]string{"DevicePath": fakeDevicePath},
 		TargetPath:       fakeTargetPath,
 		VolumeCapability: nil,
 		Readonly:         false,
