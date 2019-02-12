@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/volume/util"
 	utilexec "k8s.io/utils/exec"
 
 	"k8s.io/klog"
@@ -95,7 +94,7 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 			klog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
 			probeVolume()
 
-			exists, err := util.PathExists(devicePath)
+			exists, err := mount.PathExists(devicePath)
 			if exists && err == nil {
 				return nil
 			} else {
@@ -147,7 +146,7 @@ func (m *Mount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
 
 // UnmountPath
 func (m *Mount) UnmountPath(mountPath string) error {
-	return util.UnmountPath(mountPath, mount.New(""))
+	return mount.CleanupMountPoint(mountPath, mount.New(""), false /* extensiveMountPointCheck */)
 }
 
 // GetInstanceID from file

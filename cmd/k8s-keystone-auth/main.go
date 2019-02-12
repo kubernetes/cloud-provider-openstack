@@ -21,9 +21,9 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/klog"
 
-	kflag "k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	kflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/logs"
 )
 
 func main() {

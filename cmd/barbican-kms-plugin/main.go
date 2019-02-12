@@ -24,8 +24,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
-	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/cloud-provider-openstack/pkg/kms/server"
+	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
 
