@@ -19,7 +19,7 @@ package shareoptions
 import (
 	"fmt"
 
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"github.com/pborman/uuid"
 	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
