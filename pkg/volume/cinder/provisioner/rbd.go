@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"k8s.io/klog"

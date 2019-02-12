@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
