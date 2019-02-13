@@ -28,6 +28,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 // Instances encapsulates an implementation of Instances for OpenStack.
@@ -63,7 +64,7 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 // CurrentNodeName implements Instances.CurrentNodeName
 // Note this is *not* necessarily the same as hostname.
 func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {
-	md, err := getMetadata(i.opts.SearchOrder)
+	md, err := metadata.Get(i.opts.SearchOrder)
 	if err != nil {
 		return "", err
 	}
