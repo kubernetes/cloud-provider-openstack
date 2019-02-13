@@ -37,6 +37,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 const (
@@ -337,7 +338,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: nil,
@@ -357,7 +358,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: nil,
@@ -377,7 +378,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: fmt.Errorf("monitor-delay not set in cloud provider config"),
@@ -411,7 +412,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 				},
 			},
 			expectedError: fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
-				"Supported elements include %q and %q", "value1", configDriveID, metadataID),
+				"Supported elements include %q and %q", "value1", metadata.ConfigDriveID, metadata.MetadataID),
 		},
 		{
 			name: "test7",
@@ -428,7 +429,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: fmt.Errorf("monitor-max-retries not set in cloud provider config"),
@@ -448,7 +449,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: fmt.Errorf("monitor-timeout not set in cloud provider config"),
@@ -759,9 +760,15 @@ func TestLoadBalancer(t *testing.T) {
 	}
 }
 
+var FakeMetadata = metadata.Metadata{
+	UUID:             "83679162-1378-4288-a2d4-70e13ec132aa",
+	Name:             "test",
+	AvailabilityZone: "nova",
+}
+
 func TestZones(t *testing.T) {
-	SetMetadataFixture(&FakeMetadata)
-	defer ClearMetadata()
+	metadata.Set(&FakeMetadata)
+	defer metadata.Clear()
 
 	os := OpenStack{
 		provider: &gophercloud.ProviderClient{
