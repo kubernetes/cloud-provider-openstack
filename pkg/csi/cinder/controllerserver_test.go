@@ -56,6 +56,13 @@ func TestCreateVolume(t *testing.T) {
 	fakeReq := &csi.CreateVolumeRequest{
 		Name:               fakeVolName,
 		VolumeCapabilities: nil,
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": fakeAvailability},
+				},
+			},
+		},
 	}
 
 	// Invoke CreateVolume
@@ -66,12 +73,10 @@ func TestCreateVolume(t *testing.T) {
 
 	// Assert
 	assert.NotNil(actualRes.Volume)
-
 	assert.NotNil(actualRes.Volume.CapacityBytes)
-
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
-
-	assert.Equal(fakeAvailability, actualRes.Volume.VolumeContext["availability"])
+	assert.NotNil(actualRes.Volume.AccessibleTopology)
+	assert.Equal(fakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
 
 }
 
@@ -80,8 +85,6 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
 	openstack.OsInstance = osmock
 
 	// Init assert
@@ -101,11 +104,8 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 
 	// Assert
 	assert.NotNil(actualRes.Volume)
-
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
-
-	assert.Equal("nova", actualRes.Volume.VolumeContext["availability"])
-
+	assert.Equal("nova", actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
 	assert.Equal("261a8b81-3660-43e5-bab8-6470b65ee4e9", actualRes.Volume.VolumeId)
 }
 

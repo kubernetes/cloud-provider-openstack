@@ -185,7 +185,7 @@ func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) er
 	return r0
 }
 
-// CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
+// GetVolumesByName provides a mock function with given fields: name
 func (_m *OpenStackMock) GetVolumesByName(name string) ([]Volume, error) {
 	var vlist []Volume
 	if strings.Contains(name, "fake-duplicate") {
@@ -279,4 +279,27 @@ func (_m *OpenStackMock) GetSnapshotByNameAndVolumeID(n string, volumeId string)
 	var slist []snapshots.Snapshot
 	slist = append(slist, fakeSnapshot)
 	return slist, nil
+}
+
+func (_m *OpenStackMock) GetAvailabilityZone() (string, error) {
+	ret := _m.Called()
+	var r0 string
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+func (_m *OpenStackMock) GetInstanceID() (string, error) {
+	return "", nil
 }

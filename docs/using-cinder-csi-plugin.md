@@ -10,7 +10,6 @@ Enable Following features gates for kubernetes cluster running versions lower th
 FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true
 RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true"
 ```
-
 MountPropagation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
 
 Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag details and latest update.
@@ -125,6 +124,23 @@ $ ls /dev/vdb
 $ mount /dev/vdb /mnt; ls /mnt
 index.html  lost+found
 ```
+
+### Enable Topology-aware dynamic provisioning for Cinder Volumes
+
+Following feature gates needs to be enabled as below:
+1. `--feature-gates=CSINodeInfo=true,CSIDriverRegistry=true` in the manifest entries of kubelet and kube-apiserver.
+2. `--feature-gates=Topology=true` needs to be enabled in external-provisioner.
+
+Currently, driver supports only one topology key: `topology.cinder.csi.openstack.org/zone` that represents availability by zone.
+
+Install the CSINodeInfo CRD on the cluster using the instructions provided here:
+``` kubectl create -f https://raw.githubusercontent.com/kubernetes/csi-api/master/pkg/crd/manifests/csinodeinfo.yaml --validate=false ```
+ (For more info : [Enabling CSINodeInfo](https://kubernetes-csi.github.io/docs/Setup.html#enabling-csinodeinfo).)
+
+Once installed, node info and driver status could be queried using following command:
+``` kubectl describe csinodeinfo ```
+
+Note: `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
 
 ## Using CSC tool
 
