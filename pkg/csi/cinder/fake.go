@@ -33,9 +33,10 @@ var fakeSnapshotName = "CSISnapshotName"
 var fakeSnapshotID = "261a8b81-3660-43e5-bab8-6470b65ee4e8"
 var fakeCapacityGiB = 1
 var fakeVolType = ""
-var fakeAvailability = ""
+var fakeAvailability = "nova"
 var fakeDevicePath = "/dev/xxx"
 var fakeTargetPath = "/mnt/cinder"
+
 var fakeVol1 = openstack.Volume{
 	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
 	Name:   "fake-duplicate",

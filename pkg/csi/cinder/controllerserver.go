@@ -54,8 +54,15 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := req.GetParameters()["type"]
 
-	// Volume Availability - Default is nova
-	volAvailability := req.GetParameters()["availability"]
+	var volAvailability string
+	if req.GetAccessibilityRequirements() != nil {
+		volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
+	}
+
+	if len(volAvailability) == 0 {
+		// Volume Availability - Default is nova
+		volAvailability = req.GetParameters()["availability"]
+	}
 
 	// Get OpenStack Provider
 	cloud, err := openstack.GetOpenStackProvider()
@@ -100,9 +107,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		Volume: &csi.Volume{
 			VolumeId:      resID,
 			CapacityBytes: int64(resSize * 1024 * 1024 * 1024),
-
-			VolumeContext: map[string]string{
-				"availability": resAvailability,
+			AccessibleTopology: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: resAvailability},
+				},
 			},
 		},
 	}, nil
@@ -358,4 +366,21 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 
 func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func getAZFromTopology(requirement *csi.TopologyRequirement) string {
+	for _, topology := range requirement.GetPreferred() {
+		zone, exists := topology.GetSegments()[topologyKey]
+		if exists {
+			return zone
+		}
+	}
+
+	for _, topology := range requirement.GetRequisite() {
+		zone, exists := topology.GetSegments()[topologyKey]
+		if exists {
+			return zone
+		}
+	}
+	return ""
 }
