@@ -37,6 +37,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/klog"
 
@@ -71,6 +72,7 @@ const (
 	errorStatus  = "ERROR"
 
 	ServiceAnnotationLoadBalancerFloatingNetworkID = "loadbalancer.openstack.org/floating-network-id"
+	ServiceAnnotationLoadBalancerFloatingSubnet    = "loadbalancer.openstack.org/floating-subnet"
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
@@ -1071,6 +1073,16 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", name, clusterName),
 			}
 
+			floatingSubnet := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnet, "")
+			if floatingSubnet != "" {
+				lbSubnet, err := lbaas.getSubnet(floatingSubnet)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to find floatingip subnet: %v", err)
+				}
+				if lbSubnet != nil {
+					floatIPOpts.SubnetID = lbSubnet.ID
+				}
+			}
 			if loadBalancerIP != "" {
 				klog.V(4).Infof("creating a new floating ip %s", loadBalancerIP)
 				floatIPOpts.FloatingIP = loadBalancerIP
@@ -1101,6 +1113,29 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 	}
 
 	return status, nil
+}
+
+func (lbaas *LbaasV2) getSubnet(subnet string) (*subnets.Subnet, error) {
+	if subnet == "" {
+		return nil, nil
+	}
+
+	allPages, err := subnets.List(lbaas.network, subnets.ListOpts{Name: subnet}).AllPages()
+	if err != nil {
+		return nil, fmt.Errorf("error listing subnets: %v", err)
+	}
+	subs, err := subnets.ExtractSubnets(allPages)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting subnets from pages: %v", err)
+	}
+
+	if len(subs) == 0 {
+		return nil, fmt.Errorf("could not find subnet %s", subnet)
+	}
+	if len(subs) == 1 {
+		return &subs[0], nil
+	}
+	return nil, fmt.Errorf("find multiple subnets with name %s", subnet)
 }
 
 // ensureSecurityGroup ensures security group exist for specific loadbalancer service.
