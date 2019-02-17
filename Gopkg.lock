@@ -280,7 +280,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d8150d750c115155c906f0fc6d4c6390b8cbca17c24601201aec108d55ec698f"
+  digest = "1:e897927dbf8aca8b64ba6c40ae6d750ebda11e1252e65f95724b128ff66f5c04"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -316,6 +316,7 @@
     "openstack/networking/v2/extensions/security/rules",
     "openstack/networking/v2/networks",
     "openstack/networking/v2/ports",
+    "openstack/networking/v2/subnets",
     "openstack/sharedfilesystems/apiversions",
     "openstack/sharedfilesystems/v2/shares",
     "openstack/utils",
@@ -1558,6 +1559,7 @@
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/networks",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/ports",
+    "github.com/gophercloud/gophercloud/openstack/networking/v2/subnets",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares",
     "github.com/gophercloud/gophercloud/openstack/utils",
