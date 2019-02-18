@@ -280,7 +280,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e897927dbf8aca8b64ba6c40ae6d750ebda11e1252e65f95724b128ff66f5c04"
+  digest = "1:fe71cbe1db676a11a5ef5a96cbcdf45ca4ae65f3ef663cc0a287d90d60c98ce3"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -309,6 +309,7 @@
     "openstack/loadbalancer/v2/monitors",
     "openstack/loadbalancer/v2/pools",
     "openstack/networking/v2/extensions",
+    "openstack/networking/v2/extensions/attributestags",
     "openstack/networking/v2/extensions/external",
     "openstack/networking/v2/extensions/layer3/floatingips",
     "openstack/networking/v2/extensions/layer3/routers",
@@ -1552,6 +1553,7 @@
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions",
+    "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/attributestags",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers",
