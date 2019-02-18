@@ -73,6 +73,7 @@ const (
 
 	ServiceAnnotationLoadBalancerFloatingNetworkID = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerFloatingSubnet    = "loadbalancer.openstack.org/floating-subnet"
+	ServiceAnnotationLoadBalancerFloatingSubnetID  = "loadbalancer.openstack.org/floating-subnet-id"
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
@@ -1073,16 +1074,23 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", name, clusterName),
 			}
 
-			floatingSubnet := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnet, "")
+			// if ID is used, lets use that. Otherwise fail to name and query its ID
+			floatingSubnet := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnetID, "")
 			if floatingSubnet != "" {
-				lbSubnet, err := lbaas.getSubnet(floatingSubnet)
-				if err != nil {
-					return nil, fmt.Errorf("Failed to find floatingip subnet: %v", err)
-				}
-				if lbSubnet != nil {
-					floatIPOpts.SubnetID = lbSubnet.ID
+				floatIPOpts.SubnetID = floatingSubnet
+			} else {
+				floatingSubnet = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnet, "")
+				if floatingSubnet != "" {
+					lbSubnet, err := lbaas.getSubnet(floatingSubnet)
+					if err != nil {
+						return nil, fmt.Errorf("Failed to find floatingip subnet: %v", err)
+					}
+					if lbSubnet != nil {
+						floatIPOpts.SubnetID = lbSubnet.ID
+					}
 				}
 			}
+
 			if loadBalancerIP != "" {
 				klog.V(4).Infof("creating a new floating ip %s", loadBalancerIP)
 				floatIPOpts.FloatingIP = loadBalancerIP
