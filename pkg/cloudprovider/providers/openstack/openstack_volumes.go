@@ -42,6 +42,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog"
 )
 
@@ -516,7 +517,7 @@ func (os *OpenStack) getDevicePathFromInstanceMetadata(volumeID string) string {
 	//
 	// We're avoiding using cached metadata (or the configdrive),
 	// relying on the metadata service.
-	instanceMetadata, err := getMetadataFromMetadataService(
+	instanceMetadata, err := metadata.GetFromMetadataService(
 		newtonMetadataVersion)
 
 	if err != nil {

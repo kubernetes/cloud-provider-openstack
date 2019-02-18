@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package openstack
+package metadata
 
 import (
 	"strings"
@@ -25,14 +25,6 @@ var FakeMetadata = Metadata{
 	UUID:             "83679162-1378-4288-a2d4-70e13ec132aa",
 	Name:             "test",
 	AvailabilityZone: "nova",
-}
-
-func SetMetadataFixture(value *Metadata) {
-	metadataCache = value
-}
-
-func ClearMetadata() {
-	metadataCache = nil
 }
 
 func TestParseMetadata(t *testing.T) {
