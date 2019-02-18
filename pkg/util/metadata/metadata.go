@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package openstack
+package metadata
 
 import (
 	"encoding/json"
@@ -41,8 +41,8 @@ const (
 	defaultMetadataVersion = "latest"
 	metadataURLTemplate    = "http://169.254.169.254/openstack/%s/meta_data.json"
 
-	// metadataID is used as an identifier on the metadata search order configuration.
-	metadataID = "metadataService"
+	// MetadataID is used as an identifier on the metadata search order configuration.
+	MetadataID = "metadataService"
 
 	// Config drive is defined as an iso9660 or vfat (deprecated) drive
 	// with the "config-2" label.
@@ -51,7 +51,7 @@ const (
 	configDrivePathTemplate = "openstack/%s/meta_data.json"
 
 	// configDriveID is used as an identifier on the metadata search order configuration.
-	configDriveID = "configDrive"
+	ConfigDriveID = "configDrive"
 )
 
 // ErrBadMetadata is used to indicate a problem parsing data from metadata server
@@ -101,7 +101,7 @@ func getConfigDrivePath(metadataVersion string) string {
 	return fmt.Sprintf(configDrivePathTemplate, metadataVersion)
 }
 
-func getMetadataFromConfigDrive(metadataVersion string) (*Metadata, error) {
+func GetFromConfigDrive(metadataVersion string) (*Metadata, error) {
 	// Try to read instance UUID from config drive.
 	dev := "/dev/disk/by-label/" + configDriveLabel
 	if _, err := os.Stat(dev); os.IsNotExist(err) {
@@ -147,7 +147,7 @@ func getMetadataFromConfigDrive(metadataVersion string) (*Metadata, error) {
 	return parseMetadata(f)
 }
 
-func getMetadataFromMetadataService(metadataVersion string) (*Metadata, error) {
+func GetFromMetadataService(metadataVersion string) (*Metadata, error) {
 	// Try to get JSON from metadata server.
 	metadataURL := getMetadataURL(metadataVersion)
 	klog.V(4).Infof("Attempting to fetch metadata from %s", metadataURL)
@@ -168,7 +168,15 @@ func getMetadataFromMetadataService(metadataVersion string) (*Metadata, error) {
 // Metadata is fixed for the current host, so cache the value process-wide
 var metadataCache *Metadata
 
-func getMetadata(order string) (*Metadata, error) {
+func Set(value *Metadata) {
+	metadataCache = value
+}
+
+func Clear() {
+	metadataCache = nil
+}
+
+func Get(order string) (*Metadata, error) {
 	if metadataCache == nil {
 		var md *Metadata
 		var err error
@@ -177,12 +185,12 @@ func getMetadata(order string) (*Metadata, error) {
 		for _, id := range elements {
 			id = strings.TrimSpace(id)
 			switch id {
-			case configDriveID:
-				md, err = getMetadataFromConfigDrive(defaultMetadataVersion)
-			case metadataID:
-				md, err = getMetadataFromMetadataService(defaultMetadataVersion)
+			case ConfigDriveID:
+				md, err = GetFromConfigDrive(defaultMetadataVersion)
+			case MetadataID:
+				md, err = GetFromMetadataService(defaultMetadataVersion)
 			default:
-				err = fmt.Errorf("%s is not a valid metadata search order option. Supported options are %s and %s", id, configDriveID, metadataID)
+				err = fmt.Errorf("%s is not a valid metadata search order option. Supported options are %s and %s", id, ConfigDriveID, MetadataID)
 			}
 
 			if err == nil {

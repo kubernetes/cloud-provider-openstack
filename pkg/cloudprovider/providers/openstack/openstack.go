@@ -49,6 +49,7 @@ import (
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
 	v1helper "k8s.io/cloud-provider-openstack/pkg/apis/core/v1/helper"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog"
 )
 
@@ -263,7 +264,7 @@ func configFromEnv() (cfg Config, ok bool) {
 			cfg.Global.Region != "" || cfg.Global.UserID != "" ||
 			cfg.Global.TrustID != "")
 
-	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
+	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	cfg.BlockStorage.BSVersion = "auto"
 	cfg.Networking.IPv6SupportDisabled = false
 	cfg.Networking.PublicNetworkName = "public"
@@ -283,7 +284,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.BlockStorage.BSVersion = "auto"
 	cfg.BlockStorage.TrustDevicePath = false
 	cfg.BlockStorage.IgnoreVolumeAZ = false
-	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
+	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	cfg.Networking.IPv6SupportDisabled = false
 	cfg.Networking.PublicNetworkName = "public"
 
@@ -349,7 +350,7 @@ func (c *caller) call(f func()) {
 func readInstanceID(searchOrder string) (string, error) {
 	// First, try to get data from metadata service because local
 	// data might be changed by accident
-	md, err := getMetadata(searchOrder)
+	md, err := metadata.Get(searchOrder)
 	if err == nil {
 		return md.UUID, nil
 	}
@@ -737,7 +738,7 @@ func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
 
 // GetZone returns the current zone
 func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	md, err := getMetadata(os.metadataOpts.SearchOrder)
+	md, err := metadata.Get(os.metadataOpts.SearchOrder)
 	if err != nil {
 		return cloudprovider.Zone{}, err
 	}
@@ -909,11 +910,11 @@ func checkMetadataSearchOrder(order string) error {
 	for _, id := range elements {
 		id = strings.TrimSpace(id)
 		switch id {
-		case configDriveID:
-		case metadataID:
+		case metadata.ConfigDriveID:
+		case metadata.MetadataID:
 		default:
 			return fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
-				"Supported elements include %q and %q", id, configDriveID, metadataID)
+				"Supported elements include %q and %q", id, metadata.ConfigDriveID, metadata.MetadataID)
 		}
 	}
 
