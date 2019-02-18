@@ -34,4 +34,7 @@ func TestGetPluginInfo(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, resp.GetName(), driverName)
 	assert.Equal(t, resp.GetVendorVersion(), vendorVersion)
+	val, err := resp.GetManifest()["cinder.csi.openstack.org/cluster"], err
+	assert.NoError(t, err)
+	assert.Equal(t, val, fakeCluster)
 }

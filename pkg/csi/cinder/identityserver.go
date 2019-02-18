@@ -39,9 +39,12 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 		return nil, status.Error(codes.Unavailable, "Driver is missing version")
 	}
 
+	manifest := map[string]string{"cinder.csi.openstack.org/cluster": ids.Driver.cluster}
+
 	return &csi.GetPluginInfoResponse{
 		Name:          ids.Driver.name,
 		VendorVersion: ids.Driver.version,
+		Manifest:      manifest,
 	}, nil
 }
 
