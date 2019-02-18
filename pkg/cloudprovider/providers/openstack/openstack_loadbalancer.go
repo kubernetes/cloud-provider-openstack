@@ -31,6 +31,7 @@ import (
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
 	v2pools "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions"
+	neutrontags "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/attributestags"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
@@ -89,8 +90,6 @@ const (
 type LbaasV2 struct {
 	LoadBalancer
 }
-
-type empty struct{}
 
 func networkExtensions(client *gophercloud.ServiceClient) (map[string]bool, error) {
 	seen := make(map[string]bool)
@@ -598,9 +597,88 @@ func getSubnetIDForLB(compute *gophercloud.ServiceClient, node v1.Node) (string,
 	return "", ErrNotFound
 }
 
+// getPorts gets all the filtered ports.
+func getPorts(network *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]neutronports.Port, error) {
+	allPages, err := neutronports.List(network, listOpts).AllPages()
+	if err != nil {
+		return []neutronports.Port{}, err
+	}
+	allPorts, err := neutronports.ExtractPorts(allPages)
+	if err != nil {
+		return []neutronports.Port{}, err
+	}
+
+	return allPorts, nil
+}
+
+// applyNodeSecurityGroupIDForLB associates the security group with all the ports on the nodes.
+func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, nodes []*v1.Node, sg string) error {
+	for _, node := range nodes {
+		nodeName := types.NodeName(node.Name)
+		srv, err := getServerByName(compute, nodeName)
+		if err != nil {
+			return err
+		}
+
+		listOpts := neutronports.ListOpts{DeviceID: srv.ID}
+		allPorts, err := getPorts(network, listOpts)
+		if err != nil {
+			return err
+		}
+
+		for _, port := range allPorts {
+			newSGs := append(port.SecurityGroups, sg)
+			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+			res := neutronports.Update(network, port.ID, updateOpts)
+			if res.Err != nil {
+				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
+			}
+			// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
+			if err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr(); err != nil {
+				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, res.Err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// disassociateSecurityGroupForLB removes the given security group from the ports
+func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg string) error {
+	// Find all the ports that have the security group associated.
+	listOpts := neutronports.ListOpts{TagsAny: sg}
+	allPorts, err := getPorts(network, listOpts)
+	if err != nil {
+		return err
+	}
+
+	// Disassocate security group and remove the tag.
+	for _, port := range allPorts {
+		existingSGs := sets.NewString()
+		for _, sgID := range port.SecurityGroups {
+			existingSGs.Insert(sgID)
+		}
+		existingSGs.Delete(sg)
+
+		// Update port security groups
+		newSGs := existingSGs.List()
+		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+		res := neutronports.Update(network, port.ID, updateOpts)
+		if res.Err != nil {
+			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
+		}
+		// Remove the security group ID tag from the port.
+		if err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr(); err != nil {
+			return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
+		}
+	}
+
+	return nil
+}
+
 // getNodeSecurityGroupIDForLB lists node-security-groups for specific nodes
 func getNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, nodes []*v1.Node) ([]string, error) {
-	secGroupNames := sets.NewString()
+	secGroupIDs := sets.NewString()
 
 	for _, node := range nodes {
 		nodeName := types.NodeName(node.Name)
@@ -609,24 +687,25 @@ func getNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *go
 			return []string{}, err
 		}
 
-		// use the first node-security-groups
+		// Get the security groups of all the ports on the worker nodes. In future, we could filter the ports by some way.
 		// case 0: node1:SG1  node2:SG1  return SG1
 		// case 1: node1:SG1  node2:SG2  return SG1,SG2
-		// case 2: node1:SG1,SG2  node2:SG3,SG4  return SG1,SG3
-		// case 3: node1:SG1,SG2  node2:SG2,SG3  return SG1,SG2
-		secGroupNames.Insert(srv.SecurityGroups[0]["name"].(string))
-	}
-
-	secGroupIDs := make([]string, secGroupNames.Len())
-	for i, name := range secGroupNames.List() {
-		secGroupID, err := groups.IDFromName(network, name)
+		// case 2: node1:SG1,SG2  node2:SG3,SG4  return SG1,SG2,SG3,SG4
+		// case 3: node1:SG1,SG2  node2:SG2,SG3  return SG1,SG2,SG3
+		listOpts := neutronports.ListOpts{DeviceID: srv.ID}
+		allPorts, err := getPorts(network, listOpts)
 		if err != nil {
 			return []string{}, err
 		}
-		secGroupIDs[i] = secGroupID
+
+		for _, port := range allPorts {
+			for _, sg := range port.SecurityGroups {
+				secGroupIDs.Insert(sg)
+			}
+		}
 	}
 
-	return secGroupIDs, nil
+	return secGroupIDs.List(), nil
 }
 
 // isSecurityGroupNotFound return true while 'err' is object of gophercloud.ErrResourceNotFound
@@ -844,7 +923,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 				_, err := listeners.Update(lbaas.lb, listener.ID, updateOpts).Extract()
 				if err != nil {
-					return nil, fmt.Errorf("Error updating LB listener: %v", err)
+					return nil, fmt.Errorf("error updating LB listener: %v", err)
 				}
 
 				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1151,13 +1230,14 @@ func (lbaas *LbaasV2) getSubnet(subnet string) (*subnets.Subnet, error) {
 func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Service, nodes []*v1.Node, loadbalancer *loadbalancers.LoadBalancer) error {
 	// find node-security-group for service
 	var err error
-	if len(lbaas.opts.NodeSecurityGroupIDs) == 0 {
+	if len(lbaas.opts.NodeSecurityGroupIDs) == 0 && !lbaas.opts.UseOctavia {
 		lbaas.opts.NodeSecurityGroupIDs, err = getNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes)
 		if err != nil {
 			return fmt.Errorf("failed to find node-security-group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
+
+		klog.V(4).Infof("find node-security-group %v for loadbalancer service %s/%s", lbaas.opts.NodeSecurityGroupIDs, apiService.Namespace, apiService.Name)
 	}
-	klog.V(4).Infof("find node-security-group %v for loadbalancer service %s/%s", lbaas.opts.NodeSecurityGroupIDs, apiService.Namespace, apiService.Name)
 
 	// get service ports
 	ports := apiService.Spec.Ports
@@ -1185,7 +1265,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Ser
 	if len(lbSecGroupID) == 0 {
 		// create security group
 		lbSecGroupCreateOpts := groups.CreateOpts{
-			Name:        getSecurityGroupName(apiService),
+			Name:        lbSecGroupName,
 			Description: fmt.Sprintf("Security Group for %s/%s Service LoadBalancer in cluster %s", apiService.Namespace, apiService.Name, clusterName),
 		}
 
@@ -1195,122 +1275,168 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Ser
 		}
 		lbSecGroupID = lbSecGroup.ID
 
-		//add rule in security group
-		for _, port := range ports {
-			for _, sourceRange := range sourceRanges.StringSlice() {
-				ethertype := rules.EtherType4
-				network, _, err := net.ParseCIDR(sourceRange)
+		if !lbaas.opts.UseOctavia {
+			//add rule in security group
+			for _, port := range ports {
+				for _, sourceRange := range sourceRanges.StringSlice() {
+					ethertype := rules.EtherType4
+					network, _, err := net.ParseCIDR(sourceRange)
 
-				if err != nil {
-					return fmt.Errorf("error parsing source range %s as a CIDR: %v", sourceRange, err)
-				}
+					if err != nil {
+						return fmt.Errorf("error parsing source range %s as a CIDR: %v", sourceRange, err)
+					}
 
-				if network.To4() == nil {
-					ethertype = rules.EtherType6
-				}
+					if network.To4() == nil {
+						ethertype = rules.EtherType6
+					}
 
-				lbSecGroupRuleCreateOpts := rules.CreateOpts{
-					Direction:      rules.DirIngress,
-					PortRangeMax:   int(port.Port),
-					PortRangeMin:   int(port.Port),
-					Protocol:       toRuleProtocol(port.Protocol),
-					RemoteIPPrefix: sourceRange,
-					SecGroupID:     lbSecGroup.ID,
-					EtherType:      ethertype,
-				}
+					lbSecGroupRuleCreateOpts := rules.CreateOpts{
+						Direction:      rules.DirIngress,
+						PortRangeMax:   int(port.Port),
+						PortRangeMin:   int(port.Port),
+						Protocol:       toRuleProtocol(port.Protocol),
+						RemoteIPPrefix: sourceRange,
+						SecGroupID:     lbSecGroup.ID,
+						EtherType:      ethertype,
+					}
 
-				_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
+					_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
 
-				if err != nil {
-					return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
+					if err != nil {
+						return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
+					}
 				}
 			}
-		}
 
-		lbSecGroupRuleCreateOpts := rules.CreateOpts{
-			Direction:      rules.DirIngress,
-			PortRangeMax:   4, // ICMP: Code -  Values for ICMP  "Destination Unreachable: Fragmentation Needed and Don't Fragment was Set"
-			PortRangeMin:   3, // ICMP: Type
-			Protocol:       rules.ProtocolICMP,
-			RemoteIPPrefix: "0.0.0.0/0", // The Fragmentation packet can come from anywhere along the path back to the sourceRange - we need to all this from all
-			SecGroupID:     lbSecGroup.ID,
-			EtherType:      rules.EtherType4,
-		}
-
-		_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
-
-		if err != nil {
-			return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
-		}
-
-		lbSecGroupRuleCreateOpts = rules.CreateOpts{
-			Direction:      rules.DirIngress,
-			PortRangeMax:   0, // ICMP: Code - Values for ICMP "Packet Too Big"
-			PortRangeMin:   2, // ICMP: Type
-			Protocol:       rules.ProtocolICMP,
-			RemoteIPPrefix: "::/0", // The Fragmentation packet can come from anywhere along the path back to the sourceRange - we need to all this from all
-			SecGroupID:     lbSecGroup.ID,
-			EtherType:      rules.EtherType6,
-		}
-
-		_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
-		if err != nil {
-			return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
-		}
-
-		// get security groups of port
-		portID := loadbalancer.VipPortID
-		port, err := getPortByID(lbaas.network, portID)
-		if err != nil {
-			return err
-		}
-
-		// ensure the vip port has the security groups
-		found := false
-		for _, portSecurityGroups := range port.SecurityGroups {
-			if portSecurityGroups == lbSecGroup.ID {
-				found = true
-				break
+			lbSecGroupRuleCreateOpts := rules.CreateOpts{
+				Direction:      rules.DirIngress,
+				PortRangeMax:   4, // ICMP: Code -  Values for ICMP  "Destination Unreachable: Fragmentation Needed and Don't Fragment was Set"
+				PortRangeMin:   3, // ICMP: Type
+				Protocol:       rules.ProtocolICMP,
+				RemoteIPPrefix: "0.0.0.0/0", // The Fragmentation packet can come from anywhere along the path back to the sourceRange - we need to all this from all
+				SecGroupID:     lbSecGroup.ID,
+				EtherType:      rules.EtherType4,
 			}
-		}
 
-		// update loadbalancer vip port
-		if !found {
-			port.SecurityGroups = append(port.SecurityGroups, lbSecGroup.ID)
-			updateOpts := neutronports.UpdateOpts{SecurityGroups: &port.SecurityGroups}
-			res := neutronports.Update(lbaas.network, portID, updateOpts)
-			if res.Err != nil {
-				msg := fmt.Sprintf("Error occurred updating port %s for loadbalancer service %s/%s: %v", portID, apiService.Namespace, apiService.Name, res.Err)
-				return fmt.Errorf(msg)
+			_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
+
+			if err != nil {
+				return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
+			}
+
+			lbSecGroupRuleCreateOpts = rules.CreateOpts{
+				Direction:      rules.DirIngress,
+				PortRangeMax:   0, // ICMP: Code - Values for ICMP "Packet Too Big"
+				PortRangeMin:   2, // ICMP: Type
+				Protocol:       rules.ProtocolICMP,
+				RemoteIPPrefix: "::/0", // The Fragmentation packet can come from anywhere along the path back to the sourceRange - we need to all this from all
+				SecGroupID:     lbSecGroup.ID,
+				EtherType:      rules.EtherType6,
+			}
+
+			_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
+			if err != nil {
+				return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
+			}
+
+			// get security groups of port
+			portID := loadbalancer.VipPortID
+			port, err := getPortByID(lbaas.network, portID)
+			if err != nil {
+				return err
+			}
+
+			// ensure the vip port has the security groups
+			found := false
+			for _, portSecurityGroups := range port.SecurityGroups {
+				if portSecurityGroups == lbSecGroup.ID {
+					found = true
+					break
+				}
+			}
+
+			// update loadbalancer vip port
+			if !found {
+				port.SecurityGroups = append(port.SecurityGroups, lbSecGroup.ID)
+				updateOpts := neutronports.UpdateOpts{SecurityGroups: &port.SecurityGroups}
+				res := neutronports.Update(lbaas.network, portID, updateOpts)
+				if res.Err != nil {
+					msg := fmt.Sprintf("Error occurred updating port %s for loadbalancer service %s/%s: %v", portID, apiService.Namespace, apiService.Name, res.Err)
+					return fmt.Errorf(msg)
+				}
 			}
 		}
 	}
 
-	// ensure rules for every node security group
+	// ensure rules for node security group
 	for _, port := range ports {
-		for _, nodeSecurityGroupID := range lbaas.opts.NodeSecurityGroupIDs {
-			opts := rules.ListOpts{
-				Direction:     string(rules.DirIngress),
-				SecGroupID:    nodeSecurityGroupID,
-				RemoteGroupID: lbSecGroupID,
-				PortRangeMax:  int(port.NodePort),
-				PortRangeMin:  int(port.NodePort),
-				Protocol:      string(port.Protocol),
+		// If Octavia is used, the VIP port security group is already taken good care of, we only need to allow ingress
+		// traffic from Octavia amphorae to the node port on the worker nodes.
+		if lbaas.opts.UseOctavia {
+			subnet, err := subnets.Get(lbaas.network, lbaas.opts.SubnetID).Extract()
+			if err != nil {
+				return fmt.Errorf("failed to find subnet %s from openstack: %v", lbaas.opts.SubnetID, err)
 			}
-			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
+
+			sgListopts := rules.ListOpts{
+				Direction:      string(rules.DirIngress),
+				Protocol:       string(port.Protocol),
+				PortRangeMax:   int(port.NodePort),
+				PortRangeMin:   int(port.NodePort),
+				RemoteIPPrefix: subnet.CIDR,
+				SecGroupID:     lbSecGroupID,
+			}
+			sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
 			if err != nil && !isNotFound(err) {
-				msg := fmt.Sprintf("Error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
-				return fmt.Errorf(msg)
+				return fmt.Errorf("failed to find security group rules in %s: %v", lbSecGroupID, err)
 			}
-			if len(secGroupRules) != 0 {
-				// Do not add rule when find rules for remote group in the Node Security Group
+			if len(sgRules) != 0 {
 				continue
 			}
 
-			// Add the rules in the Node Security Group
-			err = createNodeSecurityGroup(lbaas.network, nodeSecurityGroupID, int(port.NodePort), port.Protocol, lbSecGroupID)
-			if err != nil {
-				return fmt.Errorf("error occurred creating security group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
+			// The Octavia amphorae and worker nodes are supposed to be in the same subnet. We allow the ingress traffic
+			// from the amphorae to the specific node port on the nodes.
+			sgRuleCreateOpts := rules.CreateOpts{
+				Direction:      rules.DirIngress,
+				PortRangeMax:   int(port.NodePort),
+				PortRangeMin:   int(port.NodePort),
+				Protocol:       toRuleProtocol(port.Protocol),
+				RemoteIPPrefix: subnet.CIDR,
+				SecGroupID:     lbSecGroupID,
+				EtherType:      rules.EtherType4,
+			}
+			if _, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract(); err != nil {
+				return fmt.Errorf("failed to create rule for security group %s: %v", lbSecGroupID, err)
+			}
+
+			if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
+				return err
+			}
+		} else {
+			for _, nodeSecurityGroupID := range lbaas.opts.NodeSecurityGroupIDs {
+				opts := rules.ListOpts{
+					Direction:     string(rules.DirIngress),
+					SecGroupID:    nodeSecurityGroupID,
+					RemoteGroupID: lbSecGroupID,
+					PortRangeMax:  int(port.NodePort),
+					PortRangeMin:  int(port.NodePort),
+					Protocol:      string(port.Protocol),
+				}
+				secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
+				if err != nil && !isNotFound(err) {
+					msg := fmt.Sprintf("Error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
+					return fmt.Errorf(msg)
+				}
+				if len(secGroupRules) != 0 {
+					// Do not add rule when find rules for remote group in the Node Security Group
+					continue
+				}
+
+				// Add the rules in the Node Security Group
+				err = createNodeSecurityGroup(lbaas.network, nodeSecurityGroupID, int(port.NodePort), port.Protocol, lbSecGroupID)
+				if err != nil {
+					return fmt.Errorf("error occurred creating security group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
+				}
 			}
 		}
 	}
@@ -1692,7 +1818,14 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *v1
 			// It is OK when the security group has been deleted by others.
 			return nil
 		}
-		return fmt.Errorf("Error occurred finding security group: %s: %v", lbSecGroupName, err)
+		return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
+	}
+
+	if lbaas.opts.UseOctavia {
+		// Disassociate the security group from the neutron ports on the nodes.
+		if err := disassociateSecurityGroupForLB(lbaas.network, lbSecGroupID); err != nil {
+			return fmt.Errorf("failed to disassociate security group %s: %v", lbSecGroupID, err)
+		}
 	}
 
 	lbSecGroup := groups.Delete(lbaas.network, lbSecGroupID)
@@ -1716,14 +1849,14 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *v1
 			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
 
 			if err != nil && !isNotFound(err) {
-				msg := fmt.Sprintf("Error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
+				msg := fmt.Sprintf("error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
 				return fmt.Errorf(msg)
 			}
 
 			for _, rule := range secGroupRules {
 				res := rules.Delete(lbaas.network, rule.ID)
 				if res.Err != nil && !isNotFound(res.Err) {
-					return fmt.Errorf("Error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
+					return fmt.Errorf("error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
 				}
 			}
 		}
