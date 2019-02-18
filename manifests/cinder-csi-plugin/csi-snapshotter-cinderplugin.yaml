@@ -1,0 +1,78 @@
+
+kind: Service
+apiVersion: v1
+metadata:
+  namespace: kube-system
+  name: csi-snapshotter-cinder
+  labels:
+    app: csi-snapshotter-cinder
+spec:
+  selector:
+    app: csi-snapshotter-cinder
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: csi-snapshotter-cinder
+  namespace: kube-system
+spec:
+  serviceName: "csi-snapshotter-cinder"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: csi-snapshotter-cinder
+  template:
+    metadata:
+      labels:
+        app: csi-snapshotter-cinder
+    spec:
+      serviceAccount: csi-snapshotter
+      containers:
+        - name: csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v1.0.1
+          args:
+            - "--connection-timeout=15s"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /var/lib/csi/sockets/pluginproxy/
+              name: socket-dir
+        - name: cinder
+          image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
+          args :
+            - /bin/cinder-csi-plugin
+            - "--nodeid=$(NODE_ID)"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--cluster=$(CLUSTER_NAME)"
+            - "--cloud-config=$(CLOUD_CONFIG)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: CLOUD_CONFIG
+              value: /etc/config/cloud.conf
+            - name: CLUSTER_NAME
+              value: kubernetes
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+            - name: secret-cinderplugin
+              mountPath: /etc/config
+              readOnly: true
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: secret-cinderplugin
+          secret:
+            secretName: cloud-config
