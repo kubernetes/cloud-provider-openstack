@@ -396,7 +396,8 @@ func (c *caller) call(f func()) {
 func readInstanceID(searchOrder string) (string, error) {
 	// First, try to get data from metadata service because local
 	// data might be changed by accident
-	md, err := metadata.Get(searchOrder)
+	meta := metadata.GetMetadata()
+	md, err := meta.Get(searchOrder)
 	if err == nil {
 		return md.UUID, nil
 	}
@@ -773,7 +774,8 @@ func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
 
 // GetZone returns the current zone
 func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	md, err := metadata.Get(os.metadataOpts.SearchOrder)
+	meta := metadata.GetMetadata()
+	md, err := meta.Get(os.metadataOpts.SearchOrder)
 	if err != nil {
 		return cloudprovider.Zone{}, err
 	}

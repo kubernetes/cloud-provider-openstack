@@ -294,7 +294,7 @@ func (_m *OpenStackMock) GetAvailabilityZone() (string, error) {
 	if rf, ok := ret.Get(1).(func() error); ok {
 		r1 = rf()
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Error(0)
 	}
 
 	return r0, r1

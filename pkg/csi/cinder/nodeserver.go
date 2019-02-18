@@ -26,14 +26,13 @@ import (
 	"k8s.io/klog"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 type nodeServer struct {
 	Driver   *CinderDriver
 	Mount    mount.IMount
-	Metadata openstack.IMetadata
+	Metadata metadata.IMetadata
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -239,25 +238,25 @@ func getNodeIDMountProvider(m mount.IMount) (string, error) {
 	return nodeID, nil
 }
 
-func getNodeIDMetdataService(m openstack.IMetadata) (string, error) {
-
-	nodeID, err := m.GetInstanceID()
+func getNodeIDMetdataService(m metadata.IMetadata) (string, error) {
+	order := metadata.GetDefaultMetadataSearchOrder()
+	nodeID, err := m.GetInstanceID(order)
 	if err != nil {
 		return "", err
 	}
 	return nodeID, nil
 }
 
-func getAvailabilityZoneMetadataService(m openstack.IMetadata) (string, error) {
-
-	zone, err := m.GetAvailabilityZone()
+func getAvailabilityZoneMetadataService(m metadata.IMetadata) (string, error) {
+	order := metadata.GetDefaultMetadataSearchOrder()
+	zone, err := m.GetAvailabilityZone(order)
 	if err != nil {
 		return "", err
 	}
 	return zone, nil
 }
 
-func getNodeID(mount mount.IMount, metadata openstack.IMetadata) (string, error) {
+func getNodeID(mount mount.IMount, metadata metadata.IMetadata) (string, error) {
 	// First try to get instance id from mount provider
 	nodeID, err := getNodeIDMountProvider(mount)
 	if err == nil || nodeID != "" {

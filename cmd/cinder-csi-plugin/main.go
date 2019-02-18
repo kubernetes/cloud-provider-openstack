@@ -26,6 +26,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
@@ -105,10 +106,7 @@ func handle() {
 	}
 
 	//Intiliaze Metadatda
-	metadatda, err := openstack.GetMetadataProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
-	}
+	metadatda := metadata.GetMetadata()
 
 	// Initiliaze cloud
 	openstack.InitOpenStackProvider(cloudconfig)

@@ -65,7 +65,8 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 // CurrentNodeName implements Instances.CurrentNodeName
 // Note this is *not* necessarily the same as hostname.
 func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {
-	md, err := metadata.Get(i.opts.SearchOrder)
+	mdata := metadata.GetMetadata()
+	md, err := mdata.Get(i.opts.SearchOrder)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +92,7 @@ func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v
 }
 
 // NodeAddressesByProviderID returns the node addresses of an instances with the specified unique providerID
-// This method will not be called from the node that is requesting this ID. i.e. metadata service
+// This method will not be called from the node that is requesting this IDdatametadata service
 // and other local methods cannot be used here
 func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)

@@ -765,15 +765,17 @@ func TestLoadBalancer(t *testing.T) {
 	}
 }
 
-var FakeMetadata = metadata.Metadata{
+var fakeMetadata = metadata.Metadata{
 	UUID:             "83679162-1378-4288-a2d4-70e13ec132aa",
 	Name:             "test",
-	AvailabilityZone: "nova",
+	AvailabilityZone: "testaz",
 }
 
 func TestZones(t *testing.T) {
-	metadata.Set(&FakeMetadata)
-	defer metadata.Clear()
+
+	mtmock := new(metadata.MetadataMock)
+	mtmock.On("Get", "").Return(&fakeMetadata, nil)
+	metadata.IMetadataInterface = mtmock
 
 	os := OpenStack{
 		provider: &gophercloud.ProviderClient{
@@ -796,7 +798,7 @@ func TestZones(t *testing.T) {
 		t.Fatalf("GetZone() returned wrong region (%s)", zone.Region)
 	}
 
-	if zone.FailureDomain != "nova" {
+	if zone.FailureDomain != "testaz" {
 		t.Fatalf("GetZone() returned wrong failure domain (%s)", zone.FailureDomain)
 	}
 }
@@ -808,6 +810,8 @@ func TestVolumes(t *testing.T) {
 	if !ok {
 		t.Skip("No config found in environment")
 	}
+
+	cfg.Metadata.SearchOrder = "configDrive,metadataService"
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {

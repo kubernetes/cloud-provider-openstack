@@ -517,7 +517,8 @@ func (os *OpenStack) getDevicePathFromInstanceMetadata(volumeID string) string {
 	//
 	// We're avoiding using cached metadata (or the configdrive),
 	// relying on the metadata service.
-	instanceMetadata, err := metadata.GetFromMetadataService(
+	mdata := metadata.GetMetadata()
+	instanceMetadata, err := mdata.GetFromMetadataService(
 		newtonMetadataVersion)
 
 	if err != nil {

@@ -24,12 +24,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 var fakeNs *nodeServer
 var mmock *mount.MountMock
-var metamock *openstack.OpenStackMock
+var metamock *metadata.MetadataMock
 
 // Init Node Server
 func init() {
@@ -43,9 +43,9 @@ func init() {
 		mmock = new(mount.MountMock)
 		mount.MInstance = mmock
 
-		metamock = new(openstack.OpenStackMock)
-		openstack.MetadataService = metamock
-		fakeNs = NewNodeServer(d, mount.MInstance, openstack.MetadataService)
+		metamock = new(metadata.MetadataMock)
+		metadata.IMetadataInterface = metamock
+		fakeNs = NewNodeServer(d, mount.MInstance, metadata.IMetadataInterface)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestNodeGetInfo(t *testing.T) {
 	// GetInstanceID() (string, error)
 	mmock.On("GetInstanceID").Return(FakeNodeID, nil)
 
-	metamock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
+	metamock.On("GetAvailabilityZone", "metadataService,configDrive").Return(FakeAvailability, nil)
 
 	// Init assert
 	assert := assert.New(t)

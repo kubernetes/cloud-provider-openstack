@@ -77,6 +77,14 @@ type Metadata struct {
 	// .. and other fields we don't care about.  Expand as necessary.
 }
 
+type IMetadata interface {
+	GetInstanceID(order string) (string, error)
+	GetAvailabilityZone(order string) (string, error)
+	Get(order string) (*Metadata, error)
+	GetFromMetadataService(metadataVersion string) (*Metadata, error)
+	GetFromConfigDrive(metadataVersion string) (*Metadata, error)
+}
+
 // parseMetadata reads JSON from OpenStack metadata server and parses
 // instance ID out of it.
 func parseMetadata(r io.Reader) (*Metadata, error) {
@@ -101,7 +109,11 @@ func getConfigDrivePath(metadataVersion string) string {
 	return fmt.Sprintf(configDrivePathTemplate, metadataVersion)
 }
 
-func GetFromConfigDrive(metadataVersion string) (*Metadata, error) {
+func GetDefaultMetadataSearchOrder() string {
+	return fmt.Sprintf("%s,%s", MetadataID, ConfigDriveID)
+}
+
+func (m *Metadata) GetFromConfigDrive(metadataVersion string) (*Metadata, error) {
 	// Try to read instance UUID from config drive.
 	dev := "/dev/disk/by-label/" + configDriveLabel
 	if _, err := os.Stat(dev); os.IsNotExist(err) {
@@ -147,7 +159,7 @@ func GetFromConfigDrive(metadataVersion string) (*Metadata, error) {
 	return parseMetadata(f)
 }
 
-func GetFromMetadataService(metadataVersion string) (*Metadata, error) {
+func (m *Metadata) GetFromMetadataService(metadataVersion string) (*Metadata, error) {
 	// Try to get JSON from metadata server.
 	metadataURL := getMetadataURL(metadataVersion)
 	klog.V(4).Infof("Attempting to fetch metadata from %s", metadataURL)
@@ -172,7 +184,8 @@ func GetDevicePath(volumeID string) string {
 	//
 	// We're avoiding using cached metadata (or the configdrive),
 	// relying on the metadata service.
-	instanceMetadata, err := GetFromMetadataService(defaultMetadataVersion)
+	mdata := GetMetadata()
+	instanceMetadata, err := mdata.GetFromMetadataService(defaultMetadataVersion)
 
 	if err != nil {
 		klog.V(4).Infof("Could not retrieve instance metadata. Error: %v", err)
@@ -211,27 +224,20 @@ func GetDevicePath(volumeID string) string {
 // Metadata is fixed for the current host, so cache the value process-wide
 var metadataCache *Metadata
 
-func Set(value *Metadata) {
-	metadataCache = value
-}
-
-func Clear() {
-	metadataCache = nil
-}
-
-func Get(order string) (*Metadata, error) {
+func (m *Metadata) Get(order string) (*Metadata, error) {
 	if metadataCache == nil {
 		var md *Metadata
 		var err error
 
+		mdata := GetMetadata()
 		elements := strings.Split(order, ",")
 		for _, id := range elements {
 			id = strings.TrimSpace(id)
 			switch id {
 			case ConfigDriveID:
-				md, err = GetFromConfigDrive(defaultMetadataVersion)
+				md, err = mdata.GetFromConfigDrive(defaultMetadataVersion)
 			case MetadataID:
-				md, err = GetFromMetadataService(defaultMetadataVersion)
+				md, err = mdata.GetFromMetadataService(defaultMetadataVersion)
 			default:
 				err = fmt.Errorf("%s is not a valid metadata search order option. Supported options are %s and %s", id, ConfigDriveID, MetadataID)
 			}
@@ -247,4 +253,32 @@ func Get(order string) (*Metadata, error) {
 		metadataCache = md
 	}
 	return metadataCache, nil
+}
+
+// GetInstanceID from metadata service and config drive
+func (m *Metadata) GetInstanceID(order string) (string, error) {
+	md, err := m.Get(order)
+	if err != nil {
+		return "", err
+	}
+	return md.UUID, nil
+}
+
+// GetAvailabilityZone returns zone from metadata service and config drive
+func (m *Metadata) GetAvailabilityZone(order string) (string, error) {
+	md, err := m.Get(order)
+	if err != nil {
+		return "", err
+	}
+	return md.AvailabilityZone, nil
+}
+
+var IMetadataInterface IMetadata = nil
+
+func GetMetadata() IMetadata {
+
+	if IMetadataInterface == nil {
+		IMetadataInterface = &Metadata{}
+	}
+	return IMetadataInterface
 }
