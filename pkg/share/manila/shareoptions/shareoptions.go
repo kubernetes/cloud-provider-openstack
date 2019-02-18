@@ -17,12 +17,7 @@ limitations under the License.
 package shareoptions
 
 import (
-	"fmt"
-
 	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
-	"github.com/pborman/uuid"
-	"k8s.io/api/core/v1"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 )
@@ -34,7 +29,7 @@ type ShareOptions struct {
 	Zones    string `name:"zones" value:"default:nova"`
 	Type     string `name:"type" value:"default:default"`
 	Protocol string `name:"protocol" matches:"^(?i)CEPHFS|NFS$"`
-	Backend  string `name:"backend" matches:"^(?i)CEPHFS|CSI-CEPHFS|NFS$"`
+	Backend  string `name:"backend" matches:"^cephfs|csi-cephfs|nfs$"`
 
 	OSSecretName         string `name:"osSecretName"`
 	OSSecretNamespace    string `name:"osSecretNamespace" value:"default:default"`
@@ -46,8 +41,8 @@ type ShareOptions struct {
 
 	// Backend options
 
-	CSICEPHFSdriver  string `name:"csi-driver" value:"requiredIf:backend=^(?i)csi-cephfs$"`
-	CSICEPHFSmounter string `name:"mounter" value:"default:fuse" matches:"^(?i)kernel|fuse$"`
+	CSICEPHFSdriver  string `name:"csi-driver" value:"requiredIf:backend=^csi-cephfs$"`
+	CSICEPHFSmounter string `name:"mounter" value:"default:fuse" matches:"^kernel|fuse$"`
 
 	NFSShareClient string `name:"nfs-share-client" value:"default:0.0.0.0"`
 }
@@ -73,72 +68,3 @@ func NewShareOptions(volOptions *controller.VolumeOptions) (*ShareOptions, error
 
 	return opts, nil
 }
-
-/*
-// NewShareOptions creates new share options
-func NewShareOptions(volOptions *controller.VolumeOptions, c clientset.Interface) (*ShareOptions, error) {
-	params := volOptions.Parameters
-	opts := &ShareOptions{}
-	nParams := len(params)
-
-	opts.ShareName = "pvc-" + string(volOptions.PVC.GetUID())
-
-	var (
-		n   int
-		err error
-	)
-
-	// Required common options
-	n, err = extractParams(&optionConstraints{}, params, &opts.CommonOptions)
-	if err != nil {
-		return nil, err
-	}
-	nParams -= n
-
-	constraints := optionConstraints{protocol: opts.Protocol, backend: opts.Backend}
-
-	// Protocol specific options
-	n, err = extractParams(&constraints, params, &opts.ProtocolOptions)
-	if err != nil {
-		return nil, err
-	}
-	nParams -= n
-
-	// Backend specific options
-	n, err = extractParams(&constraints, params, &opts.BackendOptions)
-	if err != nil {
-		return nil, err
-	}
-	nParams -= n
-
-	if nParams > 0 {
-		return nil, fmt.Errorf("parameters contain invalid field(s): %d", nParams)
-	}
-
-	setOfZones, err := volumeutil.ZonesToSet(opts.Zones)
-	if err != nil {
-		return nil, err
-	}
-
-	opts.Zones = volumeutil.ChooseZoneForVolume(setOfZones, volOptions.PVC.GetName())
-
-	// Retrieve and parse secrets
-
-	sec, err := readSecrets(c, &v1.SecretReference{
-		Name:      opts.OSSecretName,
-		Namespace: opts.OSSecretNamespace,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if err = buildOpenStackOptionsTo(&opts.OpenStackOptions, sec); err != nil {
-		return nil, err
-	}
-
-	// Share secret name and namespace
-	opts.ShareSecretRef = v1.SecretReference{Name: "manila-" + uuid.NewUUID().String(), Namespace: opts.ShareSecretNamespace}
-
-	return opts, nil
-}
-*/
