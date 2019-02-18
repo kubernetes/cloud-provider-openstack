@@ -18,7 +18,6 @@ package manila
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
@@ -65,7 +64,7 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 			shareOptions.OSSecretNamespace, shareOptions.OSSecretName, err)
 	}
 
-	shareBackend, err := getShareBackend(strings.ToLower(shareOptions.Backend))
+	shareBackend, err := getShareBackend(shareOptions.Backend)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get share backend: %v", err)
 	}

@@ -38,7 +38,7 @@ import (
 // * dependsOn:"FIELD-NAMES|,..." : if this field is not empty, the specified fields are required to be present
 //   operator ',' acts as AND
 //   operator '|' acts as XOR
-//   e.g.: dependsOn:"f1|f2|f3,f4,f5" : if this field is not empty, exactly one of {f1,f2,f3} is required be present,
+//   e.g.: dependsOn:"f1|f2|f3,f4,f5" : if this field is not empty, exactly one of {f1,f2,f3} is required to be present,
 //         and f4 and f5 is required to be present
 // * precludes:"FIELD-NAMES,..." : if this field is not empty, all specified fields are required to be empty
 // * matches:"REGEXP-PATTERN" : if this field is not empty, it's required to match REGEXP-PATTERN

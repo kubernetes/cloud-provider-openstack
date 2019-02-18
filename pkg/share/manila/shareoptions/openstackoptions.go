@@ -32,7 +32,7 @@ type OpenStackOptions struct {
 	OSRegionName string `name:"os-region"`
 
 	OSCertAuthority string `name:"os-certAuthority" value:"optional"`
-	OSTLSInsecure   string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority" matches:"^(?i)true|false$"`
+	OSTLSInsecure   string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority" matches:"^true|false$"`
 
 	// User authentication
 
