@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -458,10 +458,15 @@ func (os *OpenStack) getVolume(volumeID string) (Volume, error) {
 // CreateVolume creates a volume of given size (in GiB)
 func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, string, bool, error) {
 	volumes, err := os.volumeService("")
+	klog.Infof("Entering provider create volume")
 	if err != nil {
 		return "", "", "", os.bsOpts.IgnoreVolumeAZ, fmt.Errorf("unable to initialize cinder client for region: %s, err: %v", os.region, err)
 	}
 
+	if os.bsOpts.IgnoreVolumeAZ == true {
+		klog.Infof("Ignoring AZ")
+		availability = ""
+	}
 	opts := volumeCreateOpts{
 		Name:         name,
 		Size:         size,
