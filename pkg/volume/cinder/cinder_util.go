@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	clientset "k8s.io/client-go/kubernetes"
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
@@ -166,6 +166,7 @@ func getZonesFromNodes(kubeClient clientset.Interface) (sets.String, error) {
 
 // CreateVolume uses the cloud provider entrypoint for creating a volume
 func (util *DiskUtil) CreateVolume(c *cinderVolumeProvisioner, node *v1.Node, allowedTopologies []v1.TopologySelectorTerm) (volumeID string, volumeSizeGB int, volumeLabels map[string]string, fstype string, err error) {
+	klog.V(2).Infof("anu: create Volume cinder_util called with node: %v", node)
 	cloud, err := c.plugin.getCloudProvider()
 	if err != nil {
 		return "", 0, nil, "", err
@@ -203,6 +204,7 @@ func (util *DiskUtil) CreateVolume(c *cinderVolumeProvisioner, node *v1.Node, al
 	if availability == "" {
 		// No zone specified, choose one randomly in the same region
 		zones, err := getZonesFromNodes(c.plugin.host.GetKubeClient())
+		klog.V(2).Infof("anu: zones cinder_util: %v", zones)
 		if err != nil {
 			klog.V(2).Infof("error getting zone information: %v", err)
 			return "", 0, nil, "", err
@@ -211,6 +213,7 @@ func (util *DiskUtil) CreateVolume(c *cinderVolumeProvisioner, node *v1.Node, al
 		// use zone "nova" as default
 		if len(zones) > 0 {
 			availability, err = volutil.SelectZoneForVolume(false, false, "", nil, zones, node, allowedTopologies, c.options.PVC.Name)
+			klog.V(2).Infof("anu: availability cinder_util: %v", availability)
 			if err != nil {
 				klog.V(2).Infof("error selecting zone for volume: %v", err)
 				return "", 0, nil, "", err
