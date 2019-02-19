@@ -41,6 +41,7 @@ type IMount interface {
 	IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	FormatAndMount(source string, target string, fstype string, options []string) error
 	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
+	Mount(source string, target string, fstype string, options []string) error
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
 }
@@ -110,6 +111,11 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 func (m *Mount) FormatAndMount(source string, target string, fstype string, options []string) error {
 	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
 	return diskMounter.FormatAndMount(source, target, fstype, options)
+}
+
+func (m *Mount) Mount(source string, target string, fstype string, options []string) error {
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
+	return diskMounter.Mount(source, target, fstype, options)
 }
 
 // IsLikelyNotMountPointAttach
