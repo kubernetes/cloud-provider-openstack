@@ -175,7 +175,9 @@ func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
 	klog.Info("ConfigMap created or updated, will update the sync configuration.")
 
 	var sc *syncConfig
-	if err := json.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
+	newConfig := newSyncConfig()
+	sc = &newConfig
+	if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
 		runtimeutil.HandleError(fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", key, err))
 	}
 
@@ -435,6 +437,8 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.SyncConfigMapName, err)
 		}
 
+		newConfig := newSyncConfig()
+		sc = &newConfig
 		if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
 			klog.Errorf("Unmarshal: %v", err)
 			return nil, fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", c.SyncConfigMapName, err)
