@@ -118,10 +118,11 @@ func buildCreateRequest(
 	shareName := "pvc-" + string(volOptions.PVC.GetUID())
 
 	return &shares.CreateOpts{
-		ShareProto: shareOptions.Protocol,
-		Size:       storageSize,
-		Name:       shareName,
-		ShareType:  shareOptions.Type,
+		ShareProto:     shareOptions.Protocol,
+		ShareNetworkID: shareOptions.OSShareNetworkID,
+		Size:           storageSize,
+		Name:           shareName,
+		ShareType:      shareOptions.Type,
 		Metadata: map[string]string{
 			persistentvolume.CloudVolumeCreatedForClaimNamespaceTag: volOptions.PVC.Namespace,
 			persistentvolume.CloudVolumeCreatedForClaimNameTag:      volOptions.PVC.Name,
