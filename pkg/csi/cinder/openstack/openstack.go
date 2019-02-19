@@ -23,12 +23,12 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"gopkg.in/gcfg.v1"
+	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/klog"
 )
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
+	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
 	ListVolumes() ([]Volume, error)
@@ -41,6 +41,8 @@ type IOpenStack interface {
 	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
 	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)
+	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
+	WaitSnapshotReady(snapshotID string) error
 }
 
 type OpenStack struct {
