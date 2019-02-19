@@ -14,10 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shareoptions
+package validator
 
-// ProtocolOptions contains protocol-specific options
-type ProtocolOptions struct {
-	// Protocol specific options
-	// PROTOCOL_optionName string `name:"option-name" protocol:"PROTOCOL"
+import "strings"
+
+func splitOne(value string, delim byte) (left string, right string, ok bool) {
+	delimIdx := strings.IndexByte(value, delim)
+	if delimIdx <= 0 {
+		return "", "", false
+	}
+
+	return value[:delimIdx], value[delimIdx+1:], true
 }
