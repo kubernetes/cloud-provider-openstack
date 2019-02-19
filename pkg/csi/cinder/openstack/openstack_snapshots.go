@@ -19,8 +19,19 @@ limitations under the License.
 package openstack
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
+)
+
+const (
+	SnapshotReadyStatus = "available"
+	snapReadyDuration   = 1 * time.Second
+	snapReadyFactor     = 1.2
+	snapReadySteps      = 10
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
@@ -51,7 +62,7 @@ func (os *OpenStack) CreateSnapshot(name, volID, description string, tags *map[s
 // operation.  Valid filter keys are:  Name, Status, VolumeID (TenantID has no effect)
 func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
 	// FIXME: honor the limit, offset and filters later
-	opts := snapshots.ListOpts{}
+	opts := snapshots.ListOpts{Status: SnapshotReadyStatus}
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
 	if err != nil {
 		klog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
@@ -94,4 +105,46 @@ func (os *OpenStack) DeleteSnapshot(snapID string) error {
 		klog.V(3).Infof("Failed to delete snapshot: %v", err)
 	}
 	return err
+}
+
+//GetSnapshotByID returns snapshot details by id
+func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
+	s, err := snapshots.Get(os.blockstorage, snapshotID).Extract()
+	if err != nil {
+		klog.V(3).Infof("Failed to get snapshot: %v", err)
+		return nil, err
+	}
+	return s, nil
+}
+
+// WaitSnapshotReady waits till snapshot is ready
+func (os *OpenStack) WaitSnapshotReady(snapshotID string) error {
+	backoff := wait.Backoff{
+		Duration: snapReadyDuration,
+		Factor:   snapReadyFactor,
+		Steps:    snapReadySteps,
+	}
+
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		ready, err := os.snapshotIsReady(snapshotID)
+		if err != nil {
+			return false, err
+		}
+		return ready, nil
+	})
+
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("Timeout, Snapshot  %s is still not Ready %v", snapshotID, err)
+	}
+
+	return err
+}
+
+func (os *OpenStack) snapshotIsReady(snapshotID string) (bool, error) {
+	snap, err := os.GetSnapshotByID(snapshotID)
+	if err != nil {
+		return false, err
+	}
+
+	return snap.Status == SnapshotReadyStatus, nil
 }

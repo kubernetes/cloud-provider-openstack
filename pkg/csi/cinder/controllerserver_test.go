@@ -44,9 +44,9 @@ func TestCreateVolume(t *testing.T) {
 
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
-	// CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, "", &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
 	openstack.OsInstance = osmock
 
 	// Init assert
@@ -80,11 +80,56 @@ func TestCreateVolume(t *testing.T) {
 
 }
 
+func TestCreateVolumeFromSnapshot(t *testing.T) {
+
+	// mock OpenStack
+	osmock := new(openstack.OpenStackMock)
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, "", fakeSnapshotID, &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
+	openstack.OsInstance = osmock
+
+	// Init assert
+	assert := assert.New(t)
+
+	src := &csi.VolumeContentSource{
+		Type: &csi.VolumeContentSource_Snapshot{
+			Snapshot: &csi.VolumeContentSource_SnapshotSource{
+				SnapshotId: fakeSnapshotID,
+			},
+		},
+	}
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name:                fakeVolName,
+		VolumeCapabilities:  nil,
+		VolumeContentSource: src,
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(fakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert
+	assert.NotNil(actualRes.Volume)
+
+	assert.NotNil(actualRes.Volume.CapacityBytes)
+
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
+
+	assert.Equal(fakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
+
+}
+
 // Test CreateVolumeDuplicate
 func TestCreateVolumeDuplicate(t *testing.T) {
 
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
+
 	openstack.OsInstance = osmock
 
 	// Init assert
@@ -244,6 +289,7 @@ func TestCreateSnapshot(t *testing.T) {
 	// mock OpenStack
 	osmock := new(openstack.OpenStackMock)
 	osmock.On("CreateSnapshot", fakeSnapshotName, fakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&fakeSnapshotRes, nil)
+	osmock.On("WaitSnapshotReady", fakeSnapshotID).Return(nil)
 	openstack.OsInstance = osmock
 
 	// Init assert

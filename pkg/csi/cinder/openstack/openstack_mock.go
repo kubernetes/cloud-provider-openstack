@@ -74,33 +74,33 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, tags *map[string]string) (string, string, int, error) {
-	ret := _m.Called(name, size, vtype, availability, tags)
+func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, tags *map[string]string) (string, string, int, error) {
+	ret := _m.Called(name, size, vtype, availability, snapshotID, tags)
 
 	var r0 string
-	if rf, ok := ret.Get(0).(func(string, int, string, string, *map[string]string) string); ok {
-		r0 = rf(name, size, vtype, availability, tags)
+	if rf, ok := ret.Get(0).(func(string, int, string, string, string, *map[string]string) string); ok {
+		r0 = rf(name, size, vtype, availability, snapshotID, tags)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
 	var r1 string
-	if rf, ok := ret.Get(1).(func(string, int, string, string, *map[string]string) string); ok {
-		r1 = rf(name, size, vtype, availability, tags)
+	if rf, ok := ret.Get(1).(func(string, int, string, string, string, *map[string]string) string); ok {
+		r1 = rf(name, size, vtype, availability, snapshotID, tags)
 	} else {
 		r1 = ret.Get(1).(string)
 	}
 
 	var r2 int
-	if rf, ok := ret.Get(2).(func(string, int, string, string, *map[string]string) int); ok {
-		r2 = rf(name, size, vtype, availability, tags)
+	if rf, ok := ret.Get(2).(func(string, int, string, string, string, *map[string]string) int); ok {
+		r2 = rf(name, size, vtype, availability, snapshotID, tags)
 	} else {
 		r2 = ret.Get(2).(int)
 	}
 
 	var r3 error
-	if rf, ok := ret.Get(3).(func(string, int, string, string, *map[string]string) error); ok {
-		r3 = rf(name, size, vtype, availability, tags)
+	if rf, ok := ret.Get(3).(func(string, int, string, string, string, *map[string]string) error); ok {
+		r3 = rf(name, size, vtype, availability, snapshotID, tags)
 	} else {
 		r3 = ret.Error(3)
 	}
@@ -302,4 +302,22 @@ func (_m *OpenStackMock) GetAvailabilityZone() (string, error) {
 
 func (_m *OpenStackMock) GetInstanceID() (string, error) {
 	return "", nil
+}
+
+func (_m *OpenStackMock) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
+
+	return &fakeSnapshot, nil
+}
+
+func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) error {
+	ret := _m.Called(snapshotID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(snapshotID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }

@@ -80,6 +80,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	resID := ""
 	resAvailability := ""
 	resSize := 0
+	snapshotID := ""
 
 	if len(volumes) == 1 {
 		resID = volumes[0].ID
@@ -93,7 +94,13 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	} else {
 		// Volume Create
 		properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
-		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, &properties)
+		content := req.GetVolumeContentSource()
+
+		if content != nil && content.GetSnapshot() != nil {
+			snapshotID = content.GetSnapshot().GetSnapshotId()
+		}
+
+		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, &properties)
 		if err != nil {
 			klog.V(3).Infof("Failed to CreateVolume: %v", err)
 			return nil, err
@@ -103,7 +110,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	}
 
-	return &csi.CreateVolumeResponse{
+	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:      resID,
 			CapacityBytes: int64(resSize * 1024 * 1024 * 1024),
@@ -113,7 +120,19 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				},
 			},
 		},
-	}, nil
+	}
+
+	if snapshotID != "" {
+		src := &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Snapshot{
+				Snapshot: &csi.VolumeContentSource_SnapshotSource{
+					SnapshotId: snapshotID,
+				},
+			},
+		}
+		resp.Volume.ContentSource = src
+	}
+	return resp, nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -282,13 +301,19 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		klog.Errorf("Error to convert time to timestamp: %v", err)
 	}
 
-	// TODO: add snapshot status
+	err = cloud.WaitSnapshotReady(snap.ID)
+	if err != nil {
+		klog.V(3).Infof("Failed to WaitSnapshotReady: %v", err)
+		return nil, err
+	}
+
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     snap.ID,
 			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
 			SourceVolumeId: snap.VolumeID,
 			CreationTime:   ctime,
+			ReadyToUse:     true,
 		},
 	}, nil
 }
@@ -340,6 +365,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 				SnapshotId:     v.ID,
 				SourceVolumeId: v.VolumeID,
 				CreationTime:   ctime,
+				ReadyToUse:     true,
 			},
 		}
 		ventries = append(ventries, &ventry)
