@@ -47,11 +47,12 @@ const (
 )
 
 func createShare(
+	volumeHandle string,
 	volOptions *controller.VolumeOptions,
 	shareOptions *shareoptions.ShareOptions,
 	client *gophercloud.ServiceClient,
 ) (*shares.Share, error) {
-	req, err := buildCreateRequest(volOptions, shareOptions)
+	req, err := buildCreateRequest(volOptions, shareOptions, volumeHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -104,21 +105,27 @@ func getShare(shareOptions *shareoptions.ShareOptions, client *gophercloud.Servi
 	return nil, fmt.Errorf("both OSShareName and OSShareID are empty")
 }
 
-func buildCreateRequest(volOptions *controller.VolumeOptions, shareOptions *shareoptions.ShareOptions) (*shares.CreateOpts, error) {
+func buildCreateRequest(
+	volOptions *controller.VolumeOptions,
+	shareOptions *shareoptions.ShareOptions,
+	volumeHandle string,
+) (*shares.CreateOpts, error) {
 	storageSize, err := getStorageSizeInGiga(volOptions.PVC)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve PVC storage size: %v", err)
 	}
 
+	shareName := "pvc-" + string(volOptions.PVC.GetUID())
+
 	return &shares.CreateOpts{
 		ShareProto: shareOptions.Protocol,
 		Size:       storageSize,
-		Name:       shareOptions.ShareName,
+		Name:       shareName,
 		ShareType:  shareOptions.Type,
 		Metadata: map[string]string{
 			persistentvolume.CloudVolumeCreatedForClaimNamespaceTag: volOptions.PVC.Namespace,
 			persistentvolume.CloudVolumeCreatedForClaimNameTag:      volOptions.PVC.Name,
-			persistentvolume.CloudVolumeCreatedForVolumeNameTag:     shareOptions.ShareName,
+			persistentvolume.CloudVolumeCreatedForVolumeNameTag:     shareName,
 		},
 	}, nil
 }
@@ -128,6 +135,7 @@ func buildPersistentVolume(
 	accessRight *shares.AccessRight,
 	volSource *v1.PersistentVolumeSource,
 	volOptions *controller.VolumeOptions,
+	shareSecretRef *v1.SecretReference,
 	shareOptions *shareoptions.ShareOptions,
 ) *v1.PersistentVolume {
 	provisionType := manilaProvisionTypeDynamic
@@ -142,8 +150,8 @@ func buildPersistentVolume(
 				manilaAnnotationID:                   share.ID,
 				manilaAnnotationOSSecretName:         shareOptions.OSSecretName,
 				manilaAnnotationOSSecretNamespace:    shareOptions.OSSecretNamespace,
-				manilaAnnotationShareSecretName:      shareOptions.ShareSecretRef.Name,
-				manilaAnnotationShareSecretNamespace: shareOptions.ShareSecretRef.Namespace,
+				manilaAnnotationShareSecretName:      shareSecretRef.Name,
+				manilaAnnotationShareSecretNamespace: shareSecretRef.Namespace,
 				manilaAnnotationProvisionType:        provisionType,
 			},
 		},

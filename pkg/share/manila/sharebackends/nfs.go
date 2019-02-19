@@ -49,7 +49,7 @@ func (NFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource, error
 func (NFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
 	return shares.GrantAccess(args.Client, args.Share.ID, shares.GrantAccessOpts{
 		AccessType:  "ip",
-		AccessTo:    args.Options.BackendOptions.NFSShareClient,
+		AccessTo:    args.Options.NFSShareClient,
 		AccessLevel: "rw",
 	}).Extract()
 }

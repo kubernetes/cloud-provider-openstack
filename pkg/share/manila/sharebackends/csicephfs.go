@@ -17,8 +17,6 @@ limitations under the License.
 package sharebackends
 
 import (
-	"fmt"
-
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/api/core/v1"
 )
@@ -38,22 +36,18 @@ func (CSICephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource,
 		return nil, err
 	}
 
-	if args.Options.CSICEPHFSmounter != "fuse" && args.Options.CSICEPHFSmounter != "kernel" {
-		return nil, fmt.Errorf("unrecognized mounter option '%s'", args.Options.CSICEPHFSmounter)
-	}
-
 	return &v1.PersistentVolumeSource{
 		CSI: &v1.CSIPersistentVolumeSource{
 			Driver:       args.Options.CSICEPHFSdriver,
 			ReadOnly:     false,
-			VolumeHandle: args.Options.ShareName,
+			VolumeHandle: args.VolumeHandle,
 			VolumeAttributes: map[string]string{
 				"monitors":        monitors,
 				"rootPath":        rootPath,
 				"mounter":         args.Options.CSICEPHFSmounter,
 				"provisionVolume": "false",
 			},
-			NodeStageSecretRef: &args.Options.ShareSecretRef,
+			NodeStageSecretRef: args.ShareSecretRef,
 		},
 	}, nil
 }
@@ -65,7 +59,7 @@ func (CSICephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error)
 		return nil, err
 	}
 
-	err = createSecret(&args.Options.ShareSecretRef, args.Clientset, map[string][]byte{
+	err = createSecret(args.ShareSecretRef, args.Clientset, map[string][]byte{
 		"userID":  []byte(accessRight.AccessTo),
 		"userKey": []byte(accessRight.AccessKey),
 	})

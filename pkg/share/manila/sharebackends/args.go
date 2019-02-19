@@ -26,22 +26,25 @@ import (
 
 // BuildSourceArgs contains arguments for ShareBackend.BuildSource()
 type BuildSourceArgs struct {
-	Share       *shares.Share
-	Options     *shareoptions.ShareOptions
-	Location    *shares.ExportLocation
-	Clientset   clientset.Interface
-	AccessRight *shares.AccessRight
+	VolumeHandle   string
+	Share          *shares.Share
+	Options        *shareoptions.ShareOptions
+	ShareSecretRef *v1.SecretReference
+	Location       *shares.ExportLocation
+	Clientset      clientset.Interface
+	AccessRight    *shares.AccessRight
 }
 
 // GrantAccessArgs contains arguments for ShareBackend.GrantAccess()
 type GrantAccessArgs struct {
-	Share     *shares.Share
-	Options   *shareoptions.ShareOptions
-	Clientset clientset.Interface
-	Client    *gophercloud.ServiceClient
+	Share          *shares.Share
+	Options        *shareoptions.ShareOptions
+	ShareSecretRef *v1.SecretReference
+	Clientset      clientset.Interface
+	Client         *gophercloud.ServiceClient
 }
 
-// RevokeAccessArgs contains arguments for ShareBaceknd.RevokeAccess()
+// RevokeAccessArgs contains arguments for ShareBackend.RevokeAccess()
 type RevokeAccessArgs struct {
 	ShareID        string
 	ShareSecretRef *v1.SecretReference

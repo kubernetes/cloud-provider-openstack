@@ -21,36 +21,41 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
 )
 
 // OpenStackOptions contains fields used for authenticating to OpenStack
 type OpenStackOptions struct {
 	// Common options
 
-	OSAuthURL    string `name:"os-authURL" value:"alwaysRequires=os-password|os-trustID"`
+	OSAuthURL    string `name:"os-authURL" dependsOn:"os-password|os-trustID"`
 	OSRegionName string `name:"os-region"`
 
 	OSCertAuthority string `name:"os-certAuthority" value:"optional"`
-	OSTLSInsecure   string `name:"os-TLSInsecure" value:"requires=os-certAuthority"`
+	OSTLSInsecure   string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority" matches:"^true|false$"`
 
 	// User authentication
 
-	OSPassword string `name:"os-password" value:"requires=os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
-	OSUserID   string `name:"os-userID" value:"requires=os-password"`
-	OSUsername string `name:"os-userName" value:"requires=os-password"`
+	OSPassword string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
+	OSUserID   string `name:"os-userID" value:"optional" dependsOn:"os-password"`
+	OSUsername string `name:"os-userName" value:"optional" dependsOn:"os-password"`
 
-	OSDomainID   string `name:"os-domainID" value:"requires=os-password"`
-	OSDomainName string `name:"os-domainName" value:"requires=os-password"`
+	OSDomainID   string `name:"os-domainID" value:"optional" dependsOn:"os-password"`
+	OSDomainName string `name:"os-domainName" value:"optional" dependsOn:"os-password"`
 
-	OSProjectID   string `name:"os-projectID" value:"requires=os-password"`
-	OSProjectName string `name:"os-projectName" value:"requires=os-password"`
+	OSProjectID   string `name:"os-projectID" value:"optional" dependsOn:"os-password"`
+	OSProjectName string `name:"os-projectName" value:"optional" dependsOn:"os-password"`
 
 	// Trustee authentication
 
-	OSTrustID         string `name:"os-trustID" value:"requires=os-trusteeID,os-trusteePassword"`
-	OSTrusteeID       string `name:"os-trusteeID" value:"requires=os-trustID"`
-	OSTrusteePassword string `name:"os-trusteePassword" value:"requires=os-trustID"`
+	OSTrustID         string `name:"os-trustID" value:"optional" dependsOn:"os-trusteeID,os-trusteePassword"`
+	OSTrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
+	OSTrusteePassword string `name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
 }
+
+var (
+	osOptionsValidator = validator.New(&OpenStackOptions{})
+)
 
 // NewOpenStackOptionsFromSecret reads k8s secrets, validates and populates OpenStackOptions
 func NewOpenStackOptionsFromSecret(c clientset.Interface, secretRef *v1.SecretReference) (*OpenStackOptions, error) {
@@ -65,12 +70,7 @@ func NewOpenStackOptionsFromSecret(c clientset.Interface, secretRef *v1.SecretRe
 // NewOpenStackOptionsFromMap validates and populates OpenStackOptions
 func NewOpenStackOptionsFromMap(params map[string]string) (*OpenStackOptions, error) {
 	opts := &OpenStackOptions{}
-	return opts, buildOpenStackOptionsTo(opts, params)
-}
-
-func buildOpenStackOptionsTo(opts *OpenStackOptions, params map[string]string) error {
-	_, err := extractParams(&optionConstraints{}, params, opts)
-	return err
+	return opts, osOptionsValidator.Populate(params, opts)
 }
 
 // ToAuthOptions converts OpenStackOptions to gophercloud.AuthOptions
