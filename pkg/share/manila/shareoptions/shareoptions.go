@@ -35,6 +35,8 @@ type ShareOptions struct {
 	OSSecretNamespace    string `name:"osSecretNamespace" value:"default:default"`
 	ShareSecretNamespace string `name:"shareSecretNamespace" value:"default:default"`
 
+	OSShareNetworkID string `name:"osShareNetworkID" value:"optional"`
+
 	OSShareID       string `name:"osShareID" value:"optional" dependsOn:"osShareAccessID"`
 	OSShareName     string `name:"osShareName" value:"optional" dependsOn:"osShareAccessID"`
 	OSShareAccessID string `name:"osShareAccessID" value:"optional" dependsOn:"osShareID|osShareName"`

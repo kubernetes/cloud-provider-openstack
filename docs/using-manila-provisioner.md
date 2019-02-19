@@ -27,6 +27,7 @@ Key | Required | Default value | Description
 `osShareID` | No | None | The UUID of an existing share. Used for static provisioning
 `osShareName` | No | None | The name of an existing share. Used for static provisioning
 `osShareAccessID` | No | None | The UUID of an existing access rule to a share. Used for static provisioning
+`osShareNetworkID` | No | None | The UUID of a share network where the share server exists or will be created.
 
 
 **Share-backend specific options**
