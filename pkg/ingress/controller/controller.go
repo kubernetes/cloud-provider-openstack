@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,6 +67,12 @@ const (
 	// LabelNodeRoleMaster specifies that a node is a master
 	// It's copied over to kubeadm until it's merged in core: https://github.com/kubernetes/kubernetes/pull/39112
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+
+	// IngressAnnotationInternal is the annotation used on the Ingress
+	// to indicate that we want an internal loadbalancer service so that octavia-ingress-controller won't associate
+	// floating ip to the load balancer VIP.
+	// Default to true.
+	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
 )
 
 // EventType type of event associated with an informer
@@ -565,8 +572,15 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	}
 
 	address := lb.VipAddress
-	if c.config.Octavia.FloatingIPNetwork != "" {
-		// Allocate floating ip for loadbalancer vip.
+
+	internalSetting := getStringFromIngressAnnotation(ing, IngressAnnotationInternal, "true")
+	isInternal, err := strconv.ParseBool(internalSetting)
+	if err != nil {
+		return fmt.Errorf("unknown %s annotation: %v", IngressAnnotationInternal, err)
+	}
+
+	// Allocate floating ip for loadbalancer vip if the external network is configured and the Ingress is not internal.
+	if !isInternal && c.config.Octavia.FloatingIPNetwork != "" {
 		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork, ing.ObjectMeta.Name, ing.ObjectMeta.Namespace, c.config.ClusterName); err != nil {
 			return err
 		}
@@ -642,4 +656,14 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 	}
 
 	return nodePort, nil
+}
+
+// getStringFromIngressAnnotation searches a given Ingress for a specific annotationKey and either returns the
+// annotation's value or a specified defaultSetting
+func getStringFromIngressAnnotation(ingress *extv1beta1.Ingress, annotationKey string, defaultValue string) string {
+	if annotationValue, ok := ingress.Annotations[annotationKey]; ok {
+		return annotationValue
+	}
+
+	return defaultValue
 }
