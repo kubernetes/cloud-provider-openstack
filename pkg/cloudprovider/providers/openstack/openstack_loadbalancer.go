@@ -48,6 +48,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	v1service "k8s.io/cloud-provider-openstack/pkg/api/v1/service"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
@@ -140,7 +141,7 @@ func getFloatingIP(client *gophercloud.ServiceClient, opts floatingips.ListOpts)
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -175,7 +176,7 @@ func getLoadbalancerByName(client *gophercloud.ServiceClient, name string) (*loa
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -247,7 +248,7 @@ func getPoolByListenerID(client *gophercloud.ServiceClient, loadbalancerID strin
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -385,7 +386,7 @@ func waitLoadbalancerDeleted(client *gophercloud.ServiceClient, loadbalancerID s
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		_, err := loadbalancers.Get(client, loadbalancerID).Extract()
 		if err != nil {
-			if isNotFound(err) {
+			if cpoerrors.IsNotFound(err) {
 				return true, nil
 			}
 			return false, err
@@ -751,7 +752,7 @@ func getFloatingNetworkIDForLB(client *gophercloud.ServiceClient) (string, error
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return "", ErrNotFound
 		}
 
@@ -973,7 +974,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 		klog.V(4).Infof("Pool for listener %s: %s", listener.ID, pool.ID)
 		members, err := getMembersByPoolID(lbaas.lb, pool.ID)
-		if err != nil && !isNotFound(err) {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error getting pool members %s: %v", pool.ID, err)
 		}
 		for _, node := range nodes {
@@ -1016,7 +1017,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		for _, member := range members {
 			klog.V(4).Infof("Deleting obsolete member %s for pool %s address %s", member.ID, pool.ID, member.Address)
 			err := v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return nil, fmt.Errorf("error deleting obsolete member %s for pool %s address %s: %v", member.ID, pool.ID, member.Address, err)
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1067,7 +1068,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			if monitorID != "" {
 				klog.V(4).Infof("Deleting obsolete monitor %s for pool %s", monitorID, pool.ID)
 				err = v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
-				if err != nil && !isNotFound(err) {
+				if err != nil && !cpoerrors.IsNotFound(err) {
 					return nil, fmt.Errorf("error deleting obsolete monitor %s for pool %s: %v", monitorID, pool.ID, err)
 				}
 				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1077,14 +1078,14 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			}
 			// get and delete pool members
 			members, err := getMembersByPoolID(lbaas.lb, pool.ID)
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return nil, fmt.Errorf("error getting members for pool %s: %v", pool.ID, err)
 			}
 			if members != nil {
 				for _, member := range members {
 					klog.V(4).Infof("Deleting obsolete member %s for pool %s address %s", member.ID, pool.ID, member.Address)
 					err := v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
-					if err != nil && !isNotFound(err) {
+					if err != nil && !cpoerrors.IsNotFound(err) {
 						return nil, fmt.Errorf("error deleting obsolete member %s for pool %s address %s: %v", member.ID, pool.ID, member.Address, err)
 					}
 					provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1096,7 +1097,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			klog.V(4).Infof("Deleting obsolete pool %s for listener %s", pool.ID, listener.ID)
 			// delete pool
 			err = v2pools.Delete(lbaas.lb, pool.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return nil, fmt.Errorf("error deleting obsolete pool %s for listener %s: %v", pool.ID, listener.ID, err)
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1106,7 +1107,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 		// delete listener
 		err = listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
-		if err != nil && !isNotFound(err) {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error deleteting obsolete listener: %v", err)
 		}
 		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1387,7 +1388,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Ser
 				SecGroupID:     lbSecGroupID,
 			}
 			sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return fmt.Errorf("failed to find security group rules in %s: %v", lbSecGroupID, err)
 			}
 			if len(sgRules) != 0 {
@@ -1423,7 +1424,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *v1.Ser
 					Protocol:      string(port.Protocol),
 				}
 				secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
-				if err != nil && !isNotFound(err) {
+				if err != nil && !cpoerrors.IsNotFound(err) {
 					msg := fmt.Sprintf("Error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
 					return fmt.Errorf(msg)
 				}
@@ -1567,7 +1568,7 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 				continue
 			}
 			err = v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1626,13 +1627,13 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *v1.Ser
 				Protocol:      string(port.Protocol),
 			}
 			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return fmt.Errorf("error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, removal, err)
 			}
 
 			for _, rule := range secGroupRules {
 				res := rules.Delete(lbaas.network, rule.ID)
-				if res.Err != nil && !isNotFound(res.Err) {
+				if res.Err != nil && !cpoerrors.IsNotFound(res.Err) {
 					return fmt.Errorf("error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
 				}
 			}
@@ -1648,7 +1649,7 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *v1.Ser
 				Protocol:      string(port.Protocol),
 			}
 			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return fmt.Errorf("error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
 			}
 			if len(secGroupRules) != 0 {
@@ -1695,7 +1696,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 			if floatingIP != nil {
 				err = floatingips.Delete(lbaas.network, floatingIP.ID).ExtractErr()
-				if err != nil && !isNotFound(err) {
+				if err != nil && !cpoerrors.IsNotFound(err) {
 					return err
 				}
 			}
@@ -1735,7 +1736,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		// delete all monitors
 		for _, monitorID := range monitorIDs {
 			err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1748,13 +1749,13 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		for _, poolID := range poolIDs {
 			// get members for current pool
 			membersList, err := getMembersByPoolID(lbaas.lb, poolID)
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return fmt.Errorf("error getting pool members %s: %v", poolID, err)
 			}
 			// delete all members for this pool
 			for _, member := range membersList {
 				err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
-				if err != nil && !isNotFound(err) {
+				if err != nil && !cpoerrors.IsNotFound(err) {
 					return err
 				}
 				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1765,7 +1766,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 			// delete pool
 			err = v2pools.Delete(lbaas.lb, poolID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1777,7 +1778,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		// delete all listeners
 		for _, listener := range listenerList {
 			err := listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1788,7 +1789,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 		// delete loadbalancer
 		err = loadbalancers.Delete(lbaas.lb, loadbalancer.ID, loadbalancers.DeleteOpts{}).ExtractErr()
-		if err != nil && !isNotFound(err) {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			return err
 		}
 		err = waitLoadbalancerDeleted(lbaas.lb, loadbalancer.ID)
@@ -1829,7 +1830,7 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *v1
 	}
 
 	lbSecGroup := groups.Delete(lbaas.network, lbSecGroupID)
-	if lbSecGroup.Err != nil && !isNotFound(lbSecGroup.Err) {
+	if lbSecGroup.Err != nil && !cpoerrors.IsNotFound(lbSecGroup.Err) {
 		return lbSecGroup.Err
 	}
 
@@ -1848,14 +1849,14 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *v1
 			}
 			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
 
-			if err != nil && !isNotFound(err) {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				msg := fmt.Sprintf("error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
 				return fmt.Errorf(msg)
 			}
 
 			for _, rule := range secGroupRules {
 				res := rules.Delete(lbaas.network, rule.ID)
-				if res.Err != nil && !isNotFound(res.Err) {
+				if res.Err != nil && !cpoerrors.IsNotFound(res.Err) {
 					return fmt.Errorf("error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
 				}
 			}

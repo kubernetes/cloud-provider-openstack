@@ -22,6 +22,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/pagination"
 	log "github.com/sirupsen/logrus"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 func (os *OpenStack) getFloatingIPByPortID(portID string) (*floatingips.FloatingIP, error) {
@@ -43,7 +44,7 @@ func (os *OpenStack) getFloatingIPByPortID(portID string) (*floatingips.Floating
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -96,7 +97,7 @@ func (os *OpenStack) DeleteFloatingIP(portID string) error {
 	}
 
 	err = floatingips.Delete(os.neutron, fip.ID).ExtractErr()
-	if err != nil && !isNotFound(err) {
+	if err != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf("error deleting floating ip %s: %v", fip.ID, err)
 	}
 

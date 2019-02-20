@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 const (
@@ -113,7 +114,7 @@ func (os *OpenStack) GetLoadbalancerByName(name string) (*loadbalancers.LoadBala
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -146,7 +147,7 @@ func (os *OpenStack) getListenerByName(name string, lbID string) (*listeners.Lis
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -177,7 +178,7 @@ func (os *OpenStack) getPoolByName(name string, lbID string) (*pools.Pool, error
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -292,7 +293,7 @@ func (os *OpenStack) DeleteL7policy(policyID string, lbID string) error {
 // DeleteLoadbalancer deletes a loadbalancer with all its child objects.
 func (os *OpenStack) DeleteLoadbalancer(lbID string) error {
 	err := loadbalancers.Delete(os.octavia, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
-	if err != nil && !isNotFound(err) {
+	if err != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
 	}
 
@@ -392,7 +393,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 
 		// Delete the existing pool, members are deleted automatically
 		err = pools.Delete(os.octavia, pool.ID).ExtractErr()
-		if err != nil && !isNotFound(err) {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error deleting pool %s: %v", pool.ID, err)
 		}
 

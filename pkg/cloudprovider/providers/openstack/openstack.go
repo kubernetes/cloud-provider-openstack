@@ -716,20 +716,6 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	return &LbaasV2{LoadBalancer{network, compute, lb, os.lbOpts}}, true
 }
 
-func isNotFound(err error) bool {
-	if _, ok := err.(gophercloud.ErrDefault404); ok {
-		return true
-	}
-
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusNotFound {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Zones indicates that we support zones
 func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
 	klog.V(1).Info("Claiming to support Zones")
