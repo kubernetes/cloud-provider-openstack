@@ -2,6 +2,15 @@
 
 ## Kubernetes
 
+### Compatibility
+
+CSI version | CSI Sidecar Version | Cinder CSI Plugin Version | Kubernetes Version
+:------ | :------- | :------------ | :-----------
+v1.0.x | v1.0.x | v1.0.0  docker image: k8scloudprovider/cinder-csi-plugin:latest | v1.13+
+v0.3.0 | v0.3.x, v0.4.x | v0.3.0 docker image: k8scloudprovider/cinder-csi-plugin:1.13.x| v1.11, v1.12, v1.13
+v0.2.0 | v0.2.x | v0.2.0 docker image: k8scloudprovider/cinder-csi-plugin:0.2.0 | v1.10, v1.9
+v0.1.0 | v0.1.0 | v0.1.0 docker image: k8scloudprovider/cinder-csi-plugin:0.1.0| v1.9
+
 ### Requirements
 
 Enable Following features gates for kubernetes cluster running versions lower than v1.10.
