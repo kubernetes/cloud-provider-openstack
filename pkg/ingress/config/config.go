@@ -60,6 +60,10 @@ type octaviaConfig struct {
 	// (Optional)Public network ID to create floating IP.
 	// If empty, no floating IP will be allocated to the load balancer vip.
 	FloatingIPNetwork string `mapstructure:"floating_network_id"`
+
+	// (Optional)If the ingress controller should manage the security groups attached to the cluster nodes.
+	// Default is false.
+	ManageSecurityGroups bool `mapstructure:"manage_security_groups"`
 }
 
 // ToAuthOptions gets openstack auth options
