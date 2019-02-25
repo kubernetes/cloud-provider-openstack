@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"k8s.io/apimachinery/pkg/util/wait"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 
 	"k8s.io/klog"
 )
@@ -210,7 +211,7 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		attached, err := os.diskIsAttached(instanceID, volumeID)
-		if err != nil && !isNotFound(err) {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			// if this is a race condition indicate the volume is deleted
 			// during sleep phase, ignore the error and return attach=false
 			return false, err

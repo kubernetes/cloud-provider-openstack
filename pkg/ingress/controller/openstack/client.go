@@ -39,20 +39,6 @@ type OpenStack struct {
 	config  config.Config
 }
 
-func isNotFound(err error) bool {
-	if _, ok := err.(gophercloud.ErrDefault404); ok {
-		return true
-	}
-
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusNotFound {
-			return true
-		}
-	}
-
-	return false
-}
-
 // NewOpenStack gets openstack struct
 func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 	provider, err := openstack.NewClient(cfg.OpenStack.AuthURL)

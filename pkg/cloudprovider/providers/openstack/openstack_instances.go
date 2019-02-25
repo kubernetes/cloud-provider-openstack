@@ -28,6 +28,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -135,7 +136,7 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 
 	_, err = servers.Get(i.compute, instanceID).Extract()
 	if err != nil {
-		if isNotFound(err) {
+		if errors.IsNotFound(err) {
 			return false, nil
 		}
 		return false, err
