@@ -119,6 +119,22 @@ func prompt(url string, domain string, user string, project string, password str
 	return options, nil
 }
 
+func argumentsAreSet(url, user, project, password, domain, applicationCredentialID, applicationCredentialName, applicationCredentialSecret string) bool {
+	if url == "" {
+		return false
+	}
+
+	if user != "" && project != "" && domain != "" && password != "" {
+		return true
+	}
+
+	if applicationCredentialID != "" && applicationCredentialName != "" && applicationCredentialSecret != "" {
+		return true
+	}
+
+	return false
+}
+
 func main() {
 	// Glog requires this otherwise it complains.
 	flag.CommandLine.Parse(nil)
@@ -164,10 +180,25 @@ func main() {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
-		options.AuthOptions, err = openstack.AuthOptionsFromEnv()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s\n", err)
-			os.Exit(1)
+		// If all requiered arguments are set use them
+		if argumentsAreSet(url, user, project, password, domain, applicationCredentialID, applicationCredentialName, applicationCredentialSecret) {
+			options.AuthOptions = gophercloud.AuthOptions{
+				IdentityEndpoint:            url,
+				Username:                    user,
+				TenantName:                  project,
+				Password:                    password,
+				DomainName:                  domain,
+				ApplicationCredentialID:     applicationCredentialID,
+				ApplicationCredentialName:   applicationCredentialName,
+				ApplicationCredentialSecret: applicationCredentialSecret,
+			}
+		} else {
+			// Use environment variables if arguments are missing
+			options.AuthOptions, err = openstack.AuthOptionsFromEnv()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s\n", err)
+				os.Exit(1)
+			}
 		}
 	} else {
 		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
