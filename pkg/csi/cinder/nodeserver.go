@@ -25,8 +25,8 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog"
 
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
 type nodeServer struct {
@@ -73,7 +73,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			}
 		}
 		// Mount
-		err = m.Mount(source, targetPath, fsType, options)
+		err = m.GetBaseMounter().Mount(source, targetPath, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -164,7 +164,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			return nil, status.Errorf(codes.Unimplemented, "Block volume support is not yet implemented")
 		}
 		// Mount
-		err = m.FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = m.GetBaseMounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}

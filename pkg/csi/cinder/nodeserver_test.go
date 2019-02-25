@@ -22,9 +22,8 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
 var fakeNs *nodeServer
@@ -84,8 +83,6 @@ func TestNodePublishVolume(t *testing.T) {
 	mmock.On("ScanForAttach", fakeDevicePath).Return(nil)
 	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	mmock.On("IsLikelyNotMountPointAttach", fakeTargetPath).Return(true, nil)
-	// Mount(source string, target string, fstype string, options []string) error
-	mmock.On("Mount", fakeStagingTargetPath, fakeTargetPath, mock.AnythingOfType("string"), []string{"bind", "rw"}).Return(nil)
 	mount.MInstance = mmock
 
 	// Init assert
@@ -130,8 +127,6 @@ func TestNodeStageVolume(t *testing.T) {
 	mmock.On("ScanForAttach", fakeDevicePath).Return(nil)
 	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	mmock.On("IsLikelyNotMountPointAttach", fakeStagingTargetPath).Return(true, nil)
-	// FormatAndMount(source string, target string, fstype string, options []string) error
-	mmock.On("FormatAndMount", fakeDevicePath, fakeStagingTargetPath, "ext4", []string(nil)).Return(nil)
 	mount.MInstance = mmock
 
 	// Init assert
