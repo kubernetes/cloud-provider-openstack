@@ -24,6 +24,9 @@ metadata:
 spec:
   serviceName: "csi-provisioner-cinderplugin"
   replicas: 1
+  selector:
+    matchLabels:
+      app: csi-provisioner-cinderplugin
   template:
     metadata:
       labels:

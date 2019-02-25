@@ -24,6 +24,9 @@ metadata:
 spec:
   serviceName: "csi-attacher-cinderplugin"
   replicas: 1
+  selector:
+    matchLabels:
+      app: csi-attacher-cinderplugin
   template:
     metadata:
       labels:
