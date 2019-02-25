@@ -486,10 +486,15 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 		return nil
 	}
 
-	if err = c.osClient.DeleteFloatingIP(loadbalancer.VipPortID); err != nil {
-		return err
+	// Delete the flaoting IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
+	// any floating IPs associated with the load balancer VIP port.
+	log.WithFields(log.Fields{"ingress": key}).Info("deleting floating IP")
+	if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", ""); err != nil {
+		return fmt.Errorf("failed to delete floating IP: %v", err)
 	}
+	log.WithFields(log.Fields{"ingress": key}).Info("floating IP deleted")
 
+	// Delete security group managed for the Ingress backend service
 	if c.config.Octavia.ManageSecurityGroups {
 		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", namespace, name)}
 		tagString := strings.Join(sgTags, ",")
@@ -659,9 +664,15 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	address := lb.VipAddress
 	// Allocate floating ip for loadbalancer vip if the external network is configured and the Ingress is not internal.
 	if !isInternal && c.config.Octavia.FloatingIPNetwork != "" {
-		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork, ingName, ingNamespace, clusterName); err != nil {
-			return err
+		log.WithFields(log.Fields{"ingress": key}).Info("creating floating IP")
+
+		description := fmt.Sprintf("Floating IP for Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName)
+		address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, c.config.Octavia.FloatingIPNetwork, description)
+		if err != nil {
+			return fmt.Errorf("failed to create floating IP: %v", err)
 		}
+
+		log.WithFields(log.Fields{"ingress": key, "fip": address}).Info("floating IP created")
 	}
 
 	// Update ingress status
