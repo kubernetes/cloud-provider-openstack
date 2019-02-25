@@ -2,7 +2,7 @@
 # which are necessary to run csi nodeplugin for cinder.
 
 kind: DaemonSet
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 metadata:
   name: csi-nodeplugin-cinderplugin
   namespace: kube-system
