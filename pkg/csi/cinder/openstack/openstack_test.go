@@ -32,6 +32,7 @@ var fakeAuthUrl = "https://169.254.169.254/identity/v3"
 var fakeTenantID = "c869168a828847f39f7f06edd7305637"
 var fakeDomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 var fakeRegion = "RegionOne"
+var fakeCAfile = "fake-ca.crt"
 
 // Test GetConfigFromFile
 func TestGetConfigFromFile(t *testing.T) {
@@ -43,6 +44,7 @@ password=` + fakePassword + `
 auth-url=` + fakeAuthUrl + `
 tenant-id=` + fakeTenantID + `
 domain-id=` + fakeDomainID + `
+ca-file=` + fakeCAfile + `
 region=` + fakeRegion + `
 `
 
@@ -60,15 +62,15 @@ region=` + fakeRegion + `
 
 	// Init assert
 	assert := assert.New(t)
+	expectedOpts := Config{}
+	expectedOpts.Global.Username = fakeUserName
+	expectedOpts.Global.Password = fakePassword
+	expectedOpts.Global.DomainId = fakeDomainID
+	expectedOpts.Global.AuthUrl = fakeAuthUrl
+	expectedOpts.Global.CAFile = fakeCAfile
+	expectedOpts.Global.TenantId = fakeTenantID
+	expectedOpts.Global.Region = fakeRegion
 
-	expectedAuthOpts := gophercloud.AuthOptions{
-		IdentityEndpoint: fakeAuthUrl,
-		Username:         fakeUserName,
-		Password:         fakePassword,
-		TenantID:         fakeTenantID,
-		DomainID:         fakeDomainID,
-		AllowReauth:      true,
-	}
 	expectedEpOpts := gophercloud.EndpointOpts{
 		Region: fakeRegion,
 	}
@@ -80,7 +82,7 @@ region=` + fakeRegion + `
 	}
 
 	// Assert
-	assert.Equal(expectedAuthOpts, actualAuthOpts)
+	assert.Equal(expectedOpts, actualAuthOpts)
 	assert.Equal(expectedEpOpts, actualEpOpts)
 }
 

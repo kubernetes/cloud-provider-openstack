@@ -17,12 +17,16 @@ limitations under the License.
 package openstack
 
 import (
+	"crypto/tls"
+	"net/http"
 	"os"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	gcfg "gopkg.in/gcfg.v1"
+	netutil "k8s.io/apimachinery/pkg/util/net"
+	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog"
 )
 
@@ -60,6 +64,7 @@ type Config struct {
 		DomainId   string `gcfg:"domain-id"`
 		DomainName string `gcfg:"domain-name"`
 		Region     string
+		CAFile     string `gcfg:"ca-file"`
 	}
 }
 
@@ -79,33 +84,31 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 	}
 }
 
-func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
-	// Get config from file
-	var authOpts gophercloud.AuthOptions
+// GetConfigFromFile retrieves config options from file
+func GetConfigFromFile(configFilePath string) (Config, gophercloud.EndpointOpts, error) {
 	var epOpts gophercloud.EndpointOpts
+	var cfg Config
 	config, err := os.Open(configFilePath)
 	if err != nil {
 		klog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
-		return authOpts, epOpts, err
+		return cfg, epOpts, err
 	}
 	defer config.Close()
 
-	// Read configuration
-	var cfg Config
 	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
 		klog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
-		return authOpts, epOpts, err
+		return cfg, epOpts, err
 	}
 
-	authOpts = cfg.toAuthOptions()
 	epOpts = gophercloud.EndpointOpts{
 		Region: cfg.Global.Region,
 	}
 
-	return authOpts, epOpts, nil
+	return cfg, epOpts, nil
 }
 
+// GetConfigFromEnv retrieves config options from env
 func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
 	// Get config from env
 	authOpts, err := openstack.AuthOptionsFromEnv()
@@ -123,49 +126,71 @@ func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, erro
 }
 
 var OsInstance IOpenStack = nil
-var configFile string = "/etc/cloud.conf"
+var configFile = "/etc/cloud.conf"
 
 func InitOpenStackProvider(cfg string) {
 	configFile = cfg
 	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
 }
 
+// GetOpenStackProvider returns Openstack Instance
 func GetOpenStackProvider() (IOpenStack, error) {
+	var authOpts gophercloud.AuthOptions
+	var authURL string
+	var caFile string
 
-	if OsInstance == nil {
-		// Get config from file
-		authOpts, epOpts, err := GetConfigFromFile(configFile)
-		if err != nil {
-			// Get config from env
-			authOpts, epOpts, err = GetConfigFromEnv()
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// Authenticate Client
-		provider, err := openstack.AuthenticatedClient(authOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		// Init Nova ServiceClient
-		computeclient, err := openstack.NewComputeV2(provider, epOpts)
+	if OsInstance != nil {
+		return OsInstance, nil
+	}
+	// Get config from file
+	cfg, epOpts, err := GetConfigFromFile(configFile)
+	if err == nil {
+		authOpts = cfg.toAuthOptions()
+		authURL = authOpts.IdentityEndpoint
+		caFile = cfg.Global.CAFile
+	} else {
+		// Get config from env
+		authOpts, epOpts, err = GetConfigFromEnv()
 		if err != nil {
 			return nil, err
 		}
+		authURL = authOpts.IdentityEndpoint
+	}
 
-		// Init Cinder ServiceClient
-		blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
+	provider, err := openstack.NewClient(authURL)
+	if err != nil {
+		return nil, err
+	}
+	if caFile != "" {
+		roots, err := certutil.NewPool(caFile)
 		if err != nil {
 			return nil, err
 		}
+		config := &tls.Config{}
+		config.RootCAs = roots
+		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
+	}
 
-		// Init OpenStack
-		OsInstance = &OpenStack{
-			compute:      computeclient,
-			blockstorage: blockstorageclient,
-		}
+	err = openstack.Authenticate(provider, authOpts)
+	if err != nil {
+		return nil, err
+	}
+	// Init Nova ServiceClient
+	computeclient, err := openstack.NewComputeV2(provider, epOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init Cinder ServiceClient
+	blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init OpenStack
+	OsInstance = &OpenStack{
+		compute:      computeclient,
+		blockstorage: blockstorageclient,
 	}
 
 	return OsInstance, nil
