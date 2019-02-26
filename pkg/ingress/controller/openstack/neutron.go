@@ -27,94 +27,24 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
-	"github.com/gophercloud/gophercloud/pagination"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/utils"
-	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
-func (os *OpenStack) getFloatingIPByPortID(portID string) (*floatingips.FloatingIP, error) {
-	floatingIPList := make([]floatingips.FloatingIP, 0, 1)
-	opts := floatingips.ListOpts{
-		PortID: portID,
-	}
-	pager := floatingips.List(os.neutron, opts)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		f, err := floatingips.ExtractFloatingIPs(page)
-		if err != nil {
-			return false, err
-		}
-		floatingIPList = append(floatingIPList, f...)
-		if len(floatingIPList) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
+func (os *OpenStack) getFloatingIPs(listOpts floatingips.ListOpts) ([]floatingips.FloatingIP, error) {
+	allPages, err := floatingips.List(os.neutron, listOpts).AllPages()
 	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
+		return []floatingips.FloatingIP{}, err
 	}
-
-	if len(floatingIPList) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &floatingIPList[0], nil
-}
-
-// EnsureFloatingIP makes sure a floating IP is allocated for the port
-func (os *OpenStack) EnsureFloatingIP(portID string, floatingIPNetwork string, ingName string, ingNamespace string, clusterName string) (string, error) {
-	fip, err := os.getFloatingIPByPortID(portID)
+	allFIPs, err := floatingips.ExtractFloatingIPs(allPages)
 	if err != nil {
-		if err != ErrNotFound {
-			return "", fmt.Errorf("error getting floating ip for port %s: %v", portID, err)
-		}
-
-		log.WithFields(log.Fields{"portID": portID}).Debug("creating floating ip for port")
-
-		floatIPOpts := floatingips.CreateOpts{
-			FloatingNetworkID: floatingIPNetwork,
-			PortID:            portID,
-			Description:       fmt.Sprintf("Floating IP for Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
-		}
-		fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
-		if err != nil {
-			return "", fmt.Errorf("error creating floating ip for port %s: %v", portID, err)
-		}
-
-		log.WithFields(log.Fields{"portID": portID, "floatingip": fip.FloatingIP}).Info("floating ip for port created")
+		return []floatingips.FloatingIP{}, err
 	}
 
-	return fip.FloatingIP, nil
-}
-
-// DeleteFloatingIP deletes floating ip for the port
-func (os *OpenStack) DeleteFloatingIP(portID string) error {
-	fip, err := os.getFloatingIPByPortID(portID)
-	if err != nil {
-		if err != ErrNotFound {
-			return fmt.Errorf("error getting floating ip for port %s: %v", portID, err)
-		}
-
-		log.WithFields(log.Fields{"portID": portID}).Debug("floating ip not exists")
-
-		return nil
-	}
-
-	err = floatingips.Delete(os.neutron, fip.ID).ExtractErr()
-	if err != nil && !cpoerrors.IsNotFound(err) {
-		return fmt.Errorf("error deleting floating ip %s: %v", fip.ID, err)
-	}
-
-	log.WithFields(log.Fields{"floatingip": fip.FloatingIP}).Info("floating ip deleted")
-
-	return nil
+	return allFIPs, nil
 }
 
 // GetSubnet get a subnet by the given ID.
@@ -138,6 +68,44 @@ func (os *OpenStack) getPorts(listOpts ports.ListOpts) ([]ports.Port, error) {
 	}
 
 	return allPorts, nil
+}
+
+// EnsureFloatingIP makes sure a floating IP is allocated for the port
+func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, floatingIPNetwork string, description string) (string, error) {
+	listOpts := floatingips.ListOpts{PortID: portID}
+	fips, err := os.getFloatingIPs(listOpts)
+
+	// If needed, delete the floating IPs and return.
+	if needDelete {
+		for _, fip := range fips {
+			if err := floatingips.Delete(os.neutron, fip.ID).ExtractErr(); err != nil {
+				return "", err
+			}
+		}
+
+		return "", nil
+	}
+
+	if len(fips) > 1 {
+		return "", fmt.Errorf("more than one floating IPs for port %s found", portID)
+	}
+
+	var fip *floatingips.FloatingIP
+	if len(fips) == 0 {
+		floatIPOpts := floatingips.CreateOpts{
+			PortID:            portID,
+			FloatingNetworkID: floatingIPNetwork,
+			Description:       description,
+		}
+		fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
+		if err != nil {
+			return "", err
+		}
+	} else {
+		fip = &fips[0]
+	}
+
+	return fip.FloatingIP, nil
 }
 
 // GetSecurityGroups gets all the filtered security groups.
