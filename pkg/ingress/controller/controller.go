@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	log "github.com/sirupsen/logrus"
-
 	apiv1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,9 +41,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
+
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller/openstack"
-	"k8s.io/klog"
+	"k8s.io/cloud-provider-openstack/pkg/ingress/utils"
 )
 
 const (
@@ -73,6 +75,9 @@ const (
 	// floating ip to the load balancer VIP.
 	// Default to true.
 	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
+
+	// The IngressControllerTag that is added to the related resources.
+	IngressControllerTag = "octavia.ingress.kubernetes.io"
 )
 
 // EventType type of event associated with an informer
@@ -109,6 +114,7 @@ type Controller struct {
 	osClient            *openstack.OpenStack
 	kubeClient          kubernetes.Interface
 	config              config.Config
+	subnetCIDR          string
 }
 
 // IsValid returns true if the given Ingress either doesn't specify
@@ -325,6 +331,14 @@ func (c *Controller) Start() {
 	}
 	c.knownNodes = readyWorkerNodes
 
+	// Get subnet CIRD. The subnet CIRD will be used as source IP range for related security group rules.
+	subnet, err := c.osClient.GetSubnet(c.config.Octavia.SubnetID)
+	if err != nil {
+		log.Errorf("Failed to retrieve the subnet %s: %v", c.config.Octavia.SubnetID, err)
+		return
+	}
+	c.subnetCIDR = subnet.CIDR
+
 	go wait.Until(c.runWorker, time.Second, c.stopCh)
 	go wait.Until(c.nodeSyncLoop, 60*time.Second, c.stopCh)
 
@@ -339,11 +353,11 @@ func (c *Controller) nodeSyncLoop() {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
 	}
-	if nodeSlicesEqualForLB(readyWorkerNodes, c.knownNodes) {
+	if utils.NodeSlicesEqual(readyWorkerNodes, c.knownNodes) {
 		return
 	}
 
-	log.Infof("Detected change in list of current cluster nodes. New node set: %v", nodeNames(readyWorkerNodes))
+	log.Infof("Detected change in list of current cluster nodes. New node set: %v", utils.NodeNames(readyWorkerNodes))
 
 	// if no new nodes, then avoid update member
 	if len(readyWorkerNodes) == 0 {
@@ -368,7 +382,7 @@ func (c *Controller) nodeSyncLoop() {
 
 		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Debug("Starting to handle ingress")
 
-		lbName := getResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
+		lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 		loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 		if err != nil {
 			if err != openstack.ErrNotFound {
@@ -461,7 +475,8 @@ func (c *Controller) processItem(event Event) error {
 }
 
 func (c *Controller) deleteIngress(namespace, name string) error {
-	lbName := getResourceName(namespace, name, c.config.ClusterName)
+	key := fmt.Sprintf("%s/%s", namespace, name)
+	lbName := utils.GetResourceName(namespace, name, c.config.ClusterName)
 	loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 	if err != nil {
 		if err != openstack.ErrNotFound {
@@ -475,21 +490,67 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 		return err
 	}
 
+	if c.config.Octavia.ManageSecurityGroups {
+		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", namespace, name)}
+		tagString := strings.Join(sgTags, ",")
+		opts := groups.ListOpts{Tags: tagString}
+		sgs, err := c.osClient.GetSecurityGroups(opts)
+		if err != nil {
+			return fmt.Errorf("failed to get security groups for ingress %s: %v", key, err)
+		}
+
+		nodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
+		if err != nil {
+			return fmt.Errorf("failed to get nodes: %v", err)
+		}
+
+		for _, sg := range sgs {
+			if err = c.osClient.EnsurePortSecurityGroup(true, sg.ID, nodes); err != nil {
+				return fmt.Errorf("failed to operate on the port security groups for ingress %s: %v", key, err)
+			}
+			if _, err = c.osClient.EnsureSecurityGroup(true, "", "", sgTags); err != nil {
+				return fmt.Errorf("failed to delete the security groups for ingress %s: %v", key, err)
+			}
+		}
+
+		log.WithFields(log.Fields{"ingress": key}).Info("security group deleted")
+	}
+
 	return c.osClient.DeleteLoadbalancer(loadbalancer.ID)
 }
 
 func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
-	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
-	name := getResourceName(ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
+	ingName := ing.ObjectMeta.Name
+	ingNamespace := ing.ObjectMeta.Namespace
+	clusterName := c.config.ClusterName
 
-	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID, ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
+	key := fmt.Sprintf("%s/%s", ingNamespace, ingName)
+	name := utils.GetResourceName(ingNamespace, ingName, clusterName)
+
+	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName)
 	if err != nil {
 		return err
 	}
 
 	if strings.Contains(lb.Description, ing.ResourceVersion) {
-		log.WithFields(log.Fields{"ingress": ing.Name}).Info("ingress not change")
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress not change")
 		return nil
+	}
+
+	var nodePorts []int
+	var sgID string
+
+	if c.config.Octavia.ManageSecurityGroups {
+		log.WithFields(log.Fields{"ingress": key}).Info("ensuring security group")
+
+		sgDescription := fmt.Sprintf("Security group created for Ingress %s from cluster %s", key, clusterName)
+		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ingNamespace, ingName)}
+		sgID, err = c.osClient.EnsureSecurityGroup(false, name, sgDescription, sgTags)
+		if err != nil {
+			return fmt.Errorf("failed to prepare the security group for the ingress %s: %v", key, err)
+		}
+
+		log.WithFields(log.Fields{"sgID": sgID, "ingress": key}).Info("ensured security group")
 	}
 
 	listener, err := c.osClient.EnsureListener(name, lb.ID)
@@ -505,11 +566,13 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 
 	// Add default pool for the listener if 'backend' is defined
 	if ing.Spec.Backend != nil {
-		serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, ing.Spec.Backend.ServiceName)
+		serviceName := fmt.Sprintf("%s/%s", ingNamespace, ing.Spec.Backend.ServiceName)
 		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
 		if err != nil {
 			return err
 		}
+
+		nodePorts = append(nodePorts, nodePort)
 
 		if _, err = c.osClient.EnsurePoolMembers(false, name, lb.ID, listener.ID, &nodePort, nodeObjs); err != nil {
 			return err
@@ -552,13 +615,15 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 
 		for _, path := range rule.HTTP.Paths {
 			// make the pool name unique in the load balancer
-			poolName := hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
+			poolName := utils.Hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
 
-			serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, path.Backend.ServiceName)
+			serviceName := fmt.Sprintf("%s/%s", ingNamespace, path.Backend.ServiceName)
 			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort)
 			if err != nil {
 				return err
 			}
+
+			nodePorts = append(nodePorts, nodePort)
 
 			poolID, err := c.osClient.EnsurePoolMembers(false, poolName, lb.ID, "", &nodePort, nodeObjs)
 			if err != nil {
@@ -571,17 +636,30 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		}
 	}
 
-	address := lb.VipAddress
+	if c.config.Octavia.ManageSecurityGroups {
+		log.WithFields(log.Fields{"ingress": key, "sgID": sgID}).Info("ensuring security group rules")
+
+		if err := c.osClient.EnsureSecurityGroupRules(sgID, c.subnetCIDR, nodePorts); err != nil {
+			return fmt.Errorf("failed to ensure security group rules for Ingress %s: %v", ingName, err)
+		}
+
+		if err := c.osClient.EnsurePortSecurityGroup(false, sgID, nodeObjs); err != nil {
+			return fmt.Errorf("failed to operate port security group for Ingress %s: %v", ingName, err)
+		}
+
+		log.WithFields(log.Fields{"ingress": key, "sgID": sgID}).Info("ensured security group rules")
+	}
 
 	internalSetting := getStringFromIngressAnnotation(ing, IngressAnnotationInternal, "true")
 	isInternal, err := strconv.ParseBool(internalSetting)
 	if err != nil {
-		return fmt.Errorf("unknown %s annotation: %v", IngressAnnotationInternal, err)
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationInternal, err)
 	}
 
+	address := lb.VipAddress
 	// Allocate floating ip for loadbalancer vip if the external network is configured and the Ingress is not internal.
 	if !isInternal && c.config.Octavia.FloatingIPNetwork != "" {
-		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork, ing.ObjectMeta.Name, ing.ObjectMeta.Namespace, c.config.ClusterName); err != nil {
+		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork, ingName, ingNamespace, clusterName); err != nil {
 			return err
 		}
 	}
@@ -594,12 +672,12 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Successfully associated IP address %s to ingress %s", address, key))
 
 	// Add ingress resource version to the load balancer description
-	newDes := fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s, version: %s", newIng.Name, newIng.Namespace, c.config.ClusterName, newIng.ResourceVersion)
+	newDes := fmt.Sprintf("Kubernetes Ingress %s in namespace %s from cluster %s, version: %s", ingName, ingNamespace, clusterName, newIng.ResourceVersion)
 	if err = c.osClient.UpdateLoadBalancerDescription(lb.ID, newDes); err != nil {
 		return err
 	}
 
-	log.WithFields(log.Fields{"ingress": newIng.Name, "lbID": lb.ID}).Info("openstack resources for ingress created")
+	log.WithFields(log.Fields{"ingress": key, "lbID": lb.ID}).Info("openstack resources for ingress created")
 
 	return nil
 }
