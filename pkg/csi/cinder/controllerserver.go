@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/golang/protobuf/ptypes"
 
@@ -283,14 +284,12 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 		klog.V(3).Infof("Found existing snapshot %s on %s", name, volumeId)
 	} else if len(snapshots) > 1 {
-		klog.V(3).Infof("found multiple existing snapshots with selected name (%s) during create", name)
-		return nil, errors.New("multiple snapshots reported by Cinder with same name")
+		return nil, status.Errorf(codes.FailedPrecondition, "multiple snapshots reported by Cinder with same name: %v", err)
 	} else {
 		// TODO: Delegate the check to openstack itself and ignore the conflict
 		snap, err = cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
 		if err != nil {
-			klog.V(3).Infof("Failed to Create snapshot: %v", err)
-			return nil, err
+			return nil, status.Errorf(codes.Internal, "Failed to create snapshot %v", err)
 		}
 
 		klog.V(3).Infof("CreateSnapshot %s on %s", name, volumeId)
@@ -303,8 +302,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	err = cloud.WaitSnapshotReady(snap.ID)
 	if err != nil {
-		klog.V(3).Infof("Failed to WaitSnapshotReady: %v", err)
-		return nil, err
+		return nil, status.Errorf(codes.Aborted, "Failed to WaitSnapshotReady: %v", err)
 	}
 
 	return &csi.CreateSnapshotResponse{
