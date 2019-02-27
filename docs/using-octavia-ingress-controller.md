@@ -17,17 +17,18 @@ After creating a Kubernetes cluster in Magnum, the most common way to expose the
 
 - The cost of Kubernetes Service is a little bit high if it's one-to-one mapping from the service to Octavia load balancer, the customers have to pay for a load balancer per exposed service, which can get expensive.
 - There is no filtering, no routing, etc. for the service. This means you can send almost any kind of traffic to it, like HTTP, TCP, UDP, Websockets, gRPC, or whatever.
-- The traditional ingress controllers such as NGINX ingress controller,  HAProxy ingress controller, Træfik, etc. don't make much sense in the cloud environment because the user still needs to expose service for the ingress controller itself which may increase the network delay and decrease the performance of the application.
+- The traditional ingress controllers(such as NGINX ingress controller,  HAProxy ingress controller, Traefik ingress controller, etc.) don't make much sense in the cloud environment because they still rely on the cloud load balancing service to expose themselves behind a Service of LoadBalancer type, not to mention the overhead of managing the extra softwares.
 
-The octavia-ingress-controller could solve all the above problems in the OpenStack environment by creating a single load balancer for multiple [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) type services in an Ingress. In order to use the octavia-ingress-controller in Kubernetes cluster, use the value `openstack` for the annotation `kubernetes.io/ingress.class` in the metadata section of the Ingress Resource as shown below:
+The octavia-ingress-controller could solve all the above problems in the OpenStack environment by creating a single load balancer for multiple [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) type services in an Ingress. In order to use the octavia-ingress-controller in Kubernetes cluster, set the annotation `kubernetes.io/ingress.class` in the `metadata` section of the Ingress resource as shown below:
 
-```bash
-annotations: kubernetes.io/ingress.class: openstack
+```yaml
+annotations:
+  kubernetes.io/ingress.class: "openstack"
 ```
 
-## How to deploy octavia-ingress-controller
+## Deploy octavia-ingress-controller in the Kubernetes cluster
 
-In the guide, we will deploy octavia-ingress-controller as a deployment(with only one pod) in the kube-system namespace in the cluster. Alternatively, you can also deploy the controller as a static pod by providing a manifest file in the `/etc/kubernetes/manifests` folder in a typical Kubernetes cluster installed by kubeadm. All the manifest files in this guide are saved in `/etc/kubernetes/octavia-ingress-controller` folder, so create the folder first.
+In the guide, we will deploy octavia-ingress-controller as a StatefulSet(with only one pod) in the kube-system namespace in the cluster. Alternatively, you can also deploy the controller as a static pod by providing a manifest file in the `/etc/kubernetes/manifests` folder in a typical Kubernetes cluster installed by kubeadm. All the manifest files in this guide are saved in `/etc/kubernetes/octavia-ingress-controller` folder, so create the folder first.
 
 ```shell
 mkdir -p /etc/kubernetes/octavia-ingress-controller
@@ -64,7 +65,7 @@ kubectl apply -f /etc/kubernetes/octavia-ingress-controller/serviceaccount.yaml
 
 ### Prepare octavia-ingress-controller configuration
 
-The octavia-ingress-controller needs to communicate with OpenStack cloud to create resources corresponding to the Kubernetes ingress resource, so the credentials of an OpenStack user(doesn't need to be the admin user) need to be provided. Additionally, in order to differentiate the ingresses from different kubernetes cluster, `cluster_name` needs to be unique.
+The octavia-ingress-controller needs to communicate with OpenStack cloud to create resources corresponding to the Kubernetes Ingress resource, so the credentials of an OpenStack user(doesn't need to be the admin user) need to be provided in `openstack` section. Additionally, in order to differentiate the Ingresses between kubernetes clusters, `cluster_name` needs to be unique.
 
 ```shell
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/config.yaml
@@ -90,6 +91,30 @@ EOF
 kubectl apply -f /etc/kubernetes/octavia-ingress-controller/config.yaml
 ```
 
+Here are several other config options are not included in the example configuration above:
+
+- Options for connecting to the kubernetes cluster. The configuration above will leverage the service account credential which is going to be injected into the pod automatically(see more details [here](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#accessing-the-api-from-a-pod)). However, there may be some reasons to specify the configuration explicitly.  
+
+    ```yaml
+    kubernetes:
+      api_host: https://127.0.0.1:6443
+      kubeconfig: /home/ubuntu/.kube/config
+    ```
+
+- Options for security group management. The octavia-ingress-controller creates an Octavia load balancer per Ingress and adds the worker nodes as members of the load balancer. In order for the Octavia amphorae talking to the Service NodePort, either the kubernetes cluster administrator manually manages the security group for the worker nodes or leave it to octavia-ingress-controller. For the latter case, you should config:
+
+    ```yaml
+    octavia:
+      manage_security_groups: true
+    ```
+
+    Notes for the security group:
+
+    - The security group name is in the format: `k8s_ing_<cluster-name>_<ingress-namespace>_<ingress-name>`
+    - The security group description is in the format: `Security group created for Ingress <ingress-namespace>/<ingress-name> from cluster <cluster-name>`
+    - The security group has tags: `["octavia.ingress.kubernetes.io", "<ingress-namespace>_<ingress-name>"]`
+    - The security group is associated with all the Neutron ports of the Kubernetes worker nodes. 
+
 ### Deploy octavia-ingress-controller
 
 ```shell
@@ -97,7 +122,7 @@ image="docker.io/k8scloudprovider/octavia-ingress-controller:lastest"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
-kind: Deployment
+kind: StatefulSet
 apiVersion: apps/v1
 metadata:
   name: octavia-ingress-controller
@@ -151,7 +176,7 @@ EOF
 kubectl apply -f /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ```
 
-Wait until the deployment is up and running.
+Wait until the StatefulSet is up and running.
 
 ## Setting up HTTP Load Balancing with Ingress
 
@@ -177,7 +202,7 @@ Next, we create an Ingress resource to make your HTTP web server application pub
 
 ### Create an Ingress resource
 
-The following command defines an Ingress resource that directs traffic that requests `http://api.sample.com/ping` to the `hostname-server` Service:
+The following command defines an Ingress resource that forwards traffic that requests `http://api.sample.com/ping` to the `hostname-server` Service:
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: extensions/v1beta1
@@ -186,6 +211,7 @@ metadata:
   name: test-octavia-ingress
   annotations:
     kubernetes.io/ingress.class: "openstack"
+    octavia.ingress.kubernetes.io/internal: "false"
 spec:
   rules:
   - host: api.sample.com
@@ -198,9 +224,11 @@ spec:
 EOF
 ```
 
-Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running in your cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `hostname-server` NodePort Service you exposed.
+Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running inside the cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `hostname-server` NodePort Service you exposed.
 
-Verify that Ingress Resource has been created. Please note that the IP address for the Ingress Resource will not be defined right away (wait a few moments for the ADDRESS field to get populated):
+> If you don't want your Ingress to be accessible from the public internet, you could change the annotation `octavia.ingress.kubernetes.io/internal` to true.
+
+Verify that Ingress Resource has been created. Please note that the IP address for the Ingress Resource will not be defined right away (wait for the ADDRESS field to get populated):
 
 ```bash
 $ kubectl get ing
@@ -212,7 +240,7 @@ NAME                   HOSTS            ADDRESS      PORTS     AGE
 test-octavia-ingress   api.sample.com   172.24.4.9   80        9m
 ```
 
-For testing purpose, you can log into a host that has network connection with the OpenStack cloud, you should be able to access the backend service by sending HTTP request to the domain name specified in the Ingress Resource:
+For testing purpose, you can log into a host that could connect to the floating IP, you should be able to access the backend service by sending HTTP request to the domain name specified in the Ingress resource:
 
 ```shell
 $ IPADDRESS=172.24.4.9
