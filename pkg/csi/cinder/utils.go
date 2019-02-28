@@ -7,6 +7,8 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/klog"
 )
 
@@ -34,9 +36,10 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 	return &csi.VolumeCapability_AccessMode{Mode: mode}
 }
 
-func NewControllerServer(d *CinderDriver) *controllerServer {
+func NewControllerServer(d *CinderDriver, cloud openstack.IOpenStack) *controllerServer {
 	return &controllerServer{
 		Driver: d,
+		Cloud:  cloud,
 	}
 }
 
@@ -46,9 +49,11 @@ func NewIdentityServer(d *CinderDriver) *identityServer {
 	}
 }
 
-func NewNodeServer(d *CinderDriver) *nodeServer {
+func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata openstack.IMetadata) *nodeServer {
 	return &nodeServer{
-		Driver: d,
+		Driver:   d,
+		Mount:    mount,
+		Metadata: metadata,
 	}
 }
 

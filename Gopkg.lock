@@ -380,6 +380,17 @@
   version = "v1.0.2"
 
 [[projects]]
+  digest = "1:c9ba37d3709f57185b60f587a6282378feaff2aa3cddc28a56770704e3f96b98"
+  name = "github.com/kubernetes-csi/csi-test"
+  packages = [
+    "pkg/sanity",
+    "utils",
+  ]
+  pruneopts = "UT"
+  revision = "5b1e3786b7c8f7ca514b40e882a0b5dc36e4c842"
+  version = "v1.1.0"
+
+[[projects]]
   digest = "1:c568d7727aa262c32bdf8a3f7db83614f7af0ed661474b24588de635c20024c7"
   name = "github.com/magiconair/properties"
   packages = ["."]
@@ -1563,6 +1574,7 @@
     "github.com/gophercloud/gophercloud/testhelper/client",
     "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/gorilla/mux",
+    "github.com/kubernetes-csi/csi-test/pkg/sanity",
     "github.com/mitchellh/go-homedir",
     "github.com/mitchellh/mapstructure",
     "github.com/onsi/ginkgo",

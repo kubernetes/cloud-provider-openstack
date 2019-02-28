@@ -24,7 +24,6 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,14 +34,16 @@ import (
 
 type controllerServer struct {
 	Driver *CinderDriver
+	Cloud  openstack.IOpenStack
 }
 
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 
 	// Volume Name
 	volName := req.GetName()
+
 	if len(volName) == 0 {
-		volName = uuid.NewUUID().String()
+		return nil, status.Error(codes.InvalidArgument, "")
 	}
 
 	// Volume Size - Default is 1 GiB
@@ -65,12 +66,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		volAvailability = req.GetParameters()["availability"]
 	}
 
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
+	cloud := cs.Cloud
 
 	// Verify a volume with the provided name doesn't already exist for this tenant
 	volumes, err := cloud.GetVolumesByName(volName)
@@ -138,16 +134,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
-
 	// Volume Delete
 	volID := req.GetVolumeId()
-	err = cloud.DeleteVolume(volID)
+	err := cs.Cloud.DeleteVolume(volID)
 	if err != nil {
 		klog.V(3).Infof("Failed to DeleteVolume: %v", err)
 		return nil, err
@@ -160,30 +149,23 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
-
 	// Volume Attach
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
 
-	_, err = cloud.AttachVolume(instanceID, volumeID)
+	_, err := cs.Cloud.AttachVolume(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to AttachVolume: %v", err)
 		return nil, err
 	}
 
-	err = cloud.WaitDiskAttached(instanceID, volumeID)
+	err = cs.Cloud.WaitDiskAttached(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitDiskAttached: %v", err)
 		return nil, err
 	}
 
-	devicePath, err := cloud.GetAttachmentDiskPath(instanceID, volumeID)
+	devicePath, err := cs.Cloud.GetAttachmentDiskPath(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
 		return nil, err
@@ -202,24 +184,17 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
-
 	// Volume Detach
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
 
-	err = cloud.DetachVolume(instanceID, volumeID)
+	err := cs.Cloud.DetachVolume(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to DetachVolume: %v", err)
 		return nil, err
 	}
 
-	err = cloud.WaitDiskDetached(instanceID, volumeID)
+	err = cs.Cloud.WaitDiskDetached(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitDiskDetached: %v", err)
 		return nil, err
@@ -231,14 +206,8 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
 
-	vlist, err := cloud.ListVolumes()
+	vlist, err := cs.Cloud.ListVolumes()
 	if err != nil {
 		klog.V(3).Infof("Failed to ListVolumes: %v", err)
 		return nil, err
@@ -260,12 +229,6 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 }
 
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
 
 	name := req.Name
 	volumeId := req.SourceVolumeId
@@ -273,7 +236,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	description := ""
 
 	// Verify a snapshot with the provided name doesn't already exist for this tenant
-	snapshots, err := cloud.GetSnapshotByNameAndVolumeID(name, volumeId)
+	snapshots, err := cs.Cloud.GetSnapshotByNameAndVolumeID(name, volumeId)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 	}
@@ -288,7 +251,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, errors.New("multiple snapshots reported by Cinder with same name")
 	} else {
 		// TODO: Delegate the check to openstack itself and ignore the conflict
-		snap, err = cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
+		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
 		if err != nil {
 			klog.V(3).Infof("Failed to Create snapshot: %v", err)
 			return nil, err
@@ -302,7 +265,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		klog.Errorf("Error to convert time to timestamp: %v", err)
 	}
 
-	err = cloud.WaitSnapshotReady(snap.ID)
+	err = cs.Cloud.WaitSnapshotReady(snap.ID)
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitSnapshotReady: %v", err)
 		return nil, err
@@ -320,35 +283,23 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 }
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
 
 	id := req.SnapshotId
 
 	// Delegate the check to openstack itself
-	err = cloud.DeleteSnapshot(id)
+	err := cs.Cloud.DeleteSnapshot(id)
 	if err != nil {
-		klog.V(3).Infof("Faled to Delete snapshot: %v", err)
+		klog.V(3).Infof("Failed to Delete snapshot: %v", err)
 		return nil, err
 	}
 	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	// Get OpenStack Provider
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
-		return nil, err
-	}
 
 	filters := map[string]string{}
 	// FIXME: honor the limit, offset and filters later
-	vlist, err := cloud.ListSnapshots(int(req.MaxEntries), 0, filters)
+	vlist, err := cs.Cloud.ListSnapshots(int(req.MaxEntries), 0, filters)
 	if err != nil {
 		klog.V(3).Infof("Failed to ListSnapshots: %v", err)
 		return nil, err
