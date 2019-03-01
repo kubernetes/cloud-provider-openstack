@@ -331,7 +331,7 @@ func (c *Controller) Start() {
 	}
 	c.knownNodes = readyWorkerNodes
 
-	// Get subnet CIRD. The subnet CIRD will be used as source IP range for related security group rules.
+	// Get subnet CIDR. The subnet CIDR will be used as source IP range for related security group rules.
 	subnet, err := c.osClient.GetSubnet(c.config.Octavia.SubnetID)
 	if err != nil {
 		log.Errorf("Failed to retrieve the subnet %s: %v", c.config.Octavia.SubnetID, err)
