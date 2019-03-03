@@ -19,7 +19,7 @@ After creating a Kubernetes cluster in Magnum, the most common way to expose the
 - There is no filtering, no routing, etc. for the service. This means you can send almost any kind of traffic to it, like HTTP, TCP, UDP, Websockets, gRPC, or whatever.
 - The traditional ingress controllers(such as NGINX ingress controller,  HAProxy ingress controller, Traefik ingress controller, etc.) don't make much sense in the cloud environment because they still rely on the cloud load balancing service to expose themselves behind a Service of LoadBalancer type, not to mention the overhead of managing the extra softwares.
 
-The octavia-ingress-controller could solve all the above problems in the OpenStack environment by creating a single load balancer for multiple [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) type services in an Ingress. In order to use the octavia-ingress-controller in Kubernetes cluster, set the annotation `kubernetes.io/ingress.class` in the `metadata` section of the Ingress resource as shown below:
+The octavia-ingress-controller could solve all the above problems in the OpenStack environment by creating a single load balancer for multiple [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) type services in an Ingress. In order to use the octavia-ingress-controller in Kubernetes cluster, set the annotation `kubernetes.io/ingress.class` in the `metadata` section of the Ingress resource as shown below:
 
 ```yaml
 annotations:
@@ -118,7 +118,7 @@ Here are several other config options are not included in the example configurat
 ### Deploy octavia-ingress-controller
 
 ```shell
-image="docker.io/k8scloudprovider/octavia-ingress-controller:lastest"
+image="docker.io/k8scloudprovider/octavia-ingress-controller:latest"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
