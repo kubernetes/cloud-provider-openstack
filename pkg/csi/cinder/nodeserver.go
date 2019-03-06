@@ -230,6 +230,10 @@ func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVo
 	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeGetVolumeStats is not yet implemented"))
 }
 
+func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeExpandVolume is not yet implemented"))
+}
+
 func getNodeIDMountProvider() (string, error) {
 
 	// Get Mount Provider
