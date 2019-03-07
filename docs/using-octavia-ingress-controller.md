@@ -65,7 +65,7 @@ kubectl apply -f /etc/kubernetes/octavia-ingress-controller/serviceaccount.yaml
 
 ### Prepare octavia-ingress-controller configuration
 
-The octavia-ingress-controller needs to communicate with OpenStack cloud to create resources corresponding to the Kubernetes Ingress resource, so the credentials of an OpenStack user(doesn't need to be the admin user) need to be provided in `openstack` section. Additionally, in order to differentiate the Ingresses between kubernetes clusters, `cluster_name` needs to be unique.
+The octavia-ingress-controller needs to communicate with OpenStack cloud to create resources corresponding to the Kubernetes Ingress resource, so the credentials of an OpenStack user(doesn't need to be the admin user) need to be provided in `openstack` section. Additionally, in order to differentiate the Ingresses between kubernetes clusters, `cluster-name` needs to be unique.
 
 ```shell
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/config.yaml
@@ -77,16 +77,16 @@ metadata:
   namespace: kube-system
 data:
   config: |
-    cluster_name: ${cluster_name}
+    cluster-name: ${cluster_name}
     openstack:
-      auth_url: ${auth_url}
-      user_id: ${user_id}
+      auth-url: ${auth_url}
+      user-id: ${user_id}
       password: ${password}
-      project_id: ${project_id}
+      project-id: ${project_id}
       region: ${region}
     octavia:
-      subnet_id: ${subnet_id}
-      floating_network_id: ${public_net_id}
+      subnet-id: ${subnet_id}
+      floating-network-id: ${public_net_id}
 EOF
 kubectl apply -f /etc/kubernetes/octavia-ingress-controller/config.yaml
 ```
@@ -97,7 +97,7 @@ Here are several other config options are not included in the example configurat
 
     ```yaml
     kubernetes:
-      api_host: https://127.0.0.1:6443
+      api-host: https://127.0.0.1:6443
       kubeconfig: /home/ubuntu/.kube/config
     ```
 
@@ -105,7 +105,7 @@ Here are several other config options are not included in the example configurat
 
     ```yaml
     octavia:
-      manage_security_groups: true
+      manage-security-groups: true
     ```
 
     Notes for the security group:

@@ -23,7 +23,7 @@ import (
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	ClusterName string        `mapstructure:"cluster_name"`
+	ClusterName string        `mapstructure:"cluster-name"`
 	Kubernetes  kubeConfig    `mapstructure:"kubernetes"`
 	OpenStack   osConfig      `mapstructure:"openstack"`
 	Octavia     octaviaConfig `mapstructure:"octavia"`
@@ -32,7 +32,7 @@ type Config struct {
 // Configuration for connecting to Kubernetes API server, either api_host or kubeconfig should be configured.
 type kubeConfig struct {
 	// (Optional)Kubernetes API server host address.
-	ApiserverHost string `mapstructure:"api_host"`
+	ApiserverHost string `mapstructure:"api-host"`
 
 	// (Optional)Kubeconfig file used to connect to Kubernetes cluster.
 	KubeConfig string `mapstructure:"kubeconfig"`
