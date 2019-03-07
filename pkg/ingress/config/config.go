@@ -23,7 +23,7 @@ import (
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	ClusterName string        `mapstructure:"cluster_name"`
+	ClusterName string        `mapstructure:"cluster-name"`
 	Kubernetes  kubeConfig    `mapstructure:"kubernetes"`
 	OpenStack   osConfig      `mapstructure:"openstack"`
 	Octavia     octaviaConfig `mapstructure:"octavia"`
@@ -32,7 +32,7 @@ type Config struct {
 // Configuration for connecting to Kubernetes API server, either api_host or kubeconfig should be configured.
 type kubeConfig struct {
 	// (Optional)Kubernetes API server host address.
-	ApiserverHost string `mapstructure:"api_host"`
+	ApiserverHost string `mapstructure:"api-host"`
 
 	// (Optional)Kubeconfig file used to connect to Kubernetes cluster.
 	KubeConfig string `mapstructure:"kubeconfig"`
@@ -41,29 +41,29 @@ type kubeConfig struct {
 // OpenStack credentials configuration, the section is required.
 type osConfig struct {
 	Username   string
-	UserID     string `mapstructure:"user_id"`
-	TrustID    string `mapstructure:"trust_id"`
+	UserID     string `mapstructure:"user-id"`
+	TrustID    string `mapstructure:"trust-id"`
 	Password   string
-	ProjectID  string `mapstructure:"project_id"`
-	AuthURL    string `mapstructure:"auth_url"`
+	ProjectID  string `mapstructure:"project-id"`
+	AuthURL    string `mapstructure:"auth-url"`
 	Region     string
-	DomainID   string `mapstructure:"domain_id"`
-	DomainName string `mapstructure:"domain_name"`
-	CAFile     string `mapstructure:"ca_file"`
+	DomainID   string `mapstructure:"domain-id"`
+	DomainName string `mapstructure:"domain-name"`
+	CAFile     string `mapstructure:"ca-file"`
 }
 
 // Octavia service related configuration
 type octaviaConfig struct {
 	// (Required)Subnet ID to create the load balancer.
-	SubnetID string `mapstructure:"subnet_id"`
+	SubnetID string `mapstructure:"subnet-id"`
 
 	// (Optional)Public network ID to create floating IP.
 	// If empty, no floating IP will be allocated to the load balancer vip.
-	FloatingIPNetwork string `mapstructure:"floating_network_id"`
+	FloatingIPNetwork string `mapstructure:"floating-network-id"`
 
 	// (Optional)If the ingress controller should manage the security groups attached to the cluster nodes.
 	// Default is false.
-	ManageSecurityGroups bool `mapstructure:"manage_security_groups"`
+	ManageSecurityGroups bool `mapstructure:"manage-security-groups"`
 }
 
 // ToAuthOptions gets openstack auth options
