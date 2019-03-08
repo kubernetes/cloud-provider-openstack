@@ -26,134 +26,95 @@
 
 
 [[constraint]]
-  name = "github.com/container-storage-interface/spec"
-  version = "1.0.0"
-
-[[constraint]]
-  branch = "master"
-  name = "k8s.io/klog"
-
-[[constraint]]
   branch = "master"
   name = "github.com/gophercloud/gophercloud"
 
 [[constraint]]
-  name = "github.com/gorilla/mux"
-  version = "1.6.2"
+  branch = "master"
+  name = "github.com/gophercloud/utils"
 
 [[constraint]]
   name = "github.com/kubernetes-sigs/sig-storage-lib-external-provisioner"
-  version = "v2.1.0"
-
-[[constraint]]
-  name = "github.com/mitchellh/go-homedir"
-  version = "1.0.0"
-
-[[constraint]]
-  name = "github.com/mitchellh/mapstructure"
-  version = "1.0.0"
-
-[[constraint]]
-  name = "github.com/onsi/ginkgo"
-  version = "1.6.0"
-
-[[constraint]]
-  name = "github.com/onsi/gomega"
-  version = "1.4.1"
-
-[[constraint]]
-  name = "github.com/pborman/uuid"
-  version = "1.2.0"
-
-[[constraint]]
-  name = "github.com/prometheus/client_golang"
-  version = "0.8.0"
-
-[[constraint]]
-  name = "github.com/sirupsen/logrus"
-  version = "1.0.6"
-
-[[constraint]]
-  name = "github.com/spf13/cobra"
-  version = "0.0.3"
-
-[[constraint]]
-  name = "github.com/spf13/pflag"
-  version = "1.0.2"
-
-[[constraint]]
-  name = "github.com/spf13/viper"
-  version = "1.2.0"
-
-[[constraint]]
-  name = "github.com/stretchr/testify"
-  version = "1.2.2"
-
-[[constraint]]
   branch = "master"
+
+[[constraint]]
   name = "golang.org/x/crypto"
+  branch = "master"
 
 [[constraint]]
-  branch = "master"
   name = "golang.org/x/net"
-
-[[constraint]]
-  name = "google.golang.org/grpc"
-  version = "1.14.0"
-
-[[constraint]]
-  name = "gopkg.in/gcfg.v1"
-  version = "1.2.3"
-
-[[override]]
-  name = "gopkg.in/yaml.v2"
-  version = "2.2.1"
-
-[[override]]
-  name = "k8s.io/api"
-  version = "kubernetes-1.13.0"
-
-[[override]]
-  name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.0"
-
-[[override]]
-  name = "k8s.io/apiserver"
-  version = "kubernetes-1.13.0"
-
-[[override]]
-  name = "k8s.io/client-go"
-  version = "kubernetes-1.13.0"
-
-[[override]]
-  name = "k8s.io/kubernetes"
-  version = "v1.13.0"
-
-[[constraint]]
   branch = "master"
+
+[[constraint]]
+  name = "golang.org/x/sys"
+  branch = "master"
+
+[[constraint]]
   name = "k8s.io/utils"
+  branch = "master"
+
+[[constraint]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.14.0-beta.1"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.14.0-beta.1"
+
+[[constraint]]
+  name = "k8s.io/apiserver"
+  version = "kubernetes-1.14.0-beta.1"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.14.0-beta.1"
+
+[[constraint]]
+  name = "k8s.io/cloud-provider"
+  version = "kubernetes-1.14.0-beta.1"
+
+[[constraint]]
+  name = "k8s.io/component-base"
+  version = "kubernetes-1.14.0-beta.1"
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "v1.14.0-beta.1"
+
+# Picked up from k/k Godeps/Godeps.json
+[[override]]
+name = "sigs.k8s.io/structured-merge-diff"
+revision = "e5e029740eb81ee0217ecf9d950c25a0eeb9688a"
+
+# Picked up from k/k Godeps/Godeps.json
+# "v21.3.0"
+[[override]]
+name = "github.com/Azure/azure-sdk-for-go"
+revision = "da91af54816b4cf72949c225a2d0980f51fab01b"
+
+# Picked up from k/k Godeps/Godeps.json
+# "PROMOTED-488"
+[[override]]
+name = "github.com/vmware/photon-controller-go-sdk"
+revision = "4a435daef6ccd3d0edaac1161e76f51a70c2589a"
+
+# Picked up from k/k Godeps/Godeps.json
+# "v4.1.0-19-g5858425f75500d"
+[[override]]
+name = "github.com/evanphx/json-patch"
+revision = "5858425f75500d40c52783dce87d085a483ce135"
+
+# Picked up from k/k Godeps/Godeps.json
+# "docs-v1.12.0-rc4-2016-07-15-9510-ga9fbbdc8dd8794"
+[[override]]
+name = "github.com/docker/docker"
+revision = "a9fbbdc8dd8794b20af358382ab780559bca589d"
 
 # For dependency below: Refer to issue https://github.com/golang/dep/issues/1799
 [[override]]
 name = "gopkg.in/fsnotify.v1"
 source = "https://github.com/fsnotify/fsnotify.git"
 version="v1.4.7"
-
-# Picked up from k/k Godeps/Godeps.json
-# "docs-v1.12.0-rc4-2016-07-15-9510-ga9fbbdc"
-[[override]]
-name = "github.com/docker/docker"
-revision = "a9fbbdc8dd8794b20af358382ab780559bca589d"
-
-# Picked up from k/k Godeps/Godeps.json
-# "v2.6.0-rc.1-209-gedc3ab2"
-[[override]]
-name = "github.com/docker/distribution"
-revision="edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
-
-[[override]]
-name = "bitbucket.org/ww/goautoneg"
-source = "https://github.com/munnerz/goautoneg.git"
 
 [prune]
   go-tests = true

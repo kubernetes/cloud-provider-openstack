@@ -240,7 +240,7 @@ func (attacher *cinderDiskAttacher) WaitForAttach(spec *volume.Spec, devicePath 
 					return "", err
 				}
 			}
-			exists, err := volumeutil.PathExists(devicePath)
+			exists, err := mount.PathExists(devicePath)
 			if exists && err == nil {
 				klog.Infof("Successfully found attached Cinder disk %q at %v.", volumeID, devicePath)
 				return devicePath, nil
@@ -406,7 +406,7 @@ func (detacher *cinderDiskDetacher) Detach(volumeName string, nodeName types.Nod
 }
 
 func (detacher *cinderDiskDetacher) UnmountDevice(deviceMountPath string) error {
-	return volumeutil.UnmountPath(deviceMountPath, detacher.mounter)
+	return mount.CleanupMountPoint(deviceMountPath, detacher.mounter, false /* extensiveMountPointCheck */)
 }
 
 func (attacher *cinderDiskAttacher) nodeInstanceID(nodeName types.NodeName) (string, error) {
