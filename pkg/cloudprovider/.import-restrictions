@@ -1,15 +1,23 @@
 {
 	"Rules": [{
-		"SelectorRegexp": "k8s[.]io",
-		"AllowedPrefixes": [
-			"k8s.io/api",
-			"k8s.io/client-go",
-			"k8s.io/cloud-provider",
-			"k8s.io/klog",
-			"k8s.io/utils"
-		],
-		"ForbiddenPrefixes": [
-			"k8s.io/kubernetes"
-		]
-	}]
+			"SelectorRegexp": "^k8s[.]io",
+			"AllowedPrefixes": [
+				"k8s.io/api",
+				"k8s.io/client-go",
+				"k8s.io/cloud-provider",
+				"k8s.io/klog",
+				"k8s.io/utils"
+			],
+			"ForbiddenPrefixes": [
+				"k8s.io/kubernetes"
+			]
+		},
+		{
+			"SelectorRegexp": "^sigs[.]k8s[.]io",
+			"AllowedPrefixes": [
+				"sigs.k8s.io/yaml",
+				"sigs.k8s.io/structured-merge-diff"
+			]
+		}
+	]
 }

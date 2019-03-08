@@ -17,9 +17,10 @@ limitations under the License.
 package shareoptions
 
 import (
+	"fmt"
 	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
-	volumeutil "k8s.io/kubernetes/pkg/volume/util"
+	"k8s.io/cloud-provider/volume/helpers"
 )
 
 // ShareOptions contains options for provisioning and attaching a share
@@ -61,12 +62,17 @@ func NewShareOptions(volOptions *controller.VolumeOptions) (*ShareOptions, error
 		return nil, err
 	}
 
-	setOfZones, err := volumeutil.ZonesToSet(opts.Zones)
+	setOfZones, err := helpers.ZonesToSet(opts.Zones)
 	if err != nil {
 		return nil, err
 	}
 
-	opts.Zones = volumeutil.ChooseZoneForVolume(setOfZones, volOptions.PVC.GetName())
+	zones := helpers.ChooseZonesForVolume(setOfZones, volOptions.PVC.GetName(), 1)
+	if zones.Len() == 0 {
+		return nil, fmt.Errorf("could not find a zone")
+	} else {
+		opts.Zones = zones.List()[0]
+	}
 
 	return opts, nil
 }

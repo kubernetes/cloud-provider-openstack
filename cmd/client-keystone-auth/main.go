@@ -29,8 +29,8 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	kflag "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	kflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog"
 )
 

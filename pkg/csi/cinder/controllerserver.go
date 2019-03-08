@@ -28,8 +28,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/volume/util"
 	"k8s.io/klog"
-	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 )
 
 type controllerServer struct {
@@ -49,7 +49,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if req.GetCapacityRange() != nil {
 		volSizeBytes = int64(req.GetCapacityRange().GetRequiredBytes())
 	}
-	volSizeGB := int(volumeutil.RoundUpSize(volSizeBytes, 1024*1024*1024))
+	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
 	// Volume Type
 	volType := req.GetParameters()["type"]

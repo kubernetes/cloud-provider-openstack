@@ -25,11 +25,11 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	kflag "k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	kflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/logs"
 )
 
 var (
