@@ -277,7 +277,7 @@
     "testhelper/client",
   ]
   pruneopts = "UT"
-  revision = "b18d22ae2c8b9ef046c980e62422369b5aea953f"
+  revision = "f83aee3da90f3f337d024070e2e68b04fb035149"
 
 [[projects]]
   branch = "master"
