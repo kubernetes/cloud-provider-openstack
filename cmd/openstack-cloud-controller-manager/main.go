@@ -151,7 +151,6 @@ func newControllerInitializers() map[string]initFunc {
 	controllers := map[string]initFunc{}
 	controllers["cloud-node"] = startCloudNodeController
 	controllers["cloud-node-lifecycle"] = startCloudNodeLifecycleController
-	controllers["persistentvolume-binder"] = startPersistentVolumeLabelController
 	controllers["service"] = startServiceController
 	controllers["route"] = startRouteController
 	return controllers
@@ -186,17 +185,6 @@ func startCloudNodeLifecycleController(ctx *cloudcontrollerconfig.CompletedConfi
 	}
 
 	go cloudNodeLifecycleController.Run(stopCh)
-
-	return nil, true, nil
-}
-
-func startPersistentVolumeLabelController(ctx *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface, stopCh <-chan struct{}) (http.Handler, bool, error) {
-	// Start the PersistentVolumeLabelController
-	pvlController := cloudcontrollers.NewPersistentVolumeLabelController(
-		ctx.ClientBuilder.ClientOrDie("pvl-controller"),
-		cloud,
-	)
-	go pvlController.Run(5, stopCh)
 
 	return nil, true, nil
 }

@@ -25,11 +25,11 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	th "github.com/gophercloud/gophercloud/testhelper"
 	fakeclient "github.com/gophercloud/gophercloud/testhelper/client"
-	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 func TestChooseExportLocation(t *testing.T) {

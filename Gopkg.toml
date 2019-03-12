@@ -24,7 +24,6 @@
 #   go-tests = true
 #   unused-packages = true
 
-
 [[constraint]]
   branch = "master"
   name = "github.com/gophercloud/gophercloud"
@@ -32,10 +31,6 @@
 [[constraint]]
   branch = "master"
   name = "github.com/gophercloud/utils"
-
-[[constraint]]
-  name = "github.com/kubernetes-sigs/sig-storage-lib-external-provisioner"
-  branch = "master"
 
 [[constraint]]
   name = "golang.org/x/crypto"
@@ -55,36 +50,40 @@
 
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.14.0-beta.1"
+  version = "kubernetes-1.14.0-beta.2"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.14.0-beta.1"
+  version = "kubernetes-1.14.0-beta.2"
 
 [[constraint]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.14.0-beta.1"
+  version = "kubernetes-1.14.0-beta.2"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.14.0-beta.1"
+  version = "kubernetes-1.14.0-beta.2"
 
 [[constraint]]
   name = "k8s.io/cloud-provider"
-  version = "kubernetes-1.14.0-beta.1"
+  version = "kubernetes-1.14.0-beta.2"
 
 [[constraint]]
   name = "k8s.io/component-base"
-  version = "kubernetes-1.14.0-beta.1"
+  version = "kubernetes-1.14.0-beta.2"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  version = "v1.14.0-beta.1"
+  version = "v1.14.0-beta.2"
+
+[[constraint]]
+  name = "sigs.k8s.io/sig-storage-lib-external-provisioner"
+  branch = "master"
 
 # Picked up from k/k Godeps/Godeps.json
 [[override]]
 name = "sigs.k8s.io/structured-merge-diff"
-revision = "e5e029740eb81ee0217ecf9d950c25a0eeb9688a"
+revision = "e85c7b244fd2cc57bb829d73a061f93a441e63ce"
 
 # Picked up from k/k Godeps/Godeps.json
 # "v21.3.0"

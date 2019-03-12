@@ -17,11 +17,11 @@ limitations under the License.
 package provisioner
 
 import (
-	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 var _ = Describe("Rbd Mapper", func() {
