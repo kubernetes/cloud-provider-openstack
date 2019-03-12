@@ -48,6 +48,8 @@ func newVolumeMapperFromConnection(conn volumeservice.VolumeConnection) (volumeM
 		return &iscsiMapper{cb: &k8sClusterBroker{}}, nil
 	case rbdType:
 		return new(rbdMapper), nil
+	case fcType:
+		return new(fcMapper), nil
 	}
 }
 
@@ -56,6 +58,8 @@ func newVolumeMapperFromPV(pv *v1.PersistentVolume) (volumeMapper, error) {
 		return &iscsiMapper{cb: &k8sClusterBroker{}}, nil
 	} else if pv.Spec.RBD != nil {
 		return new(rbdMapper), nil
+	} else if pv.Spec.FC != nil {
+		return new(fcMapper), nil
 	} else {
 		return nil, errors.New("Unsupported persistent volume source")
 	}

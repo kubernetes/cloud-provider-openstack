@@ -48,6 +48,9 @@ type VolumeConnectionDetails struct {
 	TargetIqn    string `json:"target_iqn"`
 	TargetLun    int32  `json:"target_lun"`
 
+	TargetDiscovered bool     `json:"target_discovered"`
+	TargetWWNs       []string `json:"target_wwn"`
+
 	ClusterName string   `json:"cluster_name"`
 	Hosts       []string `json:"hosts"`
 	Ports       []string `json:"ports"`
