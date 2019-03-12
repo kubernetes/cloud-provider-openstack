@@ -77,6 +77,7 @@ const (
 	ServiceAnnotationLoadBalancerFloatingSubnet    = "loadbalancer.openstack.org/floating-subnet"
 	ServiceAnnotationLoadBalancerFloatingSubnetID  = "loadbalancer.openstack.org/floating-subnet-id"
 	ServiceAnnotationLoadBalancerSubnetID          = "loadbalancer.openstack.org/subnet-id"
+	ServiceAnnotationLoadBalancerPortID            = "loadbalancer.openstack.org/port-id"
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerProxyEnabled      = "loadbalancer.openstack.org/proxy-protocol"
@@ -456,12 +457,17 @@ func createNodeSecurityGroup(client *gophercloud.ServiceClient, nodeSecurityGrou
 	return nil
 }
 
-func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName string, internalAnnotation bool) (*loadbalancers.LoadBalancer, error) {
+func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName string, internalAnnotation bool, vipPort string) (*loadbalancers.LoadBalancer, error) {
 	createOpts := loadbalancers.CreateOpts{
 		Name:        name,
 		Description: fmt.Sprintf("Kubernetes external service %s from cluster %s", name, clusterName),
-		VipSubnetID: lbaas.opts.SubnetID,
 		Provider:    lbaas.opts.LBProvider,
+	}
+
+	if vipPort != "" {
+		createOpts.VipPortID = vipPort
+	} else {
+		createOpts.VipSubnetID = lbaas.opts.SubnetID
 	}
 
 	loadBalancerIP := service.Spec.LoadBalancerIP
@@ -862,8 +868,11 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		if err != ErrNotFound {
 			return nil, fmt.Errorf("error getting loadbalancer %s: %v", name, err)
 		}
+
 		klog.V(2).Infof("Creating loadbalancer %s", name)
-		loadbalancer, err = lbaas.createLoadBalancer(apiService, name, clusterName, internalAnnotation)
+
+		portID := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerPortID, "")
+		loadbalancer, err = lbaas.createLoadBalancer(apiService, name, clusterName, internalAnnotation, portID)
 		if err != nil {
 			// Unknown error, retry later
 			return nil, fmt.Errorf("error creating loadbalancer %s: %v", name, err)
