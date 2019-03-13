@@ -133,15 +133,11 @@ func InitOpenStackProvider(cfg string) {
 	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
 }
 
-// GetOpenStackProvider returns Openstack Instance
-func GetOpenStackProvider() (IOpenStack, error) {
+// CreateOpenStackProvider creates Openstack Instance
+func CreateOpenStackProvider() (IOpenStack, error) {
 	var authOpts gophercloud.AuthOptions
 	var authURL string
 	var caFile string
-
-	if OsInstance != nil {
-		return OsInstance, nil
-	}
 	// Get config from file
 	cfg, epOpts, err := GetConfigFromFile(configFile)
 	if err == nil {
@@ -191,6 +187,21 @@ func GetOpenStackProvider() (IOpenStack, error) {
 	OsInstance = &OpenStack{
 		compute:      computeclient,
 		blockstorage: blockstorageclient,
+	}
+
+	return OsInstance, nil
+}
+
+// GetOpenStackProvider returns Openstack Instance
+func GetOpenStackProvider() (IOpenStack, error) {
+
+	if OsInstance != nil {
+		return OsInstance, nil
+	}
+	var err error
+	OsInstance, err = CreateOpenStackProvider()
+	if err != nil {
+		return nil, err
 	}
 
 	return OsInstance, nil
