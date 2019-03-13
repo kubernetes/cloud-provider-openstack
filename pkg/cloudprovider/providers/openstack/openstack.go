@@ -113,6 +113,7 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries    uint       `gcfg:"monitor-max-retries"`
 	ManageSecurityGroups bool       `gcfg:"manage-security-groups"`
 	NodeSecurityGroupIDs []string   // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	InternalLB           bool       `gcfg:"internal-lb"` // default false
 }
 
 // BlockStorageOpts is used to talk to Cinder service
@@ -301,6 +302,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	cfg.Networking.IPv6SupportDisabled = false
 	cfg.Networking.PublicNetworkName = "public"
+	cfg.LoadBalancer.InternalLB = false
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if cfg.Global.UseClouds {
