@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/klog"
 )
 
@@ -46,6 +47,11 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 }
 
 func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	_, err := openstack.CreateOpenStackProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to CreateOpenStackProvider: %v", err)
+		return nil, status.Error(codes.FailedPrecondition, "Failed to communicate with openstack")
+	}
 	return &csi.ProbeResponse{}, nil
 }
 
