@@ -186,9 +186,10 @@
   revision = "5b532d6fd5efaf7fa130d4e859a2fde0fc3a9e1b"
 
 [[projects]]
-  digest = "1:cf0608a4d324260ef753cd04a1977ccca36937b9a6a5544ab08e804325e9cdc0"
+  digest = "1:09042989768a0c57341402f9991359808ad998d07ddb824393833a7c35fd3d10"
   name = "github.com/golang/protobuf"
   packages = [
+    "descriptor",
     "proto",
     "protoc-gen-go/descriptor",
     "ptypes",
@@ -378,6 +379,18 @@
   pruneopts = "UT"
   revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
   version = "v1.0.2"
+
+[[projects]]
+  digest = "1:b09c9ac14d93f481c768e73a12d4e8527ac25232d593f2ad918ffe462901b654"
+  name = "github.com/kubernetes-csi/csi-lib-utils"
+  packages = [
+    "connection",
+    "protosanitizer",
+  ]
+  pruneopts = "UT"
+  revision = "b8b7a89535d80e12f2c0f4c53cfb981add8aaca2"
+  source = "https://github.com/kubernetes-csi/csi-lib-utils"
+  version = "v0.6.1"
 
 [[projects]]
   digest = "1:c9ba37d3709f57185b60f587a6282378feaff2aa3cddc28a56770704e3f96b98"
@@ -1574,6 +1587,8 @@
     "github.com/gophercloud/gophercloud/testhelper/client",
     "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/gorilla/mux",
+    "github.com/kubernetes-csi/csi-lib-utils/connection",
+    "github.com/kubernetes-csi/csi-lib-utils/protosanitizer",
     "github.com/kubernetes-csi/csi-test/pkg/sanity",
     "github.com/mitchellh/go-homedir",
     "github.com/mitchellh/mapstructure",
