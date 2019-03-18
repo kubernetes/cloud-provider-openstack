@@ -7,7 +7,6 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
-
     cloud-provider-openstack-acceptance-test-lb-octavia:
       jobs:
         - cloud-provider-openstack-acceptance-test-lb-octavia:
@@ -72,25 +71,25 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -100,9 +99,9 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             branches: master
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.10:
-            branches: release-1.10
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.11:
-            branches: release-1.11
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
             branches: release-1.12
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
+            branches: release-1.13
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
+            branches: master # TODO update to release-1.14 when cpo cuts it - k8s already has release-1.14 branch
