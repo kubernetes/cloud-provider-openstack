@@ -56,6 +56,9 @@ spec:
               readOnly: true
             - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
               name: flexvolume-dir
+            - name: pods-cloud-data
+              mountPath: /var/lib/cloud/data
+              readOnly: true
           resources:
             requests:
               cpu: 200m
@@ -79,3 +82,7 @@ spec:
       - name: cloud-config-volume
         secret:
           secretName: cloud-config
+      - name: pods-cloud-data
+        hostPath:
+          path: /var/lib/cloud/data
+          type: Directory
