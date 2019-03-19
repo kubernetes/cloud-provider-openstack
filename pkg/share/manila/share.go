@@ -21,7 +21,6 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +28,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"k8s.io/kubernetes/pkg/controller/volume/persistentvolume"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 const (

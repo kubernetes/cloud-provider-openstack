@@ -18,9 +18,9 @@ package shareoptions
 
 import (
 	"fmt"
-	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
 	"k8s.io/cloud-provider/volume/helpers"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 // ShareOptions contains options for provisioning and attaching a share

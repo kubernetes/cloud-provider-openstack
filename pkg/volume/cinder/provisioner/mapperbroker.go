@@ -17,9 +17,9 @@ limitations under the License.
 package provisioner
 
 import (
-	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 	"k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 type mapperBroker interface {
