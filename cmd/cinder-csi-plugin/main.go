@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
 
@@ -80,6 +81,9 @@ func main() {
 	cmd.MarkPersistentFlagRequired("cloud-config")
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
+
+	logs.InitLogs()
+	defer logs.FlushLogs()
 
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
