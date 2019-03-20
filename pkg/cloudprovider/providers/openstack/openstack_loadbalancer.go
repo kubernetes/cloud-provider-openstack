@@ -816,22 +816,19 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 	}
 
-	var internalAnnotation bool
-	internal := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerInternal, "false")
-	switch internal {
-	case "true":
+	internalAnnotation, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
+	if err != nil {
+		return nil, err
+	}
+	switch internalAnnotation {
+	case true:
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
-		internalAnnotation = true
-	case "false":
+	case false:
 		if len(floatingPool) != 0 {
 			klog.V(4).Infof("Ensure an external loadbalancer service, using floatingPool: %v", floatingPool)
-			internalAnnotation = false
 		} else {
 			return nil, fmt.Errorf("floating-network-id or loadbalancer.openstack.org/floating-network-id should be specified when ensuring an external loadbalancer service")
 		}
-	default:
-		return nil, fmt.Errorf("unknown service.beta.kubernetes.io/openstack-internal-load-balancer annotation: %v, specify \"true\" or \"false\" ",
-			internal)
 	}
 
 	// Check for TCP protocol on each port
