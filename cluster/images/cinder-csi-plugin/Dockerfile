@@ -1,10 +1,9 @@
-# Based on centos
-FROM centos:7.4.1708
+FROM alpine:3.7
 LABEL maintainers="Kubernetes Authors"
 LABEL description="Cinder CSI Plugin"
 
 # Install e4fsprogs for format
-RUN yum -y install e4fsprogs
+RUN apk add --no-cache ca-certificates e2fsprogs
 
 ADD cinder-csi-plugin /bin/
 
