@@ -202,6 +202,8 @@ file.
   Where `true` is specified and an Octavia LBaaS V2 entry can not be found, the
   provider will fall back and attempt to find a Neutron LBaaS V2 endpoint
   instead. The default value is `false`.
+* `internal-lb`: Determines whether or not to create an internal load balancer
+  (no floating IP) by default. The default value is `false`.
 
 #### Block Storage
 
