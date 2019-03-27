@@ -81,6 +81,7 @@ const (
 	ServiceAnnotationLoadBalancerConnLimit         = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerKeepFloatingIP    = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerProxyEnabled      = "loadbalancer.openstack.org/proxy-protocol"
+	ServiceAnnotationLoadBalancerXForwardedFor     = "loadbalancer.openstack.org/x-forwarded-for"
 
 	// ServiceAnnotationLoadBalancerInternal is the annotation used on the service
 	// to indicate that we want an internal loadbalancer service.
@@ -936,15 +937,31 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			connLimit = tmp
 		}
 
+		keepClientIP := false
 		if listener == nil {
-			klog.V(4).Infof("Creating listener for port %d", int(port.Port))
-			listener, err = listeners.Create(lbaas.lb, listeners.CreateOpts{
+			listenerProtocol := listeners.Protocol(port.Protocol)
+			keepClientIP, err = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerXForwardedFor, false)
+			if err != nil {
+				return nil, err
+			}
+			if keepClientIP {
+				listenerProtocol = listeners.ProtocolHTTP
+			}
+
+			listenerCreateOpt := listeners.CreateOpts{
 				Name:           cutString(fmt.Sprintf("listener_%d_%s", portIndex, name)),
-				Protocol:       listeners.Protocol(port.Protocol),
+				Protocol:       listenerProtocol,
 				ProtocolPort:   int(port.Port),
 				ConnLimit:      &connLimit,
 				LoadbalancerID: loadbalancer.ID,
-			}).Extract()
+			}
+			if keepClientIP {
+				listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
+			}
+
+			klog.V(4).Infof("Creating listener for port %d using protocol: %s", int(port.Port), listenerProtocol)
+
+			listener, err = listeners.Create(lbaas.lb, listenerCreateOpt).Extract()
 			if err != nil {
 				// Unknown error, retry later
 				return nil, fmt.Errorf("error creating LB listener: %v", err)
@@ -973,7 +990,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			}
 		}
 
-		klog.V(4).Infof("Listener for %s port %d: %s", string(port.Protocol), int(port.Port), listener.ID)
+		klog.V(4).Infof("Listener %s created", listener.ID)
 
 		// After all ports have been processed, remaining listeners are removed as obsolete.
 		// Pop valid listeners.
@@ -984,22 +1001,33 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 		}
 		if pool == nil {
+			// By default, use TCP as the pool protocol.
+			poolProto := v2pools.ProtocolTCP
+
 			useProxyProtocol, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
 			if err != nil {
 				return nil, err
 			}
-			proto := v2pools.ProtocolTCP
-			if useProxyProtocol {
-				proto = v2pools.ProtocolPROXY
+			if useProxyProtocol && keepClientIP {
+				return nil, fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 			}
-			klog.V(4).Infof("Creating pool for listener %s using protocol %s", listener.ID, proto)
-			pool, err = v2pools.Create(lbaas.lb, v2pools.CreateOpts{
+			if useProxyProtocol {
+				poolProto = v2pools.ProtocolPROXY
+			} else if keepClientIP {
+				poolProto = v2pools.ProtocolHTTP
+			}
+
+			createOpt := v2pools.CreateOpts{
 				Name:        cutString(fmt.Sprintf("pool_%d_%s", portIndex, name)),
-				Protocol:    proto,
+				Protocol:    poolProto,
 				LBMethod:    lbmethod,
 				ListenerID:  listener.ID,
 				Persistence: persistence,
-			}).Extract()
+			}
+
+			klog.V(4).Infof("Creating pool for listener %s using protocol %s", listener.ID, poolProto)
+
+			pool, err = v2pools.Create(lbaas.lb, createOpt).Extract()
 			if err != nil {
 				return nil, fmt.Errorf("error creating pool for listener %s: %v", listener.ID, err)
 			}
@@ -1010,7 +1038,8 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 		}
 
-		klog.V(4).Infof("Pool for listener %s: %s", listener.ID, pool.ID)
+		klog.V(4).Infof("Pool created for listener %s: %s", listener.ID, pool.ID)
+
 		members, err := getMembersByPoolID(lbaas.lb, pool.ID)
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error getting pool members %s: %v", pool.ID, err)

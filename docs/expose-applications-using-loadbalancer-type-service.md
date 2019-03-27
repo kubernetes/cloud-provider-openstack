@@ -69,7 +69,17 @@ Request Body:
 ## Supported Features
 
 ### Service annotations
-TBD
+- loadbalancer.openstack.org/floating-network-id
+- loadbalancer.openstack.org/floating-subnet
+- loadbalancer.openstack.org/floating-subnet-id
+- loadbalancer.openstack.org/subnet-id
+- loadbalancer.openstack.org/port-id
+- loadbalancer.openstack.org/connection-limit
+- loadbalancer.openstack.org/keep-floatingip
+- loadbalancer.openstack.org/proxy-protocol
+- loadbalancer.openstack.org/x-forwarded-for
+
+  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request.
 
 ### Creating Service by specifying a floating IP
 TBD
