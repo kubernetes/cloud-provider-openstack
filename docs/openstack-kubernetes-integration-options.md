@@ -65,4 +65,5 @@ WIP - There is some code, needs to be tested
 
 ### Cinder CSI driver
 
-WIP - There is some example code in a SIG-storage repo. Need to investigate
+Current driver is complaint with CSI spec 1.0.0 . For more information refer
+[Using Cinder CSI driver](./using-cinder-csi-plugin.md)
