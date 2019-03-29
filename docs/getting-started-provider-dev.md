@@ -172,7 +172,7 @@ cd cloud-provider-openstack
 If you want to build the provider:
 
 ```
-make
+make build
 ```
 
 If you want to run unit tests:
