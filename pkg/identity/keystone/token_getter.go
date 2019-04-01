@@ -18,6 +18,7 @@ package keystone
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -30,11 +31,13 @@ type Options struct {
 	AuthOptions    gophercloud.AuthOptions
 	ClientCertPath string
 	ClientKeyPath  string
+	ClientCAPath   string
 }
 
 // GetToken creates a token by authenticate with keystone.
 func GetToken(options Options) (*tokens3.Token, error) {
 	var token *tokens3.Token
+	var setTransport bool
 
 	// Create new identity client
 	client, err := openstack.NewClient(options.AuthOptions.IdentityEndpoint)
@@ -43,6 +46,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 		return token, msg
 	}
 	tlsConfig := &tls.Config{}
+	setTransport = false
 
 	if options.ClientCertPath != "" && options.ClientKeyPath != "" {
 		clientCert, err := ioutil.ReadFile(options.ClientCertPath)
@@ -64,7 +68,28 @@ func GetToken(options Options) (*tokens3.Token, error) {
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 		tlsConfig.BuildNameToCertificate()
+		setTransport = true
+	}
 
+	if options.ClientCAPath != "" {
+		certBytes, err := ioutil.ReadFile(options.ClientCAPath)
+		if err != nil {
+			msg := fmt.Errorf("failed: Cannot read CA file: %v", err)
+			return token, msg
+		}
+
+		certpool, err := x509.SystemCertPool()
+		if err != nil {
+			msg := fmt.Errorf("failed: Cannot create cert pool:: %v", err)
+			return token, msg
+		}
+
+		certpool.AppendCertsFromPEM(certBytes)
+		tlsConfig.RootCAs = certpool
+		setTransport = true
+	}
+
+	if setTransport {
 		transport := &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsConfig}
 		client.HTTPClient.Transport = transport
 	}
