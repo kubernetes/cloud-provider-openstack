@@ -173,10 +173,10 @@ func main() {
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
 	pflag.StringVar(&clientCertPath, "cert", os.Getenv("OS_CERT"), "Client certificate bundle file")
 	pflag.StringVar(&clientKeyPath, "key", os.Getenv("OS_KEY"), "Client certificate key file")
+	pflag.StringVar(&clientCAPath, "cacert", os.Getenv("OS_CACERT"), "Certificate authority file")
 	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
 	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
 	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
-	pflag.StringVar(&clientCAPath, "cacert", os.Getenv("OS_CACERT"), "Certificate authority file")
 	kflag.InitFlags()
 
 	// Generate Gophercloud Auth Options based on input data from stdin
