@@ -53,6 +53,9 @@ type syncConfig struct {
 
 	// List of project ids to exclude from syncing.
 	ProjectBlackList []string `yaml:"projects_black_list"`
+
+	// List of project names to exclude from syncing.
+	ProjectNameBlackList []string `yaml:"projects_name_black_list"`
 }
 
 func (sc *syncConfig) validate() error {
@@ -148,6 +151,13 @@ func (s *Syncer) syncData(u *userInfo) error {
 
 	for _, p := range s.syncConfig.ProjectBlackList {
 		if u.Extra[ProjectID][0] == p {
+			klog.Infof("Project %v is in black list. Skipping.", p)
+			return nil
+		}
+	}
+
+	for _, p := range s.syncConfig.ProjectNameBlackList {
+		if u.Extra[ProjectName][0] == p {
 			klog.Infof("Project %v is in black list. Skipping.", p)
 			return nil
 		}
