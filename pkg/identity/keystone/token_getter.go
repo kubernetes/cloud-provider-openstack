@@ -18,13 +18,13 @@ package keystone
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"io/ioutil"
 	"net/http"
+	certutil "k8s.io/client-go/util/cert"
 )
 
 type Options struct {
@@ -72,20 +72,13 @@ func GetToken(options Options) (*tokens3.Token, error) {
 	}
 
 	if options.ClientCAPath != "" {
-		certBytes, err := ioutil.ReadFile(options.ClientCAPath)
+		roots, err := certutil.NewPool(options.ClientCAPath)
 		if err != nil {
 			msg := fmt.Errorf("failed: Cannot read CA file: %v", err)
 			return token, msg
 		}
 
-		certpool, err := x509.SystemCertPool()
-		if err != nil {
-			msg := fmt.Errorf("failed: Cannot create cert pool:: %v", err)
-			return token, msg
-		}
-
-		certpool.AppendCertsFromPEM(certBytes)
-		tlsConfig.RootCAs = certpool
+		tlsConfig.RootCAs = roots
 		setTransport = true
 	}
 
