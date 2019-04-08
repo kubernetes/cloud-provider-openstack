@@ -72,16 +72,16 @@ type Config struct {
 }
 
 func logcfg(cfg Config) {
-	klog.V(3).Infof("AuthURL: %s", cfg.Global.AuthUrl)
-	klog.V(3).Infof("Username: %s", cfg.Global.Username)
-	klog.V(3).Infof("UserId: %s", cfg.Global.UserId)
-	klog.V(3).Infof("TenantId: %s", cfg.Global.TenantId)
-	klog.V(3).Infof("TenantName: %s", cfg.Global.TenantName)
-	klog.V(3).Infof("DomainName: %s", cfg.Global.DomainName)
-	klog.V(3).Infof("DomainId: %s", cfg.Global.DomainId)
-	klog.V(3).Infof("TrustID: %s", cfg.Global.TrustID)
-	klog.V(3).Infof("Region: %s", cfg.Global.Region)
-	klog.V(3).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthUrl)
+	klog.V(5).Infof("Username: %s", cfg.Global.Username)
+	klog.V(5).Infof("UserId: %s", cfg.Global.UserId)
+	klog.V(5).Infof("TenantId: %s", cfg.Global.TenantId)
+	klog.V(5).Infof("TenantName: %s", cfg.Global.TenantName)
+	klog.V(5).Infof("DomainName: %s", cfg.Global.DomainName)
+	klog.V(5).Infof("DomainId: %s", cfg.Global.DomainId)
+	klog.V(5).Infof("TrustID: %s", cfg.Global.TrustID)
+	klog.V(5).Infof("Region: %s", cfg.Global.Region)
+	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
 }
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
