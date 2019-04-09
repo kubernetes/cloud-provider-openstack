@@ -23,8 +23,8 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"io/ioutil"
-	"net/http"
 	certutil "k8s.io/client-go/util/cert"
+	"net/http"
 )
 
 type Options struct {
