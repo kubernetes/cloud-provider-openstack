@@ -49,6 +49,11 @@ import (
 const (
 	maxRetries  = 5
 	cmNamespace = "kube-system"
+	Roles       = "alpha.kubernetes.io/identity/roles"
+	ProjectID   = "alpha.kubernetes.io/identity/project/id"
+	ProjectName = "alpha.kubernetes.io/identity/project/name"
+	DomainID    = "alpha.kubernetes.io/identity/user/domain/id"
+	DomainName  = "alpha.kubernetes.io/identity/user/domain/name"
 )
 
 type userInfo struct {
