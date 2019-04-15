@@ -46,6 +46,7 @@ NAME                                READY   STATUS    RESTARTS   AGE
 csi-attacher-cinderplugin-0         2/2     Running   0          29h
 csi-nodeplugin-cinderplugin-xxfh5   2/2     Running   0          46h
 csi-provisioner-cinderplugin-0      2/2     Running   0          46h
+csi-snapshotter-cinder-0            2/2     Running   0          46h
 ```
 
 ### Example Nginx application usage
@@ -140,6 +141,47 @@ Following feature gates needs to be enabled as below:
 Currently, driver supports only one topology key: `topology.cinder.csi.openstack.org/zone` that represents availability by zone.
 
 Note: `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
+
+### Example Snapshot Create and Restore
+
+Following prerequisite needed for volume snapshot feature to work.
+
+1. Enable `-feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
+2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass.       
+To deploy external-snapshotter run
+```
+kubectl -f manifests/cinder-csi-plugin/csi-snapshotter-rbac.yaml create
+kubectl -f manifests/cinder-csi-plugin/csi-snapshotter-cinderplugin.yaml create
+```
+
+For Snapshot Creation and Volume Restore, please follow  below steps:
+
+* Create Storage Class, Snapshot Class and PVC    
+```
+$ kubectl -f examples/cinder-csi-plugin/example.yaml create
+```     
+* Verify that pvc is bounded
+``` 
+$ kubectl describe pvc <pvc-name>
+```   
+* Create Snapshot of the PVC    
+```
+$ kubectl -f examples/cinder-csi-plugin/snapshotcreate.yaml create
+```       
+* Verify that snapshot is created    
+```
+$ kubectl get volumesnapshot 
+$ kubectl get volumesnapshotcontent
+```   
+* Restore volume from snapshot    
+```
+$ kubectl -f examples/cinder-csi-plugin/snapshotrestore.yaml create
+```
+* Verify that volume from snapshot is created    
+```
+$ kubectl get pv
+
+``` 
 
 ## Using CSC tool
 
