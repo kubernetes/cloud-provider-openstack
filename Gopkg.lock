@@ -231,7 +231,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ba2ade5da932202872cfbe51377e7b108f4e82f981a15c1f07045678a4818464"
+  digest = "1:c6ae6215aaacaa06d48c8cd231a6c28396b8f3a1efea1ebb0b3563062e4ef26a"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -277,7 +277,7 @@
     "testhelper/client",
   ]
   pruneopts = "UT"
-  revision = "a127a1b294c369554364af633d29d213ba88ef16"
+  revision = "2c55d17f707cc8333ca4f49690cb2970d12a25f6"
 
 [[projects]]
   branch = "master"
