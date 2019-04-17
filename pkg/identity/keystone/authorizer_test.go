@@ -192,4 +192,69 @@ func TestAuthorizer(t *testing.T) {
 	attrs = authorizer.AttributesRecord{User: user1, ResourceRequest: true, Verb: "get", Resource: "unknown_type_resource"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// Allow subresource with specific value, e.i. "user_resource1/subresource1"
+	attrs = authorizer.AttributesRecord{
+		User:            user1,
+		ResourceRequest: true,
+		Verb:            "get",
+		Resource:        "user_resource1",
+		Subresource:     "subresource1",
+	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	// Deny subresource with specific value, e.i. "user_resource1/subresource2", it must not be present in policy.json
+	attrs = authorizer.AttributesRecord{
+		User:            user1,
+		ResourceRequest: true,
+		Verb:            "get",
+		Resource:        "user_resource1",
+		Subresource:     "subresource2",
+	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// Allow subresource with representing wildcard,  e.i. "user_resource3/wildcard_resource",
+	// expected to be tested with policy where resources: ["user_resource3/*"]
+	attrs = authorizer.AttributesRecord{
+		User:            user1,
+		ResourceRequest: true,
+		Verb:            "get",
+		Resource:        "user_resource3",
+		Subresource:     "wildcard_resource",
+	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	// Allow nonresource endpoint with specific value, e.i. "/api"
+	attrs = authorizer.AttributesRecord{
+		User:            user1,
+		ResourceRequest: false,
+		Verb:            "get",
+		Path:            "/api",
+	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	// Deny nonresource endpoint with specific value, e.i. "/imaginary_api/path/none", it must not be present in policy.json
+	attrs = authorizer.AttributesRecord{
+		User:            user1,
+		ResourceRequest: false,
+		Verb:            "get",
+		Path:            "/imaginary_api/path/none",
+	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// Allow nonresource endpoint with specific prefix, e.i. "/api/represents/wildcard",
+	// expected to be tested with policy where path: ["/api/*"]
+	attrs = authorizer.AttributesRecord{
+		User:            user1,
+		ResourceRequest: false,
+		Verb:            "get",
+		Path:            "/api/represents/wildcard",
+	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
 }

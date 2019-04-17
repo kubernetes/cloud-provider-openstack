@@ -19,6 +19,7 @@ package keystone
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/gophercloud/gophercloud"
@@ -53,8 +54,17 @@ func resourceMatches(p policy, a authorizer.Attributes) bool {
 	if *p.ResourceSpec.Namespace != "*" && *p.ResourceSpec.Namespace != a.GetNamespace() {
 		return false
 	}
-	if !findString("*", p.ResourceSpec.Resources) && !findString(a.GetResource(), p.ResourceSpec.Resources) {
-		return false
+	if len(a.GetSubresource()) > 0 {
+		if !findString("*", p.ResourceSpec.Resources) &&
+			!findString(strings.Join([]string{a.GetResource(), "*"}, "/"), p.ResourceSpec.Resources) &&
+			!findString(strings.Join([]string{a.GetResource(), a.GetSubresource()}, "/"), p.ResourceSpec.Resources) {
+			return false
+		}
+	} else {
+		if !findString("*", p.ResourceSpec.Resources) &&
+			!findString(a.GetResource(), p.ResourceSpec.Resources) {
+			return false
+		}
 	}
 	if !findString("*", p.ResourceSpec.Verbs) && !findString(a.GetVerb(), p.ResourceSpec.Verbs) {
 		return false
@@ -84,7 +94,10 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	if !findString("*", p.NonResourceSpec.Verbs) && !findString(a.GetVerb(), p.NonResourceSpec.Verbs) {
 		return false
 	}
-	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() {
+	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() &&
+		// Allow a trailing * subpath match
+		!(strings.HasSuffix(*p.NonResourceSpec.NonResourcePath, "*") &&
+			strings.HasPrefix(a.GetPath(), strings.TrimRight(*p.NonResourceSpec.NonResourcePath, "*"))) {
 		return false
 	}
 	allowed := match(p.Match, a)

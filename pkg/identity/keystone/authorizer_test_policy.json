@@ -211,5 +211,49 @@
       "type": "user",
       "values": ["user1"]
     }]
+  },
+  {
+    "resource": {
+      "verbs": ["get"],
+      "resources": ["user_resource1/subresource1"],
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": [{
+      "type": "user",
+      "values": ["user1"]
+    }]
+  },
+  {
+    "resource": {
+      "verbs": ["get"],
+      "resources": ["user_resource3/*"],
+      "version": "*",
+      "namespace": "*"
+    },
+    "match": [{
+      "type": "user",
+      "values": ["user1"]
+    }]
+  },
+  {
+    "nonresource": {
+      "verbs": ["get"],
+      "path": "/api"
+    },
+    "match": [{
+      "type": "user",
+      "values": ["user1"]
+    }]
+  },
+  {
+    "nonresource": {
+      "verbs": ["get"],
+      "path": "/api/*"
+    },
+    "match": [{
+      "type": "user",
+      "values": ["user1"]
+    }]
   }
 ]
