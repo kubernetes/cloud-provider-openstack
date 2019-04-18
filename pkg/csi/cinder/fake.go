@@ -64,3 +64,5 @@ var FakeSnapshotRes = snapshots.Snapshot{
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
 var FakeVolList = []openstack.Volume{FakeVol1, FakeVol3}
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
+
+const FakeMaxVolume int64 = 256

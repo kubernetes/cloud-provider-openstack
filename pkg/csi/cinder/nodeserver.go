@@ -197,9 +197,12 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
 	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
 
+	maxVolume := getMaxVolumeLimit()
+
 	return &csi.NodeGetInfoResponse{
 		NodeId:             nodeID,
 		AccessibleTopology: topology,
+		MaxVolumesPerNode:  maxVolume,
 	}, nil
 }
 
@@ -263,4 +266,9 @@ func getNodeID(mount mount.IMount, metadata openstack.IMetadata) (string, error)
 		return "", err
 	}
 	return nodeID, nil
+}
+
+func getMaxVolumeLimit() int64 {
+	return openstack.GetMaxVolLimit()
+
 }

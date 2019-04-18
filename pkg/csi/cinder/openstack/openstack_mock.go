@@ -321,3 +321,7 @@ func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) error {
 
 	return r0
 }
+
+func (_m *OpenStackMock) GetMaxVolLimit() int64 {
+	return 0
+}
