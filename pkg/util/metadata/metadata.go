@@ -165,6 +165,49 @@ func GetFromMetadataService(metadataVersion string) (*Metadata, error) {
 	return parseMetadata(resp.Body)
 }
 
+func GetDevicePath(volumeID string) string {
+	// Nova Hyper-V hosts cannot override disk SCSI IDs. In order to locate
+	// volumes, we're querying the metadata service. Note that the Hyper-V
+	// driver will include device metadata for untagged volumes as well.
+	//
+	// We're avoiding using cached metadata (or the configdrive),
+	// relying on the metadata service.
+	instanceMetadata, err := GetFromMetadataService(defaultMetadataVersion)
+
+	if err != nil {
+		klog.V(4).Infof("Could not retrieve instance metadata. Error: %v", err)
+		return ""
+	}
+
+	for _, device := range instanceMetadata.Devices {
+		if device.Type == "disk" && device.Serial == volumeID {
+			klog.V(4).Infof(
+				"Found disk metadata for volumeID %q. Bus: %q, Address: %q",
+				volumeID, device.Bus, device.Address)
+
+			diskPattern := fmt.Sprintf("/dev/disk/by-path/*-%s-%s", device.Bus, device.Address)
+			diskPaths, err := filepath.Glob(diskPattern)
+			if err != nil {
+				klog.Errorf(
+					"could not retrieve disk path for volumeID: %q. Error filepath.Glob(%q): %v",
+					volumeID, diskPattern, err)
+				return ""
+			}
+
+			if len(diskPaths) == 1 {
+				return diskPaths[0]
+			}
+
+			klog.V(4).Infof("expecting to find one disk path for volumeID %q, found %d: %v",
+				volumeID, len(diskPaths), diskPaths)
+
+		}
+	}
+
+	klog.V(4).Infof("Could not retrieve device metadata for volumeID: %q", volumeID)
+	return ""
+}
+
 // Metadata is fixed for the current host, so cache the value process-wide
 var metadataCache *Metadata
 
