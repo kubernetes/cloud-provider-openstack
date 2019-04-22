@@ -18,6 +18,8 @@ package cinder
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/net/context"
@@ -47,8 +49,18 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume missing required arguments")
 	}
 
-	m := ns.Mount
+	mountOptions := []string{"bind"}
+	if req.GetReadonly() {
+		mountOptions = append(mountOptions, "ro")
+	} else {
+		mountOptions = append(mountOptions, "rw")
+	}
 
+	if blk := volumeCapability.GetBlock(); blk != nil {
+		return nodePublishVolumeForBlock(req, ns, mountOptions)
+	}
+
+	m := ns.Mount
 	// Verify whether mounted
 	notMnt, err := m.IsLikelyNotMountPointAttach(targetPath)
 	if err != nil {
@@ -57,24 +69,56 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	// Volume Mount
 	if notMnt {
-		// Perform a bind mount
-		options := []string{"bind"}
 		fsType := "ext4"
-		if req.GetReadonly() {
-			options = append(options, "ro")
-		} else {
-			options = append(options, "rw")
-		}
 		if mnt := volumeCapability.GetMount(); mnt != nil {
 			if mnt.FsType != "" {
 				fsType = mnt.FsType
 			}
 		}
 		// Mount
-		err = m.Mount(source, targetPath, fsType, options)
+		err = m.Mount(source, targetPath, fsType, mountOptions)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
+	}
+
+	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer, mountOptions []string) (*csi.NodePublishVolumeResponse, error) {
+	klog.V(4).Infof("NodePublishVolumeBlock: called with args %+v", *req)
+
+	volumeID := req.GetVolumeId()
+	targetPath := req.GetTargetPath()
+	podVolumePath := filepath.Dir(targetPath)
+
+	m := ns.Mount
+
+	// Do not trust the path provided by cinder, get the real path on node
+	source, err := getDevicePath(volumeID, m)
+	if source == "" {
+		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
+	}
+
+	exists, err := m.GetBaseMounter().ExistsPath(podVolumePath)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if !exists {
+		if err := m.GetBaseMounter().MakeDir(podVolumePath); err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not create dir %q: %v", podVolumePath, err)
+		}
+	}
+	err = m.GetBaseMounter().MakeFile(targetPath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
+	}
+
+	if err := m.GetBaseMounter().Mount(source, targetPath, "", mountOptions); err != nil {
+		if removeErr := os.Remove(targetPath); removeErr != nil {
+			return nil, status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, err)
+		}
+		return nil, status.Errorf(codes.Internal, "Could not mount %q at %q: %v", source, targetPath, err)
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil
@@ -119,17 +163,19 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
 	}
+
+	m := ns.Mount
 	// Do not trust the path provided by cinder, get the real path on node
-	devicePath, err := ns.getDevicePath(volumeID)
-	if err != nil {
-		klog.V(3).Infof("Failed to GetDevicePath: %v", err)
-		return nil, err
-	}
+	devicePath, err := getDevicePath(volumeID, m)
 	if devicePath == "" {
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
-	m := ns.Mount
+	if blk := volumeCapability.GetBlock(); blk != nil {
+		// If block volume, do nothing
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	// Verify whether mounted
 	notMnt, err := m.IsLikelyNotMountPointAttach(stagingTarget)
 	if err != nil {
@@ -147,9 +193,6 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			}
 			mountFlags := mnt.GetMountFlags()
 			options = append(options, mountFlags...)
-		} else if blk := volumeCapability.GetBlock(); blk != nil {
-			// TODO(#341): Block volume support
-			return nil, status.Errorf(codes.Unimplemented, "Block volume support is not yet implemented")
 		}
 		// Mount
 		err = m.FormatAndMount(devicePath, stagingTarget, fsType, options)
@@ -218,9 +261,9 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeExpandVolume is not yet implemented"))
 }
 
-func (ns *nodeServer) getDevicePath(volumeID string) (string, error) {
+func getDevicePath(volumeID string, m mount.IMount) (string, error) {
 	var devicePath string
-	devicePath, _ = ns.Mount.GetDevicePath(volumeID)
+	devicePath, _ = m.GetDevicePath(volumeID)
 	if devicePath == "" {
 		// try to get from metadata service
 		devicePath = metadata.GetDevicePath(volumeID)

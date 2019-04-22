@@ -175,8 +175,34 @@ $ kubectl -f examples/cinder-csi-plugin/snapshotrestore.yaml create
 $ kubectl get pv
 
 ``` 
+### Example: Raw Block Volume
+
+For consuming a cinder volume as a raw block device.
+
+1. Make sure the volumeMode is Block in Persistence Volume Claim Spec
+2. Make sure the pod is consuming the PVC with the defined name and `volumeDevices` is used instead of `volumeMounts`
+3. Deploy the Application
+
+For Example :
+
+```
+$ kubectl create -f examples/cinder-csi-plugin/block/block.yaml
+```
+
+Make sure Pod is running
+```
+$ kubectl get pods
+```
+
+Verify the device node is mounted inside the container
+
+```
+$ kubectl exec -ti test-block -- ls -al /dev/xvda
+brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
+```
 
 ## Running Sanity Tests
+
 Sanity tests creates a real instance of driver and fake cloud provider.
 ```
 $ make test-csi-sanity

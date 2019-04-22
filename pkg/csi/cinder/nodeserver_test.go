@@ -164,6 +164,40 @@ func TestNodeStageVolume(t *testing.T) {
 	assert.Equal(expectedRes, actualRes)
 }
 
+func TestNodeStageVolumeBlock(t *testing.T) {
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodeStageVolumeResponse{}
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Block{
+			Block: &csi.VolumeCapability_BlockVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	// Fake request
+	fakeReq := &csi.NodeStageVolumeRequest{
+		VolumeId:          FakeVolID,
+		PublishContext:    map[string]string{"DevicePath": FakeDevicePath},
+		StagingTargetPath: FakeStagingTargetPath,
+		VolumeCapability:  stdVolCap,
+	}
+
+	// Invoke NodeStageVolume
+	actualRes, err := fakeNs.NodeStageVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodeStageVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
 // Test NodeUnpublishVolume
 func TestNodeUnpublishVolume(t *testing.T) {
 
