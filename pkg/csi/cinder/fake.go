@@ -22,36 +22,45 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
-var fakeCluster = "cluster"
-var fakeNodeID = "CSINodeID"
-var fakeEndpoint = "tcp://127.0.0.1:10000"
-var fakeConfig = "/etc/cloud.conf"
-var fakeCtx = context.Background()
-var fakeVolName = "CSIVolumeName"
-var fakeVolID = "CSIVolumeID"
-var fakeSnapshotName = "CSISnapshotName"
-var fakeSnapshotID = "261a8b81-3660-43e5-bab8-6470b65ee4e8"
-var fakeCapacityGiB = 1
-var fakeVolType = ""
-var fakeAvailability = "nova"
-var fakeDevicePath = "/dev/xxx"
-var fakeTargetPath = "/mnt/cinder"
-var fakeStagingTargetPath = "/mnt/globalmount"
-var fakeVol1 = openstack.Volume{
+var FakeCluster = "cluster"
+var FakeNodeID = "CSINodeID"
+var FakeEndpoint = "tcp://127.0.0.1:10000"
+var FakeConfig = "/etc/cloud.conf"
+var FakeCtx = context.Background()
+var FakeVolName = "CSIVolumeName"
+var FakeVolID = "CSIVolumeID"
+var FakeSnapshotName = "CSISnapshotName"
+var FakeSnapshotID = "261a8b81-3660-43e5-bab8-6470b65ee4e8"
+var FakeCapacityGiB = 1
+var FakeVolType = ""
+var FakeAvailability = "nova"
+var FakeDevicePath = "/dev/xxx"
+var FakeTargetPath = "/mnt/cinder"
+var FakeStagingTargetPath = "/mnt/globalmount"
+var FakeVol1 = openstack.Volume{
 	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
 	Name:   "fake-duplicate",
 	Status: "available",
 	AZ:     "",
 }
-var fakeVol2 = openstack.Volume{
+var FakeVol2 = openstack.Volume{
 	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
 	Name:   "fake-duplicate",
 	Status: "available",
 	AZ:     "",
 }
-var fakeSnapshotRes = snapshots.Snapshot{
-	ID:       fakeSnapshotID,
+var FakeVol3 = openstack.Volume{
+	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:   "fake-3",
+	Status: "available",
+	AZ:     "",
+}
+var FakeSnapshotRes = snapshots.Snapshot{
+	ID:       FakeSnapshotID,
 	Name:     "fake-snapshot",
-	VolumeID: fakeVolID,
+	VolumeID: FakeVolID,
 }
-var fakeSnapshotsRes = []snapshots.Snapshot{fakeSnapshotRes}
+
+var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
+var FakeVolList = []openstack.Volume{FakeVol1, FakeVol3}
+var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"

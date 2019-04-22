@@ -30,7 +30,9 @@ import (
 )
 
 type nodeServer struct {
-	Driver *CinderDriver
+	Driver   *CinderDriver
+	Mount    mount.IMount
+	Metadata openstack.IMetadata
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -44,12 +46,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume missing required arguments")
 	}
 
-	// Get Mount Provider
-	m, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
+	m := ns.Mount
 
 	// Verify whether mounted
 	notMnt, err := m.IsLikelyNotMountPointAttach(targetPath)
@@ -90,12 +87,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume Target Path must be provided")
 	}
 
-	// Get Mount Provider
-	m, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-		return nil, err
-	}
+	m := ns.Mount
 
 	notMnt, err := m.IsLikelyNotMountPointDetach(targetPath)
 	if err != nil {
@@ -129,14 +121,11 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "Device path not provided")
 	}
-	// Get Mount Provider
-	m, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-		return nil, status.Errorf(codes.Internal, "Failed to GetMountProvider: %v", err)
-	}
+
+	m := ns.Mount
+
 	// Device Scan
-	err = m.ScanForAttach(devicePath)
+	err := m.ScanForAttach(devicePath)
 	if err != nil {
 		klog.V(3).Infof("Failed to ScanForAttach: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to ScanForAttach: %v", err)
@@ -180,12 +169,8 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	if len(stagingTargetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Staging Target Path must be provided")
 	}
-	// Get Mount Provider
-	m, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-		return nil, err
-	}
+
+	m := ns.Mount
 
 	notMnt, err := m.IsLikelyNotMountPointDetach(stagingTargetPath)
 	if err != nil {
@@ -205,11 +190,11 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 
-	nodeID, err := getNodeID()
+	nodeID, err := getNodeID(ns.Mount, ns.Metadata)
 	if err != nil {
 		return nil, err
 	}
-	zone, err := getAvailabilityZoneMetadataService()
+	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
 	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
 
 	return &csi.NodeGetInfoResponse{
@@ -234,14 +219,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeExpandVolume is not yet implemented"))
 }
 
-func getNodeIDMountProvider() (string, error) {
-
-	// Get Mount Provider
-	m, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-		return "", err
-	}
+func getNodeIDMountProvider(m mount.IMount) (string, error) {
 
 	nodeID, err := m.GetInstanceID()
 	if err != nil {
@@ -252,12 +230,8 @@ func getNodeIDMountProvider() (string, error) {
 	return nodeID, nil
 }
 
-func getNodeIDMetdataService() (string, error) {
-	m, err := openstack.GetMetadataProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
-		return "", err
-	}
+func getNodeIDMetdataService(m openstack.IMetadata) (string, error) {
+
 	nodeID, err := m.GetInstanceID()
 	if err != nil {
 		return "", err
@@ -265,12 +239,8 @@ func getNodeIDMetdataService() (string, error) {
 	return nodeID, nil
 }
 
-func getAvailabilityZoneMetadataService() (string, error) {
-	m, err := openstack.GetMetadataProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
-		return "", err
-	}
+func getAvailabilityZoneMetadataService(m openstack.IMetadata) (string, error) {
+
 	zone, err := m.GetAvailabilityZone()
 	if err != nil {
 		return "", err
@@ -278,16 +248,16 @@ func getAvailabilityZoneMetadataService() (string, error) {
 	return zone, nil
 }
 
-func getNodeID() (string, error) {
+func getNodeID(mount mount.IMount, metadata openstack.IMetadata) (string, error) {
 	// First try to get instance id from mount provider
-	nodeID, err := getNodeIDMountProvider()
+	nodeID, err := getNodeIDMountProvider(mount)
 	if err == nil || nodeID != "" {
 		return nodeID, nil
 	}
 
 	klog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
 	klog.V(3).Info("Trying to GetInstanceID from metadata service")
-	nodeID, err = getNodeIDMetdataService()
+	nodeID, err = getNodeIDMetdataService(metadata)
 	if err != nil {
 		klog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
 		return "", err
