@@ -1,16 +1,16 @@
-# This YAML file contains attacher & csi driver API objects,
-# which are necessary to run external csi provisioner for cinder.
+# This YAML file contains CSI Controller Plugin Sidecars
+# external-attacher, external-provisioner, external-snapshotter
 
 kind: Service
 apiVersion: v1
 metadata:
+  name: csi-cinder-controller-service
   namespace: kube-system
-  name: csi-provisioner-cinderplugin
   labels:
-    app: csi-provisioner-cinderplugin
+    app: csi-cinder-controllerplugin
 spec:
   selector:
-    app: csi-provisioner-cinderplugin
+    app: csi-cinder-controllerplugin
   ports:
     - name: dummy
       port: 12345
@@ -19,21 +19,33 @@ spec:
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
-  name: csi-provisioner-cinderplugin
+  name: csi-cinder-controllerplugin
   namespace: kube-system
 spec:
-  serviceName: "csi-provisioner-cinderplugin"
+  serviceName: "csi-cinder-controller-service"
   replicas: 1
   selector:
     matchLabels:
-      app: csi-provisioner-cinderplugin
+      app: csi-cinder-controllerplugin
   template:
     metadata:
       labels:
-        app: csi-provisioner-cinderplugin
+        app: csi-cinder-controllerplugin
     spec:
-      serviceAccount: csi-provisioner
+      serviceAccount: csi-cinder-controller-sa
       containers:
+        - name: csi-attacher
+          image: quay.io/k8scsi/csi-attacher:v1.0.1
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-provisioner
           image: quay.io/k8scsi/csi-provisioner:v1.0.1
           args:
@@ -46,14 +58,26 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
-        - name: cinder
+        - name: csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v1.0.1
+          args:
+            - "--connection-timeout=15s"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: Always
+          volumeMounts:
+            - mountPath: /var/lib/csi/sockets/pluginproxy/
+              name: socket-dir
+        - name: cinder-csi-plugin
           image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
           args :
             - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--cluster=$(CLUSTER_NAME)"
             - "--cloud-config=$(CLOUD_CONFIG)"
+            - "--cluster=$(CLUSTER_NAME)"
           env:
             - name: NODE_ID
               valueFrom:

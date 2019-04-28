@@ -4,18 +4,18 @@
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
-  name: csi-nodeplugin-cinderplugin
+  name: csi-cinder-nodeplugin
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      app: csi-nodeplugin-cinderplugin
+      app: csi-cinder-nodeplugin
   template:
     metadata:
       labels:
-        app: csi-nodeplugin-cinderplugin
+        app: csi-cinder-nodeplugin
     spec:
-      serviceAccount: csi-nodeplugin
+      serviceAccount: csi-cinder-node-sa
       hostNetwork: true
       containers:
         - name: node-driver-registrar
@@ -43,7 +43,7 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
-        - name: cinder
+        - name: cinder-csi-plugin
           securityContext:
             privileged: true
             capabilities:
