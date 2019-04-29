@@ -27,6 +27,7 @@ import (
 )
 
 var fakeCs *controllerServer
+var osmock *openstack.OpenStackMock
 
 // Init Controller Server
 func init() {
@@ -34,8 +35,12 @@ func init() {
 		// to avoid annoying ERROR: logging before flag.Parse
 		flag.Parse()
 
-		d := NewDriver(fakeNodeID, fakeEndpoint, fakeCluster, fakeConfig)
-		fakeCs = NewControllerServer(d)
+		osmock = new(openstack.OpenStackMock)
+		openstack.OsInstance = osmock
+
+		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+
+		fakeCs = NewControllerServer(d, openstack.OsInstance)
 	}
 }
 
@@ -43,30 +48,28 @@ func init() {
 func TestCreateVolume(t *testing.T) {
 
 	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, fakeAvailability, "", &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
-	openstack.OsInstance = osmock
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", &properties).Return(FakeVolID, FakeAvailability, FakeCapacityGiB, nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
-		Name:               fakeVolName,
+		Name:               FakeVolName,
 		VolumeCapabilities: nil,
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
-					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": fakeAvailability},
+					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
 				},
 			},
 		},
 	}
 
 	// Invoke CreateVolume
-	actualRes, err := fakeCs.CreateVolume(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to CreateVolume: %v", err)
 	}
@@ -76,18 +79,15 @@ func TestCreateVolume(t *testing.T) {
 	assert.NotNil(actualRes.Volume.CapacityBytes)
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 	assert.NotNil(actualRes.Volume.AccessibleTopology)
-	assert.Equal(fakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
+	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
 
 }
 
 func TestCreateVolumeFromSnapshot(t *testing.T) {
 
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": fakeCluster}
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", fakeVolName, mock.AnythingOfType("int"), fakeVolType, "", fakeSnapshotID, &properties).Return(fakeVolID, fakeAvailability, fakeCapacityGiB, nil)
-	openstack.OsInstance = osmock
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, &properties).Return(FakeVolID, FakeAvailability, FakeCapacityGiB, nil)
 
 	// Init assert
 	assert := assert.New(t)
@@ -95,20 +95,20 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	src := &csi.VolumeContentSource{
 		Type: &csi.VolumeContentSource_Snapshot{
 			Snapshot: &csi.VolumeContentSource_SnapshotSource{
-				SnapshotId: fakeSnapshotID,
+				SnapshotId: FakeSnapshotID,
 			},
 		},
 	}
 
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
-		Name:                fakeVolName,
+		Name:                FakeVolName,
 		VolumeCapabilities:  nil,
 		VolumeContentSource: src,
 	}
 
 	// Invoke CreateVolume
-	actualRes, err := fakeCs.CreateVolume(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to CreateVolume: %v", err)
 	}
@@ -120,17 +120,12 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 
-	assert.Equal(fakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
+	assert.Equal(FakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
 
 }
 
 // Test CreateVolumeDuplicate
 func TestCreateVolumeDuplicate(t *testing.T) {
-
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
-
-	openstack.OsInstance = osmock
 
 	// Init assert
 	assert := assert.New(t)
@@ -142,7 +137,7 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 	}
 
 	// Invoke CreateVolume
-	actualRes, err := fakeCs.CreateVolume(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to CreateVolume: %v", err)
 	}
@@ -157,25 +152,22 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 // Test DeleteVolume
 func TestDeleteVolume(t *testing.T) {
 
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
 	// DeleteVolume(volumeID string) error
-	osmock.On("DeleteVolume", fakeVolID).Return(nil)
-	openstack.OsInstance = osmock
+	osmock.On("DeleteVolume", FakeVolID).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.DeleteVolumeRequest{
-		VolumeId: fakeVolID,
+		VolumeId: FakeVolID,
 	}
 
 	// Expected Result
 	expectedRes := &csi.DeleteVolumeResponse{}
 
 	// Invoke DeleteVolume
-	actualRes, err := fakeCs.DeleteVolume(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.DeleteVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to DeleteVolume: %v", err)
 	}
@@ -187,23 +179,20 @@ func TestDeleteVolume(t *testing.T) {
 // Test ControllerPublishVolume
 func TestControllerPublishVolume(t *testing.T) {
 
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
 	// AttachVolume(instanceID, volumeID string) (string, error)
-	osmock.On("AttachVolume", fakeNodeID, fakeVolID).Return(fakeVolID, nil)
+	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	// WaitDiskAttached(instanceID string, volumeID string) error
-	osmock.On("WaitDiskAttached", fakeNodeID, fakeVolID).Return(nil)
+	osmock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	// GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
-	osmock.On("GetAttachmentDiskPath", fakeNodeID, fakeVolID).Return(fakeDevicePath, nil)
-	openstack.OsInstance = osmock
+	osmock.On("GetAttachmentDiskPath", FakeNodeID, FakeVolID).Return(FakeDevicePath, nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.ControllerPublishVolumeRequest{
-		VolumeId:         fakeVolID,
-		NodeId:           fakeNodeID,
+		VolumeId:         FakeVolID,
+		NodeId:           FakeNodeID,
 		VolumeCapability: nil,
 		Readonly:         false,
 	}
@@ -211,12 +200,12 @@ func TestControllerPublishVolume(t *testing.T) {
 	// Expected Result
 	expectedRes := &csi.ControllerPublishVolumeResponse{
 		PublishContext: map[string]string{
-			"DevicePath": fakeDevicePath,
+			"DevicePath": FakeDevicePath,
 		},
 	}
 
 	// Invoke ControllerPublishVolume
-	actualRes, err := fakeCs.ControllerPublishVolume(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.ControllerPublishVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to ControllerPublishVolume: %v", err)
 	}
@@ -228,28 +217,25 @@ func TestControllerPublishVolume(t *testing.T) {
 // Test ControllerUnpublishVolume
 func TestControllerUnpublishVolume(t *testing.T) {
 
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
 	// DetachVolume(instanceID, volumeID string) error
-	osmock.On("DetachVolume", fakeNodeID, fakeVolID).Return(nil)
+	osmock.On("DetachVolume", FakeNodeID, FakeVolID).Return(nil)
 	// WaitDiskDetached(instanceID string, volumeID string) error
-	osmock.On("WaitDiskDetached", fakeNodeID, fakeVolID).Return(nil)
-	openstack.OsInstance = osmock
+	osmock.On("WaitDiskDetached", FakeNodeID, FakeVolID).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.ControllerUnpublishVolumeRequest{
-		VolumeId: fakeVolID,
-		NodeId:   fakeNodeID,
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
 	}
 
 	// Expected Result
 	expectedRes := &csi.ControllerUnpublishVolumeResponse{}
 
 	// Invoke ControllerUnpublishVolume
-	actualRes, err := fakeCs.ControllerUnpublishVolume(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.ControllerUnpublishVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to ControllerUnpublishVolume: %v", err)
 	}
@@ -259,12 +245,8 @@ func TestControllerUnpublishVolume(t *testing.T) {
 }
 
 func TestListVolumes(t *testing.T) {
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
 
 	osmock.On("ListVolumes").Return(nil)
-
-	openstack.OsInstance = osmock
 
 	// Init assert
 	assert := assert.New(t)
@@ -275,7 +257,7 @@ func TestListVolumes(t *testing.T) {
 	expectedRes := &csi.ListVolumesResponse{}
 
 	// Invoke ListVolumes
-	actualRes, err := fakeCs.ListVolumes(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.ListVolumes(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to ListVolumes: %v", err)
 	}
@@ -286,56 +268,51 @@ func TestListVolumes(t *testing.T) {
 
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
-	osmock.On("CreateSnapshot", fakeSnapshotName, fakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&fakeSnapshotRes, nil)
-	osmock.On("WaitSnapshotReady", fakeSnapshotID).Return(nil)
-	openstack.OsInstance = osmock
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.CreateSnapshotRequest{
-		Name:           fakeSnapshotName,
-		SourceVolumeId: fakeVolID,
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
 		Parameters:     map[string]string{"tag": "tag1"},
 	}
 
 	// Invoke CreateSnapshot
-	actualRes, err := fakeCs.CreateSnapshot(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to CreateSnapshot: %v", err)
 	}
 
 	// Assert
-	assert.Equal(fakeVolID, actualRes.Snapshot.SourceVolumeId)
+	assert.Equal(FakeVolID, actualRes.Snapshot.SourceVolumeId)
 
-	assert.NotNil(fakeSnapshotID, actualRes.Snapshot.SnapshotId)
+	assert.NotNil(FakeSnapshotID, actualRes.Snapshot.SnapshotId)
 }
 
 // Test DeleteSnapshot
 func TestDeleteSnapshot(t *testing.T) {
 
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
 	// DeleteSnapshot(volumeID string) error
-	osmock.On("DeleteSnapshot", fakeSnapshotID).Return(nil)
-	openstack.OsInstance = osmock
+	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.DeleteSnapshotRequest{
-		SnapshotId: fakeSnapshotID,
+		SnapshotId: FakeSnapshotID,
 	}
 
 	// Expected Result
 	expectedRes := &csi.DeleteSnapshotResponse{}
 
 	// Invoke DeleteSnapshot
-	actualRes, err := fakeCs.DeleteSnapshot(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.DeleteSnapshot(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to DeleteVolume: %v", err)
 	}
@@ -345,12 +322,8 @@ func TestDeleteSnapshot(t *testing.T) {
 }
 
 func TestListSnapshots(t *testing.T) {
-	// mock OpenStack
-	osmock := new(openstack.OpenStackMock)
 
-	osmock.On("ListSnapshots", 0, 0, map[string]string{}).Return(fakeSnapshotsRes, nil)
-
-	openstack.OsInstance = osmock
+	osmock.On("ListSnapshots", 0, 0, map[string]string{}).Return(FakeSnapshotsRes, nil)
 
 	// Init assert
 	assert := assert.New(t)
@@ -358,13 +331,13 @@ func TestListSnapshots(t *testing.T) {
 	fakeReq := &csi.ListSnapshotsRequest{}
 
 	// Invoke ListVolumes
-	actualRes, err := fakeCs.ListSnapshots(fakeCtx, fakeReq)
+	actualRes, err := fakeCs.ListSnapshots(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to ListSnapshots: %v", err)
 	}
 
 	// Assert
-	assert.Equal(fakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
+	assert.Equal(FakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
 
-	assert.NotNil(fakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
+	assert.NotNil(FakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
 }

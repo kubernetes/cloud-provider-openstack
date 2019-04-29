@@ -99,11 +99,11 @@ func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error)
 	}
 
 	extra := map[string][]string{
-		"alpha.kubernetes.io/identity/roles":            roles,
-		"alpha.kubernetes.io/identity/project/id":       {obj.Token.Project.ID},
-		"alpha.kubernetes.io/identity/project/name":     {obj.Token.Project.Name},
-		"alpha.kubernetes.io/identity/user/domain/id":   {obj.Token.User.Domain.ID},
-		"alpha.kubernetes.io/identity/user/domain/name": {obj.Token.User.Domain.Name},
+		Roles:       roles,
+		ProjectID:   {obj.Token.Project.ID},
+		ProjectName: {obj.Token.Project.Name},
+		DomainID:    {obj.Token.User.Domain.ID},
+		DomainName:  {obj.Token.User.Domain.Name},
 	}
 
 	authenticatedUser := &user.DefaultInfo{

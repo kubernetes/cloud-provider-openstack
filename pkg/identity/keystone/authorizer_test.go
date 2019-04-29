@@ -50,16 +50,16 @@ func TestAuthorizer(t *testing.T) {
 		Name:   "user1",
 		Groups: []string{"group1"},
 		Extra: map[string][]string{
-			"alpha.kubernetes.io/identity/project/name": {"project1"},
-			"alpha.kubernetes.io/identity/roles":        {"role1"},
+			ProjectName: {"project1"},
+			Roles:       {"role1"},
 		},
 	}
 	user2 := &user.DefaultInfo{
 		Name:   "user2",
 		Groups: []string{"group2"},
 		Extra: map[string][]string{
-			"alpha.kubernetes.io/identity/project/name": {"project2"},
-			"alpha.kubernetes.io/identity/roles":        {"role2"},
+			ProjectName: {"project2"},
+			Roles:       {"role2"},
 		},
 	}
 
@@ -255,6 +255,96 @@ func TestAuthorizer(t *testing.T) {
 		Verb:            "get",
 		Path:            "/api/represents/wildcard",
 	}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+}
+
+func TestAuthorizerVersion2(t *testing.T) {
+	provider, err := openstack.NewClient("127.0.0.1")
+	th.AssertNoErr(t, err)
+	client := &gophercloud.ServiceClient{
+		ProviderClient: provider,
+		Endpoint:       "127.0.0.1",
+	}
+
+	path, err := os.Getwd()
+	th.AssertNoErr(t, err)
+	path += "/authorizer_test_policy_version2.json"
+	policy, err := newFromFile(path)
+	th.AssertNoErr(t, err)
+
+	a := &Authorizer{authURL: "127.0.0.1", client: client, pl: policy}
+
+	developer := &user.DefaultInfo{
+		Name:   "developer",
+		Groups: []string{"group1"},
+		Extra: map[string][]string{
+			ProjectName: {"demo"},
+			Roles:       {"developer"},
+		},
+	}
+	viewer := &user.DefaultInfo{
+		Name:   "viewer",
+		Groups: []string{"group2"},
+		Extra: map[string][]string{
+			ProjectName: {"demo"},
+			Roles:       {"viewer"},
+		},
+	}
+	clusteradmin := &user.DefaultInfo{
+		Name:   "clusteradmin",
+		Groups: []string{"group2"},
+		Extra: map[string][]string{
+			ProjectName: {"demo"},
+			Roles:       {"clusteradmin"},
+		},
+	}
+
+	attrs := authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "pods"}
+	decision, _, _ := a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "clusterroles"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "get", Namespace: "", Resource: "clusterroles"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "create", Namespace: "", Resource: "clusterrolebindings"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "deployments"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: true, Verb: "get", Namespace: "kube-system", Resource: "services"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: true, Verb: "create", Namespace: "default", Resource: "pods"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: clusteradmin, ResourceRequest: true, Verb: "create", Namespace: "", Resource: "clusterroles"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: clusteradmin, ResourceRequest: true, Verb: "get", Namespace: "kube-system", Resource: "secrets"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: developer, ResourceRequest: false, Verb: "get", Path: "/healthz"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: false, Verb: "get", Path: "/healthz"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: clusteradmin, ResourceRequest: false, Verb: "get", Path: "/healthz"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionAllow, decision)
 }

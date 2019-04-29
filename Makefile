@@ -120,7 +120,7 @@ test: unit functional
 check: depend fmt vet lint import-boss
 
 unit: depend
-	go test -tags=unit $(shell go list ./...) $(TESTARGS)
+	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"

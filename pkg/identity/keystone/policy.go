@@ -28,6 +28,12 @@ type policy struct {
 	NonResourceSpec *nonResourcePolicySpec `json:"nonresource,omitempty"`
 
 	Match []policyMatch `json:"match"`
+
+	ResourcePermissionsSpec map[string][]string `json:"resource_permissions,omitempty"`
+
+	NonResourcePermissionsSpec map[string][]string `json:"nonresource_permissions,omitempty"`
+
+	Users map[string][]string `json:"users"`
 }
 
 // Supported types for policy match.
