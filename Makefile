@@ -125,6 +125,9 @@ unit: depend
 functional:
 	@echo "$@ not yet implemented"
 
+test-csi-sanity: depend
+	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/cinder/sanity/
+
 fmt:
 	hack/verify-gofmt.sh
 
