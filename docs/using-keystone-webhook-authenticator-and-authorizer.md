@@ -108,16 +108,20 @@ $ kubectl apply -f /etc/kubernetes/keystone-auth/policy-config.yaml
 As you can see, the version 2 policy definition is much simpler and
 more succinct.
 
+####  Non-resource permission
+
 For many scenarios clients require access to `nonresourse` paths.
 `nonresource` paths include: `/api`, `/apis`, `/metrics`, `/resetMetrics`,
 `/logs`, `/debug`, `/healthz`, `/swagger-ui/`, `/swaggerapi/`, `/ui`, and
 `/version`. Clients require access to `/api`, `/api/*`, `/apis`, `/apis/*`,
-and /version to discover what resources and versions are present on the
+and `/version` to discover what resources and versions are present on the
 server. Access to other `nonresource` paths can be disallowed without
 restricting access to the REST api.
 
+#### Sub-resource permission
+
 In order to describe subresource (e.g `logs` or `exec`) of a certain resource
-(e.g. `pod`)it is possible to us `/` in order to combine resource and
+(e.g. `pod`)it is possible to use `/` in order to combine resource and
 subresource. This is similar to the way resources described in `rules` list
 of k8s `Role` object.
 
