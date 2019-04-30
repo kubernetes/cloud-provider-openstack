@@ -24,6 +24,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -74,62 +75,32 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		klog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
 	}
 
-	resID := ""
-	resAvailability := ""
-	resSize := 0
-	snapshotID := ""
-
 	if len(volumes) == 1 {
-		resID = volumes[0].ID
-		resAvailability = volumes[0].AZ
-		resSize = volumes[0].Size
-
-		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
+		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", volumes[0].ID, volumes[0].AvailabilityZone, volumes[0].Size)
+		return getCreateVolumeResponse(&volumes[0]), nil
 	} else if len(volumes) > 1 {
 		klog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, errors.New("multiple volumes reported by Cinder with same name")
-	} else {
-		// Volume Create
-		properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
-		content := req.GetVolumeContentSource()
-
-		if content != nil && content.GetSnapshot() != nil {
-			snapshotID = content.GetSnapshot().GetSnapshotId()
-		}
-
-		resID, resAvailability, resSize, err = cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, &properties)
-		if err != nil {
-			klog.V(3).Infof("Failed to CreateVolume: %v", err)
-			return nil, err
-		}
-
-		klog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", resID, resAvailability, resSize)
-
 	}
 
-	resp := &csi.CreateVolumeResponse{
-		Volume: &csi.Volume{
-			VolumeId:      resID,
-			CapacityBytes: int64(resSize * 1024 * 1024 * 1024),
-			AccessibleTopology: []*csi.Topology{
-				{
-					Segments: map[string]string{topologyKey: resAvailability},
-				},
-			},
-		},
+	// Volume Create
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
+	content := req.GetVolumeContentSource()
+	var snapshotID string
+
+	if content != nil && content.GetSnapshot() != nil {
+		snapshotID = content.GetSnapshot().GetSnapshotId()
 	}
 
-	if snapshotID != "" {
-		src := &csi.VolumeContentSource{
-			Type: &csi.VolumeContentSource_Snapshot{
-				Snapshot: &csi.VolumeContentSource_SnapshotSource{
-					SnapshotId: snapshotID,
-				},
-			},
-		}
-		resp.Volume.ContentSource = src
+	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, &properties)
+	if err != nil {
+		klog.V(3).Infof("Failed to CreateVolume: %v", err)
+		return nil, err
 	}
-	return resp, nil
+
+	klog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
+
+	return getCreateVolumeResponse(vol), nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -365,4 +336,35 @@ func getAZFromTopology(requirement *csi.TopologyRequirement) string {
 		}
 	}
 	return ""
+}
+
+func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
+
+	var volsrc *csi.VolumeContentSource
+
+	if vol.SnapshotID != "" {
+		volsrc = &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Snapshot{
+				Snapshot: &csi.VolumeContentSource_SnapshotSource{
+					SnapshotId: vol.SnapshotID,
+				},
+			},
+		}
+	}
+
+	resp := &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      vol.ID,
+			CapacityBytes: int64(vol.Size * 1024 * 1024 * 1024),
+			AccessibleTopology: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: vol.AvailabilityZone},
+				},
+			},
+			ContentSource: volsrc,
+		},
+	}
+
+	return resp
+
 }

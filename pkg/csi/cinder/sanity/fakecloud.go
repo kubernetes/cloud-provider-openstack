@@ -2,17 +2,17 @@ package sanity
 
 import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type cloud struct {
 }
 
 // Fake Cloud
-func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error) {
+func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
 
-	return cinder.FakeVolID, cinder.FakeAvailability, cinder.FakeCapacityGiB, nil
+	return &cinder.FakeVol1, nil
 }
 
 func (cloud *cloud) DeleteVolume(volumeID string) error {
@@ -24,7 +24,7 @@ func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
 	return cinder.FakeVolID, nil
 }
 
-func (cloud *cloud) ListVolumes() ([]openstack.Volume, error) {
+func (cloud *cloud) ListVolumes() ([]volumes.Volume, error) {
 	return cinder.FakeVolList, nil
 
 }
@@ -47,7 +47,7 @@ func (cloud *cloud) GetAttachmentDiskPath(instanceID, volumeID string) (string, 
 	return cinder.FakeDevicePath, nil
 
 }
-func (cloud *cloud) GetVolumesByName(name string) ([]openstack.Volume, error) {
+func (cloud *cloud) GetVolumesByName(name string) ([]volumes.Volume, error) {
 
 	return cinder.FakeVolList, nil
 
