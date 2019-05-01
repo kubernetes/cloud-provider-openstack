@@ -43,10 +43,8 @@ You should make sure following similar pods are ready before proceed:
 
 ```
 NAME                                READY   STATUS    RESTARTS   AGE
-csi-attacher-cinderplugin-0         2/2     Running   0          29h
-csi-nodeplugin-cinderplugin-xxfh5   2/2     Running   0          46h
-csi-provisioner-cinderplugin-0      2/2     Running   0          46h
-csi-snapshotter-cinder-0            2/2     Running   0          46h
+csi-cinder-controllerplugin         4/4     Running   0          29h
+csi-cinder-nodeplugin               2/2     Running   0          46h
 ```
 
 ### Example Nginx application usage
@@ -147,12 +145,7 @@ Note: `allowedTopologies` can be specified in storage class to restrict the topo
 Following prerequisite needed for volume snapshot feature to work.
 
 1. Enable `-feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
-2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass.       
-To deploy external-snapshotter run
-```
-kubectl -f manifests/cinder-csi-plugin/csi-snapshotter-rbac.yaml create
-kubectl -f manifests/cinder-csi-plugin/csi-snapshotter-cinderplugin.yaml create
-```
+2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass. external-snapshotter is a part of `csi-cinder-controllerplugin`
 
 For Snapshot Creation and Volume Restore, please follow  below steps:
 
