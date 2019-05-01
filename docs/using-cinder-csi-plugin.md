@@ -176,6 +176,12 @@ $ kubectl get pv
 
 ``` 
 
+## Running Sanity Tests
+Sanity tests creates a real instance of driver and fake cloud provider.
+```
+$ make test-csi-sanity
+```
+
 ## Using CSC tool
 
 ### Test using csc
