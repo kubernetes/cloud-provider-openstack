@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 type nodeServer struct {
@@ -110,27 +111,25 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 	stagingTarget := req.GetStagingTargetPath()
 	volumeCapability := req.GetVolumeCapability()
+	volumeID := req.GetVolumeId()
+
 	if len(stagingTarget) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Staging target not provided")
 	}
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
 	}
-
-	devicePath, ok := req.GetPublishContext()["DevicePath"]
-	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "Device path not provided")
+	// Do not trust the path provided by cinder, get the real path on node
+	devicePath, err := ns.getDevicePath(volumeID)
+	if err != nil {
+		klog.V(3).Infof("Failed to GetDevicePath: %v", err)
+		return nil, err
+	}
+	if devicePath == "" {
+		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
 	m := ns.Mount
-
-	// Device Scan
-	err := m.ScanForAttach(devicePath)
-	if err != nil {
-		klog.V(3).Infof("Failed to ScanForAttach: %v", err)
-		return nil, status.Errorf(codes.Internal, "Failed to ScanForAttach: %v", err)
-	}
-
 	// Verify whether mounted
 	notMnt, err := m.IsLikelyNotMountPointAttach(stagingTarget)
 	if err != nil {
@@ -219,8 +218,18 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeExpandVolume is not yet implemented"))
 }
 
-func getNodeIDMountProvider(m mount.IMount) (string, error) {
+func (ns *nodeServer) getDevicePath(volumeID string) (string, error) {
+	var devicePath string
+	devicePath, _ = ns.Mount.GetDevicePath(volumeID)
+	if devicePath == "" {
+		// try to get from metadata service
+		devicePath = metadata.GetDevicePath(volumeID)
+	}
 
+	return devicePath, nil
+
+}
+func getNodeIDMountProvider(m mount.IMount) (string, error) {
 	nodeID, err := m.GetInstanceID()
 	if err != nil {
 		klog.V(3).Infof("Failed to GetInstanceID: %v", err)

@@ -35,3 +35,7 @@ func (m *fakemount) UnmountPath(mountPath string) error {
 func (m *fakemount) GetInstanceID() (string, error) {
 	return cinder.FakeInstanceID, nil
 }
+
+func (m *fakemount) GetDevicePath(volumeID string) (string, error) {
+	return "", nil
+}
