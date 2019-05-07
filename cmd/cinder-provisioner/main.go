@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/klog"
 
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 
@@ -37,7 +38,6 @@ var (
 	kubeconfig  string
 	id          string
 	cloudconfig string
-	version     string
 )
 
 func main() {
@@ -66,7 +66,7 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	klog.V(1).Infof("cinder-provisioner version: %s", version)
+	klog.V(1).Infof("cinder-provisioner version: %s", version.Version)
 
 	var config *rest.Config
 	var err error
