@@ -223,6 +223,16 @@ func TestAuthorizerVersion2(t *testing.T) {
 		Groups: []string{"group2"},
 		Extra: map[string][]string{
 			ProjectName: {"demo"},
+			ProjectID:   {"ff9db8980cf24a74bc9dd796b6ce811f"},
+			Roles:       {"viewer"},
+		},
+	}
+	anotherviewer := &user.DefaultInfo{
+		Name:   "anotherviewer",
+		Groups: []string{"group"},
+		Extra: map[string][]string{
+			ProjectName: {"alt_demo"},
+			ProjectID:   {"cd08a539b7c845ddb92c5d08752101d1"},
 			Roles:       {"viewer"},
 		},
 	}
@@ -251,6 +261,7 @@ func TestAuthorizerVersion2(t *testing.T) {
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
+	// Test viewer
 	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "deployments"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionAllow, decision)
@@ -260,6 +271,19 @@ func TestAuthorizerVersion2(t *testing.T) {
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
 	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: true, Verb: "create", Namespace: "default", Resource: "pods"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// Test anotherviewer, the result should be the same with viewer
+	attrs = authorizer.AttributesRecord{User: anotherviewer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "deployments"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: anotherviewer, ResourceRequest: true, Verb: "get", Namespace: "kube-system", Resource: "services"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: anotherviewer, ResourceRequest: true, Verb: "create", Namespace: "default", Resource: "pods"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
