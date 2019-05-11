@@ -486,7 +486,7 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 		return nil
 	}
 
-	// Delete the flaoting IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
+	// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
 	// any floating IPs associated with the load balancer VIP port.
 	log.WithFields(log.Fields{"ingress": key}).Info("deleting floating IP")
 	if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", ""); err != nil {
@@ -538,8 +538,8 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	}
 
 	if strings.Contains(lb.Description, ing.ResourceVersion) {
-		log.WithFields(log.Fields{"ingress": key}).Info("ingress not change")
-		return nil
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress not changed")
+		return nilz
 	}
 
 	var nodePorts []int
