@@ -59,7 +59,7 @@ endif
 depend-update: work
 	dep ensure -update -v
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner barbican-kms-plugin
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner barbican-kms-plugin magnum-auto-healer
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -120,6 +120,12 @@ barbican-kms-plugin: depend $(SOURCES)
 		-ldflags $(LDFLAGS) \
 		-o barbican-kms-plugin \
 		cmd/barbican-kms-plugin/main.go
+
+magnum-auto-healer: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags $(LDFLAGS) \
+		-o magnum-auto-healer \
+		cmd/magnum-auto-healer/main.go
 
 test: unit functional
 
@@ -197,7 +203,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf _dist .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin
+	rm -rf _dist .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin magnum-auto-healer
 
 realclean: clean
 	rm -rf vendor
@@ -208,7 +214,7 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-manila-csi-plugin image-kms-plugin
+images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-manila-csi-plugin image-kms-plugin image-magnum-auto-healer
 
 image-controller-manager: depend openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
@@ -291,6 +297,15 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
+image-magnum-auto-healer: depend magnum-auto-healer
+ifeq ($(GOOS),linux)
+	cp magnum-auto-healer cluster/images/magnum-auto-healer
+	docker build -t $(REGISTRY)/magnum-auto-healer:$(VERSION) cluster/images/magnum-auto-healer
+	rm cluster/images/magnum-auto-healer/magnum-auto-healer
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
 upload-images: images
 	@echo "push images to $(REGISTRY)"
 	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
@@ -302,6 +317,7 @@ upload-images: images
 	docker push $(REGISTRY)/octavia-ingress-controller:$(VERSION)
 	docker push $(REGISTRY)/manila-provisioner:$(VERSION)
 	docker push $(REGISTRY)/manila-csi-plugin:$(VERSION)
+	docker push $(REGISTRY)/magnum-auto-healer:$(VERSION)
 
 version:
 	@echo ${VERSION}
@@ -321,6 +337,7 @@ endif
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/octavia-ingress-controller/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/manila-provisioner/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/manila-csi-plugin/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/magnum-auto-healer/
 
 .PHONY: dist
 dist: build-cross
