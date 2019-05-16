@@ -238,3 +238,7 @@ func (m *Mount) GetInstanceID() (string, error) {
 	}
 	return "", err
 }
+
+func IsCorruptedMnt(err error) bool {
+	return mount.IsCorruptedMnt(err)
+}
