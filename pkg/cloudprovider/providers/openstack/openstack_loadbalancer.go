@@ -78,6 +78,7 @@ const (
 	ServiceAnnotationLoadBalancerFloatingSubnet       = "loadbalancer.openstack.org/floating-subnet"
 	ServiceAnnotationLoadBalancerFloatingSubnetID     = "loadbalancer.openstack.org/floating-subnet-id"
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
+	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
@@ -484,7 +485,7 @@ func createNodeSecurityGroup(client *gophercloud.ServiceClient, nodeSecurityGrou
 	return nil
 }
 
-func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName string, internalAnnotation bool, vipPort string) (*loadbalancers.LoadBalancer, error) {
+func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName string, lbClass *LBClass, internalAnnotation bool, vipPort string) (*loadbalancers.LoadBalancer, error) {
 	createOpts := loadbalancers.CreateOpts{
 		Name:        name,
 		Description: fmt.Sprintf("Kubernetes external service %s/%s from cluster %s", service.Namespace, service.Name, clusterName),
@@ -494,7 +495,11 @@ func (lbaas *LbaasV2) createLoadBalancer(service *v1.Service, name, clusterName 
 	if vipPort != "" {
 		createOpts.VipPortID = vipPort
 	} else {
-		createOpts.VipSubnetID = lbaas.opts.SubnetID
+		if lbClass != nil && lbClass.SubnetID != "" {
+			createOpts.VipSubnetID = lbClass.SubnetID
+		} else {
+			createOpts.VipSubnetID = lbaas.opts.SubnetID
+		}
 	}
 
 	loadBalancerIP := service.Spec.LoadBalancerIP
@@ -863,7 +868,35 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		return nil, fmt.Errorf("no ports provided to openstack load balancer")
 	}
 
+	internalAnnotation := false
+	var lbClass *LBClass
+	var err error
+	class := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerClass, "")
+	if class != "" {
+		lbClass = lbaas.opts.LBClasses[class]
+		if lbClass == nil {
+			return nil, fmt.Errorf("invalid loadbalancer class %q", class)
+		}
+		// Only set the internalAnnotation to true when no FloatingNetwork information is provided
+		if lbClass.FloatingNetworkID == "" && lbClass.FloatingSubnetID == "" {
+			internalAnnotation = lbClass.SubnetID != ""
+			if !internalAnnotation {
+				return nil, fmt.Errorf("empty loadbalancer class configuration for class %q", class)
+			}
+		}
+		klog.V(4).Infof("found loadbalancer class %q with %+v", class, lbClass)
+	} else {
+		internalAnnotation, err = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	floatingPool := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingNetworkID, lbaas.opts.FloatingNetworkID)
+	if lbClass != nil && lbClass.FloatingNetworkID != "" {
+		floatingPool = lbClass.FloatingNetworkID
+		klog.V(4).Infof("found floating network id %q from class %q", floatingPool, class)
+	}
 	if len(floatingPool) == 0 {
 		var err error
 		floatingPool, err = getFloatingNetworkIDForLB(lbaas.network)
@@ -872,10 +905,6 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 	}
 
-	internalAnnotation, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
-	if err != nil {
-		return nil, err
-	}
 	switch internalAnnotation {
 	case true:
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
@@ -925,8 +954,11 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 		klog.V(2).Infof("Creating loadbalancer %s", name)
 
-		portID := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerPortID, "")
-		loadbalancer, err = lbaas.createLoadBalancer(apiService, name, clusterName, internalAnnotation, portID)
+		portID := ""
+		if lbClass == nil {
+			portID = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerPortID, "")
+		}
+		loadbalancer, err = lbaas.createLoadBalancer(apiService, name, clusterName, lbClass, internalAnnotation, portID)
 		if err != nil {
 			return nil, fmt.Errorf("error creating loadbalancer %s: %v", name, err)
 		}
@@ -1256,19 +1288,25 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", serviceName, clusterName),
 			}
 
-			// if ID is used, lets use that. Otherwise fail to name and query its ID
-			floatingSubnet := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnetID, "")
-			if floatingSubnet != "" {
-				floatIPOpts.SubnetID = floatingSubnet
+			if lbClass != nil {
+				floatIPOpts.SubnetID = lbClass.FloatingSubnetID
 			} else {
-				floatingSubnet = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnet, "")
+				// Defaulting floating subnet id if no lbClass is defined
+				floatIPOpts.SubnetID = lbaas.opts.FloatingSubnetID
+				// if ID is used, lets use that. Otherwise fail to name and query its ID
+				floatingSubnet := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnetID, "")
 				if floatingSubnet != "" {
-					lbSubnet, err := lbaas.getSubnet(floatingSubnet)
-					if err != nil {
-						return nil, fmt.Errorf("failed to find floatingip subnet: %v", err)
-					}
-					if lbSubnet != nil {
-						floatIPOpts.SubnetID = lbSubnet.ID
+					floatIPOpts.SubnetID = floatingSubnet
+				} else {
+					floatingSubnet = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnet, "")
+					if floatingSubnet != "" {
+						lbSubnet, err := lbaas.getSubnet(floatingSubnet)
+						if err != nil {
+							return nil, fmt.Errorf("failed to find floatingip subnet: %v", err)
+						}
+						if lbSubnet != nil {
+							floatIPOpts.SubnetID = lbSubnet.ID
+						}
 					}
 				}
 			}
@@ -1277,6 +1315,8 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				klog.V(4).Infof("creating a new floating ip %s", loadBalancerIP)
 				floatIPOpts.FloatingIP = loadBalancerIP
 			}
+
+			klog.V(4).Infof("creating floating ip with opts %+v", floatIPOpts)
 
 			floatIP, err = floatingips.Create(lbaas.network, floatIPOpts).Extract()
 			if err != nil {

@@ -43,7 +43,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	gcfg "gopkg.in/gcfg.v1"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
@@ -101,19 +101,28 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	LBVersion            string     `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
-	UseOctavia           bool       `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
-	SubnetID             string     `gcfg:"subnet-id"`           // overrides autodetection.
-	FloatingNetworkID    string     `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	LBMethod             string     `gcfg:"lb-method"`           // default to ROUND_ROBIN.
-	LBProvider           string     `gcfg:"lb-provider"`
-	CreateMonitor        bool       `gcfg:"create-monitor"`
-	MonitorDelay         MyDuration `gcfg:"monitor-delay"`
-	MonitorTimeout       MyDuration `gcfg:"monitor-timeout"`
-	MonitorMaxRetries    uint       `gcfg:"monitor-max-retries"`
-	ManageSecurityGroups bool       `gcfg:"manage-security-groups"`
-	NodeSecurityGroupIDs []string   // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
-	InternalLB           bool       `gcfg:"internal-lb"` // default false
+	LBVersion            string              `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
+	UseOctavia           bool                `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
+	SubnetID             string              `gcfg:"subnet-id"`           // overrides autodetection.
+	FloatingNetworkID    string              `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`  // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	LBClasses            map[string]*LBClass // Predefined named Floating networks and subnets
+	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
+	LBProvider           string              `gcfg:"lb-provider"`
+	CreateMonitor        bool                `gcfg:"create-monitor"`
+	MonitorDelay         MyDuration          `gcfg:"monitor-delay"`
+	MonitorTimeout       MyDuration          `gcfg:"monitor-timeout"`
+	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
+	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
+	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	InternalLB           bool                `gcfg:"internal-lb"` // default false
+}
+
+// LBClass defines the corresponding floating network, floating subnet or internal subnet ID
+type LBClass struct {
+	FloatingNetworkID string `gcfg:"floating-network-id,omitempty"`
+	FloatingSubnetID  string `gcfg:"floating-subnet-id,omitempty"`
+	SubnetID          string `gcfg:"subnet-id,omitempty"`
 }
 
 // BlockStorageOpts is used to talk to Cinder service
@@ -177,11 +186,12 @@ type Config struct {
 		CloudsFile string `gcfg:"clouds-file,omitempty"`
 		Cloud      string `gcfg:"cloud,omitempty"`
 	}
-	LoadBalancer LoadBalancerOpts
-	BlockStorage BlockStorageOpts
-	Route        RouterOpts
-	Metadata     MetadataOpts
-	Networking   NetworkingOpts
+	LoadBalancer      LoadBalancerOpts
+	LoadBalancerClass map[string]*LBClass
+	BlockStorage      BlockStorageOpts
+	Route             RouterOpts
+	Metadata          MetadataOpts
+	Networking        NetworkingOpts
 }
 
 func logcfg(cfg Config) {
@@ -453,6 +463,10 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
 	}
+
+	// ini file doesn't support maps so we are reusing top level sub sections
+	// and copy the resulting map to corresponding loadbalancer section
+	os.lbOpts.LBClasses = cfg.LoadBalancerClass
 
 	err = checkOpenStackOpts(&os)
 	if err != nil {
