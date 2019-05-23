@@ -1,5 +1,5 @@
 kind: StatefulSet
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 metadata:
   name: csi-attacher
 spec:
@@ -35,7 +35,7 @@ spec:
             type: DirectoryOrCreate
 ---
 kind: StatefulSet
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 metadata:
   name: csi-provisioner
 spec:

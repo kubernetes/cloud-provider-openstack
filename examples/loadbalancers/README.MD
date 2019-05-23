@@ -12,12 +12,15 @@ The example below will create a nginx deployment and expose it via an OpenStack 
 
 ```yaml
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: external-http-nginx-deployment
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:
@@ -83,12 +86,15 @@ The example below will create a nginx deployment and expose it via an OpenStack 
 
 ```yaml
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: internal-http-nginx-deployment
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:
