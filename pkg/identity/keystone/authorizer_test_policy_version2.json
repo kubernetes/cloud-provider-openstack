@@ -12,7 +12,7 @@
   {
     "users": {
       "roles": ["viewer"],
-      "projects": ["demo"]
+      "projects": ["demo", "cd08a539b7c845ddb92c5d08752101d1"]
     },
     "resource_permissions": {
       "default/['*']": ["get", "list"]

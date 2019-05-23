@@ -458,7 +458,9 @@ the operation is allowed if *ANY* rule defined in the permissions is
 satisfied.
 
 - "users" defines which projects the OpenStack users belong to and what
-  roles they have.
+  roles they have. You could define multiple projects or roles, if the project
+  of the target user is included in the projects, the permission is going to be
+  checked.
 - "resource_permissions" is a map with the key defines namespaces and
   resources, the value defines the allowed operations. `/` is used as separator
   for namespace and resource. `!` and `*` are supported both for namespaces and

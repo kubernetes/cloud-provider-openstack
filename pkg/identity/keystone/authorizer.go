@@ -310,8 +310,15 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 			userRoles.Insert(role)
 		}
 	}
+
+	// We support both project name and project ID.
 	userProjects := sets.NewString()
 	if val, ok := user.GetExtra()[ProjectName]; ok {
+		for _, project := range val {
+			userProjects.Insert(project)
+		}
+	}
+	if val, ok := user.GetExtra()[ProjectID]; ok {
 		for _, project := range val {
 			userProjects.Insert(project)
 		}
@@ -339,7 +346,7 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 
 			klog.V(4).Infof("policyRoles: %s, policyProjects: %s", policyRoles.List(), policyProjects.List())
 
-			if !userRoles.IsSuperset(policyRoles) || !userProjects.IsSuperset(policyProjects) {
+			if !userRoles.IsSuperset(policyRoles) || !policyProjects.HasAny(userProjects.List()...) {
 				continue
 			}
 		}
