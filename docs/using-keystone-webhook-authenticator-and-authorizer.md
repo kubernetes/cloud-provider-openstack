@@ -79,7 +79,6 @@ data:
 EOF
 $ kubectl apply -f /etc/kubernetes/keystone-auth/policy-config.yaml
 ```
-
 Version 2:
 
 ```shell
@@ -108,6 +107,108 @@ $ kubectl apply -f /etc/kubernetes/keystone-auth/policy-config.yaml
 
 As you can see, the version 2 policy definition is much simpler and
 more succinct.
+
+####  Non-resource permission
+
+For many scenarios clients require access to `nonresourse` paths.
+`nonresource` paths include: `/api`, `/apis`, `/metrics`, `/resetMetrics`,
+`/logs`, `/debug`, `/healthz`, `/swagger-ui/`, `/swaggerapi/`, `/ui`, and
+`/version`. Clients require access to `/api`, `/api/*`, `/apis`, `/apis/*`,
+and `/version` to discover what resources and versions are present on the
+server. Access to other `nonresource` paths can be disallowed without
+restricting access to the REST api.
+
+#### Sub-resource permission
+
+In order to describe subresource (e.g `logs` or `exec`) of a certain resource
+(e.g. `pod`)it is possible to use `/` in order to combine resource and
+subresource. This is similar to the way resources described in `rules` list
+of k8s `Role` object.
+
+For an example of using of subresources as well as `nonresourse` paths please
+see policy below. With this policy we only want to allow client to be able to
+`kubectl exec` into pod and only in `utility` namespace. For this purpose we
+define resource as `"resources": ["pods/exec"]`. But in order for client to be
+able to discover pods and versions as mentioned above we also need to allow
+read access to `nonresource` paths `/api`, `/api/*`, `/apis`, `/apis/*`.
+At this moment only one path (type string) is supported per `nonresource` json
+object, this is why we have entry for each of them.
+
+```shell
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-auth-policy
+  namespace: kube-system
+data:
+  policies: |
+    [
+      {
+        "nonresource": {
+          "verbs": ["get"],
+          "path": "/api"
+        },
+        "match": [
+          {
+            "type": "role",
+            "values": ["utility_exec"]
+          }
+        ]
+      },
+      {
+        "nonresource": {
+          "verbs": ["get"],
+          "path": "/api/*"
+        },
+        "match": [
+          {
+            "type": "role",
+            "values": ["utility_exec"]
+          }
+        ]
+      },
+      {
+        "nonresource": {
+          "verbs": ["get"],
+          "path": "/apis"
+        },
+        "match": [
+          {
+            "type": "role",
+            "values": ["utility_exec"]
+          }
+        ]
+      },
+      {
+        "nonresource": {
+          "verbs": ["get"],
+          "path": "/apis/*"
+        },
+        "match": [
+          {
+            "type": "role",
+            "values": ["utility_exec"]
+          }
+        ]
+      },
+      {
+        "resource": {
+          "verbs": ["create"],
+          "resources": ["pods/exec"],
+          "version": "*",
+          "namespace": "utility"
+        },
+        "match": [
+          {
+            "type": "role",
+            "values": ["utility_exec"]
+          }
+        ]
+      }
+    ]
+EOF
+```
 
 ### Prepare the service certificates
 

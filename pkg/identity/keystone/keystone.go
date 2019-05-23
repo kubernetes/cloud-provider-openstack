@@ -346,6 +346,7 @@ func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, da
 		attrs.APIGroup = getField(v, "group")
 		attrs.APIVersion = getField(v, "version")
 		attrs.Resource = getField(v, "resource")
+		attrs.Subresource = getField(v, "subresource")
 		attrs.Name = getField(v, "name")
 	} else if nonResourceAttributes, ok := spec["nonResourceAttributes"]; ok {
 		v := nonResourceAttributes.(map[string]interface{})
