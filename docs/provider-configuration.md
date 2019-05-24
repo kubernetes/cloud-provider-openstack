@@ -103,11 +103,10 @@ file.
   OpenStack control panels, this can be found at Access and Security > API
   Access > Credentials.
 * `password`: Refers to the password of a valid user set in keystone.
-* `tenant-id`: Used to specify the ID of the project where you want
-  to create your resources. When using Keystone V3 - which changed the 
-  identifier `tenant` to `project` - the `tenant-id` value is automatically
-  mapped to the project construct in the API.
 * `username`: Refers to the username of a valid user set in keystone.
+
+It is also required to provide either `tenant-id` only or `tenant-name` together
+with information about domain: `domain-id` or `domain-name`.
 
 ##### Global Optional Parameters
 * `ca-file`: Used to specify the path to your custom CA file. 
@@ -121,8 +120,16 @@ file.
   connotation, a deployment can use a geographical name for a region identifier
   such as `us-east`. Available regions are found under the `/v3/regions`
   endpoint of the Keystone API.
+* `tenant-id`: Used to specify the ID of the project where you want
+  to create your resources. When using Keystone V3 - which changed the
+  identifier `tenant` to `project` - the `tenant-id` value is automatically
+  mapped to the project construct in the API.
 * `tenant-name`: Used to specify the name of the project where you
   want to create your resources.
+* `tenant-domain-id`: Used to specify the ID of the domain your project belongs
+  to.
+* `tenant-domain-name`: Used to specify the name of the domain your project
+  belongs to.
 * `trust-id`: Used to specify the identifier of the trust to use for
   authorization. A trust represents a user's (the trustor) authorization to
   delegate roles to another user (the trustee), and optionally allow the trustee
