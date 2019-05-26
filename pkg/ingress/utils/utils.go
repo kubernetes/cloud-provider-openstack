@@ -33,7 +33,8 @@ func Hash(data string) string {
 
 // GetResourceName get Ingress related resource name.
 func GetResourceName(namespace, name, clusterName string) string {
-	return fmt.Sprintf("k8s_ing_%s_%s_%s", clusterName, namespace, name)
+	// Keep consistent with the name of load balancer created for Service.
+	return fmt.Sprintf("kube_ingress_%s_%s_%s", clusterName, namespace, name)
 }
 
 // NodeNames get all the node names.
