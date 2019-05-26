@@ -2,6 +2,8 @@
 
 This guide explains how to deploy and config the octavia-ingress-controller in Kubernetes cluster on top of OpenStack cloud.
 
+> NOTE: octavia-ingress-controller is still in Beta, support for the overall feature will not be dropped, though details may change.
+
 ## What is an Ingress Controller?
 In Kubernetes, Ingress allows external users and client applications access to HTTP services. Ingress consists of two components.
 
