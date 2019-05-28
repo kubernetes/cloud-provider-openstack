@@ -50,7 +50,7 @@ func TestCreateVolume(t *testing.T) {
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", &properties).Return(FakeVolID, FakeAvailability, FakeCapacityGiB, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", &properties).Return(&FakeVol, nil)
 
 	// Init assert
 	assert := assert.New(t)
@@ -87,7 +87,7 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, &properties).Return(FakeVolID, FakeAvailability, FakeCapacityGiB, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, &properties).Return(&FakeVolFromSnapshot, nil)
 
 	// Init assert
 	assert := assert.New(t)
