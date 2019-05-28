@@ -2,9 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: topology-aware-standard
-provisioner: csi-cinderplugin
+provisioner: cinder.csi.openstack.org
 volumeBindingMode: WaitForFirstConsumer
-parameters:
 allowedTopologies:
 - matchLabelExpressions:
   - key: topology.cinder.csi.openstack.org/zone
