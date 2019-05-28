@@ -18,8 +18,8 @@ package cinder
 
 import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"golang.org/x/net/context"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 var FakeCluster = "cluster"
@@ -37,23 +37,37 @@ var FakeAvailability = "nova"
 var FakeDevicePath = "/dev/xxx"
 var FakeTargetPath = "/mnt/cinder"
 var FakeStagingTargetPath = "/mnt/globalmount"
-var FakeVol1 = openstack.Volume{
-	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
-	Name:   "fake-duplicate",
-	Status: "available",
-	AZ:     "",
+var FakeVol = volumes.Volume{
+	ID:               FakeVolID,
+	Name:             FakeVolName,
+	Size:             FakeCapacityGiB,
+	AvailabilityZone: FakeAvailability,
 }
-var FakeVol2 = openstack.Volume{
-	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
-	Name:   "fake-duplicate",
-	Status: "available",
-	AZ:     "",
+var FakeVolFromSnapshot = volumes.Volume{
+	ID:               FakeVolID,
+	Name:             FakeVolName,
+	Size:             FakeCapacityGiB,
+	AvailabilityZone: FakeAvailability,
+	SnapshotID:       FakeSnapshotID,
 }
-var FakeVol3 = openstack.Volume{
-	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
-	Name:   "fake-3",
-	Status: "available",
-	AZ:     "",
+
+var FakeVol1 = volumes.Volume{
+	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:             "fake-duplicate",
+	Status:           "available",
+	AvailabilityZone: "",
+}
+var FakeVol2 = volumes.Volume{
+	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:             "fake-duplicate",
+	Status:           "available",
+	AvailabilityZone: "",
+}
+var FakeVol3 = volumes.Volume{
+	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:             "fake-3",
+	Status:           "available",
+	AvailabilityZone: "",
 }
 var FakeSnapshotRes = snapshots.Snapshot{
 	ID:       FakeSnapshotID,
@@ -62,5 +76,5 @@ var FakeSnapshotRes = snapshots.Snapshot{
 }
 
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
-var FakeVolList = []openstack.Volume{FakeVol1, FakeVol3}
+var FakeVolList = []volumes.Volume{FakeVol1, FakeVol3}
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"

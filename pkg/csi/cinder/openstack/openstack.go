@@ -24,6 +24,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	gcfg "gopkg.in/gcfg.v1"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
@@ -31,15 +32,15 @@ import (
 )
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
-	ListVolumes() ([]Volume, error)
+	ListVolumes() ([]volumes.Volume, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
-	GetVolumesByName(name string) ([]Volume, error)
+	GetVolumesByName(name string) ([]volumes.Volume, error)
 	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
