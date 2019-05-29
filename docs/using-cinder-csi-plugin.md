@@ -177,13 +177,13 @@ $ kubectl get pv
 ``` 
 ### Example: Raw Block Volume
 
-For consuming a cinder volume as a raw block device.
+For consuming a cinder volume as a raw block device
 
-1. Make sure the volumeMode is Block in Persistence Volume Claim Spec
+1. Make sure the volumeMode is `Block` in Persistence Volume Claim Spec
 2. Make sure the pod is consuming the PVC with the defined name and `volumeDevices` is used instead of `volumeMounts`
 3. Deploy the Application
 
-For Example :
+Example :
 
 ```
 $ kubectl create -f examples/cinder-csi-plugin/block/block.yaml
