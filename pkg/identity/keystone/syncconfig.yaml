@@ -4,5 +4,8 @@ namespace_format: "prefix-%d-%n-%i-suffix"
 # List of Keystone project ids to omit from syncing
 projects_black_list: ["id1", "id2"]
 
+# List of Keystone project names to omit from syncing
+projects_name_black_list: ["name1", "name2"]
+
 # List of data types to synchronize
 "data_types_to_sync": ["projects", "role_assignments"]
