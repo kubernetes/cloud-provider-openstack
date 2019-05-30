@@ -47,6 +47,7 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 }
 
 func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+
 	_, err := openstack.CreateOpenStackProvider()
 	if err != nil {
 		klog.V(3).Infof("Failed to CreateOpenStackProvider: %v", err)

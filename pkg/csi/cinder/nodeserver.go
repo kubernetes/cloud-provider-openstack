@@ -113,6 +113,10 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	volumeCapability := req.GetVolumeCapability()
 	volumeID := req.GetVolumeId()
 
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume Id not provided")
+	}
+
 	if len(stagingTarget) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Staging target not provided")
 	}
@@ -163,6 +167,10 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", *req)
+
+	if len(req.GetVolumeId()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume Id not provided")
+	}
 
 	stagingTargetPath := req.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
