@@ -1,0 +1,47 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-attacher-manilaplugin
+  labels:
+    app: csi-attacher-manilaplugin
+spec:
+  selector:
+    app: csi-attacher-manilaplugin
+  ports:
+    - name: dummy
+      port: 12345
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: csi-attacher-manilaplugin
+spec:
+  serviceName: csi-attacher-manilaplugin
+  selector:
+    matchLabels:
+      app: csi-attacher-manilaplugin
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: csi-attacher-manilaplugin
+    spec:
+      serviceAccount: cephfs-csi-attacher
+      containers:
+        - name: csi-attacher
+          image: quay.io/k8scsi/csi-attacher:v1.1.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin/csi.sock
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin
+            type: DirectoryOrCreate
