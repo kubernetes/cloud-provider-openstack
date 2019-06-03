@@ -54,6 +54,10 @@ type OpenStack struct {
 	blockstorage *gophercloud.ServiceClient
 }
 
+type BlockStorageOpts struct {
+	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
+}
+
 type Config struct {
 	Global struct {
 		AuthUrl    string `gcfg:"auth-url"`
@@ -67,6 +71,7 @@ type Config struct {
 		Region     string
 		CAFile     string `gcfg:"ca-file"`
 	}
+	BlockStorage BlockStorageOpts
 }
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
@@ -126,11 +131,14 @@ func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, erro
 	return authOpts, epOpts, nil
 }
 
+const maxVol int64 = 256
+
 var OsInstance IOpenStack = nil
 var configFile = "/etc/cloud.conf"
+var cfg Config
 
-func InitOpenStackProvider(cfg string) {
-	configFile = cfg
+func InitOpenStackProvider(cfgFile string) {
+	configFile = cfgFile
 	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
 }
 
@@ -206,4 +214,14 @@ func GetOpenStackProvider() (IOpenStack, error) {
 	}
 
 	return OsInstance, nil
+}
+
+//GetMaxVolLimit returns max vol limit
+func GetMaxVolLimit() int64 {
+	if cfg.BlockStorage.NodeVolumeAttachLimit > 0 && cfg.BlockStorage.NodeVolumeAttachLimit <= 256 {
+		return cfg.BlockStorage.NodeVolumeAttachLimit
+	}
+
+	return maxVol
+
 }

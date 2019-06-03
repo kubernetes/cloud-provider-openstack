@@ -57,6 +57,8 @@ func TestNodeGetInfo(t *testing.T) {
 
 	metamock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
 
+	osmock.On("GetMaxVolumeLimit").Return(FakeMaxVolume)
+
 	// Init assert
 	assert := assert.New(t)
 
@@ -64,6 +66,7 @@ func TestNodeGetInfo(t *testing.T) {
 	expectedRes := &csi.NodeGetInfoResponse{
 		NodeId:             FakeNodeID,
 		AccessibleTopology: &csi.Topology{Segments: map[string]string{topologyKey: FakeAvailability}},
+		MaxVolumesPerNode:  FakeMaxVolume,
 	}
 
 	// Fake request
