@@ -236,6 +236,11 @@ and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
   the device path based on its serial number and `/dev/disk/by-id` mapping and is
   the recommended approach.
 
+##### Block Storage (CSI)
+
+* `NodeVolumeAttachLimit`: Maximum volumes that can be attached to the node. Its
+  default value is 256.
+
 ##### Block Storage Notes
 
 If deploying Kubernetes versions <= 1.8 on an OpenStack deployment that uses
