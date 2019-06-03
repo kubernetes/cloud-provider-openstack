@@ -84,6 +84,10 @@
   name = "sigs.k8s.io/sig-storage-lib-external-provisioner"
   branch = "master"
 
+[[constraint]]
+name = "github.com/kubernetes-csi/csi-lib-utils"
+source = "https://github.com/kubernetes-csi/csi-lib-utils"
+
 # Picked up from k/k Godeps/Godeps.json
 [[override]]
 name = "sigs.k8s.io/structured-merge-diff"
