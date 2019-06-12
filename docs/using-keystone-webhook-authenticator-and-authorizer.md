@@ -67,7 +67,7 @@ data:
         "match": [
           {
             "type": "role",
-            "values": ["memberr"]
+            "values": ["member"]
           },
           {
             "type": "project",
@@ -86,7 +86,7 @@ $ cat <<EOF > /etc/kubernetes/keystone-auth/policy-config.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: keystone-auth-policy
+  name: k8s-auth-policy
   namespace: kube-system
 data:
   policies: |
@@ -317,7 +317,7 @@ spec:
             - --tls-private-key-file
             - /etc/kubernetes/pki/key-file
             - --policy-configmap-name
-            - keystone-auth-policy
+            - k8s-auth-policy
             - --keystone-url
             - ${keystone_auth_url}
             - --v
@@ -757,8 +757,8 @@ contexts:
 - context:
     cluster: mycluster
     user: openstackuser
-  name: openstackuser@kubernetes
-current-context: default
+  name: openstackuser@mycluster
+current-context: openstackuser@mycluster
 kind: Config
 preferences: {}
 users:
