@@ -14,7 +14,7 @@ v0.1.0 | v0.1.0 | v0.1.0 docker image: k8scloudprovider/cinder-csi-plugin:0.1.0|
 ### Requirements
 
 ```
-RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true"
+RUNTIME_CONFIG="storage.k8s.io/v1=true"
 ```
 MountPropagation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
 
@@ -22,7 +22,7 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Example local-up-cluster.sh
 
-```ALLOW_PRIVILEGED=true RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
+```ALLOW_PRIVILEGED=true RUNTIME_CONFIG="storage.k8s.io/v1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
 
 ### Deploy
 
@@ -144,7 +144,7 @@ Note: `allowedTopologies` can be specified in storage class to restrict the topo
 
 Following prerequisite needed for volume snapshot feature to work.
 
-1. Enable `-feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
+1. Enable `--feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
 2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass. external-snapshotter is a part of `csi-cinder-controllerplugin`
 
 For Snapshot Creation and Volume Restore, please follow  below steps:
@@ -204,6 +204,7 @@ brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
 ## Running Sanity Tests
 
 Sanity tests creates a real instance of driver and fake cloud provider.
+see [Sanity check](https://github.com/kubernetes-csi/csi-test/tree/master/pkg/sanity) for more info.
 ```
 $ make test-csi-sanity
 ```
@@ -227,21 +228,24 @@ $ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cl
 #### Get plugin info
 ```
 $ csc identity plugin-info --endpoint tcp://127.0.0.1:10000
-"csi-cinderplugin"      "0.1.0"
+"cinder.csi.openstack.org"      "1.0.0"
 ```
 
 #### Get supported capabilities
 ```
 $ csc identity plugin-capabilities --endpoint tcp://127.0.0.1:10000
 CONTROLLER_SERVICE
+VOLUME_ACCESSIBILITY_CONSTRAINTS
 ```
 
 #### Get controller implemented capabilities
 ```
 $ csc controller get-capabilities  --endpoint tcp://127.0.0.1:10000
+&{type:LIST_VOLUMES }
 &{type:CREATE_DELETE_VOLUME }
 &{type:PUBLISH_UNPUBLISH_VOLUME }
-&{type:LIST_VOLUMES }
+&{type:CREATE_DELETE_SNAPSHOT }
+&{type:LIST_SNAPSHOTS }
 ```
 
 #### Create a volume
