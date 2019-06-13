@@ -24,6 +24,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
 
@@ -81,6 +84,9 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
@@ -90,6 +96,29 @@ func main() {
 }
 
 func handle() {
-	d := cinder.NewDriver(nodeID, endpoint, cluster, cloudconfig)
+	d := cinder.NewDriver(nodeID, endpoint, cluster)
+
+	//Intiliaze mount
+	mount, err := mount.GetMountProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
+	}
+
+	//Intiliaze Metadatda
+	metadatda, err := openstack.GetMetadataProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
+	}
+
+	// Initiliaze cloud
+	openstack.InitOpenStackProvider(cloudconfig)
+	cloud, err := openstack.GetOpenStackProvider()
+
+	if err != nil {
+		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		return
+	}
+
+	d.SetupDriver(cloud, mount, metadatda)
 	d.Run()
 }

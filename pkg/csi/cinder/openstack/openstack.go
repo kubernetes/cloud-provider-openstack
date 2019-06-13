@@ -26,6 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	gcfg "gopkg.in/gcfg.v1"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
@@ -33,15 +34,15 @@ import (
 )
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
-	ListVolumes() ([]Volume, error)
+	ListVolumes() ([]volumes.Volume, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
-	GetVolumesByName(name string) ([]Volume, error)
+	GetVolumesByName(name string) ([]volumes.Volume, error)
 	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
@@ -53,6 +54,10 @@ type IOpenStack interface {
 type OpenStack struct {
 	compute      *gophercloud.ServiceClient
 	blockstorage *gophercloud.ServiceClient
+}
+
+type BlockStorageOpts struct {
+	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
 }
 
 type Config struct {
@@ -69,6 +74,7 @@ type Config struct {
 		Region     string
 		CAFile     string `gcfg:"ca-file"`
 	}
+	BlockStorage BlockStorageOpts
 }
 
 func logcfg(cfg Config) {
@@ -153,11 +159,14 @@ func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, erro
 	return authOpts, epOpts, nil
 }
 
+const maxVol int64 = 256
+
 var OsInstance IOpenStack = nil
 var configFile = "/etc/cloud.conf"
+var cfg Config
 
-func InitOpenStackProvider(cfg string) {
-	configFile = cfg
+func InitOpenStackProvider(cfgFile string) {
+	configFile = cfgFile
 	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
 }
 
@@ -244,4 +253,14 @@ func GetOpenStackProvider() (IOpenStack, error) {
 	}
 
 	return OsInstance, nil
+}
+
+//GetMaxVolLimit returns max vol limit
+func GetMaxVolLimit() int64 {
+	if cfg.BlockStorage.NodeVolumeAttachLimit > 0 && cfg.BlockStorage.NodeVolumeAttachLimit <= 256 {
+		return cfg.BlockStorage.NodeVolumeAttachLimit
+	}
+
+	return maxVol
+
 }

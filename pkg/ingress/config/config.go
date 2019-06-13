@@ -54,14 +54,18 @@ type osConfig struct {
 
 // Octavia service related configuration
 type octaviaConfig struct {
-	// (Required)Subnet ID to create the load balancer.
+	// (Optional) Provider name for the load balancer. Default: octavia
+	// For more information: https://docs.openstack.org/octavia/latest/admin/providers.html
+	Provider string `mapstructure:"provider"`
+
+	// (Required) Subnet ID to create the load balancer.
 	SubnetID string `mapstructure:"subnet-id"`
 
-	// (Optional)Public network ID to create floating IP.
+	// (Optional) Public network ID to create floating IP.
 	// If empty, no floating IP will be allocated to the load balancer vip.
 	FloatingIPNetwork string `mapstructure:"floating-network-id"`
 
-	// (Optional)If the ingress controller should manage the security groups attached to the cluster nodes.
+	// (Optional) If the ingress controller should manage the security groups attached to the cluster nodes.
 	// Default is false.
 	ManageSecurityGroups bool `mapstructure:"manage-security-groups"`
 }

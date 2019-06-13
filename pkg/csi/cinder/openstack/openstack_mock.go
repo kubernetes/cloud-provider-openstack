@@ -20,21 +20,22 @@ import (
 	"strings"
 
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/mock"
 )
 
-var fakeVol1 = Volume{
-	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
-	Name:   "fake-duplicate",
-	Status: "available",
-	AZ:     "nova",
+var fakeVol1 = volumes.Volume{
+	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:             "fake-duplicate",
+	Status:           "available",
+	AvailabilityZone: "nova",
 }
 
-var fakeVol2 = Volume{
-	ID:     "261a8b81-3660-43e5-bab8-6470b65ee4e9",
-	Name:   "fake-duplicate",
-	Status: "available",
-	AZ:     "nova",
+var fakeVol2 = volumes.Volume{
+	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	Name:             "fake-duplicate",
+	Status:           "available",
+	AvailabilityZone: "nova",
 }
 
 var fakeSnapshot = snapshots.Snapshot{
@@ -74,38 +75,24 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, tags *map[string]string) (string, string, int, error) {
+func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
 	ret := _m.Called(name, size, vtype, availability, snapshotID, tags)
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func(string, int, string, string, string, *map[string]string) string); ok {
+	var r0 *volumes.Volume
+	if rf, ok := ret.Get(0).(func(string, int, string, string, string, *map[string]string) *volumes.Volume); ok {
 		r0 = rf(name, size, vtype, availability, snapshotID, tags)
 	} else {
-		r0 = ret.Get(0).(string)
+		r0 = ret.Get(0).(*volumes.Volume)
 	}
 
-	var r1 string
-	if rf, ok := ret.Get(1).(func(string, int, string, string, string, *map[string]string) string); ok {
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string, int, string, string, string, *map[string]string) error); ok {
 		r1 = rf(name, size, vtype, availability, snapshotID, tags)
 	} else {
-		r1 = ret.Get(1).(string)
+		r1 = ret.Error(1)
 	}
 
-	var r2 int
-	if rf, ok := ret.Get(2).(func(string, int, string, string, string, *map[string]string) int); ok {
-		r2 = rf(name, size, vtype, availability, snapshotID, tags)
-	} else {
-		r2 = ret.Get(2).(int)
-	}
-
-	var r3 error
-	if rf, ok := ret.Get(3).(func(string, int, string, string, string, *map[string]string) error); ok {
-		r3 = rf(name, size, vtype, availability, snapshotID, tags)
-	} else {
-		r3 = ret.Error(3)
-	}
-
-	return r0, r1, r2, r3
+	return r0, r1
 }
 
 // DeleteVolume provides a mock function with given fields: volumeID
@@ -186,8 +173,8 @@ func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) er
 }
 
 // GetVolumesByName provides a mock function with given fields: name
-func (_m *OpenStackMock) GetVolumesByName(name string) ([]Volume, error) {
-	var vlist []Volume
+func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error) {
+	var vlist []volumes.Volume
 	if strings.Contains(name, "fake-duplicate") {
 		vlist = append(vlist, fakeVol1)
 	}
@@ -261,9 +248,9 @@ func (_m *OpenStackMock) DeleteSnapshot(snapID string) error {
 }
 
 // ListVolumes provides a mock function without param
-func (_m *OpenStackMock) ListVolumes() ([]Volume, error) {
+func (_m *OpenStackMock) ListVolumes() ([]volumes.Volume, error) {
 	ret := _m.Called()
-	var vlist []Volume
+	var vlist []volumes.Volume
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func() error); ok {
@@ -320,4 +307,8 @@ func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) error {
 	}
 
 	return r0
+}
+
+func (_m *OpenStackMock) GetMaxVolLimit() int64 {
+	return 0
 }

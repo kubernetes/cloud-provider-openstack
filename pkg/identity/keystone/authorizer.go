@@ -18,10 +18,13 @@ package keystone
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/gophercloud/gophercloud"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog"
 
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -46,6 +49,126 @@ func findString(a string, list []string) bool {
 	return false
 }
 
+// getAllowed gets the allowed resources based on the definition.
+func getAllowed(definition string, str string) (sets.String, error) {
+	allowed := sets.NewString()
+
+	if definition == str || definition == "*" || str == "" {
+		allowed.Insert(str)
+	} else if strings.Index(definition, "!") == 0 && strings.Index(definition, "[") != 1 {
+		// "!namespace"
+		if definition[1:] == str || definition[1:] == "*" {
+			return nil, fmt.Errorf("")
+		} else {
+			allowed.Insert(str)
+		}
+	} else if strings.Index(definition, "[") == 0 && strings.Index(definition, "]") == (len(definition)-1) {
+		// "['namespace1', 'namespace2']"
+		var items []string
+		if err := json.Unmarshal([]byte(strings.Replace(definition, "'", "\"", -1)), &items); err != nil {
+			klog.V(4).Infof("Skip the permission definition %s", definition)
+			return nil, fmt.Errorf("")
+		} else {
+			for _, val := range items {
+				if val == "*" {
+					allowed.Insert(str)
+					continue
+				}
+				allowed.Insert(val)
+			}
+		}
+	} else if strings.Index(definition, "!") == 0 && strings.Index(definition, "[") == 1 && strings.Index(definition, "]") == (len(definition)-1) {
+		// "!['namespace1', 'namespace2']"
+		var items []string
+		if err := json.Unmarshal([]byte(strings.Replace(definition[1:], "'", "\"", -1)), &items); err != nil {
+			klog.V(4).Infof("Skip the permission definition %s", definition)
+			return nil, fmt.Errorf("")
+		} else {
+			found := false
+			for _, val := range items {
+				if val == str || val == "*" {
+					found = true
+				}
+			}
+
+			if found {
+				return nil, fmt.Errorf("")
+			} else {
+				allowed.Insert(str)
+			}
+		}
+	}
+
+	return allowed, nil
+}
+
+func resourcePermissionAllowed(permissionSpec map[string][]string, attr authorizer.Attributes) bool {
+	ns := attr.GetNamespace()
+	res := attr.GetResource()
+	verb := attr.GetVerb()
+	klog.V(4).Infof("Request namespace: %s, resource: %s, verb: %s", ns, res, verb)
+
+	for key, value := range permissionSpec {
+		klog.V(4).Infof("Evaluating %s: %s", key, value)
+
+		allowedVerbs := sets.NewString()
+		for _, val := range value {
+			allowedVerbs.Insert(val)
+		}
+		if allowedVerbs.Has("*") {
+			allowedVerbs.Insert(verb)
+		}
+
+		keyList := strings.Split(key, "/")
+		if len(keyList) != 2 {
+			// Ignore this spec
+			klog.V(4).Infof("Skip the permission definition %s", key)
+			continue
+		}
+		nsDef := strings.TrimSpace(keyList[0])
+		resDef := strings.TrimSpace(keyList[1])
+
+		allowedNamespaces, err := getAllowed(nsDef, ns)
+		if err != nil {
+			continue
+		}
+
+		allowedResources, err := getAllowed(resDef, res)
+		if err != nil {
+			continue
+		}
+
+		klog.V(4).Infof("allowedNamespaces: %s, allowedResources: %s, allowedVerbs: %s", allowedNamespaces.List(), allowedResources.List(), allowedVerbs.List())
+
+		if allowedNamespaces.Has(ns) && allowedResources.Has(res) && allowedVerbs.Has(verb) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func nonResourcePermissionAllowed(permissionSpec map[string][]string, attr authorizer.Attributes) bool {
+	path := attr.GetPath()
+	verb := attr.GetVerb()
+
+	for key, value := range permissionSpec {
+		allowedVerbs := sets.NewString()
+		for _, val := range value {
+			allowedVerbs.Insert(val)
+		}
+		if allowedVerbs.Has("*") {
+			allowedVerbs.Insert(verb)
+		}
+
+		if key == path && allowedVerbs.Has(verb) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func resourceMatches(p policy, a authorizer.Attributes) bool {
 	if *p.ResourceSpec.APIGroup != "*" && *p.ResourceSpec.APIGroup != a.GetAPIGroup() {
 		return false
@@ -53,8 +176,17 @@ func resourceMatches(p policy, a authorizer.Attributes) bool {
 	if *p.ResourceSpec.Namespace != "*" && *p.ResourceSpec.Namespace != a.GetNamespace() {
 		return false
 	}
-	if !findString("*", p.ResourceSpec.Resources) && !findString(a.GetResource(), p.ResourceSpec.Resources) {
-		return false
+	if len(a.GetSubresource()) > 0 {
+		if !findString("*", p.ResourceSpec.Resources) &&
+			!findString(strings.Join([]string{a.GetResource(), "*"}, "/"), p.ResourceSpec.Resources) &&
+			!findString(strings.Join([]string{a.GetResource(), a.GetSubresource()}, "/"), p.ResourceSpec.Resources) {
+			return false
+		}
+	} else {
+		if !findString("*", p.ResourceSpec.Resources) &&
+			!findString(a.GetResource(), p.ResourceSpec.Resources) {
+			return false
+		}
 	}
 	if !findString("*", p.ResourceSpec.Verbs) && !findString(a.GetVerb(), p.ResourceSpec.Verbs) {
 		return false
@@ -84,7 +216,10 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	if !findString("*", p.NonResourceSpec.Verbs) && !findString(a.GetVerb(), p.NonResourceSpec.Verbs) {
 		return false
 	}
-	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() {
+	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() &&
+		// Allow a trailing * subpath match
+		!(strings.HasSuffix(*p.NonResourceSpec.NonResourcePath, "*") &&
+			strings.HasPrefix(a.GetPath(), strings.TrimRight(*p.NonResourceSpec.NonResourcePath, "*"))) {
 		return false
 	}
 	allowed := match(p.Match, a)
@@ -129,7 +264,7 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 				return false
 			}
 		} else if m.Type == TypeProject {
-			if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/id"]; ok {
+			if val, ok := user.GetExtra()[ProjectID]; ok {
 				for _, item := range val {
 					if findString(item, m.Values) {
 						find = true
@@ -141,7 +276,7 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 				}
 			}
 
-			if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/project/name"]; ok {
+			if val, ok := user.GetExtra()[ProjectName]; ok {
 				for _, item := range val {
 					if findString(item, m.Values) {
 						find = true
@@ -154,7 +289,7 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 			}
 			return false
 		} else if m.Type == TypeRole {
-			if val, ok := user.GetExtra()["alpha.kubernetes.io/identity/roles"]; ok {
+			if val, ok := user.GetExtra()[Roles]; ok {
 				for _, item := range val {
 					if findString(item, m.Values) {
 						find = true
@@ -178,18 +313,76 @@ func match(match []policyMatch, attributes authorizer.Attributes) bool {
 func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, p := range a.pl {
-		if p.NonResourceSpec != nil && p.ResourceSpec != nil {
-			klog.Infof("Policy has both resource and nonresource sections. skipping : %#v", p)
-			continue
+
+	// Get roles and projects from the request.
+	user := attributes.GetUser()
+	userRoles := sets.NewString()
+	if val, ok := user.GetExtra()[Roles]; ok {
+		for _, role := range val {
+			userRoles.Insert(role)
 		}
-		if p.ResourceSpec != nil {
-			if resourceMatches(*p, attributes) {
-				return authorizer.DecisionAllow, "", nil
+	}
+
+	// We support both project name and project ID.
+	userProjects := sets.NewString()
+	if val, ok := user.GetExtra()[ProjectName]; ok {
+		for _, project := range val {
+			userProjects.Insert(project)
+		}
+	}
+	if val, ok := user.GetExtra()[ProjectID]; ok {
+		for _, project := range val {
+			userProjects.Insert(project)
+		}
+	}
+
+	klog.V(4).Infof("Request userRoles: %s, userProjects: %s", userRoles.List(), userProjects.List())
+
+	// The permission is whitelist. Make sure we go through all the policies that match the user roles and projects. If
+	// the operation is allowed explicitly, stop the loop and return "allowed".
+	for _, p := range a.pl {
+		policyRoles := sets.NewString()
+		policyProjects := sets.NewString()
+
+		if p.Users != nil {
+			if val, ok := p.Users["roles"]; ok {
+				for _, role := range val {
+					policyRoles.Insert(role)
+				}
 			}
-		} else if p.NonResourceSpec != nil {
-			if nonResourceMatches(*p, attributes) {
-				return authorizer.DecisionAllow, "", nil
+			if val, ok := p.Users["projects"]; ok {
+				for _, project := range val {
+					policyProjects.Insert(project)
+				}
+			}
+
+			klog.V(4).Infof("policyRoles: %s, policyProjects: %s", policyRoles.List(), policyProjects.List())
+
+			if !userRoles.IsSuperset(policyRoles) || !policyProjects.HasAny(userProjects.List()...) {
+				continue
+			}
+		}
+
+		// ResourcePermissionsSpec and NonResourcePermissionsSpec take precedence over ResourceSpec and NonResourceSpec
+		if attributes.IsResourceRequest() {
+			if p.ResourcePermissionsSpec != nil {
+				if resourcePermissionAllowed(p.ResourcePermissionsSpec, attributes) {
+					return authorizer.DecisionAllow, "", nil
+				}
+			} else if p.ResourceSpec != nil {
+				if resourceMatches(*p, attributes) {
+					return authorizer.DecisionAllow, "", nil
+				}
+			}
+		} else {
+			if p.NonResourcePermissionsSpec != nil {
+				if nonResourcePermissionAllowed(p.NonResourcePermissionsSpec, attributes) {
+					return authorizer.DecisionAllow, "", nil
+				}
+			} else if p.NonResourceSpec != nil {
+				if nonResourceMatches(*p, attributes) {
+					return authorizer.DecisionAllow, "", nil
+				}
 			}
 		}
 	}

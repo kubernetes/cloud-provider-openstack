@@ -53,6 +53,9 @@ type syncConfig struct {
 
 	// List of project ids to exclude from syncing.
 	ProjectBlackList []string `yaml:"projects_black_list"`
+
+	// List of project names to exclude from syncing.
+	ProjectNameBlackList []string `yaml:"projects_name_black_list"`
 }
 
 func (sc *syncConfig) validate() error {
@@ -147,7 +150,14 @@ func (s *Syncer) syncData(u *userInfo) error {
 	defer s.mu.Unlock()
 
 	for _, p := range s.syncConfig.ProjectBlackList {
-		if u.Extra["alpha.kubernetes.io/identity/project/id"][0] == p {
+		if u.Extra[ProjectID][0] == p {
+			klog.Infof("Project %v is in black list. Skipping.", p)
+			return nil
+		}
+	}
+
+	for _, p := range s.syncConfig.ProjectNameBlackList {
+		if u.Extra[ProjectName][0] == p {
 			klog.Infof("Project %v is in black list. Skipping.", p)
 			return nil
 		}
@@ -158,9 +168,9 @@ func (s *Syncer) syncData(u *userInfo) error {
 	}
 
 	namespaceName := s.syncConfig.formatNamespaceName(
-		u.Extra["alpha.kubernetes.io/identity/project/id"][0],
-		u.Extra["alpha.kubernetes.io/identity/project/name"][0],
-		u.Extra["alpha.kubernetes.io/identity/user/domain/id"][0],
+		u.Extra[ProjectID][0],
+		u.Extra[ProjectName][0],
+		u.Extra[DomainID][0],
 	)
 
 	// sync project data first
@@ -227,7 +237,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 		}
 
 		var keepRoleBinding bool
-		for _, roleName := range u.Extra["alpha.kubernetes.io/identity/roles"] {
+		for _, roleName := range u.Extra[Roles] {
 			roleBindingName := u.UID + "_" + roleName
 			if roleBinding.Name == roleBindingName {
 				keepRoleBinding = true
@@ -244,7 +254,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 	}
 
 	// create new role bindings
-	for _, roleName := range u.Extra["alpha.kubernetes.io/identity/roles"] {
+	for _, roleName := range u.Extra[Roles] {
 		roleBindingName := u.UID + "_" + roleName
 
 		// check that role binding doesn't exist

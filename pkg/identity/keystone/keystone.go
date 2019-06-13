@@ -49,6 +49,11 @@ import (
 const (
 	maxRetries  = 5
 	cmNamespace = "kube-system"
+	Roles       = "alpha.kubernetes.io/identity/roles"
+	ProjectID   = "alpha.kubernetes.io/identity/project/id"
+	ProjectName = "alpha.kubernetes.io/identity/project/name"
+	DomainID    = "alpha.kubernetes.io/identity/user/domain/id"
+	DomainName  = "alpha.kubernetes.io/identity/user/domain/name"
 )
 
 type userInfo struct {
@@ -341,6 +346,7 @@ func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, da
 		attrs.APIGroup = getField(v, "group")
 		attrs.APIVersion = getField(v, "version")
 		attrs.Resource = getField(v, "resource")
+		attrs.Subresource = getField(v, "subresource")
 		attrs.Name = getField(v, "name")
 	} else if nonResourceAttributes, ok := spec["nonResourceAttributes"]; ok {
 		v := nonResourceAttributes.(map[string]interface{})

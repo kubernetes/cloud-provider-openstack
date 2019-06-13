@@ -108,6 +108,11 @@ arguments
 (`--keystone-url`, `--domain-name`, `--user-name`, `--password` and `--project-name`), respectively.
 If they are not specified, the user will be prompted to enter them at the time of the interactive
 session.
+It is also possible to authenticate with [Keystone Application Credentials](https://docs.openstack.org/keystone/latest/user/application_credentials.html).
+In this case, the user needs to provide the id or the name of the Application Credential, and the Secret.
+The environment variables are `OS_APPLICATION_CREDENTIAL_ID`,`OS_APPLICATION_CREDENTIAL_NAME` and
+`OS_APPLICATION_CREDENTIAL_SECRET` and the command line arguments are `--application-credential-name`,
+`--application-credential-id` and `--application-credential-secret`.
 
 When responding to a 401 HTTP status code (indicating invalid credentials), this object will
 include metadata about the response.

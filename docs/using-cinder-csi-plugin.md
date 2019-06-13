@@ -13,10 +13,7 @@ v0.1.0 | v0.1.0 | v0.1.0 docker image: k8scloudprovider/cinder-csi-plugin:0.1.0|
 
 ### Requirements
 
-Enable Following features gates for kubernetes cluster running versions lower than v1.10.
-
 ```
-FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true
 RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true"
 ```
 MountPropagation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
@@ -25,11 +22,11 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Example local-up-cluster.sh
 
-```ALLOW_PRIVILEGED=true FEATURE_GATES=CSIPersistentVolume=true,MountPropagation=true RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
+```ALLOW_PRIVILEGED=true RUNTIME_CONFIG="storage.k8s.io/v1alpha1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
 
 ### Deploy
 
-If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-controller-manager-with-kubeadm.md#steps) jump directly to the `kubectl apply ...` command.
+If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-controller-manager-with-kubeadm.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` and then jump directly to the `kubectl apply ...` command.
 
 Encode your ```$CLOUD_CONFIG``` file content using base64.
 
@@ -46,9 +43,8 @@ You should make sure following similar pods are ready before proceed:
 
 ```
 NAME                                READY   STATUS    RESTARTS   AGE
-csi-attacher-cinderplugin-0         2/2     Running   0          29h
-csi-nodeplugin-cinderplugin-xxfh5   2/2     Running   0          46h
-csi-provisioner-cinderplugin-0      2/2     Running   0          46h
+csi-cinder-controllerplugin         4/4     Running   0          29h
+csi-cinder-nodeplugin               2/2     Running   0          46h
 ```
 
 ### Example Nginx application usage
@@ -137,19 +133,80 @@ index.html  lost+found
 ### Enable Topology-aware dynamic provisioning for Cinder Volumes
 
 Following feature gates needs to be enabled as below:
-1. `--feature-gates=CSINodeInfo=true,CSIDriverRegistry=true` in the manifest entries of kubelet and kube-apiserver.
+1. `--feature-gates=CSINodeInfo=true,CSIDriverRegistry=true` in the manifest entries of kubelet and kube-apiserver. (Enabled by default in kubernetes v1.14)
 2. `--feature-gates=Topology=true` needs to be enabled in external-provisioner.
 
 Currently, driver supports only one topology key: `topology.cinder.csi.openstack.org/zone` that represents availability by zone.
 
-Install the CSINodeInfo CRD on the cluster using the instructions provided here:
-``` kubectl create -f https://raw.githubusercontent.com/kubernetes/csi-api/master/pkg/crd/manifests/csinodeinfo.yaml --validate=false ```
- (For more info : [Enabling CSINodeInfo](https://kubernetes-csi.github.io/docs/Setup.html#enabling-csinodeinfo).)
-
-Once installed, node info and driver status could be queried using following command:
-``` kubectl describe csinodeinfo ```
-
 Note: `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
+
+### Example Snapshot Create and Restore
+
+Following prerequisite needed for volume snapshot feature to work.
+
+1. Enable `-feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
+2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass. external-snapshotter is a part of `csi-cinder-controllerplugin`
+
+For Snapshot Creation and Volume Restore, please follow  below steps:
+
+* Create Storage Class, Snapshot Class and PVC    
+```
+$ kubectl -f examples/cinder-csi-plugin/example.yaml create
+```     
+* Verify that pvc is bounded
+``` 
+$ kubectl describe pvc <pvc-name>
+```   
+* Create Snapshot of the PVC    
+```
+$ kubectl -f examples/cinder-csi-plugin/snapshotcreate.yaml create
+```       
+* Verify that snapshot is created    
+```
+$ kubectl get volumesnapshot 
+$ kubectl get volumesnapshotcontent
+```   
+* Restore volume from snapshot    
+```
+$ kubectl -f examples/cinder-csi-plugin/snapshotrestore.yaml create
+```
+* Verify that volume from snapshot is created    
+```
+$ kubectl get pv
+
+``` 
+### Example: Raw Block Volume
+
+For consuming a cinder volume as a raw block device
+
+1. Make sure the volumeMode is `Block` in Persistence Volume Claim Spec
+2. Make sure the pod is consuming the PVC with the defined name and `volumeDevices` is used instead of `volumeMounts`
+3. Deploy the Application
+
+Example :
+
+```
+$ kubectl create -f examples/cinder-csi-plugin/block/block.yaml
+```
+
+Make sure Pod is running
+```
+$ kubectl get pods
+```
+
+Verify the device node is mounted inside the container
+
+```
+$ kubectl exec -ti test-block -- ls -al /dev/xvda
+brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
+```
+
+## Running Sanity Tests
+
+Sanity tests creates a real instance of driver and fake cloud provider.
+```
+$ make test-csi-sanity
+```
 
 ## Using CSC tool
 

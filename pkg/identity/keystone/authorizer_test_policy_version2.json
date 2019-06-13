@@ -1,0 +1,33 @@
+[
+  {
+    "users": {
+      "roles": ["developer"],
+      "projects": ["demo"]
+    },
+    "resource_permissions": {
+      "!kube-system/!['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles']": ["*"],
+      "!kube-system/['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles']": ["get", "list"]
+    }
+  },
+  {
+    "users": {
+      "roles": ["viewer"],
+      "projects": ["demo", "cd08a539b7c845ddb92c5d08752101d1"]
+    },
+    "resource_permissions": {
+      "default/['*']": ["get", "list"]
+    }
+  },
+  {
+    "users": {
+      "roles": ["clusteradmin"],
+      "projects": ["demo"]
+    },
+    "resource_permissions": {
+      "*/*": ["*"]
+    },
+    "nonresource_permissions": {
+      "/healthz": ["get", "post"]
+    }
+  }
+]

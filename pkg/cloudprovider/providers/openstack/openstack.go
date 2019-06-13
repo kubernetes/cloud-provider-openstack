@@ -43,7 +43,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	gcfg "gopkg.in/gcfg.v1"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
@@ -101,18 +101,28 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	LBVersion            string     `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
-	UseOctavia           bool       `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
-	SubnetID             string     `gcfg:"subnet-id"`           // overrides autodetection.
-	FloatingNetworkID    string     `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	LBMethod             string     `gcfg:"lb-method"`           // default to ROUND_ROBIN.
-	LBProvider           string     `gcfg:"lb-provider"`
-	CreateMonitor        bool       `gcfg:"create-monitor"`
-	MonitorDelay         MyDuration `gcfg:"monitor-delay"`
-	MonitorTimeout       MyDuration `gcfg:"monitor-timeout"`
-	MonitorMaxRetries    uint       `gcfg:"monitor-max-retries"`
-	ManageSecurityGroups bool       `gcfg:"manage-security-groups"`
-	NodeSecurityGroupIDs []string   // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	LBVersion            string              `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
+	UseOctavia           bool                `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
+	SubnetID             string              `gcfg:"subnet-id"`           // overrides autodetection.
+	FloatingNetworkID    string              `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`  // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	LBClasses            map[string]*LBClass // Predefined named Floating networks and subnets
+	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
+	LBProvider           string              `gcfg:"lb-provider"`
+	CreateMonitor        bool                `gcfg:"create-monitor"`
+	MonitorDelay         MyDuration          `gcfg:"monitor-delay"`
+	MonitorTimeout       MyDuration          `gcfg:"monitor-timeout"`
+	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
+	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
+	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	InternalLB           bool                `gcfg:"internal-lb"` // default false
+}
+
+// LBClass defines the corresponding floating network, floating subnet or internal subnet ID
+type LBClass struct {
+	FloatingNetworkID string `gcfg:"floating-network-id,omitempty"`
+	FloatingSubnetID  string `gcfg:"floating-subnet-id,omitempty"`
+	SubnetID          string `gcfg:"subnet-id,omitempty"`
 }
 
 // BlockStorageOpts is used to talk to Cinder service
@@ -161,26 +171,29 @@ type OpenStack struct {
 // Config is used to read and store information from the cloud configuration file
 type Config struct {
 	Global struct {
-		AuthURL    string `gcfg:"auth-url"`
-		Username   string
-		UserID     string `gcfg:"user-id"`
-		Password   string
-		TenantID   string `gcfg:"tenant-id"`
-		TenantName string `gcfg:"tenant-name"`
-		TrustID    string `gcfg:"trust-id"`
-		DomainID   string `gcfg:"domain-id"`
-		DomainName string `gcfg:"domain-name"`
-		Region     string
-		CAFile     string `gcfg:"ca-file"`
-		UseClouds  bool   `gcfg:"use-clouds"`
-		CloudsFile string `gcfg:"clouds-file,omitempty"`
-		Cloud      string `gcfg:"cloud,omitempty"`
+		AuthURL          string `gcfg:"auth-url"`
+		Username         string
+		UserID           string `gcfg:"user-id"`
+		Password         string
+		TenantID         string `gcfg:"tenant-id"`
+		TenantName       string `gcfg:"tenant-name"`
+		TrustID          string `gcfg:"trust-id"`
+		DomainID         string `gcfg:"domain-id"`
+		DomainName       string `gcfg:"domain-name"`
+		TenantDomainID   string `gcfg:"tenant-domain-id"`
+		TenantDomainName string `gcfg:"tenant-domain-name"`
+		Region           string
+		CAFile           string `gcfg:"ca-file"`
+		UseClouds        bool   `gcfg:"use-clouds"`
+		CloudsFile       string `gcfg:"clouds-file,omitempty"`
+		Cloud            string `gcfg:"cloud,omitempty"`
 	}
-	LoadBalancer LoadBalancerOpts
-	BlockStorage BlockStorageOpts
-	Route        RouterOpts
-	Metadata     MetadataOpts
-	Networking   NetworkingOpts
+	LoadBalancer      LoadBalancerOpts
+	LoadBalancerClass map[string]*LBClass
+	BlockStorage      BlockStorageOpts
+	Route             RouterOpts
+	Metadata          MetadataOpts
+	Networking        NetworkingOpts
 }
 
 func logcfg(cfg Config) {
@@ -230,6 +243,30 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 }
 
 func (cfg Config) toAuth3Options() tokens3.AuthOptions {
+	// Setting up a scope
+	scope := tokens3.Scope{}
+
+	// Gophercloud requires that either ProjectID or ProjectName is specified,
+	// but not both.
+	if cfg.Global.TenantID != "" {
+		scope.ProjectID = cfg.Global.TenantID
+	} else {
+		scope.ProjectName = cfg.Global.TenantName
+
+		// If Tenant Domain Name/ID was provided, then use it for the scope, otherwise
+		// fall back to Domain Name/ID
+		if cfg.Global.TenantDomainID != "" {
+			scope.DomainID = cfg.Global.TenantDomainID
+		} else {
+			scope.DomainID = cfg.Global.DomainID
+		}
+		if cfg.Global.TenantDomainName != "" {
+			scope.DomainName = cfg.Global.TenantDomainName
+		} else {
+			scope.DomainName = cfg.Global.DomainName
+		}
+	}
+
 	return tokens3.AuthOptions{
 		IdentityEndpoint: cfg.Global.AuthURL,
 		Username:         cfg.Global.Username,
@@ -237,6 +274,7 @@ func (cfg Config) toAuth3Options() tokens3.AuthOptions {
 		Password:         cfg.Global.Password,
 		DomainID:         cfg.Global.DomainID,
 		DomainName:       cfg.Global.DomainName,
+		Scope:            scope,
 		AllowReauth:      true,
 	}
 }
@@ -270,6 +308,9 @@ func configFromEnv() (cfg Config, ok bool) {
 		cfg.Global.DomainName = os.Getenv("OS_USER_DOMAIN_NAME")
 	}
 
+	cfg.Global.TenantDomainID = os.Getenv("OS_PROJECT_DOMAIN_ID")
+	cfg.Global.TenantDomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
+
 	ok = cfg.Global.AuthURL != "" &&
 		cfg.Global.Username != "" &&
 		cfg.Global.Password != "" &&
@@ -301,6 +342,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	cfg.Networking.IPv6SupportDisabled = false
 	cfg.Networking.PublicNetworkName = "public"
+	cfg.LoadBalancer.InternalLB = false
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if cfg.Global.UseClouds {
@@ -428,6 +470,9 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 			AuthOptionsBuilder: &opts,
 		}
 		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
+	} else if cfg.Global.TenantDomainID != "" || cfg.Global.TenantDomainName != "" {
+		opts := cfg.toAuth3Options()
+		err = openstack.AuthenticateV3(provider, &opts, gophercloud.EndpointOpts{})
 	} else {
 		err = openstack.Authenticate(provider, cfg.toAuthOptions())
 	}
@@ -451,6 +496,10 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
 	}
+
+	// ini file doesn't support maps so we are reusing top level sub sections
+	// and copy the resulting map to corresponding loadbalancer section
+	os.lbOpts.LBClasses = cfg.LoadBalancerClass
 
 	err = checkOpenStackOpts(&os)
 	if err != nil {

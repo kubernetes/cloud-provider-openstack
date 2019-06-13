@@ -45,12 +45,12 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
-  digest = "1:94ffc0947c337d618b6ff5ed9abaddc1217b090c1b3a1ae4739b35b7b25851d5"
+  digest = "1:7f21fa1f8ab9a529dba26a7e9cf20de217c307fa1d96cb599d3afd9e5c83e9d6"
   name = "github.com/container-storage-interface/spec"
   packages = ["lib/go/csi"]
   pruneopts = "UT"
-  revision = "ed0bb0e1557548aa028307f48728767cfe8f6345"
-  version = "v1.0.0"
+  revision = "f750e6765f5f6b4ac0e13e95214d58901290fb4b"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:b7e8c5fa66ebd2e6083cd4a6cc515f6d3c651fd04ad18a8276444bbcb172c583"
@@ -186,9 +186,10 @@
   revision = "5b532d6fd5efaf7fa130d4e859a2fde0fc3a9e1b"
 
 [[projects]]
-  digest = "1:cf0608a4d324260ef753cd04a1977ccca36937b9a6a5544ab08e804325e9cdc0"
+  digest = "1:09042989768a0c57341402f9991359808ad998d07ddb824393833a7c35fd3d10"
   name = "github.com/golang/protobuf"
   packages = [
+    "descriptor",
     "proto",
     "protoc-gen-go/descriptor",
     "ptypes",
@@ -231,7 +232,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d6a188d2ec8896db684b39e16584c5280859965c1cd30d6704a5dfb1ef8b93be"
+  digest = "1:c6ae6215aaacaa06d48c8cd231a6c28396b8f3a1efea1ebb0b3563062e4ef26a"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -277,7 +278,7 @@
     "testhelper/client",
   ]
   pruneopts = "UT"
-  revision = "737db56db180519300c1b7b326e40d431de10206"
+  revision = "2c55d17f707cc8333ca4f49690cb2970d12a25f6"
 
 [[projects]]
   branch = "master"
@@ -378,6 +379,29 @@
   pruneopts = "UT"
   revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
   version = "v1.0.2"
+
+[[projects]]
+  digest = "1:b09c9ac14d93f481c768e73a12d4e8527ac25232d593f2ad918ffe462901b654"
+  name = "github.com/kubernetes-csi/csi-lib-utils"
+  packages = [
+    "connection",
+    "protosanitizer",
+  ]
+  pruneopts = "UT"
+  revision = "b8b7a89535d80e12f2c0f4c53cfb981add8aaca2"
+  source = "https://github.com/kubernetes-csi/csi-lib-utils"
+  version = "v0.6.1"
+
+[[projects]]
+  digest = "1:c9ba37d3709f57185b60f587a6282378feaff2aa3cddc28a56770704e3f96b98"
+  name = "github.com/kubernetes-csi/csi-test"
+  packages = [
+    "pkg/sanity",
+    "utils",
+  ]
+  pruneopts = "UT"
+  revision = "5b1e3786b7c8f7ca514b40e882a0b5dc36e4c842"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:c568d7727aa262c32bdf8a3f7db83614f7af0ed661474b24588de635c20024c7"
@@ -947,8 +971,8 @@
     "storage/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "aed3e58a5946ed43ef2008af9bc6d0d48e0682ea"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "40a48860b5abbba9aa891b02b32da429b08d96a0"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   branch = "master"
@@ -959,7 +983,7 @@
   revision = "80ebb0f65ac12d9684d4789ecfd2ba32ceaedc0b"
 
 [[projects]]
-  digest = "1:cdc46545453fa33efc18100f73efec453e2538fe93527a1748c314b94923d844"
+  digest = "1:12e1193fca56eef2efa8e94239f96011a2ac8f60cba50f04da1babad5029de99"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -1014,11 +1038,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "52b84f9b724722e77633d2fe022d2d8d57bb16a9"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:8e6b0717378aad2ca954012e3b4f75f3e9e564b2da9c5fe1c360f9794ee5393c"
+  digest = "1:c28347beaf2875881aa2a236d8c404ce69560435d94da3925d088603b92ea8d4"
   name = "k8s.io/apiserver"
   packages = [
     "pkg/admission",
@@ -1119,8 +1143,8 @@
     "plugin/pkg/authorizer/webhook",
   ]
   pruneopts = "UT"
-  revision = "8bbd9f58a9864ed4760c9a7e54d1d5a5e0daa676"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "8b27c41bdbb11ff103caa673315e097bf0289171"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   digest = "1:76a2d5629d0b96fa300cbf1b650bc63888fbcf211bc20e5c157a06c940394e41"
@@ -1319,8 +1343,8 @@
     "util/workqueue",
   ]
   pruneopts = "UT"
-  revision = "94c2b28f7daad3bd8a35083cc4f8cbe93f027cb3"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   digest = "1:1a96ad6cfdcfd87d45308f5ab00a79d79b70c737f6f3906b122a8f0b96002129"
@@ -1333,8 +1357,8 @@
     "volume/helpers",
   ]
   pruneopts = "UT"
-  revision = "4ee83c7903ee568380d31b984d285fb386253a61"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "c892ea32361a3655e7bd8c06f2d02dd8ce73dd78"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   digest = "1:c5f6808d3fa257c7e9d2e7f81a123c16c69fbaeeb841fc748480da7939fad181"
@@ -1347,8 +1371,8 @@
     "logs",
   ]
   pruneopts = "UT"
-  revision = "923e373b2c7ebc95cf3dc5444798c4995ff780b7"
-  version = "kubernetes-1.14.0-beta.2"
+  revision = "4a91899592f42b2f5859587cc5a676a5b94d2ee3"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   branch = "master"
@@ -1393,7 +1417,7 @@
   revision = "15615b16d372105f0c69ff47dfe7402926a65aaa"
 
 [[projects]]
-  digest = "1:8ffd84dd7473a5bdda51af5378c3f14eb8fe3f89fd79c5efd13cc0179d47b9c4"
+  digest = "1:4ee0ba4d3b0c778fbc6a7be68cfcadbe933b9b85facaa5f6bd2017534d2e1718"
   name = "k8s.io/kubernetes"
   packages = [
     "cmd/cloud-controller-manager/app",
@@ -1463,8 +1487,8 @@
     "pkg/volume/util/volumepathhandler",
   ]
   pruneopts = "UT"
-  revision = "b1e389e6f7bd798a8dd162f82b918f509ac5291b"
-  version = "v1.14.0-beta.2"
+  revision = "641856db18352033a0d96dbc99153fa3b27298e5"
+  version = "v1.14.0"
 
 [[projects]]
   branch = "master"
@@ -1563,6 +1587,9 @@
     "github.com/gophercloud/gophercloud/testhelper/client",
     "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/gorilla/mux",
+    "github.com/kubernetes-csi/csi-lib-utils/connection",
+    "github.com/kubernetes-csi/csi-lib-utils/protosanitizer",
+    "github.com/kubernetes-csi/csi-test/pkg/sanity",
     "github.com/mitchellh/go-homedir",
     "github.com/mitchellh/mapstructure",
     "github.com/onsi/ginkgo",

@@ -109,6 +109,12 @@ manila-provisioner: depend $(SOURCES)
 		-o manila-provisioner \
 		cmd/manila-provisioner/main.go
 
+manila-csi-plugin: depend $(SOURCES)
+	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags $(LDFLAGS) \
+		-o manila-csi-plugin \
+		cmd/manila-csi-plugin/main.go
+
 barbican-kms-plugin: depend $(SOURCES)
 	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
@@ -120,10 +126,13 @@ test: unit functional
 check: depend fmt vet lint import-boss
 
 unit: depend
-	go test -tags=unit $(shell go list ./...) $(TESTARGS)
+	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
+
+test-csi-sanity: depend
+	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/cinder/sanity/
 
 fmt:
 	hack/verify-gofmt.sh
@@ -188,7 +197,7 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf _dist .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner
+	rm -rf _dist .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin
 
 realclean: clean
 	rm -rf vendor
@@ -199,7 +208,7 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-kms-plugin
+images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-manila-csi-plugin image-kms-plugin
 
 image-controller-manager: depend openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
@@ -264,6 +273,15 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
+image-manila-csi-plugin: depend manila-csi-plugin
+ifeq ($(GOOS),linux)
+	cp manila-csi-plugin cluster/images/manila-csi-plugin
+	docker build -t $(REGISTRY)/manila-csi-plugin:$(VERSION) cluster/images/manila-csi-plugin
+	rm cluster/images/manila-csi-plugin/manila-csi-plugin
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
 image-kms-plugin: depend barbican-kms-plugin
 ifeq ($(GOOS), linux)
 	cp barbican-kms-plugin cluster/images/barbican-kms-plugin
@@ -283,6 +301,7 @@ upload-images: images
 	docker push $(REGISTRY)/k8s-keystone-auth:$(VERSION)
 	docker push $(REGISTRY)/octavia-ingress-controller:$(VERSION)
 	docker push $(REGISTRY)/manila-provisioner:$(VERSION)
+	docker push $(REGISTRY)/manila-csi-plugin:$(VERSION)
 
 version:
 	@echo ${VERSION}
@@ -301,6 +320,7 @@ endif
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/client-keystone-auth/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/octavia-ingress-controller/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/manila-provisioner/
+	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/manila-csi-plugin/
 
 .PHONY: dist
 dist: build-cross

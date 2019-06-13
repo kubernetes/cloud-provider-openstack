@@ -312,11 +312,18 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 
 		log.WithFields(log.Fields{"name": name}).Debug("creating loadbalancer")
 
+		var provider string
+		if os.config.Octavia.Provider == "" {
+			provider = "octavia"
+		} else {
+			provider = os.config.Octavia.Provider
+		}
+
 		createOpts := loadbalancers.CreateOpts{
 			Name:        name,
 			Description: fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
 			VipSubnetID: subnetID,
-			Provider:    "octavia",
+			Provider:    provider,
 		}
 		loadbalancer, err = loadbalancers.Create(os.octavia, createOpts).Extract()
 		if err != nil {
