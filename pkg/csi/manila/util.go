@@ -24,17 +24,26 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
-	"k8s.io/klog"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 )
 
 type (
-	volumeID string
+	volumeID   string
+	snapshotID string
 )
 
 const (
 	bytesInGiB = 1024 * 1024 * 1024
 )
+
+func newVolumeID(volumeName string) volumeID {
+	return volumeID(fmt.Sprintf("csi-manila-%s", volumeName))
+}
+
+func newSnapshotID(snapshotName string) snapshotID {
+	return snapshotID(fmt.Sprintf("csi-manila-%s", snapshotName))
+}
 
 func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	const (
@@ -64,16 +73,38 @@ func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	return "", "", errors.New("endpoint uses unsupported scheme")
 }
 
+// Blocks until the response from previous request is available and reads it.
+// If that request has finished successfully, release the handle because we're done.
+func readResponse(handle responsebroker.ResponseHandle) interface{} {
+	if resp, err := handle.Read(); err == nil {
+		handle.Release()
+		return resp
+	}
+
+	return nil
+}
+
+type requestResult struct {
+	dataPtr interface{}
+	err     error
+}
+
+// Writes the response.
+// If this request has finished successfully, wait for others to readResponse() and dispose of the lock.
+func writeResponse(handle responsebroker.ResponseHandle, rb *responsebroker.ResponseBroker, identifier string, res *requestResult) {
+	handle.Write(res.dataPtr, res.err)
+
+	if res.err == nil {
+		rb.Done(identifier)
+	}
+}
+
 func endpointAddress(proto, addr string) string {
 	return fmt.Sprintf("%s://%s", proto, addr)
 }
 
 func fmtGrpcConnError(fwdEndpoint string, err error) string {
 	return fmt.Sprintf("connecting to fwd plugin at %s failed: %v", fwdEndpoint, err)
-}
-
-func newVolumeID(volumeName string) volumeID {
-	return volumeID(fmt.Sprintf("csi-manila-%s", volumeName))
 }
 
 func bytesToGiB(sizeInBytes int64) int {
@@ -85,19 +116,6 @@ func bytesToGiB(sizeInBytes int64) int {
 	}
 
 	return sizeInGiB
-}
-
-func getShareAdapter(proto string) shareadapters.ShareAdapter {
-	switch strings.ToLower(proto) {
-	case "cephfs":
-		return &shareadapters.Cephfs{}
-	case "nfs":
-		return &shareadapters.NFS{}
-	default:
-		klog.Fatalf("unknown share adapter %s", proto)
-	}
-
-	return nil
 }
 
 func getAccessRightByID(id, shareID string, manilaClient *gophercloud.ServiceClient) (*shares.AccessRight, error) {
@@ -136,7 +154,7 @@ func validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 	}
 
 	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("secrets cannot be empty")
+		return errors.New("secrets cannot be nil or empty")
 	}
 
 	return nil
@@ -148,7 +166,58 @@ func validateDeleteVolumeRequest(req *csi.DeleteVolumeRequest) error {
 	}
 
 	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("secrets cannot be empty")
+		return errors.New("secrets cannot be nil or empty")
+	}
+
+	return nil
+}
+
+func validateCreateSnapshotRequest(req *csi.CreateSnapshotRequest) error {
+	if req.GetName() == "" {
+		return errors.New("snapshot name cannot be empty")
+	}
+
+	if req.GetSourceVolumeId() == "" {
+		return errors.New("source volume ID cannot be empty")
+	}
+
+	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
+		return errors.New("secrets cannot be nil or empty")
+	}
+
+	return nil
+}
+
+func validateDeleteSnapshotRequest(req *csi.DeleteSnapshotRequest) error {
+	if req.GetSnapshotId() == "" {
+		return errors.New("snapshot ID cannot be empty")
+	}
+
+	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
+		return errors.New("secrets cannot be nil or empty")
+	}
+
+	return nil
+}
+
+func verifyVolumeCompatibility(sizeInGiB int, share *shares.Share, shareOpts *options.ControllerVolumeContext) error {
+	if share.Size != sizeInGiB {
+		return fmt.Errorf("size mismatch: wanted %d, got %d", sizeInGiB, share.Size)
+	}
+
+	if share.ShareProto != shareOpts.Protocol {
+		return fmt.Errorf("share protocol mismatch: wanted %s, got %s", shareOpts.Protocol, share.ShareProto)
+	}
+
+	// FIXME shareOpts.Type may be either type name or type ID
+	/*
+		if share.ShareType != shareOpts.Type {
+			return fmt.Errorf("share type mismatch: wanted %s, got %s", shareOpts.Type, share.ShareType)
+		}
+	*/
+
+	if share.ShareNetworkID != shareOpts.ShareNetworkID {
+		return fmt.Errorf("share network ID mismatch: wanted %s, got %s", shareOpts.ShareNetworkID, share.ShareNetworkID)
 	}
 
 	return nil

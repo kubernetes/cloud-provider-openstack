@@ -23,18 +23,25 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/klog"
 )
 
 const (
-	annProvisionedBy = "manila.csi.openstack.org/provisioned-by"
-
 	waitForAvailableShareTimeout = 3
 	waitForAvailableShareRetries = 10
+
+	shareCreating      = "creating"
+	shareDeleting      = "deleting"
+	shareError         = "error"
+	shareErrorDeleting = "error_deleting"
+	shareAvailable     = "available"
+
+	shareDescription = "provisioned-by=manila.csi.openstack.org"
 )
 
-func (cs *controllerServer) getOrCreateShare(volID volumeID, sizeInGiB int, controllerCtx *options.ControllerVolumeContext, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+// getOrCreateShare first retrieves an existing share with name=volID, or creates a new one if it doesn't exist yet.
+// Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
+func getOrCreateShare(volID volumeID, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -46,19 +53,8 @@ func (cs *controllerServer) getOrCreateShare(volID volumeID, sizeInGiB int, cont
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			// It doesn't exist, create it
 
-			req := shares.CreateOpts{
-				ShareProto:     controllerCtx.Protocol,
-				ShareType:      controllerCtx.Type,
-				ShareNetworkID: controllerCtx.ShareNetworkID,
-				Name:           string(volID),
-				Size:           sizeInGiB,
-				Metadata: map[string]string{
-					annProvisionedBy: cs.d.name,
-				},
-			}
-
 			var createErr error
-			if share, createErr = shares.Create(manilaClient, req).Extract(); createErr != nil {
+			if share, createErr = shares.Create(manilaClient, createOpts).Extract(); createErr != nil {
 				return nil, createErr
 			}
 		} else {
@@ -71,13 +67,11 @@ func (cs *controllerServer) getOrCreateShare(volID volumeID, sizeInGiB int, cont
 
 	// It exists, wait till it's Available
 
-	const available = "available"
-
-	if share.Status == available {
+	if share.Status == shareAvailable {
 		return share, nil
 	}
 
-	return waitForShareStatus(share.ID, available, manilaClient)
+	return waitForShareStatus(share.ID, shareCreating, shareAvailable, manilaClient)
 }
 
 func deleteShare(volID volumeID, manilaClient *gophercloud.ServiceClient) error {
@@ -92,7 +86,7 @@ func deleteShare(volID volumeID, manilaClient *gophercloud.ServiceClient) error 
 		}
 	}
 
-	return shares.Delete(manilaClient, share.ID).Err
+	return shares.Delete(manilaClient, share.ID).ExtractErr()
 }
 
 func getShareByID(shareID string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
@@ -108,7 +102,7 @@ func getShareByName(shareName string, manilaClient *gophercloud.ServiceClient) (
 	return getShareByID(shareID, manilaClient)
 }
 
-func waitForShareStatus(shareID string, desired string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+func waitForShareStatus(shareID, currentStatus, desiredStatus string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -127,6 +121,17 @@ func waitForShareStatus(shareID string, desired string, manilaClient *gopherclou
 			return false, err
 		}
 
-		return share.Status == desired, nil
+		var isAvailable bool
+
+		switch share.Status {
+		case currentStatus:
+			isAvailable = false
+		case desiredStatus:
+			isAvailable = true
+		default:
+			return false, fmt.Errorf("share %s is in %s state", shareID, share.Status)
+		}
+
+		return isAvailable, nil
 	})
 }
