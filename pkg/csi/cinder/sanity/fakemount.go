@@ -23,7 +23,7 @@ func (m *fakemount) FormatAndMount(source string, target string, fstype string, 
 }
 
 func (m *fakemount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
-	return true, nil
+	return false, nil
 }
 
 func (m *fakemount) Mount(source string, target string, fstype string, options []string) error {
@@ -40,7 +40,7 @@ func (m *fakemount) GetInstanceID() (string, error) {
 }
 
 func (m *fakemount) GetDevicePath(volumeID string) (string, error) {
-	return "", nil
+	return cinder.FakeDevicePath, nil
 }
 
 func (m *fakemount) GetBaseMounter() *mount.SafeFormatAndMount {

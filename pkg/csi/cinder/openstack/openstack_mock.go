@@ -29,6 +29,7 @@ var fakeVol1 = volumes.Volume{
 	Name:             "fake-duplicate",
 	Status:           "available",
 	AvailabilityZone: "nova",
+	Size:             1,
 }
 
 var fakeVol2 = volumes.Volume{
@@ -36,6 +37,7 @@ var fakeVol2 = volumes.Volume{
 	Name:             "fake-duplicate",
 	Status:           "available",
 	AvailabilityZone: "nova",
+	Size:             1,
 }
 
 var fakeSnapshot = snapshots.Snapshot{
@@ -107,6 +109,11 @@ func (_m *OpenStackMock) DeleteVolume(volumeID string) error {
 	}
 
 	return r0
+}
+
+// GetVolume provides a mock function with given fields: volumeID
+func (_m *OpenStackMock) GetVolume(volumeID string) (*volumes.Volume, error) {
+	return &fakeVol1, nil
 }
 
 // DetachVolume provides a mock function with given fields: instanceID, volumeID
