@@ -19,7 +19,7 @@ func TestDriver(t *testing.T) {
 	nodeID := "45678"
 
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
-	c := &cloud{}
+	c := getfakecloud()
 	fakemnt := &fakemount{}
 	fakemet := &fakemetadata{}
 
