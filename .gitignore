@@ -146,6 +146,7 @@ zz_generated.openapi.go
 /client-keystone-auth
 /manila-provisioner
 /barbican-kms-plugin
+/magnum-auto-healer
 
 # snap temp files
 /parts
