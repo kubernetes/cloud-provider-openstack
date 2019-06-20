@@ -47,16 +47,16 @@ type EndpointCheck struct {
 	Endpoints []string `mapstructure:"endpoints"`
 
 	// (Optional) How long to wait before a unhealthy worker node should be repaired. Default: 300s
-	UnhealthyDuration time.Duration `mapstructure:"unhealthyDuration"`
+	UnhealthyDuration time.Duration `mapstructure:"unhealthy-duration"`
 
 	// (Optional) The node annotation which records the node unhealthy time. Default: autohealing.openstack.org/unhealthy-timestamp
-	UnhealthyAnnotation string `mapstructure:"unhealthyAnnotation"`
+	UnhealthyAnnotation string `mapstructure:"unhealthy-annotation"`
 
 	// (Optional) The accepted HTTP response codes. Default: [200].
-	OKCodes []int `mapstructure:"okCodes"`
+	OKCodes []int `mapstructure:"ok-codes"`
 
 	// (Optional) If token is required to access the endpoint. Default: false
-	RequireToken bool `mapstructure:"requireToken"`
+	RequireToken bool `mapstructure:"require-token"`
 
 	// (Optional) Token to use in the request header. Default: read from TokenPath file
 	Token string `mapstructure:"token"`
