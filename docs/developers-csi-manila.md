@@ -10,7 +10,7 @@ As of writing this document, CSI Manila supports only NFS and CephFS shares. If 
 
 1. Create a new file `some-protocol.go` under `pkg/csi/manila/shareadapters`
 2. Create a new struct that implements the `ShareAdapter` interface
-3. Add a case block in `getShareAdapter()` function in `pkg/csi/manila/util.go`. The condition string must match one of Manila's supported share protocols.
+3. Add a case block in `getShareAdapter()` function in `pkg/csi/manila/adapters.go`. The condition string must match one of Manila's supported share protocols.
 4. Add the protocol name to the `matches` expression (regexp syntax) inside `ControllerVolumeContext.Protocol` field tags in `pkg/csi/manila/options/shareoptions.go`. Again, it must match one of Manila's supported share protocols.
 5. Update the docs in `docs/using-manila-csi-plugin.md`, namely any parameters that the protocol or node plugin may use. There's also a dedicated section "Share protocols support matrix" at the bottom of the document which needs to be updated: name of the share protocol, link to the proxy'd CSI driver and its supported version(s).
 
@@ -22,7 +22,7 @@ Usually, shares / share adapters offer a set of options which users may want to 
 
 **Controller Service:**
 * `CREATE_DELETE_VOLUME`
-* ~~`CREATE_DELETE_SNAPSHOT`~~ planned as a part of GSoC 2019
+* `CREATE_DELETE_SNAPSHOT` (snapshotting CephFS shares is not supported yet - planned as a part of GSoC 2019)
 
 Availability Zones are not supported yet.
 
