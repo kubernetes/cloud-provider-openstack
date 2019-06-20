@@ -58,7 +58,7 @@ user_id=ceb61464a3d341ebabdf97d1d4b97099
 user_project_id=b23a5e41d1af4c20974bf58b4dff8e5a
 password=password
 region=RegionOne
-image=lingxiankong/magnum-auto-healer:0.1.0
+image=k8scloudprovider/magnum-auto-healer:latest
 
 cat <<EOF | kubectl apply -f -
 ---
@@ -99,22 +99,22 @@ data:
       master:
         - type: Endpoint
           params:
-            unhealthyDuration: 30s
+            unhealthy-duration: 30s
             protocol: HTTPS
             port: 6443
             endpoints: ["/healthz"]
-            okCodes: [200]
+            ok-codes: [200]
         - type: NodeCondition
           params:
-            unhealthyDuration: 1m
+            unhealthy-duration: 1m
             types: ["Ready"]
-            okValues: ["True"]
+            ok-values: ["True"]
       worker:
         - type: NodeCondition
           params:
-            unhealthyDuration: 1m
+            unhealthy-duration: 1m
             types: ["Ready"]
-            okValues: ["True"]
+            ok-values: ["True"]
     openstack:
       auth-url: ${keystone_auth_url}
       user-id: ${user_id}
