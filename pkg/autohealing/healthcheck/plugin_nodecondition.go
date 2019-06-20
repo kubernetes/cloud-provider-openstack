@@ -35,13 +35,13 @@ type NodeConditionCheck struct {
 	Types []string `mapstructure:"types"`
 
 	// (Optional) How long to wait before a unhealthy worker node should be repaired. Default: 300s
-	UnhealthyDuration time.Duration `mapstructure:"unhealthyDuration"`
+	UnhealthyDuration time.Duration `mapstructure:"unhealthy-duration"`
 
 	// (Optional) The accepted healthy values(case sensitive) for the type. Default: ["True"]. OKValues could not be used together with ErrorValues.
-	OKValues []string `mapstructure:"okValues"`
+	OKValues []string `mapstructure:"ok-values"`
 
 	// (Optional) The unhealthy values(case sensitive) for the type. Default: []. ErrorValues could not be used together with OKValues.
-	ErrorValues []string `mapstructure:"errorValues"`
+	ErrorValues []string `mapstructure:"error-values"`
 }
 
 // Check checks the node health, returns false if the node is unhealthy.
