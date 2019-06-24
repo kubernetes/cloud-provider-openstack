@@ -20,6 +20,8 @@ MountPropagation requires support for privileged containers. So, make sure privi
 
 Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag details and latest update.
 
+> NOTE: All following examples need to be used inside instance(s) provisoned by openstack, otherwise the attach action will fail due to fail to find instance ID from given openstack cloud.
+
 ### Example local-up-cluster.sh
 
 ```ALLOW_PRIVILEGED=true RUNTIME_CONFIG="storage.k8s.io/v1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
@@ -151,7 +153,7 @@ For Snapshot Creation and Volume Restore, please follow  below steps:
 
 * Create Storage Class, Snapshot Class and PVC    
 ```
-$ kubectl -f examples/cinder-csi-plugin/example.yaml create
+$ kubectl -f examples/cinder-csi-plugin/snapshot/example.yaml create
 ```     
 * Verify that pvc is bounded
 ``` 
@@ -159,7 +161,7 @@ $ kubectl describe pvc <pvc-name>
 ```   
 * Create Snapshot of the PVC    
 ```
-$ kubectl -f examples/cinder-csi-plugin/snapshotcreate.yaml create
+$ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotcreate.yaml create
 ```       
 * Verify that snapshot is created    
 ```
@@ -168,7 +170,7 @@ $ kubectl get volumesnapshotcontent
 ```   
 * Restore volume from snapshot    
 ```
-$ kubectl -f examples/cinder-csi-plugin/snapshotrestore.yaml create
+$ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotrestore.yaml create
 ```
 * Verify that volume from snapshot is created    
 ```
