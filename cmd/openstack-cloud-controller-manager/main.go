@@ -56,7 +56,8 @@ import (
 var version string
 
 func init() {
-	healthz.DefaultHealthz()
+	mux := http.NewServeMux()
+	healthz.InstallHandler(mux)
 }
 
 func main() {

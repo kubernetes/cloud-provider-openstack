@@ -203,6 +203,20 @@
   version = "v1.3.0"
 
 [[projects]]
+  digest = "1:bf40199583e5143d1472fc34d10d6f4b69d97572142acf343b3e43136da40823"
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/flags",
+    "cmp/internal/function",
+    "cmp/internal/value",
+  ]
+  pruneopts = "UT"
+  revision = "6f77996f0c42f7b84e5a2b252227263f93432e9b"
+  version = "v0.3.0"
+
+[[projects]]
   branch = "master"
   digest = "1:3ee90c0d94da31b442dde97c99635aaafec68d0b8a3c12ee2075c6bdabeec6bb"
   name = "github.com/google/gofuzz"
@@ -933,7 +947,7 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:baf5a7da864b8f493ff372a9486c2d6a7fae8363699af2dc0ef6dba9a869928f"
+  digest = "1:8aa14b9051d5b7440197b457a29051d7ec1f7dab955aadd857ba3189644158bc"
   name = "k8s.io/api"
   packages = [
     "admission/v1beta1",
@@ -975,19 +989,19 @@
     "storage/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "40a48860b5abbba9aa891b02b32da429b08d96a0"
-  version = "kubernetes-1.14.0"
+  revision = "7cf5895f2711098d7d9527db0a4a49fb0dff7de2"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:fa65856d5086d5338e962b3bd409e09cd70cb0ceb110167cdf565edd6920ed2e"
+  digest = "1:b8f94dc6fc6922d3ed2244a6798f4f5d4cf6380608adacb1d5eda9878d1945f8"
   name = "k8s.io/apiextensions-apiserver"
   packages = ["pkg/features"]
   pruneopts = "UT"
-  revision = "80ebb0f65ac12d9684d4789ecfd2ba32ceaedc0b"
+  revision = "14e95df34f1f469647f494f5185a036e26fddcab"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
-  digest = "1:12e1193fca56eef2efa8e94239f96011a2ac8f60cba50f04da1babad5029de99"
+  digest = "1:06faa1d99d4b711992244868061d00cb6dd614eedbcfeded0e5165ad7d786b87"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -1001,6 +1015,7 @@
     "pkg/apis/meta/v1/unstructured",
     "pkg/apis/meta/v1/validation",
     "pkg/apis/meta/v1beta1",
+    "pkg/apis/meta/v1beta1/validation",
     "pkg/conversion",
     "pkg/conversion/queryparams",
     "pkg/fields",
@@ -1042,11 +1057,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
-  version = "kubernetes-1.14.0"
+  revision = "1799e75a07195de9460b8ef7300883499f12127b"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
-  digest = "1:c28347beaf2875881aa2a236d8c404ce69560435d94da3925d088603b92ea8d4"
+  digest = "1:2815ea4cbe6c03b4ac9ff93f1fc098eb8668f3de25a28095fdebb9b0ade6de66"
   name = "k8s.io/apiserver"
   packages = [
     "pkg/admission",
@@ -1054,6 +1069,7 @@
     "pkg/admission/initializer",
     "pkg/admission/metrics",
     "pkg/admission/plugin/namespace/lifecycle",
+    "pkg/admission/plugin/webhook",
     "pkg/admission/plugin/webhook/config",
     "pkg/admission/plugin/webhook/config/apis/webhookadmission",
     "pkg/admission/plugin/webhook/config/apis/webhookadmission/v1alpha1",
@@ -1061,6 +1077,7 @@
     "pkg/admission/plugin/webhook/generic",
     "pkg/admission/plugin/webhook/mutating",
     "pkg/admission/plugin/webhook/namespace",
+    "pkg/admission/plugin/webhook/object",
     "pkg/admission/plugin/webhook/request",
     "pkg/admission/plugin/webhook/rules",
     "pkg/admission/plugin/webhook/util",
@@ -1147,15 +1164,18 @@
     "plugin/pkg/authorizer/webhook",
   ]
   pruneopts = "UT"
-  revision = "8b27c41bdbb11ff103caa673315e097bf0289171"
-  version = "kubernetes-1.14.0"
+  revision = "47dc9a115b1874c96c20cea91d02b36e4faa1bb1"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
-  digest = "1:76a2d5629d0b96fa300cbf1b650bc63888fbcf211bc20e5c157a06c940394e41"
+  digest = "1:7cdc3f6673144a49b74111a6101da6d003e7508d662e225e1d3217428809795f"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
     "discovery/fake",
+    "dynamic",
+    "dynamic/dynamicinformer",
+    "dynamic/dynamiclister",
     "informers",
     "informers/admissionregistration",
     "informers/admissionregistration/v1beta1",
@@ -1347,36 +1367,37 @@
     "util/workqueue",
   ]
   pruneopts = "UT"
-  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
-  version = "kubernetes-1.14.0"
+  revision = "78d2af792babf2dd937ba2e2a8d99c753a5eda89"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
-  digest = "1:1a96ad6cfdcfd87d45308f5ab00a79d79b70c737f6f3906b122a8f0b96002129"
+  digest = "1:2a858e0c1b0d7ffaf3a8f754dd834322cc7d8519ffed61c888f62731db0b8d9f"
   name = "k8s.io/cloud-provider"
   packages = [
     ".",
-    "features",
+    "service/helpers",
     "volume",
     "volume/errors",
     "volume/helpers",
   ]
   pruneopts = "UT"
-  revision = "c892ea32361a3655e7bd8c06f2d02dd8ce73dd78"
-  version = "kubernetes-1.14.0"
+  revision = "8301c0bda1f0c3cd83a81a74eb697006a01c3f76"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
-  digest = "1:c5f6808d3fa257c7e9d2e7f81a123c16c69fbaeeb841fc748480da7939fad181"
+  digest = "1:82df4ef1232d3b122f88ca5aab777af83a185a860df2c4adbeb000843e7f2e5f"
   name = "k8s.io/component-base"
   packages = [
     "cli/flag",
     "cli/globalflag",
     "config",
     "config/v1alpha1",
+    "featuregate",
     "logs",
   ]
   pruneopts = "UT"
-  revision = "4a91899592f42b2f5859587cc5a676a5b94d2ee3"
-  version = "kubernetes-1.14.0"
+  revision = "185d68e6e6ea654214f444cab8f645ec3af3092e"
+  version = "kubernetes-1.15.0"
 
 [[projects]]
   branch = "master"
@@ -1421,7 +1442,7 @@
   revision = "15615b16d372105f0c69ff47dfe7402926a65aaa"
 
 [[projects]]
-  digest = "1:4ee0ba4d3b0c778fbc6a7be68cfcadbe933b9b85facaa5f6bd2017534d2e1718"
+  digest = "1:b5261d673909f0f0b2ea8fc6ca9d6cbd738dd10a2e2daf6f75ef83ce6b2751b6"
   name = "k8s.io/kubernetes"
   packages = [
     "cmd/cloud-controller-manager/app",
@@ -1451,13 +1472,52 @@
     "pkg/controller",
     "pkg/controller/apis/config",
     "pkg/controller/apis/config/v1alpha1",
+    "pkg/controller/certificates/signer/config",
+    "pkg/controller/certificates/signer/config/v1alpha1",
     "pkg/controller/cloud",
+    "pkg/controller/daemon/config",
+    "pkg/controller/daemon/config/v1alpha1",
+    "pkg/controller/deployment/config",
+    "pkg/controller/deployment/config/v1alpha1",
+    "pkg/controller/endpoint/config",
+    "pkg/controller/endpoint/config/v1alpha1",
+    "pkg/controller/garbagecollector/config",
+    "pkg/controller/garbagecollector/config/v1alpha1",
+    "pkg/controller/job/config",
+    "pkg/controller/job/config/v1alpha1",
+    "pkg/controller/namespace/config",
+    "pkg/controller/namespace/config/v1alpha1",
+    "pkg/controller/nodeipam/config",
+    "pkg/controller/nodeipam/config/v1alpha1",
+    "pkg/controller/nodelifecycle/config",
+    "pkg/controller/nodelifecycle/config/v1alpha1",
+    "pkg/controller/podautoscaler/config",
+    "pkg/controller/podautoscaler/config/v1alpha1",
+    "pkg/controller/podgc/config",
+    "pkg/controller/podgc/config/v1alpha1",
+    "pkg/controller/replicaset/config",
+    "pkg/controller/replicaset/config/v1alpha1",
+    "pkg/controller/replication/config",
+    "pkg/controller/replication/config/v1alpha1",
+    "pkg/controller/resourcequota/config",
+    "pkg/controller/resourcequota/config/v1alpha1",
     "pkg/controller/route",
     "pkg/controller/service",
+    "pkg/controller/service/config",
+    "pkg/controller/service/config/v1alpha1",
+    "pkg/controller/serviceaccount/config",
+    "pkg/controller/serviceaccount/config/v1alpha1",
+    "pkg/controller/ttlafterfinished/config",
+    "pkg/controller/ttlafterfinished/config/v1alpha1",
     "pkg/controller/util/node",
+    "pkg/controller/volume/attachdetach/config",
+    "pkg/controller/volume/attachdetach/config/v1alpha1",
     "pkg/controller/volume/events",
     "pkg/controller/volume/persistentvolume",
+    "pkg/controller/volume/persistentvolume/config",
+    "pkg/controller/volume/persistentvolume/config/v1alpha1",
     "pkg/controller/volume/persistentvolume/metrics",
+    "pkg/controller/volume/persistentvolume/util",
     "pkg/features",
     "pkg/fieldpath",
     "pkg/kubelet/apis",
@@ -1477,6 +1537,7 @@
     "pkg/util/node",
     "pkg/util/parsers",
     "pkg/util/resizefs",
+    "pkg/util/slice",
     "pkg/util/taints",
     "pkg/version",
     "pkg/version/prometheus",
@@ -1485,14 +1546,16 @@
     "pkg/volume/testing",
     "pkg/volume/util",
     "pkg/volume/util/fs",
+    "pkg/volume/util/quota",
+    "pkg/volume/util/quota/common",
     "pkg/volume/util/recyclerclient",
     "pkg/volume/util/subpath",
     "pkg/volume/util/types",
     "pkg/volume/util/volumepathhandler",
   ]
   pruneopts = "UT"
-  revision = "641856db18352033a0d96dbc99153fa3b27298e5"
-  version = "v1.14.0"
+  revision = "e8462b5b5dc2584fdcd18e6bcfe9f1e4d970a529"
+  version = "v1.15.0"
 
 [[projects]]
   branch = "master"
