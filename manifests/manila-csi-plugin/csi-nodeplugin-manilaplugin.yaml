@@ -43,7 +43,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: manila-csi-plugin
+          image: manila-csi-plugin:v1.15.0
           imagePullPolicy: IfNotPresent
           args:
             - "--v=5"
