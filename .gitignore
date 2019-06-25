@@ -147,6 +147,7 @@ zz_generated.openapi.go
 /manila-provisioner
 /barbican-kms-plugin
 /magnum-auto-healer
+/manila-csi-plugin
 
 # snap temp files
 /parts
