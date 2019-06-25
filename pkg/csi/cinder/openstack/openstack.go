@@ -25,6 +25,8 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
+	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	gcfg "gopkg.in/gcfg.v1"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
@@ -67,12 +69,26 @@ type Config struct {
 		Password   string
 		TenantId   string `gcfg:"tenant-id"`
 		TenantName string `gcfg:"tenant-name"`
+		TrustID    string `gcfg:"trust-id"`
 		DomainId   string `gcfg:"domain-id"`
 		DomainName string `gcfg:"domain-name"`
 		Region     string
 		CAFile     string `gcfg:"ca-file"`
 	}
 	BlockStorage BlockStorageOpts
+}
+
+func logcfg(cfg Config) {
+	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthUrl)
+	klog.V(5).Infof("Username: %s", cfg.Global.Username)
+	klog.V(5).Infof("UserId: %s", cfg.Global.UserId)
+	klog.V(5).Infof("TenantId: %s", cfg.Global.TenantId)
+	klog.V(5).Infof("TenantName: %s", cfg.Global.TenantName)
+	klog.V(5).Infof("DomainName: %s", cfg.Global.DomainName)
+	klog.V(5).Infof("DomainId: %s", cfg.Global.DomainId)
+	klog.V(5).Infof("TrustID: %s", cfg.Global.TrustID)
+	klog.V(5).Infof("Region: %s", cfg.Global.Region)
+	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
 }
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
@@ -88,6 +104,18 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 
 		// Persistent service, so we need to be able to renew tokens.
 		AllowReauth: true,
+	}
+}
+
+func (cfg Config) toAuth3Options() tokens3.AuthOptions {
+	return tokens3.AuthOptions{
+		IdentityEndpoint: cfg.Global.AuthUrl,
+		Username:         cfg.Global.Username,
+		UserID:           cfg.Global.UserId,
+		Password:         cfg.Global.Password,
+		DomainID:         cfg.Global.DomainId,
+		DomainName:       cfg.Global.DomainName,
+		AllowReauth:      true,
 	}
 }
 
@@ -162,6 +190,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		}
 		authURL = authOpts.IdentityEndpoint
 	}
+	logcfg(cfg)
 
 	provider, err := openstack.NewClient(authURL)
 	if err != nil {
@@ -177,7 +206,17 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
 
-	err = openstack.Authenticate(provider, authOpts)
+	if cfg.Global.TrustID != "" {
+		opts := cfg.toAuth3Options()
+		authOptsExt := trusts.AuthOptsExt{
+			TrustID:            cfg.Global.TrustID,
+			AuthOptionsBuilder: &opts,
+		}
+		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
+	} else {
+		err = openstack.Authenticate(provider, cfg.toAuthOptions())
+	}
+
 	if err != nil {
 		return nil, err
 	}
