@@ -28,6 +28,7 @@
     ```
 
     You can find an example kubeadm.conf in `manifests/controller-manager/kubeadm.conf`. Follow the usual steps to install the network plugin and then bootstrap the other nodes using `kubeadm join`.
+    _Note, your nodes may not have an External IP address. This will cause logs and CNI to have have issues until the cluster provider is complete. Reference https://github.com/kubernetes/kubernetes/pull/75229 for further information._
 
 - Allow controller-manager to have access `/etc/kubernetes/cloud-config`.
 
@@ -59,25 +60,6 @@
     kubectl -f manifests/controller-manager/cloud-config-secret.yaml apply
     ```
 
-- Create InitializerConfiguration for the cloud-controller-manager to label persistent volumes, see more details [here](https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
-
-    ```
-    cat <<EOF | kubectl apply -f -
-    kind: InitializerConfiguration
-    apiVersion: admissionregistration.k8s.io/v1alpha1
-    metadata:
-      name: pvlabel.kubernetes.io
-    initializers:
-      - name: pvlabel.kubernetes.io
-        rules:
-        - apiGroups:
-          - ""
-          apiVersions:
-          - "*"
-          resources:
-          - persistentvolumes
-    EOF
-    ```
 - Before we create cloud-controller-manager deamonset, you can find all the nodes have the taint `node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule` and waiting for being initialized by cloud-controller-manager.
 
 - Create RBAC resources and cloud-controller-manager deamonset.
