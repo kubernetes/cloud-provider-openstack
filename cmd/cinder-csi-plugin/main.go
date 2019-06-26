@@ -115,7 +115,7 @@ func handle() {
 	cloud, err := openstack.GetOpenStackProvider()
 
 	if err != nil {
-		klog.V(3).Infof("Failed to GetOpenStackProvider: %v", err)
+		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
 		return
 	}
 
