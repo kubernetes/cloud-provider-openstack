@@ -26,7 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
-	extv1beta1 "k8s.io/api/extensions/v1beta1"
+	nwv1beta1 "k8s.io/api/networking/v1beta1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -120,7 +120,7 @@ type Controller struct {
 // IsValid returns true if the given Ingress either doesn't specify
 // the ingress.class annotation, or it's set to the configured in the
 // ingress controller.
-func IsValid(ing *extv1beta1.Ingress) bool {
+func IsValid(ing *nwv1beta1.Ingress) bool {
 	ingress, ok := ing.GetAnnotations()[IngressKey]
 	if !ok {
 		log.WithFields(log.Fields{
@@ -239,7 +239,7 @@ func NewController(conf config.Config) *Controller {
 	ingInformer := kubeInformerFactory.Extensions().V1beta1().Ingresses()
 	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			addIng := obj.(*extv1beta1.Ingress)
+			addIng := obj.(*nwv1beta1.Ingress)
 			key := fmt.Sprintf("%s/%s", addIng.Namespace, addIng.Name)
 
 			if !IsValid(addIng) {
@@ -251,8 +251,8 @@ func NewController(conf config.Config) *Controller {
 			controller.queue.AddRateLimited(Event{Obj: addIng, Type: CreateEvent})
 		},
 		UpdateFunc: func(old, new interface{}) {
-			newIng := new.(*extv1beta1.Ingress)
-			oldIng := old.(*extv1beta1.Ingress)
+			newIng := new.(*nwv1beta1.Ingress)
+			oldIng := old.(*nwv1beta1.Ingress)
 			if newIng.ResourceVersion == oldIng.ResourceVersion {
 				// Periodic resync will send update events for all known Ingresses.
 				// Two different versions of the same Ingress will always have different RVs.
@@ -276,7 +276,7 @@ func NewController(conf config.Config) *Controller {
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			delIng, ok := obj.(*extv1beta1.Ingress)
+			delIng, ok := obj.(*nwv1beta1.Ingress)
 			if !ok {
 				// If we reached here it means the ingress was deleted but its final state is unrecorded.
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -284,7 +284,7 @@ func NewController(conf config.Config) *Controller {
 					log.Errorf("couldn't get object from tombstone %#v", obj)
 					return
 				}
-				delIng, ok = tombstone.Obj.(*extv1beta1.Ingress)
+				delIng, ok = tombstone.Obj.(*nwv1beta1.Ingress)
 				if !ok {
 					log.Errorf("Tombstone contained object that is not an Ingress: %#v", obj)
 					return
@@ -366,10 +366,10 @@ func (c *Controller) nodeSyncLoop() {
 		return
 	}
 
-	ings := new(extv1beta1.IngressList)
+	ings := new(nwv1beta1.IngressList)
 	// TODO: only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
-	if ings, err = c.kubeClient.ExtensionsV1beta1().Ingresses("").List(opts); err != nil {
+	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
 	}
@@ -438,7 +438,7 @@ func (c *Controller) processNextItem() bool {
 }
 
 func (c *Controller) processItem(event Event) error {
-	ing := event.Obj.(*extv1beta1.Ingress)
+	ing := event.Obj.(*nwv1beta1.Ingress)
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 
 	switch event.Type {
@@ -524,7 +524,7 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 	return c.osClient.DeleteLoadbalancer(loadbalancer.ID)
 }
 
-func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
+func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 	ingName := ing.ObjectMeta.Name
 	ingNamespace := ing.ObjectMeta.Namespace
 	clusterName := c.config.ClusterName
@@ -693,13 +693,13 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	return nil
 }
 
-func (c *Controller) updateIngressStatus(ing *extv1beta1.Ingress, vip string) (*extv1beta1.Ingress, error) {
+func (c *Controller) updateIngressStatus(ing *nwv1beta1.Ingress, vip string) (*nwv1beta1.Ingress, error) {
 	newState := new(apiv1.LoadBalancerStatus)
 	newState.Ingress = []apiv1.LoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	newObj, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
+	newObj, err := c.kubeClient.NetworkingV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
 	if err != nil {
 		return nil, err
 	}
@@ -749,7 +749,7 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 
 // getStringFromIngressAnnotation searches a given Ingress for a specific annotationKey and either returns the
 // annotation's value or a specified defaultSetting
-func getStringFromIngressAnnotation(ingress *extv1beta1.Ingress, annotationKey string, defaultValue string) string {
+func getStringFromIngressAnnotation(ingress *nwv1beta1.Ingress, annotationKey string, defaultValue string) string {
 	if annotationValue, ok := ingress.Annotations[annotationKey]; ok {
 		return annotationValue
 	}
