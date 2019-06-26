@@ -256,11 +256,59 @@ $ csc controller create-volume --endpoint tcp://127.0.0.1:10000 CSIVolumeName
 "8a55f98f-e987-43ab-a9f5-973352bee19c"  1073741824      "availability"="nova"
 ```
 
+#### List volumes
+Following sample list all volumes:
+```
+$ csc controller list-volumes --endpoint tcp://127.0.0.1:10000
+"8a55f98f-e987-43ab-a9f5-973352bee19c"  1073741824
+```
+
 #### Delete a volume
 Following sample deletes a volume ``01217e93-bd1b-4760-b5d8-18b8b3d47f91``
 ```
 $ csc controller delete-volume --endpoint tcp://127.0.0.1:10000 01217e93-bd1b-4760-b5d8-18b8b3d47f91
 01217e93-bd1b-4760-b5d8-18b8b3d47f91
+```
+
+#### Create a snapshot from volume
+Following sample creates a snapshot from volume `40615da4-3fda-4e78-bf58-820692536e68`.
+After execution, snapshot `e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f` will be created.
+```
+$ csc controller create-snapshot --source-volume 40615da4-3fda-4e78-bf58-820692536e68 --endpoint tcp://127.0.0.1:10000 s1
+"e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f"  1073741824      40615da4-3fda-4e78-bf58-820692536e68    seconds:1561530261      true
+```
+
+Use openstack command to verify:
+```
+openstack volume snapshot list
++--------------------------------------+------+-------------+-----------+------+
+| ID                                   | Name | Description | Status    | Size |
++--------------------------------------+------+-------------+-----------+------+
+| e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f | s1   | None        | available |    1 |
++--------------------------------------+------+-------------+-----------+------+
+```
+
+#### List snapshots
+
+Following sample lists all snapshots:
+```
+$ csc controller  list-snapshots --endpoint tcp://127.0.0.1:10000
+"e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f" 1073741824      40615da4-3fda-4e78-bf58-820692536e68    seconds:1561532425      true
+```
+
+#### Delete a snapshot
+
+Following sample deletes the snapshot `e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f`.
+```
+$ csc controller delete-snapshot e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f --endpoint tcp://127.0.0.1:10000
+e2df8c2a-58eb-40fb-8ec9-45aee5b8f39f
+```
+
+Use openstack command to verify:
+```
+$ openstack volume snapshot list
+
+$
 ```
 
 #### ControllerPublish a volume
