@@ -71,14 +71,6 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.12:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
@@ -90,6 +82,14 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
