@@ -28,7 +28,7 @@
     ```
 
     You can find an example kubeadm.conf in `manifests/controller-manager/kubeadm.conf`. Follow the usual steps to install the network plugin and then bootstrap the other nodes using `kubeadm join`.
-    _Note, your nodes may not have an External IP address. This will cause logs and CNI to have have issues until the cluster provider is complete. Reference https://github.com/kubernetes/kubernetes/pull/75229 for further information._
+     >Note, your nodes may not have an External IP address. This will cause logs and CNI to have have issues until the cluster provider is complete. Reference https://github.com/kubernetes/kubernetes/pull/75229 for further information.
 
 - Allow controller-manager to have access `/etc/kubernetes/cloud-config`.
 
