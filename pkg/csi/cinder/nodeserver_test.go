@@ -29,7 +29,7 @@ import (
 
 var fakeNs *nodeServer
 var mmock *mount.MountMock
-var metamock *openstack.OpenStackMock
+var omock *openstack.OpenStackMock
 
 // Init Node Server
 func init() {
@@ -43,9 +43,10 @@ func init() {
 		mmock = new(mount.MountMock)
 		mount.MInstance = mmock
 
-		metamock = new(openstack.OpenStackMock)
-		openstack.MetadataService = metamock
-		fakeNs = NewNodeServer(d, mount.MInstance, openstack.MetadataService)
+		omock = new(openstack.OpenStackMock)
+		openstack.MetadataService = omock
+		openstack.OsInstance = omock
+		fakeNs = NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
 	}
 }
 
@@ -55,9 +56,9 @@ func TestNodeGetInfo(t *testing.T) {
 	// GetInstanceID() (string, error)
 	mmock.On("GetInstanceID").Return(FakeNodeID, nil)
 
-	metamock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
+	omock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
 
-	osmock.On("GetMaxVolumeLimit").Return(FakeMaxVolume)
+	omock.On("GetMaxVolumeLimit").Return(FakeMaxVolume)
 
 	// Init assert
 	assert := assert.New(t)
@@ -91,7 +92,7 @@ func TestNodePublishVolume(t *testing.T) {
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
 	// Mount(source string, target string, fstype string, options []string) error
 	mmock.On("Mount", FakeStagingTargetPath, FakeTargetPath, mock.AnythingOfType("string"), []string{"bind", "rw"}).Return(nil)
-
+	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 	// Init assert
 	assert := assert.New(t)
 
@@ -134,6 +135,7 @@ func TestNodeStageVolume(t *testing.T) {
 	mmock.On("IsLikelyNotMountPointAttach", FakeStagingTargetPath).Return(true, nil)
 	// FormatAndMount(source string, target string, fstype string, options []string) error
 	mmock.On("FormatAndMount", FakeDevicePath, FakeStagingTargetPath, "ext4", []string(nil)).Return(nil)
+	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 
 	// Init assert
 	assert := assert.New(t)
@@ -208,6 +210,7 @@ func TestNodeUnpublishVolume(t *testing.T) {
 	mmock.On("IsLikelyNotMountPointDetach", FakeTargetPath).Return(false, nil)
 	// UnmountPath(mountPath string) error
 	mmock.On("UnmountPath", FakeTargetPath).Return(nil)
+	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 
 	// Init assert
 	assert := assert.New(t)
@@ -238,6 +241,7 @@ func TestNodeUnstageVolume(t *testing.T) {
 	mmock.On("IsLikelyNotMountPointDetach", FakeStagingTargetPath).Return(false, nil)
 	// UnmountPath(mountPath string) error
 	mmock.On("UnmountPath", FakeStagingTargetPath).Return(nil)
+	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 
 	// Init assert
 	assert := assert.New(t)

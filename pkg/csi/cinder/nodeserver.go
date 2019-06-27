@@ -29,6 +29,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -36,17 +37,27 @@ type nodeServer struct {
 	Driver   *CinderDriver
 	Mount    mount.IMount
 	Metadata openstack.IMetadata
+	Cloud    openstack.IOpenStack
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolume: called with args %+v", *req)
 
+	volumeID := req.GetVolumeId()
 	source := req.GetStagingTargetPath()
 	targetPath := req.GetTargetPath()
 	volumeCapability := req.GetVolumeCapability()
 
-	if len(source) == 0 || len(targetPath) == 0 || volumeCapability == nil {
+	if len(volumeID) == 0 || len(source) == 0 || len(targetPath) == 0 || volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume missing required arguments")
+	}
+
+	_, err := ns.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, "Volume not found")
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
 	mountOptions := []string{"bind"}
@@ -127,9 +138,20 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnPublishVolume: called with args %+v", *req)
 
+	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 	if len(targetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume Target Path must be provided")
+	}
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume volumeID must be provided")
+	}
+	_, err := ns.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, "Volume not found")
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
 	m := ns.Mount
@@ -166,6 +188,14 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	}
 	if volumeCapability == nil {
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
+	}
+
+	_, err := ns.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, "Volume not found")
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
 	m := ns.Mount
@@ -211,13 +241,22 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", *req)
 
-	if len(req.GetVolumeId()) == 0 {
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume Id not provided")
 	}
 
 	stagingTargetPath := req.GetStagingTargetPath()
 	if len(stagingTargetPath) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Staging Target Path must be provided")
+	}
+
+	_, err := ns.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, "Volume not found")
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
 	m := ns.Mount
