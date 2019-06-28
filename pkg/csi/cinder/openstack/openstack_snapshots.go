@@ -32,15 +32,17 @@ const (
 	snapReadyDuration   = 1 * time.Second
 	snapReadyFactor     = 1.2
 	snapReadySteps      = 10
+
+	snapshotDescription = "Created by OpenStack Cinder CSI driver"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
 // returns the resultant gophercloud Snapshot Item upon success
-func (os *OpenStack) CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
 	opts := &snapshots.CreateOpts{
 		VolumeID:    volID,
 		Name:        name,
-		Description: description,
+		Description: snapshotDescription,
 	}
 	if tags != nil {
 		opts.Metadata = *tags
