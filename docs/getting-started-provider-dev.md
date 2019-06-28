@@ -180,7 +180,7 @@ If you want to run unit tests:
 make test
 ```
 
-## Building inside container
+#### Building inside container
 
 If you don't have a Go Environment setup, we also offer the ability to run make
 in a Docker Container.  The only requirement for this is that you have Docker
