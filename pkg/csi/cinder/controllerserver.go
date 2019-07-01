@@ -50,6 +50,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Error(codes.InvalidArgument, "CreateVolume request missing Volume Name")
 	}
 
+	if req.VolumeCapabilities == nil {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume request missing Volume capability")
+	}
+
 	// Volume Size - Default is 1 GiB
 	volSizeBytes := int64(1 * 1024 * 1024 * 1024)
 	if req.GetCapacityRange() != nil {

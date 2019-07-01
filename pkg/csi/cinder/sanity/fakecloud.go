@@ -1,7 +1,6 @@
 package sanity
 
 import (
-	"errors"
 	"math/rand"
 	"time"
 
@@ -64,7 +63,7 @@ func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
 		return vol.ID, nil
 	}
 
-	return "", errors.New("volume not found")
+	return "", notFoundError()
 }
 
 func (cloud *cloud) ListVolumes() ([]volumes.Volume, error) {
@@ -178,7 +177,7 @@ func (cloud *cloud) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, err
 	snap, ok := cloud.snapshots[snapshotID]
 
 	if !ok {
-		return nil, errors.New("Snapshot not found")
+		return nil, notFoundError()
 	}
 
 	return snap, nil
