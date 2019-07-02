@@ -32,22 +32,3 @@ For more details, please see:
 Here are some examples of how you could leverage `openstack-cloud-controller-manager`:
 
 - [loadbalancers](../examples/loadbalancers/)
-
-## Developing
-
-`make` will build, test, and package this project. This project uses [go dep](https://golang.github.io/dep/)
-for dependency management.
-
-If you don't have a Go Environment setup, we also offer the ability to run make
-in a Docker Container.  The only requirement for this is that you have Docker
-installed and configured (of course).  You don't need to have a Golang
-environment setup, and you don't need to follow rules in terms of directory
-structure for the code checkout.
-
-To use this method, just call the `hack/make.sh` script with the desired argument:
-    `hack/make.sh build`  for example will run `make build` in a container.
-
-NOTE You MUST run the script from the root source directory as shown above,
-attempting to do something like `cd hack && make.sh build` will not work
-because we won't bind mount the source files into the container.
-

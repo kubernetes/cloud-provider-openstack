@@ -119,7 +119,7 @@ sudo yum install -y -q git gcc etcd
 You will also need a recent version of Go and set your environment variables.
 
 ```
-GO_VERSION=1.11
+GO_VERSION=1.12
 GO_ARCH=linux-amd64
 curl -o go.tgz https://dl.google.com/go/go${GO_VERSION}.${GO_ARCH}.tar.gz
 sudo tar -C /usr/local/ -xvzf go.tgz
@@ -145,10 +145,9 @@ and versioning information.
 
 ### Getting and Building Cloud Provider OpenStack
 
-Following the [GitHub Workflow](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md)
-guidelines for Kubernetes development, set up your environment and get the latest development repository. Begin
-by forking both the Kubernetes and Cloud-Provider-OpenStack projects into your GitHub into your local
-workspace (or bringing your current fork up to date with the current state of both repositories).
+Following the [GitHub Workflow](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md) guidelines for Kubernetes development, set up your environment and get the latest development repository. Begin by forking both the Kubernetes and Cloud-Provider-OpenStack projects into your GitHub into your local workspace (or bringing your current fork up to date with the current state of both repositories).
+
+`make` will build, test, and package this project. This project uses [go dep](https://golang.github.io/dep/) for dependency management.
 
 Set up some environment variables to help download the repositories
 
@@ -180,6 +179,21 @@ If you want to run unit tests:
 ```
 make test
 ```
+
+#### Building inside container
+
+If you don't have a Go Environment setup, we also offer the ability to run make
+in a Docker Container.  The only requirement for this is that you have Docker
+installed and configured (of course).  You don't need to have a Golang
+environment setup, and you don't need to follow rules in terms of directory
+structure for the code checkout.
+
+To use this method, just call the `hack/make.sh` script with the desired argument:
+    `hack/make.sh build`  for example will run `make build` in a container.
+
+> NOTE: You MUST run the script from the root source directory as shown above,
+attempting to do something like `cd hack && make.sh build` will not work
+because we won't bind mount the source files into the container.
 
 ### Getting and Building Kubernetes
 
