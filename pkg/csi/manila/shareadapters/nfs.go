@@ -57,11 +57,11 @@ func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) 
 }
 
 func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {
-	server, path, err := splitExportLocation(args.Location)
+	server, share, err := splitExportLocation(args.Location)
 
 	return map[string]string{
 		"server": server,
-		"path":   path,
+		"share":  share,
 	}, nil
 }
 
