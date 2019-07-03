@@ -213,3 +213,7 @@ func (cloud *cloud) GetInstanceByID(instanceID string) (*servers.Server, error) 
 func (cloud *cloud) ExpandVolume(volumeID string, size int) error {
 	return nil
 }
+
+func (cloud *cloud) GetMaxVolLimit() int64 {
+	return 256
+}

@@ -238,7 +238,7 @@ and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
 
 ##### Block Storage (CSI)
 
-* `NodeVolumeAttachLimit`: Maximum volumes that can be attached to the node. Its
+* `node-volume-attach-limit`: Maximum volumes that can be attached to the node. Its
   default value is 256.
 
 ##### Block Storage Notes

@@ -64,11 +64,13 @@ type IOpenStack interface {
 	WaitSnapshotReady(snapshotID string) error
 	GetInstanceByID(instanceID string) (*servers.Server, error)
 	ExpandVolume(volumeID string, size int) error
+	GetMaxVolLimit() int64
 }
 
 type OpenStack struct {
 	compute      *gophercloud.ServiceClient
 	blockstorage *gophercloud.ServiceClient
+	bsOpts       BlockStorageOpts
 }
 
 type BlockStorageOpts struct {
@@ -93,16 +95,17 @@ type Config struct {
 }
 
 func logcfg(cfg Config) {
-	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthUrl)
-	klog.V(5).Infof("Username: %s", cfg.Global.Username)
-	klog.V(5).Infof("UserId: %s", cfg.Global.UserId)
-	klog.V(5).Infof("TenantId: %s", cfg.Global.TenantId)
-	klog.V(5).Infof("TenantName: %s", cfg.Global.TenantName)
-	klog.V(5).Infof("DomainName: %s", cfg.Global.DomainName)
-	klog.V(5).Infof("DomainId: %s", cfg.Global.DomainId)
-	klog.V(5).Infof("TrustID: %s", cfg.Global.TrustID)
-	klog.V(5).Infof("Region: %s", cfg.Global.Region)
-	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.Infof("AuthURL: %s", cfg.Global.AuthUrl)
+	klog.Infof("Username: %s", cfg.Global.Username)
+	klog.Infof("UserId: %s", cfg.Global.UserId)
+	klog.Infof("TenantId: %s", cfg.Global.TenantId)
+	klog.Infof("TenantName: %s", cfg.Global.TenantName)
+	klog.Infof("DomainName: %s", cfg.Global.DomainName)
+	klog.Infof("DomainId: %s", cfg.Global.DomainId)
+	klog.Infof("TrustID: %s", cfg.Global.TrustID)
+	klog.Infof("Region: %s", cfg.Global.Region)
+	klog.Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.Infof("Block storage opts: %v", cfg.BlockStorage)
 }
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
@@ -174,7 +177,7 @@ func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, erro
 	return authOpts, epOpts, nil
 }
 
-const maxVol int64 = 256
+const defaultMaxVolAttachLimit int64 = 256
 
 var OsInstance IOpenStack = nil
 var configFile = "/etc/cloud.conf"
@@ -258,6 +261,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 	OsInstance = &OpenStack{
 		compute:      computeclient,
 		blockstorage: blockstorageclient,
+		bsOpts:       cfg.BlockStorage,
 	}
 
 	return OsInstance, nil
@@ -276,14 +280,4 @@ func GetOpenStackProvider() (IOpenStack, error) {
 	}
 
 	return OsInstance, nil
-}
-
-//GetMaxVolLimit returns max vol limit
-func GetMaxVolLimit() int64 {
-	if cfg.BlockStorage.NodeVolumeAttachLimit > 0 && cfg.BlockStorage.NodeVolumeAttachLimit <= 256 {
-		return cfg.BlockStorage.NodeVolumeAttachLimit
-	}
-
-	return maxVol
-
 }
