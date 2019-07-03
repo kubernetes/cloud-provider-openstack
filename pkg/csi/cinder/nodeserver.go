@@ -314,12 +314,11 @@ func getAvailabilityZoneMetadataService(m openstack.IMetadata) (string, error) {
 func getNodeID(mount mount.IMount, metadata openstack.IMetadata) (string, error) {
 	// First try to get instance id from mount provider
 	nodeID, err := getNodeIDMountProvider(mount)
-	if err == nil || nodeID != "" {
+	if err == nil {
 		return nodeID, nil
 	}
 
-	klog.V(3).Infof("Failed to GetInstanceID from mount data: %v", err)
-	klog.V(3).Info("Trying to GetInstanceID from metadata service")
+	klog.V(3).Infof("Trying to GetInstanceID from metadata service")
 	nodeID, err = getNodeIDMetdataService(metadata)
 	if err != nil {
 		klog.V(3).Infof("Failed to GetInstanceID from metadata service: %v", err)
