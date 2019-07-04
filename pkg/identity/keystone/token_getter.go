@@ -24,6 +24,7 @@ import (
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"io/ioutil"
 	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"net/http"
 )
 
@@ -47,6 +48,10 @@ func GetToken(options Options) (*tokens3.Token, error) {
 	}
 	tlsConfig := &tls.Config{}
 	setTransport = false
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("client-keystone-auth/%s", version.Version))
+	client.UserAgent = userAgent
 
 	if options.ClientCertPath != "" && options.ClientKeyPath != "" {
 		clientCert, err := ioutil.ReadFile(options.ClientCertPath)
