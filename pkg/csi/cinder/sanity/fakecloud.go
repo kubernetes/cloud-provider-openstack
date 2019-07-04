@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
@@ -114,10 +115,14 @@ func (cloud *cloud) GetVolume(volumeID string) (*volumes.Volume, error) {
 	vol, ok := cloud.volumes[volumeID]
 
 	if !ok {
-		return nil, errors.New("Volume not found")
+		return nil, notFoundError()
 	}
 
 	return vol, nil
+}
+
+func notFoundError() error {
+	return gophercloud.ErrDefault404{}
 }
 
 func (cloud *cloud) CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error) {
