@@ -39,9 +39,9 @@ const (
 	shareDescription = "provisioned-by=manila.csi.openstack.org"
 )
 
-// getOrCreateShare first retrieves an existing share with name=volID, or creates a new one if it doesn't exist yet.
+// getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
 // Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
-func getOrCreateShare(volID volumeID, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -49,7 +49,7 @@ func getOrCreateShare(volID volumeID, createOpts *shares.CreateOpts, manilaClien
 
 	// First, check if the share already exists or needs to be created
 
-	if share, err = getShareByName(string(volID), manilaClient); err != nil {
+	if share, err = getShareByName(shareName, manilaClient); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			// It doesn't exist, create it
 
@@ -62,7 +62,7 @@ func getOrCreateShare(volID volumeID, createOpts *shares.CreateOpts, manilaClien
 			return nil, fmt.Errorf("failed to probe for share: %v", err)
 		}
 	} else {
-		klog.V(4).Infof("volume %s (share ID %s) already exists", volID, share.ID)
+		klog.V(4).Infof("a share named %s already exists", shareName)
 	}
 
 	// It exists, wait till it's Available
@@ -74,19 +74,16 @@ func getOrCreateShare(volID volumeID, createOpts *shares.CreateOpts, manilaClien
 	return waitForShareStatus(share.ID, shareCreating, shareAvailable, manilaClient)
 }
 
-func deleteShare(volID volumeID, manilaClient *gophercloud.ServiceClient) error {
-	share, err := getShareByName(string(volID), manilaClient)
-	if err != nil {
+func deleteShare(shareID string, manilaClient *gophercloud.ServiceClient) error {
+	if err := shares.Delete(manilaClient, shareID).ExtractErr(); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
-			klog.V(4).Infof("volume %s not found, assuming it to be already deleted", volID)
-			return nil
+			klog.V(4).Infof("share %s not found, assuming it to be already deleted", shareID)
 		} else {
-			// Something else is wrong
-			return fmt.Errorf("failed to get ID for share %s: %v", volID, err)
+			return err
 		}
 	}
 
-	return shares.Delete(manilaClient, share.ID).ExtractErr()
+	return nil
 }
 
 func getShareByID(shareID string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {

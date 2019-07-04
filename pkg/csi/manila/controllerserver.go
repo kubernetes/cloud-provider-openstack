@@ -85,10 +85,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	volID := newVolumeID(req.GetName())
-
 	// Acquire a lock for this volume
-	handle, isNewRequest := rbVolumeID.Acquire(string(volID))
+	handle, isNewRequest := rbVolumeID.Acquire(req.GetName())
 	if !isNewRequest {
 		if respData := readResponse(handle); respData != nil {
 			return respData.(*csi.CreateVolumeResponse), nil
@@ -104,7 +102,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		accessRight  *shares.AccessRight
 	)
 
-	defer writeResponse(handle, rbVolumeID, string(volID), res)
+	defer writeResponse(handle, rbVolumeID, req.GetName(), res)
 
 	manilaClient, res.err = newManilaV2Client(osOpts)
 	if res.err != nil {
@@ -119,40 +117,38 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	sizeInGiB := bytesToGiB(requestedSize)
 
-	// Create or get the share
+	// Retrieve an existing share or create a new one
 
 	if volCreator, res.err = getVolumeCreator(req.GetVolumeContentSource()); res.err != nil {
 		return nil, res.err
 	}
 
-	if share, res.err = volCreator.create(req, volID, sizeInGiB, manilaClient, shareOpts); res.err != nil {
+	if share, res.err = volCreator.create(req, req.GetName(), sizeInGiB, manilaClient, shareOpts); res.err != nil {
 		return nil, res.err
 	}
 
-	if res.err = verifyVolumeCompatibility(sizeInGiB, share, shareOpts); res.err != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "volume %s already exists, but is incompatible with the request: %v", volID, res.err)
+	if res.err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts); res.err != nil {
+		return nil, status.Errorf(codes.AlreadyExists, "a share named %s already exists, but is incompatible with the request: %v", req.GetName(), res.err)
 	}
 
 	// Grant access to the share
 
 	ad := getShareAdapter(shareOpts.Protocol)
 
-	klog.V(4).Infof("creating an access rule for volume %s (share ID %s)", volID, share.ID)
+	klog.V(4).Infof("creating an access rule for share %s", share.ID)
 
 	accessRight, res.err = ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
 	if res.err != nil {
 		if res.err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rights for volume %s to become available", volID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rights %s for share %s to become available", accessRight.ID, share.ID)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to grant access for volume %s (share ID %s): %v", volID, share.ID, res.err)
+		return nil, status.Errorf(codes.Internal, "failed to grant access for share %s: %v", share.ID, res.err)
 	}
-
-	klog.V(4).Infof("successfully created volume %s (share ID %s)", volID, share.ID)
 
 	res.dataPtr = &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      string(volID),
+			VolumeId:      share.ID,
 			ContentSource: req.GetVolumeContentSource(),
 			CapacityBytes: int64(sizeInGiB) * bytesInGiB,
 			VolumeContext: map[string]string{
@@ -181,13 +177,9 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	volID := volumeID(req.VolumeId)
-
-	if err := deleteShare(volID, manilaClient); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete volume %s: %v", volID, err)
+	if err := deleteShare(req.GetVolumeId(), manilaClient); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete share %s: %v", req.GetVolumeId(), err)
 	}
-
-	klog.V(4).Infof("successfully deleted volume %s", volID)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -210,10 +202,8 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	snapID := newSnapshotID(req.GetName())
-
 	// Acquire a lock for this snapshot
-	handle, isNewRequest := rbSnapshotID.Acquire(string(snapID))
+	handle, isNewRequest := rbSnapshotID.Acquire(req.GetName())
 	if !isNewRequest {
 		if respData := readResponse(handle); respData != nil {
 			return respData.(*csi.CreateSnapshotResponse), nil
@@ -229,7 +219,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		ctime        *timestamp.Timestamp
 	)
 
-	defer writeResponse(handle, rbSnapshotID, string(snapID), res)
+	defer writeResponse(handle, rbSnapshotID, req.GetName(), res)
 
 	manilaClient, res.err = newManilaV2Client(osOpts)
 	if res.err != nil {
@@ -238,25 +228,29 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Retrieve the source share
 
-	if sourceShare, res.err = getShareByName(req.GetSourceVolumeId(), manilaClient); res.err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to retrieve source volume %s: %v", req.GetSourceVolumeId(), res.err)
+	if sourceShare, res.err = getShareByID(req.GetSourceVolumeId(), manilaClient); res.err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), res.err)
 	}
 
 	if strings.ToUpper(sourceShare.ShareProto) != cs.d.shareProto {
-		return nil, status.Errorf(codes.InvalidArgument, "share protocol mismatch: requested a snapshot of %s volume %s (share ID %s), but share protocol selector is set to %s",
-			sourceShare.ShareProto, req.GetSourceVolumeId(), sourceShare.ID, cs.d.shareProto)
+		return nil, status.Errorf(codes.InvalidArgument, "share protocol mismatch: requested a snapshot of %s share %s, but share protocol selector is set to %s",
+			sourceShare.ShareProto, req.GetSourceVolumeId(), cs.d.shareProto)
 	}
 
-	// Create or get the snapshot
+	// Retrieve an existing snapshot or create a new one
 
-	klog.V(4).Infof("creating snapshot %s of volume %s", snapID, req.GetSourceVolumeId())
+	klog.V(4).Infof("creating a snapshot (%s) of share %s", req.GetName(), req.GetSourceVolumeId())
 
-	if snapshot, res.err = getOrCreateSnapshot(snapID, sourceShare.ID, manilaClient); res.err != nil {
+	if snapshot, res.err = getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient); res.err != nil {
 		if res.err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s to become available", snapID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of share %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to create snapshot %s for volume %s: %v", snapID, req.GetSourceVolumeId(), res.err)
+		return nil, status.Errorf(codes.Internal, "failed to create a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
+	}
+
+	if res.err = verifySnapshotCompatibility(sourceShare, snapshot, req); res.err != nil {
+		return nil, status.Errorf(codes.AlreadyExists, "a snapshot named %s already exists, but is incompatible with the request: %v", req.GetName(), res.err)
 	}
 
 	// Check for snapshot status, determine whether it's ready
@@ -270,17 +264,17 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		readyToUse = true
 	default:
 		res.err = fmt.Errorf("snapshot %s is in %s state", snapshot.ID, snapshot.Status)
-		return nil, status.Errorf(codes.Internal, "an error occurred while creating snapshot %s: %v", snapID, res.err)
+		return nil, status.Errorf(codes.Internal, "an error occurred while creating a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
 	}
 
 	// Parse CreatedAt timestamp
 	if ctime, err = ptypes.TimestampProto(snapshot.CreatedAt); err != nil {
-		klog.Warningf("couldn't parse timestamp %v from snapshot %s (snapshot ID %s): %v", snapshot.CreatedAt, snapID, snapshot.ID, err)
+		klog.Warningf("couldn't parse timestamp %v from snapshot %s: %v", snapshot.CreatedAt, snapshot.ID, err)
 	}
 
 	res.dataPtr = &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
-			SnapshotId:     string(snapID),
+			SnapshotId:     snapshot.ID,
 			SourceVolumeId: req.GetSourceVolumeId(),
 			SizeBytes:      int64(sourceShare.Size) * bytesInGiB,
 			CreationTime:   ctime,
@@ -312,13 +306,9 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	snapID := snapshotID(req.GetSnapshotId())
-
-	if err := deleteSnapshot(snapID, manilaClient); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete snapshot %s: %v", snapID, err)
+	if err := deleteSnapshot(req.GetSnapshotId(), manilaClient); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to delete snapshot %s: %v", req.GetSnapshotId(), err)
 	}
-
-	klog.V(4).Infof("successfully deleted snapshot %s", snapID)
 
 	return &csi.DeleteSnapshotResponse{}, nil
 }

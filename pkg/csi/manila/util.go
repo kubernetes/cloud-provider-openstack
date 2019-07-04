@@ -24,8 +24,10 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
+	"k8s.io/klog"
 )
 
 type (
@@ -36,14 +38,6 @@ type (
 const (
 	bytesInGiB = 1024 * 1024 * 1024
 )
-
-func newVolumeID(volumeName string) volumeID {
-	return volumeID(fmt.Sprintf("csi-manila-%s", volumeName))
-}
-
-func newSnapshotID(snapshotName string) snapshotID {
-	return snapshotID(fmt.Sprintf("csi-manila-%s", snapshotName))
-}
 
 func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	const (
@@ -185,6 +179,10 @@ func validateCreateSnapshotRequest(req *csi.CreateSnapshotRequest) error {
 		return errors.New("secrets cannot be nil or empty")
 	}
 
+	if req.GetParameters() != nil || len(req.GetParameters()) > 0 {
+		klog.Info("parameters in CreateSnapshot requests are ignored")
+	}
+
 	return nil
 }
 
@@ -200,13 +198,21 @@ func validateDeleteSnapshotRequest(req *csi.DeleteSnapshotRequest) error {
 	return nil
 }
 
-func verifyVolumeCompatibility(sizeInGiB int, share *shares.Share, shareOpts *options.ControllerVolumeContext) error {
+func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext) error {
+	coalesceValue := func(v string) string {
+		if v == "" {
+			return "<none>"
+		}
+
+		return v
+	}
+
 	if share.Size != sizeInGiB {
 		return fmt.Errorf("size mismatch: wanted %d, got %d", sizeInGiB, share.Size)
 	}
 
 	if share.ShareProto != shareOpts.Protocol {
-		return fmt.Errorf("share protocol mismatch: wanted %s, got %s", shareOpts.Protocol, share.ShareProto)
+		return fmt.Errorf("share protocol mismatch: wanted %s, got %s", coalesceValue(shareOpts.Protocol), coalesceValue(share.ShareProto))
 	}
 
 	// FIXME shareOpts.Type may be either type name or type ID
@@ -217,7 +223,24 @@ func verifyVolumeCompatibility(sizeInGiB int, share *shares.Share, shareOpts *op
 	*/
 
 	if share.ShareNetworkID != shareOpts.ShareNetworkID {
-		return fmt.Errorf("share network ID mismatch: wanted %s, got %s", shareOpts.ShareNetworkID, share.ShareNetworkID)
+		return fmt.Errorf("share network ID mismatch: wanted %s, got %s", coalesceValue(shareOpts.ShareNetworkID), coalesceValue(share.ShareNetworkID))
+	}
+
+	var reqSrcSnapID string
+	if req.GetVolumeContentSource() != nil && req.GetVolumeContentSource().GetSnapshot() != nil {
+		reqSrcSnapID = req.GetVolumeContentSource().GetSnapshot().GetSnapshotId()
+	}
+
+	if share.SnapshotID != reqSrcSnapID {
+		return fmt.Errorf("source snapshot ID mismatch: wanted %s, got %s", coalesceValue(share.SnapshotID), coalesceValue(reqSrcSnapID))
+	}
+
+	return nil
+}
+
+func verifySnapshotCompatibility(sourceShare *shares.Share, snapshot *snapshots.Snapshot, req *csi.CreateSnapshotRequest) error {
+	if sourceShare.ID != req.SourceVolumeId {
+		return fmt.Errorf("source share ID mismatch: wanted %s, got %s", req.SourceVolumeId, sourceShare.ID)
 	}
 
 	return nil

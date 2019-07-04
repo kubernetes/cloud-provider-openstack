@@ -28,30 +28,30 @@ import (
 )
 
 type volumeCreator interface {
-	create(req *csi.CreateVolumeRequest, volID volumeID, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error)
+	create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error)
 }
 
 type blankVolume struct{}
 
-func (blankVolume) create(req *csi.CreateVolumeRequest, volID volumeID, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
-	klog.V(4).Infof("creating a share for volume %s", volID)
+func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
+	klog.V(4).Infof("creating a new share (%s)", shareName)
 
 	createOpts := &shares.CreateOpts{
 		ShareProto:     shareOpts.Protocol,
 		ShareType:      shareOpts.Type,
 		ShareNetworkID: shareOpts.ShareNetworkID,
-		Name:           string(volID),
+		Name:           shareName,
 		Description:    shareDescription,
 		Size:           sizeInGiB,
 	}
 
-	share, err := getOrCreateShare(volID, createOpts, manilaClient)
+	share, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", volID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to create volume %s: %v", volID, err)
+		return nil, status.Errorf(codes.Internal, "failed to create a share (%s): %v", shareName, err)
 	}
 
 	return share, err
@@ -59,7 +59,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, volID volumeID, sizeInGi
 
 type volumeFromSnapshot struct{}
 
-func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, volID volumeID, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
+func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
 	snapshotSource := req.GetVolumeContentSource().GetSnapshot()
 
 	if shareOpts.Protocol == "CEPHFS" {
@@ -71,9 +71,9 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, volID volumeID, s
 		return nil, status.Error(codes.InvalidArgument, "snapshot ID cannot be empty")
 	}
 
-	klog.V(4).Infof("restoring snapshot %s to volume %s", snapshotSource.GetSnapshotId(), volID)
+	klog.V(4).Infof("restoring snapshot %s into a share (%s)", snapshotSource.GetSnapshotId(), shareName)
 
-	snapshot, err := getSnapshotByName(snapshotSource.GetSnapshotId(), manilaClient)
+	snapshot, err := getSnapshotByID(snapshotSource.GetSnapshotId(), manilaClient)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to retrieve snapshot %s: %v", snapshotSource.GetSnapshotId(), err)
 	}
@@ -83,18 +83,18 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, volID volumeID, s
 		ShareProto:     shareOpts.Protocol,
 		ShareType:      shareOpts.Type,
 		ShareNetworkID: shareOpts.ShareNetworkID,
-		Name:           string(volID),
+		Name:           shareName,
 		Description:    shareDescription,
 		Size:           sizeInGiB,
 	}
 
-	share, err := getOrCreateShare(volID, createOpts, manilaClient)
+	share, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", volID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to restore snapshot %s to volume %s: %v", snapshotSource.GetSnapshotId(), volID, err)
+		return nil, status.Errorf(codes.Internal, "failed to restore snapshot %s into a share (%s): %v", snapshotSource.GetSnapshotId(), shareName, err)
 	}
 
 	return share, err
