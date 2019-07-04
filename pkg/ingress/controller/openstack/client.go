@@ -29,6 +29,7 @@ import (
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 )
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -45,6 +46,10 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("octavia-ingress-controller/%s", version.Version))
+	provider.UserAgent = userAgent
 
 	if cfg.OpenStack.CAFile != "" {
 		roots, err := certutil.NewPool(cfg.OpenStack.CAFile)
