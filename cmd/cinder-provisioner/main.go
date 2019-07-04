@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
+	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -45,6 +46,8 @@ func main() {
 	pflag.StringVar(&kubeconfig, "kubeconfig", "", "Absolute path to the kubeconfig")
 	pflag.StringVar(&id, "id", "", "Unique provisioner identity")
 	pflag.StringVar(&cloudconfig, "cloud-config", "", "Path to OpenStack config file")
+
+	volumeservice.AddExtraFlags(pflag.CommandLine)
 
 	// Glog requires this otherwise it complains.
 	flag.CommandLine.Parse(nil)
