@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"flag"
+	goflag "flag"
+
+	flag "github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
 	"k8s.io/klog"
 )
@@ -32,9 +34,10 @@ var (
 
 func main() {
 	klog.InitFlags(nil)
-	if err := flag.Set("logtostderr", "true"); err != nil {
+	if err := goflag.Set("logtostderr", "true"); err != nil {
 		klog.Exitf("failed to set logtostderr flag: %v", err)
 	}
+	manila.AddExtraFlags(flag.CommandLine)
 	flag.Parse()
 
 	d, err := manila.NewDriver(*nodeID, *driverName, *endpoint, *fwdEndpoint, *protoSelector)

@@ -30,7 +30,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions"
 	gophercloudutils "github.com/gophercloud/gophercloud/openstack/utils"
+	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 )
 
 const (
@@ -39,7 +41,14 @@ const (
 
 var (
 	manilaMicroversionRegexp = regexp.MustCompile(`^(\d+)\.(\d+)$`)
+
+	userAgentData []string
 )
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
 
 func splitManilaMicroversion(microversion string) (major, minor int) {
 	if err := validateManilaMicroversion(microversion); err != nil {
@@ -107,6 +116,13 @@ func authenticateOpenStackClient(o *options.OpenstackOptions) (*gophercloud.Prov
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("manila-csi-plugin/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
 
 	const (
 		v2 = "v2.0"
