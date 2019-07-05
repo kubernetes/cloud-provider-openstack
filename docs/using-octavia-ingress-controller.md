@@ -207,7 +207,7 @@ Next, we create an Ingress resource to make your HTTP web server application pub
 The following command defines an Ingress resource that forwards traffic that requests `http://api.sample.com/ping` to the `hostname-server` Service:
 ```bash
 cat <<EOF | kubectl apply -f -
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
   name: test-octavia-ingress
