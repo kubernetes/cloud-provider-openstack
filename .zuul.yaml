@@ -7,6 +7,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-lb-octavia:
       jobs:
         - cloud-provider-openstack-acceptance-test-lb-octavia:
@@ -15,6 +16,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-format:
       jobs:
         - cloud-provider-openstack-format:
@@ -23,6 +25,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
@@ -31,6 +34,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-k8s-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-k8s-cinder:
@@ -39,6 +43,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-standalone-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-standalone-cinder:
@@ -47,6 +52,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-cinder:
@@ -55,6 +61,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-flexvolume-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
@@ -63,6 +70,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
@@ -71,6 +79,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$              
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
@@ -79,6 +88,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
@@ -87,6 +97,7 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
@@ -95,3 +106,4 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
+              - ^.gitignore$
