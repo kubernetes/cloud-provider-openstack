@@ -317,6 +317,10 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 						log.Infof("Node %s is cordoned", nodeName)
 					}
 
+					// Remove the broken node from the cluster
+					if err := c.kubeClient.CoreV1().Nodes().Delete(nodeName, &metav1.DeleteOptions{}); err != nil {
+						log.Errorf("Failed to remove the node %s from cluster, error: %v", unhealthyNodeNames.List(), err)
+					}
 					// TODO: Deal with the situation that the autohealer is running on a failed node
 				}
 
