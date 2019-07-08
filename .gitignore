@@ -6,7 +6,7 @@
 .idea
 .DS_Store
 vendor
-
+test
 # OSX leaves these everywhere on SMB shares
 ._*
 
