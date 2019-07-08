@@ -419,7 +419,44 @@ func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacit
 }
 
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("ControllerExpandVolume is not yet implemented"))
+	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", *req)
+
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	}
+	cap := req.GetCapacityRange()
+	if cap == nil {
+		return nil, status.Error(codes.InvalidArgument, "Capacity range not provided")
+	}
+
+	volSizeBytes := int64(req.GetCapacityRange().GetRequiredBytes())
+	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
+	maxVolSize := cap.GetLimitBytes()
+
+	if maxVolSize > 0 && maxVolSize < volSizeBytes {
+		return nil, status.Error(codes.OutOfRange, "After round-up, volume size exceeds the limit specified")
+	}
+
+	_, err := cs.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, "Volume not found")
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
+	}
+
+	err = cs.Cloud.ExpandVolume(volumeID, volSizeGB)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("Could not resize volume %q to size %v: %v", volumeID, volSizeGB, err))
+	}
+
+	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %v", volumeID, volSizeGB)
+
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         volSizeBytes,
+		NodeExpansionRequired: true,
+	}, nil
 }
 
 func getAZFromTopology(requirement *csi.TopologyRequirement) string {

@@ -1733,6 +1733,7 @@
     "k8s.io/kubernetes/pkg/features",
     "k8s.io/kubernetes/pkg/util/flag",
     "k8s.io/kubernetes/pkg/util/mount",
+    "k8s.io/kubernetes/pkg/util/resizefs",
     "k8s.io/kubernetes/pkg/version/prometheus",
     "k8s.io/kubernetes/pkg/version/verflag",
     "k8s.io/kubernetes/pkg/volume",

@@ -201,11 +201,15 @@ func randString(n int) string {
 }
 
 func (cloud *cloud) GetInstanceByID(instanceID string) (*servers.Server, error) {
-	vol, ok := cloud.instances[instanceID]
+	inst, ok := cloud.instances[instanceID]
 
 	if !ok {
 		return nil, gophercloud.ErrDefault404{}
 	}
 
-	return vol, nil
+	return inst, nil
+}
+
+func (cloud *cloud) ExpandVolume(volumeID string, size int) error {
+	return nil
 }

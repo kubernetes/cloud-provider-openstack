@@ -20,12 +20,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/util/resizefs"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -269,7 +271,31 @@ func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVo
 }
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeExpandVolume is not yet implemented"))
+	klog.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
+
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	}
+	volumePath := req.GetVolumePath()
+
+	args := []string{"-o", "source", "--noheadings", "--target", volumePath}
+	output, err := ns.Mount.GetBaseMounter().Exec.Run("findmnt", args...)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not determine device path: %v", err)
+
+	}
+	devicePath := strings.TrimSpace(string(output))
+
+	if devicePath == "" {
+		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
+	}
+
+	r := resizefs.NewResizeFs(ns.Mount.GetBaseMounter())
+	if _, err := r.Resize(devicePath, volumePath); err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
+	}
+	return &csi.NodeExpandVolumeResponse{}, nil
 }
 
 func getDevicePath(volumeID string, m mount.IMount) (string, error) {
@@ -283,6 +309,7 @@ func getDevicePath(volumeID string, m mount.IMount) (string, error) {
 	return devicePath, nil
 
 }
+
 func getNodeIDMountProvider(m mount.IMount) (string, error) {
 	nodeID, err := m.GetInstanceID()
 	if err != nil {

@@ -260,3 +260,28 @@ func TestNodeUnstageVolume(t *testing.T) {
 	// Assert
 	assert.Equal(expectedRes, actualRes)
 }
+
+func TestNodeExpandVolume(t *testing.T) {
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.NodeExpandVolumeRequest{
+		VolumeId:   FakeVolName,
+		VolumePath: FakeDevicePath,
+	}
+
+	// Expected Result
+	expectedRes := &csi.NodeExpandVolumeResponse{}
+
+	// Invoke NodeExpandVolume
+	actualRes, err := fakeNs.NodeExpandVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to ExpandVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+
+}
