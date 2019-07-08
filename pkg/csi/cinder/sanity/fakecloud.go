@@ -8,18 +8,21 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 )
 
 type cloud struct {
 	volumes   map[string]*volumes.Volume
 	snapshots map[string]*snapshots.Snapshot
+	instances map[string]*servers.Server
 }
 
 func getfakecloud() *cloud {
 	return &cloud{
 		volumes:   make(map[string]*volumes.Volume, 0),
 		snapshots: make(map[string]*snapshots.Snapshot, 0),
+		instances: make(map[string]*servers.Server, 0),
 	}
 }
 
@@ -195,4 +198,14 @@ func randString(n int) string {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return string(b)
+}
+
+func (cloud *cloud) GetInstanceByID(instanceID string) (*servers.Server, error) {
+	vol, ok := cloud.instances[instanceID]
+
+	if !ok {
+		return nil, gophercloud.ErrDefault404{}
+	}
+
+	return vol, nil
 }

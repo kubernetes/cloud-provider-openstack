@@ -25,6 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	gcfg "gopkg.in/gcfg.v1"
@@ -50,6 +51,7 @@ type IOpenStack interface {
 	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)
 	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
 	WaitSnapshotReady(snapshotID string) error
+	GetInstanceByID(instanceID string) (*servers.Server, error)
 }
 
 type OpenStack struct {

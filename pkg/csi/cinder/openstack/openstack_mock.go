@@ -21,6 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -318,4 +319,8 @@ func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) error {
 
 func (_m *OpenStackMock) GetMaxVolLimit() int64 {
 	return 0
+}
+
+func (_m *OpenStackMock) GetInstanceByID(instanceID string) (*servers.Server, error) {
+	return nil, nil
 }
