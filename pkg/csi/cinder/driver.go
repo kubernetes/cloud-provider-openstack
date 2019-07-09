@@ -135,7 +135,7 @@ func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMoun
 
 	d.ids = NewIdentityServer(d)
 	d.cs = NewControllerServer(d, cloud)
-	d.ns = NewNodeServer(d, mount, metadata)
+	d.ns = NewNodeServer(d, mount, metadata, cloud)
 
 }
 
