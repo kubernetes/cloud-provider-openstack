@@ -9,7 +9,7 @@ vendor
 
 # OSX leaves these everywhere on SMB shares
 ._*
-
+test
 # OSX trash
 .DS_Store
 
