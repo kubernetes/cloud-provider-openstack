@@ -262,8 +262,20 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		readyToUse = false
 	case snapshotAvailable:
 		readyToUse = true
+	case snapshotError:
+		manilaErrMsg, err := lastResourceError(snapshot.ID, manilaClient)
+		if err != nil {
+			res.err = fmt.Errorf("snapshot %s of share %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err)
+			return nil, status.Error(codes.Internal, res.err.Error())
+		}
+
+		// An error occurred, try to roll-back the snapshot
+		tryDeleteSnapshot(snapshot, manilaClient)
+
+		res.err = fmt.Errorf("snapshot %s of share %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
+		return nil, status.Error(manilaErrMsg.errCode.toRpcErrorCode(), res.err.Error())
 	default:
-		res.err = fmt.Errorf("snapshot %s is in %s state", snapshot.ID, snapshot.Status)
+		res.err = fmt.Errorf("snapshot %s is in an unexpected state: wanted creating/available, got %s", snapshot.ID, snapshot.Status)
 		return nil, status.Errorf(codes.Internal, "an error occurred while creating a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
 	}
 

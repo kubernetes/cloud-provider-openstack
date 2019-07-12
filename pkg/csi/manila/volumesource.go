@@ -45,13 +45,18 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 		Size:           sizeInGiB,
 	}
 
-	share, err := getOrCreateShare(shareName, createOpts, manilaClient)
+	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to create a share (%s): %v", shareName, err)
+		if manilaErrCode != 0 {
+			// An error has occurred, try to roll-back the share
+			tryDeleteShare(share, manilaClient)
+		}
+
+		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to create a share (%s): %v", shareName, err)
 	}
 
 	return share, err
@@ -75,6 +80,10 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 	snapshot, err := getSnapshotByID(snapshotSource.GetSnapshotId(), manilaClient)
 	if err != nil {
+		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
+			return nil, status.Errorf(codes.NotFound, "source snapshot %s not found: %v", snapshotSource.GetSnapshotId(), err)
+		}
+
 		return nil, status.Errorf(codes.Internal, "failed to retrieve snapshot %s: %v", snapshotSource.GetSnapshotId(), err)
 	}
 
@@ -88,13 +97,18 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 		Size:           sizeInGiB,
 	}
 
-	share, err := getOrCreateShare(shareName, createOpts, manilaClient)
+	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to restore snapshot %s into a share (%s): %v", snapshotSource.GetSnapshotId(), shareName, err)
+		if manilaErrCode != 0 {
+			// An error has occurred, try to roll-back the share
+			tryDeleteShare(share, manilaClient)
+		}
+
+		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to restore snapshot %s into a share (%s): %v", snapshotSource.GetSnapshotId(), shareName, err)
 	}
 
 	return share, err
