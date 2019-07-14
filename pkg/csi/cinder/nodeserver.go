@@ -48,8 +48,17 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	targetPath := req.GetTargetPath()
 	volumeCapability := req.GetVolumeCapability()
 
-	if len(volumeID) == 0 || len(source) == 0 || len(targetPath) == 0 || volumeCapability == nil {
-		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume missing required arguments")
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume ID must be provided")
+	}
+	if len(source) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Staging Target Path must be provided")
+	}
+	if len(targetPath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Target Path must be provided")
+	}
+	if volumeCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
 	}
 
 	_, err := ns.Cloud.GetVolume(volumeID)
