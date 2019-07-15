@@ -229,7 +229,7 @@ func (c *Controller) getUnhealthyMasterNodes() ([]healthcheck.NodeInfo, error) {
 
 	// If no checkers defined, skip
 	if len(c.masterCheckers) == 0 {
-		log.Info("No health check defined for master node, skip.")
+		log.V(3).Info("No health check defined for master node, skip.")
 		return nodes, nil
 	}
 
@@ -261,7 +261,7 @@ func (c *Controller) getUnhealthyWorkerNodes() ([]healthcheck.NodeInfo, error) {
 
 	// If no checkers defined, skip.
 	if len(c.workerCheckers) == 0 {
-		log.Info("No health check defined for worker node, skip.")
+		log.V(3).Info("No health check defined for worker node, skip.")
 		return nodes, nil
 	}
 
@@ -332,7 +332,7 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 // startMasterMonitor checks if there are failed master nodes and triggers the repair action. This function is supposed
 // to be running in a goroutine.
 func (c *Controller) startMasterMonitor(wg *sync.WaitGroup) {
-	log.V(4).Info("Starting to check master nodes.")
+	log.V(3).Info("Starting to check master nodes.")
 	defer wg.Done()
 
 	// Get all the unhealthy master nodes.
@@ -345,15 +345,16 @@ func (c *Controller) startMasterMonitor(wg *sync.WaitGroup) {
 	c.repairNodes(unhealthyNodes)
 
 	if len(unhealthyNodes) == 0 {
-		log.Info("Master nodes are healthy")
+		log.V(3).Info("Master nodes are healthy")
 	}
-	log.V(4).Info("Finished checking master nodes.")
+
+	log.V(3).Info("Finished checking master nodes.")
 }
 
 // startWorkerMonitor checks if there are failed worker nodes and triggers the repair action. This function is supposed
 // to be running in a goroutine.
 func (c *Controller) startWorkerMonitor(wg *sync.WaitGroup) {
-	log.V(4).Info("Starting to check worker nodes.")
+	log.V(3).Info("Starting to check worker nodes.")
 	defer wg.Done()
 
 	// Get all the unhealthy worker nodes.
@@ -366,10 +367,10 @@ func (c *Controller) startWorkerMonitor(wg *sync.WaitGroup) {
 	c.repairNodes(unhealthyNodes)
 
 	if len(unhealthyNodes) == 0 {
-		log.Info("Worker nodes are healthy")
+		log.V(3).Info("Worker nodes are healthy")
 	}
 
-	log.V(4).Info("Finished checking worker nodes.")
+	log.V(3).Info("Finished checking worker nodes.")
 }
 
 // Start starts the autohealing controller.
