@@ -20,14 +20,17 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/startstop"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clusters"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks"
 	uuid "github.com/pborman/uuid"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	log "k8s.io/klog"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
@@ -130,6 +133,29 @@ func (provider *OpenStackCloudProvider) getAllStackResourceMapping(stackName, st
 	return provider.ResourceStackMapping, nil
 }
 
+func (provider OpenStackCloudProvider) waitForServerPoweredOff(serverID string, timeout time.Duration) error {
+	err := startstop.Stop(provider.Nova, serverID).ExtractErr()
+	if err != nil {
+		return err
+	}
+
+	err = wait.Poll(3*time.Second, timeout,
+		func() (bool, error) {
+			server, err := servers.Get(provider.Nova, serverID).Extract()
+			if err != nil {
+				return false, err
+			}
+
+			if server.Status == "SHUTOFF" {
+				return true, nil
+			}
+
+			return false, nil
+		})
+
+	return err
+}
+
 // Repair soft deletes the VMs, marks the heat resource "unhealthy" then trigger Heat stack update in order to rebuild
 // the VMs. The information this function needs:
 // - Nova VM IDs
@@ -161,9 +187,8 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 		}
 
 		serverID := id.String()
-		err = startstop.Stop(provider.Nova, serverID).ExtractErr()
-		if err != nil {
-			log.Warningf("Failed to shutdown server server %s, error: %v, continue handling...", serverID, err)
+		if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
+			log.Warningf("Failed to shutdown the server %s, error: %v, continue handling...", serverID, err)
 		}
 
 		log.Infof("Marking Nova VM %s(Heat resource %s) unhealthy for Heat stack %s", serverID, allMapping[serverID].ResourceID, cluster.StackID)
@@ -178,10 +203,10 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 		}
 	}
 
-	err = stacks.UpdatePatch(provider.Heat, clusterStackName, cluster.StackID, stacks.UpdateOpts{}).ExtractErr()
-	if err != nil {
+	if err := stacks.UpdatePatch(provider.Heat, clusterStackName, cluster.StackID, stacks.UpdateOpts{}).ExtractErr(); err != nil {
 		return fmt.Errorf("failed to update Heat stack to rebuild resources, error: %v", err)
 	}
+
 	log.Infof("Started Heat stack update to rebuild resources, cluster: %s, stack: %s", clusterName, cluster.StackID)
 
 	return nil
