@@ -924,13 +924,6 @@ func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
 	}
 
 	switch bsVersion {
-	case "v1":
-		sClient, err := os.NewBlockStorageV1()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V1")
-		return &VolumesV1{sClient, os.bsOpts}, nil
 	case "v2":
 		sClient, err := os.NewBlockStorageV2()
 		if err != nil {
@@ -958,11 +951,6 @@ func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
 		if sClient, err := os.NewBlockStorageV2(); err == nil {
 			klog.V(3).Info("Using Blockstorage API V2")
 			return &VolumesV2{sClient, os.bsOpts}, nil
-		}
-
-		if sClient, err := os.NewBlockStorageV1(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V1")
-			return &VolumesV1{sClient, os.bsOpts}, nil
 		}
 
 		errTxt := "BlockStorage API version autodetection failed. " +

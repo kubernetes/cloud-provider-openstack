@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -36,7 +36,6 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
-	volumes_v1 "github.com/gophercloud/gophercloud/openstack/blockstorage/v1/volumes"
 	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	volumes_v3 "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
@@ -60,12 +59,6 @@ type volumeService interface {
 	getVolume(volumeID string) (Volume, error)
 	deleteVolume(volumeName string) error
 	expandVolume(volumeID string, newSize int) error
-}
-
-// VolumesV1 is a Volumes implementation for cinder v1
-type VolumesV1 struct {
-	blockstorage *gophercloud.ServiceClient
-	opts         BlockStorageOpts
 }
 
 // VolumesV2 is a Volumes implementation for cinder v2
@@ -121,26 +114,6 @@ const (
 	newtonMetadataVersion = "2016-06-30"
 )
 
-func (volumes *VolumesV1) createVolume(opts volumeCreateOpts) (string, string, error) {
-	startTime := time.Now()
-
-	createOpts := volumes_v1.CreateOpts{
-		Name:             opts.Name,
-		Size:             opts.Size,
-		VolumeType:       opts.VolumeType,
-		AvailabilityZone: opts.Availability,
-		Metadata:         opts.Metadata,
-	}
-
-	vol, err := volumes_v1.Create(volumes.blockstorage, createOpts).Extract()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("create_v1_volume", timeTaken, err)
-	if err != nil {
-		return "", "", err
-	}
-	return vol.ID, vol.AvailabilityZone, nil
-}
-
 func (volumes *VolumesV2) createVolume(opts volumeCreateOpts) (string, string, error) {
 	startTime := time.Now()
 
@@ -179,31 +152,6 @@ func (volumes *VolumesV3) createVolume(opts volumeCreateOpts) (string, string, e
 		return "", "", err
 	}
 	return vol.ID, vol.AvailabilityZone, nil
-}
-
-func (volumes *VolumesV1) getVolume(volumeID string) (Volume, error) {
-	startTime := time.Now()
-	volumeV1, err := volumes_v1.Get(volumes.blockstorage, volumeID).Extract()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("get_v1_volume", timeTaken, err)
-	if err != nil {
-		return Volume{}, fmt.Errorf("error occurred getting volume by ID: %s, err: %v", volumeID, err)
-	}
-
-	volume := Volume{
-		AvailabilityZone: volumeV1.AvailabilityZone,
-		ID:               volumeV1.ID,
-		Name:             volumeV1.Name,
-		Status:           volumeV1.Status,
-		Size:             volumeV1.Size,
-	}
-
-	if len(volumeV1.Attachments) > 0 && volumeV1.Attachments[0]["server_id"] != nil {
-		volume.AttachedServerID = volumeV1.Attachments[0]["server_id"].(string)
-		volume.AttachedDevice = volumeV1.Attachments[0]["device"].(string)
-	}
-
-	return volume, nil
 }
 
 func (volumes *VolumesV2) getVolume(volumeID string) (Volume, error) {
@@ -256,14 +204,6 @@ func (volumes *VolumesV3) getVolume(volumeID string) (Volume, error) {
 	return volume, nil
 }
 
-func (volumes *VolumesV1) deleteVolume(volumeID string) error {
-	startTime := time.Now()
-	err := volumes_v1.Delete(volumes.blockstorage, volumeID).ExtractErr()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("delete_v1_volume", timeTaken, err)
-	return err
-}
-
 func (volumes *VolumesV2) deleteVolume(volumeID string) error {
 	startTime := time.Now()
 	err := volumes_v2.Delete(volumes.blockstorage, volumeID, nil).ExtractErr()
@@ -277,17 +217,6 @@ func (volumes *VolumesV3) deleteVolume(volumeID string) error {
 	err := volumes_v3.Delete(volumes.blockstorage, volumeID, nil).ExtractErr()
 	timeTaken := time.Since(startTime).Seconds()
 	recordOpenstackOperationMetric("delete_v3_volume", timeTaken, err)
-	return err
-}
-
-func (volumes *VolumesV1) expandVolume(volumeID string, newSize int) error {
-	startTime := time.Now()
-	createOpts := volumeexpand.ExtendSizeOpts{
-		NewSize: newSize,
-	}
-	err := volumeexpand.ExtendSize(volumes.blockstorage, volumeID, createOpts).ExtractErr()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("expand_volume", timeTaken, err)
 	return err
 }
 
