@@ -29,8 +29,10 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks"
 	uuid "github.com/pborman/uuid"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	log "k8s.io/klog"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
@@ -55,6 +57,7 @@ var statusesPreventingRepair = sets.NewString(
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStackCloudProvider struct {
+	KubeClient           kubernetes.Interface
 	Nova                 *gophercloud.ServiceClient
 	Heat                 *gophercloud.ServiceClient
 	Magnum               *gophercloud.ServiceClient
@@ -208,6 +211,13 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 	}
 
 	log.Infof("Started Heat stack update to rebuild resources, cluster: %s, stack: %s", clusterName, cluster.StackID)
+
+	// Remove the broken nodes from the cluster
+	for _, n := range nodes {
+		if err := provider.KubeClient.CoreV1().Nodes().Delete(n.KubeNode.Name, &metav1.DeleteOptions{}); err != nil {
+			log.Errorf("Failed to remove the node %s from cluster, error: %v", n.KubeNode.Name, err)
+		}
+	}
 
 	return nil
 }

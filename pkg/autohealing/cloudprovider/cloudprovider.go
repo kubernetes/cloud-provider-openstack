@@ -17,6 +17,7 @@ limitations under the License.
 package cloudprovider
 
 import (
+	"k8s.io/client-go/kubernetes"
 	log "k8s.io/klog"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
@@ -43,7 +44,7 @@ type CloudProvider interface {
 	Enabled() bool
 }
 
-type RegisterFunc func(config config.Config) (CloudProvider, error)
+type RegisterFunc func(config config.Config, client kubernetes.Interface) (CloudProvider, error)
 
 // RegisterCloudProvider registers a cloudprovider.Factory by name. This
 // is expected to happen during app startup.
@@ -57,10 +58,10 @@ func RegisterCloudProvider(name string, register RegisterFunc) {
 }
 
 // GetCloudProvider creates an instance of the named cloud provider
-func GetCloudProvider(name string, config config.Config) (CloudProvider, error) {
+func GetCloudProvider(name string, config config.Config, client kubernetes.Interface) (CloudProvider, error) {
 	f, found := providers[name]
 	if !found {
 		return nil, nil
 	}
-	return f(config)
+	return f(config, client)
 }
