@@ -26,6 +26,7 @@ import (
 	gopenstack "github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	netutil "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/kubernetes"
 	certutil "k8s.io/client-go/util/cert"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
@@ -33,7 +34,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 )
 
-func registerOpenStack(cfg config.Config) (cloudprovider.CloudProvider, error) {
+func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (cloudprovider.CloudProvider, error) {
 	client, err := gopenstack.NewClient(cfg.OpenStack.AuthURL)
 	if err != nil {
 		return nil, err
@@ -93,10 +94,11 @@ func registerOpenStack(cfg config.Config) (cloudprovider.CloudProvider, error) {
 
 	var p cloudprovider.CloudProvider
 	p = openstack.OpenStackCloudProvider{
-		Nova:   novaClient,
-		Heat:   heatClient,
-		Magnum: magnumClient,
-		Config: cfg,
+		KubeClient: kubeClient,
+		Nova:       novaClient,
+		Heat:       heatClient,
+		Magnum:     magnumClient,
+		Config:     cfg,
 	}
 
 	return p, nil
