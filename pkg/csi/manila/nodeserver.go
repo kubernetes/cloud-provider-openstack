@@ -61,14 +61,12 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	if shareOpts.ShareID != "" {
 		share, err = getShareByID(shareOpts.ShareID, manilaClient)
 		if err != nil {
-			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve volume %s (share ID %s): %v",
-				volID, shareOpts.ShareID, err)
+			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve share %s: %v", shareOpts.ShareID, err)
 		}
 	} else {
 		share, err = getShareByName(shareOpts.ShareName, manilaClient)
 		if err != nil {
-			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve volume %s (share name %s): %v",
-				volID, shareOpts.ShareName, err)
+			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve share named %s: %v", shareOpts.ShareName, err)
 		}
 	}
 
@@ -80,7 +78,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 			share.ShareProto, volID, share.ID, ns.d.shareProto)
 	}
 
-	if share.Status != "available" {
+	if share.Status != shareAvailable {
 		return nil, nil, status.Errorf(codes.InvalidArgument, "invalid share status for volume %s (share ID %s): expected 'available', got '%s'",
 			volID, share.ID, share.Status)
 	}

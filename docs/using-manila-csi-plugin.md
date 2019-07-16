@@ -1,6 +1,6 @@
 # CSI Manila driver
 
-The CSI Manila driver is able to create and mount OpenStack Manila shares.
+The CSI Manila driver is able to create and mount OpenStack Manila shares. Snapshots and recovering shares from snapshots is supported as well (support for CephFS snapshots will be added soon).
 
 ###### Table of contents
 
@@ -67,7 +67,7 @@ A single instance of the driver may serve only a single Manila share protocol. T
 
 ### Kubernetes 1.13+
 
-Required feature gates: `CSIDriverRegistry`, `CSINodeInfo`
+Required feature gates: `CSIDriverRegistry=true`, `CSINodeInfo=true`. Snapshots require `VolumeSnapshotDataSource=true` feature gate.
 
 All Kubernetes YAML manifests are located in `manifests/manila-csi-plugin`.
 

@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: preprovisioned-manila-cephfs-share
+  name: preprovisioned-nfs-share
   labels:
-    name: preprovisioned-manila-cephfs-share
+    name: preprovisioned-nfs-share
 spec:
   accessModes:
   - ReadWriteMany
@@ -11,7 +11,7 @@ spec:
     storage: 1Gi
   csi:
     driver: manila.csi.openstack.org
-    volumeHandle: preprovisioned-manila-cephfs-share
+    volumeHandle: preprovisioned-nfs-share
     nodeStageSecretRef:
       name: csi-manila-secrets
       namespace: default
@@ -25,7 +25,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: csi-manila-cephfs-pvc
+  name: existing-nfs-share-pvc
 spec:
   accessModes:
   - ReadWriteMany
@@ -36,4 +36,4 @@ spec:
     matchExpressions:
     - key: name
       operator: In
-      values: ["preprovisioned-manila-cephfs-share"]
+      values: ["preprovisioned-nfs-share"]

@@ -23,18 +23,25 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/klog"
 )
 
 const (
-	annProvisionedBy = "manila.csi.openstack.org/provisioned-by"
-
 	waitForAvailableShareTimeout = 3
 	waitForAvailableShareRetries = 10
+
+	shareCreating      = "creating"
+	shareDeleting      = "deleting"
+	shareError         = "error"
+	shareErrorDeleting = "error_deleting"
+	shareAvailable     = "available"
+
+	shareDescription = "provisioned-by=manila.csi.openstack.org"
 )
 
-func (cs *controllerServer) getOrCreateShare(volID volumeID, sizeInGiB int, controllerCtx *options.ControllerVolumeContext, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+// getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
+// Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
+func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -42,23 +49,12 @@ func (cs *controllerServer) getOrCreateShare(volID volumeID, sizeInGiB int, cont
 
 	// First, check if the share already exists or needs to be created
 
-	if share, err = getShareByName(string(volID), manilaClient); err != nil {
+	if share, err = getShareByName(shareName, manilaClient); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			// It doesn't exist, create it
 
-			req := shares.CreateOpts{
-				ShareProto:     controllerCtx.Protocol,
-				ShareType:      controllerCtx.Type,
-				ShareNetworkID: controllerCtx.ShareNetworkID,
-				Name:           string(volID),
-				Size:           sizeInGiB,
-				Metadata: map[string]string{
-					annProvisionedBy: cs.d.name,
-				},
-			}
-
 			var createErr error
-			if share, createErr = shares.Create(manilaClient, req).Extract(); createErr != nil {
+			if share, createErr = shares.Create(manilaClient, createOpts).Extract(); createErr != nil {
 				return nil, createErr
 			}
 		} else {
@@ -66,33 +62,28 @@ func (cs *controllerServer) getOrCreateShare(volID volumeID, sizeInGiB int, cont
 			return nil, fmt.Errorf("failed to probe for share: %v", err)
 		}
 	} else {
-		klog.V(4).Infof("volume %s (share ID %s) already exists", volID, share.ID)
+		klog.V(4).Infof("a share named %s already exists", shareName)
 	}
 
 	// It exists, wait till it's Available
 
-	const available = "available"
-
-	if share.Status == available {
+	if share.Status == shareAvailable {
 		return share, nil
 	}
 
-	return waitForShareStatus(share.ID, available, manilaClient)
+	return waitForShareStatus(share.ID, shareCreating, shareAvailable, manilaClient)
 }
 
-func deleteShare(volID volumeID, manilaClient *gophercloud.ServiceClient) error {
-	share, err := getShareByName(string(volID), manilaClient)
-	if err != nil {
+func deleteShare(shareID string, manilaClient *gophercloud.ServiceClient) error {
+	if err := shares.Delete(manilaClient, shareID).ExtractErr(); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
-			klog.V(4).Infof("volume %s not found, assuming it to be already deleted", volID)
-			return nil
+			klog.V(4).Infof("share %s not found, assuming it to be already deleted", shareID)
 		} else {
-			// Something else is wrong
-			return fmt.Errorf("failed to get ID for share %s: %v", volID, err)
+			return err
 		}
 	}
 
-	return shares.Delete(manilaClient, share.ID).Err
+	return nil
 }
 
 func getShareByID(shareID string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
@@ -108,7 +99,7 @@ func getShareByName(shareName string, manilaClient *gophercloud.ServiceClient) (
 	return getShareByID(shareID, manilaClient)
 }
 
-func waitForShareStatus(shareID string, desired string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+func waitForShareStatus(shareID, currentStatus, desiredStatus string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -127,6 +118,17 @@ func waitForShareStatus(shareID string, desired string, manilaClient *gopherclou
 			return false, err
 		}
 
-		return share.Status == desired, nil
+		var isAvailable bool
+
+		switch share.Status {
+		case currentStatus:
+			isAvailable = false
+		case desiredStatus:
+			isAvailable = true
+		default:
+			return false, fmt.Errorf("share %s is in %s state", shareID, share.Status)
+		}
+
+		return isAvailable, nil
 	})
 }
