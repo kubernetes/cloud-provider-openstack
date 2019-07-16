@@ -1,10 +1,11 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: csi-manila-cephfs
+  name: csi-manila-nfs
 provisioner: manila.csi.openstack.org
 parameters:
-  type: cephfstype
+  # Manila share type
+  type: default
   
   csi.storage.k8s.io/provisioner-secret-name: csi-manila-secrets
   csi.storage.k8s.io/provisioner-secret-namespace: default

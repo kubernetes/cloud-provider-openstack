@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: new-nfs-share-snap-restore-pod
+spec:
+  containers:
+    - name: web-server
+      image: nginx
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - name: mypvc
+          mountPath: /var/lib/www
+  volumes:
+    - name: mypvc
+      persistentVolumeClaim:
+        claimName: new-nfs-share-snap-restore
+        readOnly: false

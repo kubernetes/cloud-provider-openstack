@@ -1,16 +1,33 @@
-## Example CSI Manila CephFS usage
+## General notes before continuing
 
-1. Deploy CSI CephFS driver
-2. Deploy CSI Manila driver with `--share-protocol-selector=CEPHFS` and `--fwdendpoint=unix:///csi/csi-cephfsplugin/csi.sock` (or similar, based on your environment)
-3. Modify `secrets.yaml` to suite your OpenStack cloud environment. Refer to the _"Secrets, authentication"_ section of CSI Manila docs. You may also use helper scripts from `examples/manila-provisioner` to generate the Secrets manifest.
-4. Deploy OpenStack secrets
-5. Create a persistent volume:
-  5.1 **If you want to provision a new share:**
-    5.1.1 Modify `storageclass.yaml` to reflect your environment. Refer to the _"Controller Service volume parameters"_ section of CSI Manila docs.
-    5.1.2 Deploy the `csi-manila-cephfs` storage class `storageclass.yaml`
-    5.1.3 Deploy the persistent volume claim `pvc.yaml`
-  5.2 **OR you want to use an existing share:**
-    5.2.1 Modify `preprovisioned-pvc.yaml` to reflect your environment. Refer to the _"Node Service volume context"_ section of CSI Manila docs.
-    5.2.2 Deploy the PV+PVC
-6. Deploy `pod.yaml` which creates a Pod that mounts the share you've prepared in the steps above
-7. You should see `pod/csicephfs-demo-pod` with status _Running_ soon
+1. Make sure you've completed all the steps in `docs/using-manila-csi-plugin.md`: e.g. you've deployed CSI NFS and CSI Manila plugins and CSI Manila is running with `--share-protocol-selector=NFS` and `--fwdendpoint=unix:///csi/csi-nfsplugin/csi.sock` (or similar, based on your environment)
+2. Modify `secrets.yaml` to suite your OpenStack cloud environment. Refer to the _"Secrets, authentication"_ section of CSI Manila docs. You may also use helper scripts from `examples/manila-provisioner` to generate the Secrets manifest.
+3. The same steps apply to all supported Manila share protocols
+4. `exec-bash.sh`, `logs.sh` are convenience scripts for debugging CSI Manila 
+
+## Example CSI Manila usage with NFS shares
+
+```
+nfs/
+├── dynamic-provisioning/
+│   ├── pod.yaml
+│   ├── pvc.yaml
+│   └── --> storageclass.yaml <--
+├── snapshot/
+│   ├── pod.yaml
+│   ├── snapshotclass.yaml
+│   ├── snapshotcreate.yaml
+│   └── snapshotrestore.yaml
+├── static-provisioning/
+│   ├── pod.yaml
+│   └── --> preprovisioned-pvc.yaml <--
+└── --> secrets.yaml <--
+```
+
+Files marked with `--> ... <--` need to be customized.
+
+* `dynamic-provisioning/` :  creates a new Manila NFS share and mounts it in a Pod
+* `static-provisioning/` : fetches an existing Manila NFS share and mounts it in a Pod
+* `snapshot/` : takes a snapshot from a PVC source, restores it into a new share and mounts it in a Pod. Deploy manifests in `dynamic-provisioning/` first 
+
+After deploying each example you should see the corresponding Pod with status _Running_ soon.
