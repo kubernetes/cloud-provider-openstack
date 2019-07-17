@@ -3,7 +3,7 @@ kind: VolumeSnapshot
 metadata:
   name: new-nfs-share-snap
 spec:
-  snapshotClassName: csi-manila-snapclass
+  snapshotClassName: csi-manila-nfs
   source:
     name: new-nfs-share-pvc
     kind: PersistentVolumeClaim
