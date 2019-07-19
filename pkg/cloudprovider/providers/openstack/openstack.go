@@ -171,22 +171,25 @@ type OpenStack struct {
 // Config is used to read and store information from the cloud configuration file
 type Config struct {
 	Global struct {
-		AuthURL          string `gcfg:"auth-url"`
-		Username         string
-		UserID           string `gcfg:"user-id"`
-		Password         string
-		TenantID         string `gcfg:"tenant-id"`
-		TenantName       string `gcfg:"tenant-name"`
-		TrustID          string `gcfg:"trust-id"`
-		DomainID         string `gcfg:"domain-id"`
-		DomainName       string `gcfg:"domain-name"`
-		TenantDomainID   string `gcfg:"tenant-domain-id"`
-		TenantDomainName string `gcfg:"tenant-domain-name"`
-		Region           string
-		CAFile           string `gcfg:"ca-file"`
-		UseClouds        bool   `gcfg:"use-clouds"`
-		CloudsFile       string `gcfg:"clouds-file,omitempty"`
-		Cloud            string `gcfg:"cloud,omitempty"`
+		AuthURL                     string `gcfg:"auth-url"`
+		Username                    string
+		UserID                      string `gcfg:"user-id"`
+		Password                    string
+		TenantID                    string `gcfg:"tenant-id"`
+		TenantName                  string `gcfg:"tenant-name"`
+		TrustID                     string `gcfg:"trust-id"`
+		DomainID                    string `gcfg:"domain-id"`
+		DomainName                  string `gcfg:"domain-name"`
+		TenantDomainID              string `gcfg:"tenant-domain-id"`
+		TenantDomainName            string `gcfg:"tenant-domain-name"`
+		Region                      string
+		CAFile                      string `gcfg:"ca-file"`
+		UseClouds                   bool   `gcfg:"use-clouds"`
+		CloudsFile                  string `gcfg:"clouds-file,omitempty"`
+		Cloud                       string `gcfg:"cloud,omitempty"`
+		ApplicationCredentialID     string `gcfg:"application-credential-id"`
+		ApplicationCredentialName   string `gcfg:"application-credential-name"`
+		ApplicationCredentialSecret string `gcfg:"application-credential-secret"`
 	}
 	LoadBalancer      LoadBalancerOpts
 	LoadBalancerClass map[string]*LBClass
@@ -228,14 +231,17 @@ func init() {
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantID,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
+		IdentityEndpoint:            cfg.Global.AuthURL,
+		Username:                    cfg.Global.Username,
+		UserID:                      cfg.Global.UserID,
+		Password:                    cfg.Global.Password,
+		TenantID:                    cfg.Global.TenantID,
+		TenantName:                  cfg.Global.TenantName,
+		DomainID:                    cfg.Global.DomainID,
+		DomainName:                  cfg.Global.DomainName,
+		ApplicationCredentialID:     cfg.Global.ApplicationCredentialID,
+		ApplicationCredentialName:   cfg.Global.ApplicationCredentialName,
+		ApplicationCredentialSecret: cfg.Global.ApplicationCredentialSecret,
 
 		// Persistent service, so we need to be able to renew tokens.
 		AllowReauth: true,
@@ -289,6 +295,9 @@ func configFromEnv() (cfg Config, ok bool) {
 	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
 	cfg.Global.UserID = os.Getenv("OS_USER_ID")
 	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
+	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
+	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
+	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
 
 	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
 	if cfg.Global.TenantID == "" {
@@ -312,8 +321,8 @@ func configFromEnv() (cfg Config, ok bool) {
 	cfg.Global.TenantDomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
 
 	ok = cfg.Global.AuthURL != "" &&
-		cfg.Global.Username != "" &&
-		cfg.Global.Password != "" &&
+		((cfg.Global.Username != "" && cfg.Global.Password != "") ||
+			((cfg.Global.ApplicationCredentialID != "" || cfg.Global.ApplicationCredentialName != "") && cfg.Global.ApplicationCredentialSecret != "")) &&
 		(cfg.Global.TenantID != "" || cfg.Global.TenantName != "" ||
 			cfg.Global.DomainID != "" || cfg.Global.DomainName != "" ||
 			cfg.Global.Region != "" || cfg.Global.UserID != "" ||
