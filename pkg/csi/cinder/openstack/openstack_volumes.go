@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -248,6 +249,16 @@ func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string,
 		return "", fmt.Errorf("disk %q is attached to a different compute: %q, should be detached before proceeding", volumeID, volume.Attachments[0].ServerID)
 	}
 	return "", fmt.Errorf("volume %s has no ServerId", volumeID)
+}
+
+// ExpandVolume expands the volume to new size
+func (os *OpenStack) ExpandVolume(volumeID string, newSize int) error {
+	createOpts := volumeexpand.ExtendSizeOpts{
+		NewSize: newSize,
+	}
+	os.blockstorage.Microversion = "3.42"
+	err := volumeexpand.ExtendSize(os.blockstorage, volumeID, createOpts).ExtractErr()
+	return err
 }
 
 // diskIsAttached queries if a volume is attached to a compute instance

@@ -341,3 +341,36 @@ func TestListSnapshots(t *testing.T) {
 
 	assert.NotNil(FakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
 }
+
+func TestControllerExpandVolume(t *testing.T) {
+
+	// ExpandVolume(volumeID string, size int)
+	osmock.On("ExpandVolume", FakeVolName, 5).Return(nil)
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.ControllerExpandVolumeRequest{
+		VolumeId: FakeVolName,
+		CapacityRange: &csi.CapacityRange{
+			RequiredBytes: 5 * 1024 * 1024 * 1024,
+		},
+	}
+
+	// Expected Result
+	expectedRes := &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         5 * 1024 * 1024 * 1024,
+		NodeExpansionRequired: true,
+	}
+
+	// Invoke ControllerExpandVolume
+	actualRes, err := fakeCs.ControllerExpandVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to ExpandVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+
+}

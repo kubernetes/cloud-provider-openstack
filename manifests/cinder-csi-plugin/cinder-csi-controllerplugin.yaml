@@ -68,6 +68,18 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
+        - name: csi-resizer
+          image: quay.io/k8scsi/csi-resizer:canary
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: cinder-csi-plugin
           image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
           args :
