@@ -17,8 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"flag"
+	goflag "flag"
 
+	flag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -36,11 +37,13 @@ var (
 func main() {
 	flag.Set("logtostderr", "true")
 
+	manila.AddExtraFlags(flag.CommandLine)
+
 	// Glog requires this otherwise it complains.
 	flag.Parse()
 	// This is a temporary hack to enable proper logging until upstream dependencies
 	// are migrated to fully utilize klog instead of glog.
-	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klogFlags := goflag.NewFlagSet("klog", goflag.ExitOnError)
 	klog.InitFlags(klogFlags)
 
 	// Sync the glog and klog flags.

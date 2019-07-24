@@ -1,9 +1,12 @@
 package barbican
 
 import (
+	"fmt"
+
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
@@ -59,6 +62,10 @@ func newBarbicanClient(cfg Config) (client *gophercloud.ServiceClient, err error
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("barbican-kms-plugin/%s", version.Version))
+	provider.UserAgent = userAgent
 
 	client, err = openstack.NewKeyManagerV1(provider, gophercloud.EndpointOpts{
 		Region: cfg.Global.Region,

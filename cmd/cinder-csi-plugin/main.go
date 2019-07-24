@@ -84,6 +84,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
+	openstack.AddExtraFlags(pflag.CommandLine)
+
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
