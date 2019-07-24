@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
 	"github.com/gorilla/mux"
+	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -43,6 +44,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
@@ -55,6 +57,13 @@ const (
 	DomainID    = "alpha.kubernetes.io/identity/user/domain/id"
 	DomainName  = "alpha.kubernetes.io/identity/user/domain/name"
 )
+
+var userAgentData []string
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
 
 type userInfo struct {
 	Username string              `json:"username"`
@@ -578,6 +587,14 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("k8s-keystone-auth/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
+	klog.V(4).Infof("Using user-agent %s", userAgent.Join())
 
 	// We should use the V3 API
 	client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{})

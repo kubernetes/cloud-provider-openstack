@@ -41,6 +41,7 @@ import (
 	"github.com/gophercloud/gophercloud/pagination"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 
 	v1 "k8s.io/api/core/v1"
@@ -50,6 +51,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	v1helper "k8s.io/cloud-provider-openstack/pkg/apis/core/v1/helper"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
@@ -75,6 +77,14 @@ var ErrNoAddressFound = errors.New("no address found for host")
 // ErrIPv6SupportDisabled is used when one tries to use IPv6 Addresses when
 // IPv6 support is disabled by config
 var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
+
+// userAgentData is used to add extra information to the gophercloud user-agent
+var userAgentData []string
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
 
 // MyDuration is the encoding.TextUnmarshaler interface for time.Duration
 type MyDuration struct {
@@ -462,6 +472,15 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("openstack-cloud-controller-manager/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
+	klog.V(4).Infof("Using user-agent %s", userAgent.Join())
+
 	if cfg.Global.CAFile != "" {
 		roots, err := certutil.NewPool(cfg.Global.CAFile)
 		if err != nil {

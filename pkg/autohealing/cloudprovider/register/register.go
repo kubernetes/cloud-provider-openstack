@@ -32,6 +32,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 )
 
 func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (cloudprovider.CloudProvider, error) {
@@ -39,6 +40,10 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("magnum-auto-healer/%s", version.Version))
+	client.UserAgent = userAgent
 
 	if cfg.OpenStack.CAFile != "" {
 		roots, err := certutil.NewPool(cfg.OpenStack.CAFile)

@@ -34,6 +34,7 @@ import (
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
@@ -52,8 +53,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
-
-var version string
 
 func init() {
 	mux := http.NewServeMux()
@@ -114,6 +113,8 @@ the cloud specific control loops shipped with Kubernetes.`,
 		fs.AddFlagSet(f)
 	}
 
+	openstack.AddExtraFlags(pflag.CommandLine)
+
 	// TODO: once we switch everything over to Cobra commands, we can go back to calling
 	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
 	// normalize func and add the go flag set by hand.
@@ -123,7 +124,7 @@ the cloud specific control loops shipped with Kubernetes.`,
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	klog.V(1).Infof("openstack-cloud-controller-manager version: %s", version)
+	klog.V(1).Infof("openstack-cloud-controller-manager version: %s", version.Version)
 
 	s.KubeCloudShared.CloudProvider.Name = openstack.ProviderName
 	if err := command.Execute(); err != nil {
