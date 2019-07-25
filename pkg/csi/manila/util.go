@@ -23,8 +23,10 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	"google.golang.org/grpc/codes"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/klog"
@@ -38,6 +40,48 @@ type (
 const (
 	bytesInGiB = 1024 * 1024 * 1024
 )
+
+type manilaError int
+
+func (c manilaError) toRpcErrorCode() codes.Code {
+	switch c {
+	case manilaErrNoValidHost:
+		return codes.OutOfRange
+	case manilaErrUnexpectedNetwork:
+		return codes.InvalidArgument
+	case manilaErrAvailability:
+		return codes.ResourceExhausted
+	case manilaErrCapabilities:
+		return codes.InvalidArgument
+	case manilaErrCapacity:
+		return codes.OutOfRange
+	default:
+		return codes.Internal
+	}
+}
+
+const (
+	manilaErrNoValidHost manilaError = iota + 1
+	manilaErrUnexpectedNetwork
+	manilaErrAvailability
+	manilaErrCapabilities
+	manilaErrCapacity
+)
+
+var (
+	manilaErrorCodesMap = map[string]manilaError{
+		"002": manilaErrNoValidHost,
+		"003": manilaErrUnexpectedNetwork,
+		"007": manilaErrAvailability,
+		"008": manilaErrCapabilities,
+		"009": manilaErrCapacity,
+	}
+)
+
+type manilaErrorMessage struct {
+	errCode manilaError
+	message string
+}
 
 func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	const (
@@ -125,6 +169,31 @@ func getAccessRightByID(id, shareID string, manilaClient *gophercloud.ServiceCli
 	}
 
 	return nil, fmt.Errorf("access right %s for share ID %s not found", id, shareID)
+}
+
+func lastResourceError(resourceID string, manilaClient *gophercloud.ServiceClient) (manilaErrorMessage, error) {
+	allPages, err := messages.List(manilaClient, &messages.ListOpts{
+		ResourceID:   resourceID,
+		MessageLevel: "ERROR",
+		Limit:        1,
+		SortDir:      "desc",
+		SortKey:      "created_at",
+	}).AllPages()
+
+	if err != nil {
+		return manilaErrorMessage{}, err
+	}
+
+	msgs, err := messages.ExtractMessages(allPages)
+	if err != nil {
+		return manilaErrorMessage{}, err
+	}
+
+	if msgs != nil && len(msgs) == 1 {
+		return manilaErrorMessage{errCode: manilaErrorCodesMap[msgs[0].DetailID], message: msgs[0].UserMessage}, nil
+	}
+
+	return manilaErrorMessage{message: "unknown error"}, nil
 }
 
 //

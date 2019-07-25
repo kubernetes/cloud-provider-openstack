@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
+	"time"
 )
 
 const (
@@ -60,7 +62,7 @@ func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient *gopherclo
 
 		} else {
 			// Something else is wrong
-			return nil, fmt.Errorf("failed to probe for snapshot: %v", err)
+			return nil, fmt.Errorf("failed to probe for a snapshot named %s: %v", snapName, err)
 		}
 	} else {
 		klog.V(4).Infof("a snapshot named %s already exists", snapName)
@@ -81,6 +83,25 @@ func deleteSnapshot(snapID string, manilaClient *gophercloud.ServiceClient) erro
 	return nil
 }
 
+func tryDeleteSnapshot(snapshot *snapshots.Snapshot, manilaClient *gophercloud.ServiceClient) {
+	if snapshot == nil {
+		return
+	}
+
+	if err := deleteSnapshot(snapshot.ID, manilaClient); err != nil {
+		// TODO failure to delete a snapshot in an error state needs proper monitoring support
+		klog.Errorf("couldn't delete snapshot %s in a roll-back procedure: %v", snapshot.ID, err)
+		return
+	}
+
+	//
+
+	_, _, err := waitForSnapshotStatus(snapshot.ID, snapshotDeleting, "", true, manilaClient)
+	if err != nil && err != wait.ErrWaitTimeout {
+		klog.Errorf("couldn't retrieve snapshot %s in a roll-back procedure: %v", snapshot.ID, err)
+	}
+}
+
 func getSnapshotByName(snapshotName string, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, error) {
 	snapID, err := snapshots.IDFromName(manilaClient, snapshotName)
 	if err != nil {
@@ -92,4 +113,51 @@ func getSnapshotByName(snapshotName string, manilaClient *gophercloud.ServiceCli
 
 func getSnapshotByID(snapshotID string, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, error) {
 	return snapshots.Get(manilaClient, snapshotID).Extract()
+}
+
+func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, manilaError, error) {
+	var (
+		backoff = wait.Backoff{
+			Duration: time.Second * waitForAvailableShareTimeout,
+			Factor:   1.2,
+			Steps:    waitForAvailableShareRetries,
+		}
+
+		snapshot      *snapshots.Snapshot
+		manilaErrCode manilaError
+		err           error
+	)
+
+	return snapshot, manilaErrCode, wait.ExponentialBackoff(backoff, func() (bool, error) {
+		snapshot, err = getSnapshotByID(snapshotID, manilaClient)
+
+		if err != nil {
+			if _, ok := err.(gophercloud.ErrResourceNotFound); ok && successOnNotFound {
+				return true, nil
+			}
+
+			return false, err
+		}
+
+		var isAvailable bool
+
+		switch snapshot.Status {
+		case currentStatus:
+			isAvailable = false
+		case desiredStatus:
+			isAvailable = true
+		case shareError:
+			manilaErrMsg, err := lastResourceError(snapshotID, manilaClient)
+			if err != nil {
+				return false, fmt.Errorf("snapshot %s is in error state, error description could not be retrieved: %v", snapshotID, err)
+			}
+
+			manilaErrCode = manilaErrMsg.errCode
+			return false, fmt.Errorf("snapshot %s is in error state: %s", snapshotID, manilaErrMsg.message)
+		default:
+			return false, fmt.Errorf("snapshot %s is in an unexpected state: wanted either %s or %s, got %s", snapshotID, currentStatus, desiredStatus, snapshot.Status)
+		}
+
+		return isAvailable, nil
+	})
 }
