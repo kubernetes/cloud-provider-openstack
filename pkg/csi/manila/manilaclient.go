@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	minimumManilaVersion = "2.21"
+	minimumManilaVersion = "2.37"
 )
 
 var (

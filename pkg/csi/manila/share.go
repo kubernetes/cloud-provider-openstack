@@ -41,7 +41,7 @@ const (
 
 // getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
 // Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
-func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, manilaError, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -55,11 +55,11 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 
 			var createErr error
 			if share, createErr = shares.Create(manilaClient, createOpts).Extract(); createErr != nil {
-				return nil, createErr
+				return nil, 0, createErr
 			}
 		} else {
 			// Something else is wrong
-			return nil, fmt.Errorf("failed to probe for share: %v", err)
+			return nil, 0, fmt.Errorf("failed to probe for a share named %s: %v", shareName, err)
 		}
 	} else {
 		klog.V(4).Infof("a share named %s already exists", shareName)
@@ -68,10 +68,10 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 	// It exists, wait till it's Available
 
 	if share.Status == shareAvailable {
-		return share, nil
+		return share, 0, nil
 	}
 
-	return waitForShareStatus(share.ID, shareCreating, shareAvailable, manilaClient)
+	return waitForShareStatus(share.ID, shareCreating, shareAvailable, false, manilaClient)
 }
 
 func deleteShare(shareID string, manilaClient *gophercloud.ServiceClient) error {
@@ -84,6 +84,23 @@ func deleteShare(shareID string, manilaClient *gophercloud.ServiceClient) error 
 	}
 
 	return nil
+}
+
+func tryDeleteShare(share *shares.Share, manilaClient *gophercloud.ServiceClient) {
+	if share == nil {
+		return
+	}
+
+	if err := deleteShare(share.ID, manilaClient); err != nil {
+		// TODO failure to delete a share in an error state needs proper monitoring support
+		klog.Errorf("couldn't delete share %s in a roll-back procedure: %v", share.ID, err)
+		return
+	}
+
+	_, _, err := waitForShareStatus(share.ID, shareDeleting, "", true, manilaClient)
+	if err != nil && err != wait.ErrWaitTimeout {
+		klog.Errorf("couldn't retrieve share %s in a roll-back procedure: %v", share.ID, err)
+	}
 }
 
 func getShareByID(shareID string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
@@ -99,7 +116,7 @@ func getShareByName(shareName string, manilaClient *gophercloud.ServiceClient) (
 	return getShareByID(shareID, manilaClient)
 }
 
-func waitForShareStatus(shareID, currentStatus, desiredStatus string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
+func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient *gophercloud.ServiceClient) (*shares.Share, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -107,14 +124,19 @@ func waitForShareStatus(shareID, currentStatus, desiredStatus string, manilaClie
 			Steps:    waitForAvailableShareRetries,
 		}
 
-		share *shares.Share
-		err   error
+		share         *shares.Share
+		manilaErrCode manilaError
+		err           error
 	)
 
-	return share, wait.ExponentialBackoff(backoff, func() (bool, error) {
+	return share, manilaErrCode, wait.ExponentialBackoff(backoff, func() (bool, error) {
 		share, err = getShareByID(shareID, manilaClient)
 
 		if err != nil {
+			if _, ok := err.(gophercloud.ErrDefault404); ok && successOnNotFound {
+				return true, nil
+			}
+
 			return false, err
 		}
 
@@ -125,8 +147,16 @@ func waitForShareStatus(shareID, currentStatus, desiredStatus string, manilaClie
 			isAvailable = false
 		case desiredStatus:
 			isAvailable = true
+		case shareError:
+			manilaErrMsg, err := lastResourceError(shareID, manilaClient)
+			if err != nil {
+				return false, fmt.Errorf("share %s is in error state, error description could not be retrieved: %v", shareID, err)
+			}
+
+			manilaErrCode = manilaErrMsg.errCode
+			return false, fmt.Errorf("share %s is in error state: %s", shareID, manilaErrMsg.message)
 		default:
-			return false, fmt.Errorf("share %s is in %s state", shareID, share.Status)
+			return false, fmt.Errorf("share %s is in an unexpected state: wanted either %s or %s, got %s", shareID, currentStatus, desiredStatus, share.Status)
 		}
 
 		return isAvailable, nil
