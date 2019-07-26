@@ -62,7 +62,7 @@ func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string
 	return map[string]string{
 		"server": server,
 		"share":  share,
-	}, nil
+	}, err
 }
 
 func (NFS) BuildNodeStageSecret(args *SecretArgs) (secret map[string]string, err error) {

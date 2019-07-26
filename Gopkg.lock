@@ -246,7 +246,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8a5e9ae8b975657a3aa1bc913bbe43a317667e4eff3126ce316053e41a13dc9a"
+  digest = "1:25782881f00fe40c1279ca04820fc7a763669950b116ad670cfe86a34d046faf"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -289,7 +289,9 @@
     "openstack/orchestration/v1/stackresources",
     "openstack/orchestration/v1/stacks",
     "openstack/sharedfilesystems/apiversions",
+    "openstack/sharedfilesystems/v2/messages",
     "openstack/sharedfilesystems/v2/shares",
+    "openstack/sharedfilesystems/v2/snapshots",
     "openstack/utils",
     "pagination",
     "testhelper",
@@ -1616,6 +1618,7 @@
   input-imports = [
     "github.com/container-storage-interface/spec/lib/go/csi",
     "github.com/golang/protobuf/ptypes",
+    "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/gophercloud/gophercloud",
     "github.com/gophercloud/gophercloud/openstack",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions",
@@ -1651,7 +1654,9 @@
     "github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources",
     "github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions",
+    "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares",
+    "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots",
     "github.com/gophercloud/gophercloud/openstack/utils",
     "github.com/gophercloud/gophercloud/pagination",
     "github.com/gophercloud/gophercloud/testhelper",
@@ -1733,6 +1738,7 @@
     "k8s.io/kubernetes/pkg/features",
     "k8s.io/kubernetes/pkg/util/flag",
     "k8s.io/kubernetes/pkg/util/mount",
+    "k8s.io/kubernetes/pkg/util/resizefs",
     "k8s.io/kubernetes/pkg/version/prometheus",
     "k8s.io/kubernetes/pkg/version/verflag",
     "k8s.io/kubernetes/pkg/volume",

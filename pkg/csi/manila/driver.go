@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -63,7 +64,21 @@ var (
 	serverGRPCEndpointCallCounter uint64
 )
 
+func argNotEmpty(val, name string) error {
+	if val == "" {
+		return fmt.Errorf("%s is missing", name)
+	}
+
+	return nil
+}
+
 func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string) (*Driver, error) {
+	for k, v := range map[string]string{"node ID": nodeID, "driver name": driverName, "driver endpoint": endpoint, "FWD endpoint": fwdEndpoint, "share protocol selector": shareProto} {
+		if err := argNotEmpty(v, k); err != nil {
+			return nil, err
+		}
+	}
+
 	klog.Infof("Driver: %v version: %v CSI spec version: 1.1.0", driverName, driverVersion)
 
 	d := &Driver{
@@ -71,8 +86,11 @@ func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string) (*D
 		name:           driverName,
 		serverEndpoint: endpoint,
 		fwdEndpoint:    fwdEndpoint,
-		shareProto:     shareProto,
+		shareProto:     strings.ToUpper(shareProto),
 	}
+
+	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
+	klog.Infof("Operating on %s shares", d.shareProto)
 
 	serverProto, serverAddr, err := parseGRPCEndpoint(endpoint)
 	if err != nil {
@@ -89,6 +107,7 @@ func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string) (*D
 
 	d.addControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 	})
 
 	d.addVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{

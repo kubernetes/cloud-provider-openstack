@@ -18,7 +18,6 @@ package manila
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
@@ -59,11 +58,7 @@ func getStorageSizeInGiga(pvc *v1.PersistentVolumeClaim) (int, error) {
 		return 0, fmt.Errorf("requested storage size must be greater than zero")
 	}
 
-	var buf []byte
-	canonicalValue, _ := storageSize.AsScale(resource.Giga)
-	storageSizeAsByteSlice, _ := canonicalValue.AsCanonicalBytes(buf)
-
-	return strconv.Atoi(string(storageSizeAsByteSlice))
+	return int(storageSize.ScaledValue(resource.Giga)), nil
 }
 
 // Chooses one ExportLocation according to the below rules:

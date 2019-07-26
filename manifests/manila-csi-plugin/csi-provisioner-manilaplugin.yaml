@@ -40,6 +40,22 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin
+        - name: csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v1.1.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--connection-timeout=15s"
+            - "--v=5"
+            - "--leader-election=false"
+          env:
+            - name: ADDRESS
+              value: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin/csi.sock
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin
       volumes:
         - name: socket-dir
           hostPath:

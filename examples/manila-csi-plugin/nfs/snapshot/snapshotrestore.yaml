@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: new-nfs-share-snap-restore
+spec:
+  storageClassName: csi-manila-nfs
+  dataSource:
+    name: new-nfs-share-snap
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi

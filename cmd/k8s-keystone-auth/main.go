@@ -34,6 +34,8 @@ func main() {
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
 
+	keystone.AddExtraFlags(pflag.CommandLine)
+
 	// Sync the glog and klog flags.
 	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
 		f2 := klogFlags.Lookup(f1.Name)

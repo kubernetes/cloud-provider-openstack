@@ -21,7 +21,9 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/klog"
 
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/provisioner"
+	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -37,7 +39,6 @@ var (
 	kubeconfig  string
 	id          string
 	cloudconfig string
-	version     string
 )
 
 func main() {
@@ -45,6 +46,8 @@ func main() {
 	pflag.StringVar(&kubeconfig, "kubeconfig", "", "Absolute path to the kubeconfig")
 	pflag.StringVar(&id, "id", "", "Unique provisioner identity")
 	pflag.StringVar(&cloudconfig, "cloud-config", "", "Path to OpenStack config file")
+
+	volumeservice.AddExtraFlags(pflag.CommandLine)
 
 	// Glog requires this otherwise it complains.
 	flag.CommandLine.Parse(nil)
@@ -66,7 +69,7 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	klog.V(1).Infof("cinder-provisioner version: %s", version)
+	klog.V(1).Infof("cinder-provisioner version: %s", version.Version)
 
 	var config *rest.Config
 	var err error

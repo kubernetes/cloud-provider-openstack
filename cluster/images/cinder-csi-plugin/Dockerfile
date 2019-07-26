@@ -1,9 +1,9 @@
-FROM alpine:3.7
+FROM k8s.gcr.io/debian-base-amd64:1.0.0
 LABEL maintainers="Kubernetes Authors"
 LABEL description="Cinder CSI Plugin"
 
 # Install e4fsprogs for format
-RUN apk add --no-cache ca-certificates e2fsprogs eudev xfsprogs
+RUN clean-install ca-certificates e2fsprogs mount xfsprogs udev
 
 ADD cinder-csi-plugin /bin/
 

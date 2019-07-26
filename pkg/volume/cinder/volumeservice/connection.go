@@ -29,9 +29,11 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/noauth"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"github.com/spf13/pflag"
 	"gopkg.in/gcfg.v1"
 
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
@@ -43,6 +45,14 @@ type cinderConfig struct {
 	Cinder struct {
 		Endpoint string `gcfg:"endpoint"`
 	}
+}
+
+// userAgentData is used to add extra information to the gophercloud user-agent
+var userAgentData []string
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 }
 
 func (cfg cinderConfig) toAuthOptions() gophercloud.AuthOptions {
@@ -137,6 +147,14 @@ func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, err
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("cinder-provisioner/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
+
 	if cfg.Global.CAFile != "" {
 		var roots *x509.CertPool
 		roots, err = certutil.NewPool(cfg.Global.CAFile)
@@ -181,6 +199,13 @@ func getNoAuthVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, error
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("cinder-provisioner/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
 
 	client, err := noauth.NewBlockStorageNoAuth(provider, noauth.EndpointOpts{
 		CinderEndpoint: cfg.Cinder.Endpoint,

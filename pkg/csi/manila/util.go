@@ -23,18 +23,65 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	"google.golang.org/grpc/codes"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/klog"
 )
 
 type (
-	volumeID string
+	volumeID   string
+	snapshotID string
 )
 
 const (
 	bytesInGiB = 1024 * 1024 * 1024
 )
+
+type manilaError int
+
+func (c manilaError) toRpcErrorCode() codes.Code {
+	switch c {
+	case manilaErrNoValidHost:
+		return codes.OutOfRange
+	case manilaErrUnexpectedNetwork:
+		return codes.InvalidArgument
+	case manilaErrAvailability:
+		return codes.ResourceExhausted
+	case manilaErrCapabilities:
+		return codes.InvalidArgument
+	case manilaErrCapacity:
+		return codes.OutOfRange
+	default:
+		return codes.Internal
+	}
+}
+
+const (
+	manilaErrNoValidHost manilaError = iota + 1
+	manilaErrUnexpectedNetwork
+	manilaErrAvailability
+	manilaErrCapabilities
+	manilaErrCapacity
+)
+
+var (
+	manilaErrorCodesMap = map[string]manilaError{
+		"002": manilaErrNoValidHost,
+		"003": manilaErrUnexpectedNetwork,
+		"007": manilaErrAvailability,
+		"008": manilaErrCapabilities,
+		"009": manilaErrCapacity,
+	}
+)
+
+type manilaErrorMessage struct {
+	errCode manilaError
+	message string
+}
 
 func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	const (
@@ -64,16 +111,38 @@ func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	return "", "", errors.New("endpoint uses unsupported scheme")
 }
 
+// Blocks until the response from previous request is available and reads it.
+// If that request has finished successfully, release the handle because we're done.
+func readResponse(handle responsebroker.ResponseHandle) interface{} {
+	if resp, err := handle.Read(); err == nil {
+		handle.Release()
+		return resp
+	}
+
+	return nil
+}
+
+type requestResult struct {
+	dataPtr interface{}
+	err     error
+}
+
+// Writes the response.
+// If this request has finished successfully, wait for others to readResponse() and dispose of the lock.
+func writeResponse(handle responsebroker.ResponseHandle, rb *responsebroker.ResponseBroker, identifier string, res *requestResult) {
+	handle.Write(res.dataPtr, res.err)
+
+	if res.err == nil {
+		rb.Done(identifier)
+	}
+}
+
 func endpointAddress(proto, addr string) string {
 	return fmt.Sprintf("%s://%s", proto, addr)
 }
 
 func fmtGrpcConnError(fwdEndpoint string, err error) string {
 	return fmt.Sprintf("connecting to fwd plugin at %s failed: %v", fwdEndpoint, err)
-}
-
-func newVolumeID(volumeName string) volumeID {
-	return volumeID(fmt.Sprintf("csi-manila-%s", volumeName))
 }
 
 func bytesToGiB(sizeInBytes int64) int {
@@ -85,19 +154,6 @@ func bytesToGiB(sizeInBytes int64) int {
 	}
 
 	return sizeInGiB
-}
-
-func getShareAdapter(proto string) shareadapters.ShareAdapter {
-	switch strings.ToLower(proto) {
-	case "cephfs":
-		return &shareadapters.Cephfs{}
-	case "nfs":
-		return &shareadapters.NFS{}
-	default:
-		klog.Fatalf("unknown share adapter %s", proto)
-	}
-
-	return nil
 }
 
 func getAccessRightByID(id, shareID string, manilaClient *gophercloud.ServiceClient) (*shares.AccessRight, error) {
@@ -113,6 +169,31 @@ func getAccessRightByID(id, shareID string, manilaClient *gophercloud.ServiceCli
 	}
 
 	return nil, fmt.Errorf("access right %s for share ID %s not found", id, shareID)
+}
+
+func lastResourceError(resourceID string, manilaClient *gophercloud.ServiceClient) (manilaErrorMessage, error) {
+	allPages, err := messages.List(manilaClient, &messages.ListOpts{
+		ResourceID:   resourceID,
+		MessageLevel: "ERROR",
+		Limit:        1,
+		SortDir:      "desc",
+		SortKey:      "created_at",
+	}).AllPages()
+
+	if err != nil {
+		return manilaErrorMessage{}, err
+	}
+
+	msgs, err := messages.ExtractMessages(allPages)
+	if err != nil {
+		return manilaErrorMessage{}, err
+	}
+
+	if msgs != nil && len(msgs) == 1 {
+		return manilaErrorMessage{errCode: manilaErrorCodesMap[msgs[0].DetailID], message: msgs[0].UserMessage}, nil
+	}
+
+	return manilaErrorMessage{message: "unknown error"}, nil
 }
 
 //
@@ -136,7 +217,7 @@ func validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 	}
 
 	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("secrets cannot be empty")
+		return errors.New("secrets cannot be nil or empty")
 	}
 
 	return nil
@@ -148,7 +229,87 @@ func validateDeleteVolumeRequest(req *csi.DeleteVolumeRequest) error {
 	}
 
 	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
-		return errors.New("secrets cannot be empty")
+		return errors.New("secrets cannot be nil or empty")
+	}
+
+	return nil
+}
+
+func validateCreateSnapshotRequest(req *csi.CreateSnapshotRequest) error {
+	if req.GetName() == "" {
+		return errors.New("snapshot name cannot be empty")
+	}
+
+	if req.GetSourceVolumeId() == "" {
+		return errors.New("source volume ID cannot be empty")
+	}
+
+	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
+		return errors.New("secrets cannot be nil or empty")
+	}
+
+	if req.GetParameters() != nil || len(req.GetParameters()) > 0 {
+		klog.Info("parameters in CreateSnapshot requests are ignored")
+	}
+
+	return nil
+}
+
+func validateDeleteSnapshotRequest(req *csi.DeleteSnapshotRequest) error {
+	if req.GetSnapshotId() == "" {
+		return errors.New("snapshot ID cannot be empty")
+	}
+
+	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
+		return errors.New("secrets cannot be nil or empty")
+	}
+
+	return nil
+}
+
+func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext) error {
+	coalesceValue := func(v string) string {
+		if v == "" {
+			return "<none>"
+		}
+
+		return v
+	}
+
+	if share.Size != sizeInGiB {
+		return fmt.Errorf("size mismatch: wanted %d, got %d", sizeInGiB, share.Size)
+	}
+
+	if share.ShareProto != shareOpts.Protocol {
+		return fmt.Errorf("share protocol mismatch: wanted %s, got %s", coalesceValue(shareOpts.Protocol), coalesceValue(share.ShareProto))
+	}
+
+	// FIXME shareOpts.Type may be either type name or type ID
+	/*
+		if share.ShareType != shareOpts.Type {
+			return fmt.Errorf("share type mismatch: wanted %s, got %s", shareOpts.Type, share.ShareType)
+		}
+	*/
+
+	if share.ShareNetworkID != shareOpts.ShareNetworkID {
+		return fmt.Errorf("share network ID mismatch: wanted %s, got %s", coalesceValue(shareOpts.ShareNetworkID), coalesceValue(share.ShareNetworkID))
+	}
+
+	var reqSrcSnapID string
+	if req.GetVolumeContentSource() != nil && req.GetVolumeContentSource().GetSnapshot() != nil {
+		reqSrcSnapID = req.GetVolumeContentSource().GetSnapshot().GetSnapshotId()
+	}
+
+	if share.SnapshotID != reqSrcSnapID {
+		return fmt.Errorf("source snapshot ID mismatch: wanted %s, got %s", coalesceValue(share.SnapshotID), coalesceValue(reqSrcSnapID))
+	}
+
+	return nil
+}
+
+func verifySnapshotCompatibility(sourceShare *shares.Share, snapshot *snapshots.Snapshot, req *csi.CreateSnapshotRequest) error {
+	if sourceShare.ID != req.SourceVolumeId {
+		return fmt.Errorf("source share ID mismatch: wanted %s, got %s", req.SourceVolumeId, sourceShare.ID)
 	}
 
 	return nil
