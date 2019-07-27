@@ -26,7 +26,7 @@ if ! which bindep; then
     make bindep
     popd >/dev/null
 fi
-
+# test
 PACKAGES=$(make bindep || true)
 
 # inspired from project-config install-distro-packages.sh

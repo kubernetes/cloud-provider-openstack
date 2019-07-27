@@ -1,7 +1,7 @@
 - project:
     cloud-provider-openstack-unittest:
       jobs:
-        - cloud-provider-openstack-unittest:
+        - cloud-provider-openstack-unittest-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -10,7 +10,7 @@
               - ^.gitignore$
     cloud-provider-openstack-acceptance-test-lb-octavia:
       jobs:
-        - cloud-provider-openstack-acceptance-test-lb-octavia:
+        - cloud-provider-openstack-acceptance-test-lb-octavia-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -37,7 +37,7 @@
               - ^.gitignore$
     cloud-provider-openstack-acceptance-test-k8s-cinder:
       jobs:
-        - cloud-provider-openstack-acceptance-test-k8s-cinder:
+        - cloud-provider-openstack-acceptance-test-k8s-cinder-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -55,7 +55,7 @@
               - ^.gitignore$
     cloud-provider-openstack-acceptance-test-csi-cinder:
       jobs:
-        - cloud-provider-openstack-acceptance-test-csi-cinder:
+        - cloud-provider-openstack-acceptance-test-csi-cinder-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -73,16 +73,16 @@
               - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
-              - ^.gitignore$              
+              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -91,7 +91,7 @@
               - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -100,7 +100,7 @@
               - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15-citynetwork:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
