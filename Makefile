@@ -59,7 +59,7 @@ endif
 depend-update: work
 	dep ensure -update -v
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner barbican-kms-plugin magnum-auto-healer
+build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin barbican-kms-plugin magnum-auto-healer
 
 openstack-cloud-controller-manager: depend $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
