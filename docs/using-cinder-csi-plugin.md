@@ -49,6 +49,31 @@ csi-cinder-controllerplugin         4/4     Running   0          29h
 csi-cinder-nodeplugin               2/2     Running   0          46h
 ```
 
+you can get information about CSI Drivers running in a cluster, using **CSIDriver** object    
+
+```
+$ kubectl get csidrivers.storage.k8s.io
+NAME                       CREATED AT
+cinder.csi.openstack.org   2019-07-29T09:02:40Z
+
+$ kubectl describe csidrivers.storage.k8s.io
+Name:         cinder.csi.openstack.org
+Namespace:    
+Labels:       <none>
+Annotations:  <none>
+API Version:  storage.k8s.io/v1beta1
+Kind:         CSIDriver
+Metadata:
+  Creation Timestamp:  2019-07-29T09:02:40Z
+  Resource Version:    1891
+  Self Link:           /apis/storage.k8s.io/v1beta1/csidrivers/cinder.csi.openstack.org
+  UID:                 2bd1f3bf-3c41-46a8-b99b-5773cb5eacd3
+Spec:
+  Attach Required:    true
+  Pod Info On Mount:  false
+Events:               <none>
+```
+ 
 ### Example Nginx application usage
 
 After performing above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
