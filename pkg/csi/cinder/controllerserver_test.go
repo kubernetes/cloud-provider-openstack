@@ -57,8 +57,14 @@ func TestCreateVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
-		Name:               FakeVolName,
-		VolumeCapabilities: nil,
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessType: &csi.VolumeCapability_Mount{
+					Mount: &csi.VolumeCapability_MountVolume{},
+				},
+			},
+		},
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
@@ -102,8 +108,14 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
-		Name:                FakeVolName,
-		VolumeCapabilities:  nil,
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessType: &csi.VolumeCapability_Mount{
+					Mount: &csi.VolumeCapability_MountVolume{},
+				},
+			},
+		},
 		VolumeContentSource: src,
 	}
 
@@ -132,8 +144,14 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
-		Name:               "fake-duplicate",
-		VolumeCapabilities: nil,
+		Name: "fake-duplicate",
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessType: &csi.VolumeCapability_Mount{
+					Mount: &csi.VolumeCapability_MountVolume{},
+				},
+			},
+		},
 	}
 
 	// Invoke CreateVolume
