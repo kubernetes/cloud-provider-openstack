@@ -34,7 +34,7 @@ The provider supports several OpenStack services:
 |--------------------------|----------------|----------|
 | Identity (Keystone)      | v2, v3 †       | Yes      |
 | Compute (Nova)           | v2             | No       |
-| Block Storage (Cinder)   | v1, v2, v3‡    | No       |
+| Block Storage (Cinder)   | v2, v3‡        | No       |
 | Load Balancing (Neutron) | v1§, v2        | No       |
 | Load Balancing (Octavia) | v2             | No       |
 
@@ -43,8 +43,7 @@ The provider supports several OpenStack services:
 a future release. As of the "Queens" release, OpenStack no longer exposes the
 Identity v2 API.
 
-‡ Block Storage v1 API support is deprecated, Block Storage v3 API support was
-added in Kubernetes 1.9.
+‡ Block Storage v3 API support was added in Kubernetes 1.9.
 
 § Load Balancing v1 API support was removed in Kubernetes 1.9.
 
@@ -220,7 +219,7 @@ and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
 ##### Block Storage Optional Parameters
 
 * `bs-version`: Used to override automatic version detection. Valid
-  values are `v1`, `v2`, `v3` and `auto`. When `auto` is specified automatic
+  values are `v2`, `v3` and `auto`. When `auto` is specified automatic
   detection will select the highest supported version exposed by the underlying
   OpenStack cloud. The default value if none is provided is `auto`.
 * `ignore-volume-az`: Used to influence availability zone use when

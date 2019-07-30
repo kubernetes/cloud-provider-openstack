@@ -246,14 +246,13 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:25782881f00fe40c1279ca04820fc7a763669950b116ad670cfe86a34d046faf"
+  digest = "1:b890ef67a34c497fdd0a4720797c8b5b80b649861dc0300eca35d8a95604dbff"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
     "openstack",
     "openstack/blockstorage/extensions/volumeactions",
     "openstack/blockstorage/noauth",
-    "openstack/blockstorage/v1/volumes",
     "openstack/blockstorage/v2/volumes",
     "openstack/blockstorage/v3/snapshots",
     "openstack/blockstorage/v3/volumes",
@@ -1623,7 +1622,6 @@
     "github.com/gophercloud/gophercloud/openstack",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/noauth",
-    "github.com/gophercloud/gophercloud/openstack/blockstorage/v1/volumes",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots",
     "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes",
