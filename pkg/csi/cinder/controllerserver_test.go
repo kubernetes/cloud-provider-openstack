@@ -34,7 +34,7 @@ func init() {
 		osmock = new(openstack.OpenStackMock)
 		openstack.OsInstance = osmock
 
-		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster, FakeMode)
 
 		fakeCs = NewControllerServer(d, openstack.OsInstance)
 	}
@@ -48,6 +48,7 @@ func TestCreateVolume(t *testing.T) {
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", &properties).Return(&FakeVol, nil)
 
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 	// Init assert
 	assert := assert.New(t)
 
@@ -90,6 +91,7 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, &properties).Return(&FakeVolFromSnapshot, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 
 	// Init assert
 	assert := assert.New(t)
@@ -138,6 +140,8 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 	// Init assert
 	assert := assert.New(t)
 
+	osmock.On("GetVolumesByName", "fake-duplicate").Return(FakeVolList, nil)
+
 	// Fake request
 	fakeReq := &csi.CreateVolumeRequest{
 		Name: "fake-duplicate",
@@ -160,7 +164,7 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 	assert.NotNil(actualRes.Volume)
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 	assert.Equal("nova", actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
-	assert.Equal("261a8b81-3660-43e5-bab8-6470b65ee4e9", actualRes.Volume.VolumeId)
+	assert.Equal(FakeVolID, actualRes.Volume.VolumeId)
 }
 
 // Test DeleteVolume

@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/context"
 )
 
+var FakeMode = "persistent"
 var FakeCluster = "cluster"
 var FakeNodeID = "CSINodeID"
 var FakeEndpoint = "tcp://127.0.0.1:10000"
@@ -37,6 +38,9 @@ var FakeAvailability = "nova"
 var FakeDevicePath = "/dev/xxx"
 var FakeTargetPath = "/mnt/cinder"
 var FakeStagingTargetPath = "/mnt/globalmount"
+var FakeAttachment = volumes.Attachment{
+	ServerID: FakeNodeID,
+}
 var FakeVol = volumes.Volume{
 	ID:               FakeVolID,
 	Name:             FakeVolName,
@@ -52,10 +56,12 @@ var FakeVolFromSnapshot = volumes.Volume{
 }
 
 var FakeVol1 = volumes.Volume{
-	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
+	ID:               FakeVolID,
 	Name:             "fake-duplicate",
 	Status:           "available",
-	AvailabilityZone: "",
+	AvailabilityZone: FakeAvailability,
+	Size:             FakeCapacityGiB,
+	Attachments:      []volumes.Attachment{FakeAttachment},
 }
 var FakeVol2 = volumes.Volume{
 	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
@@ -76,7 +82,11 @@ var FakeSnapshotRes = snapshots.Snapshot{
 }
 
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
-var FakeVolList = []volumes.Volume{FakeVol1, FakeVol3}
+
+var FakeVolListMultiple = []volumes.Volume{FakeVol1, FakeVol3}
+var FakeVolList = []volumes.Volume{FakeVol1}
+var FakeVolListEmpty = []volumes.Volume{}
+
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
 
 const FakeMaxVolume int64 = 256

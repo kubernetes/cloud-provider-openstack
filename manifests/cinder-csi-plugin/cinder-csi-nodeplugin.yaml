@@ -55,6 +55,8 @@ spec:
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
+            - "--mode=ephemeral"
+            - "--v=5"
           env:
             - name: NODE_ID
               valueFrom:

@@ -17,8 +17,6 @@ limitations under the License.
 package openstack
 
 import (
-	"strings"
-
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
@@ -182,7 +180,7 @@ func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) er
 
 // GetVolumesByName provides a mock function with given fields: name
 func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error) {
-	var vlist []volumes.Volume
+	/* var vlist []volumes.Volume
 	if strings.Contains(name, "fake-duplicate") {
 		vlist = append(vlist, fakeVol1)
 	}
@@ -192,7 +190,27 @@ func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error)
 		vlist = append(vlist, fakeVol2)
 		vlist[1].Name = "fake-duplicate2x"
 	}
-	return vlist, nil
+	return vlist, nil */
+
+	ret := _m.Called(name)
+
+	var r0 []volumes.Volume
+	if rf, ok := ret.Get(0).(func(string) []volumes.Volume); ok {
+		r0 = rf(name)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]volumes.Volume)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // ListSnapshots provides a mock function with given fields: limit, offset, filters

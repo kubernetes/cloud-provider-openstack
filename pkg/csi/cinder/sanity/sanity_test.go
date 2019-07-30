@@ -24,8 +24,9 @@ func TestDriver(t *testing.T) {
 	endpoint := "unix://" + socket
 	cluster := "kubernetes"
 	nodeID := "45678"
+	mode := "persistent"
 
-	d := cinder.NewDriver(nodeID, endpoint, cluster)
+	d := cinder.NewDriver(nodeID, endpoint, cluster, mode)
 	c := getfakecloud()
 	fakemnt := &fakemount{}
 	fakemet := &fakemetadata{}
