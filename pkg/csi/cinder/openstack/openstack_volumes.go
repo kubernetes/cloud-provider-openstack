@@ -261,6 +261,15 @@ func (os *OpenStack) ExpandVolume(volumeID string, newSize int) error {
 	return err
 }
 
+//GetMaxVolLimit returns max vol limit
+func (os *OpenStack) GetMaxVolLimit() int64 {
+	if os.bsOpts.NodeVolumeAttachLimit > 0 && os.bsOpts.NodeVolumeAttachLimit <= 256 {
+		return os.bsOpts.NodeVolumeAttachLimit
+	}
+
+	return defaultMaxVolAttachLimit
+}
+
 // diskIsAttached queries if a volume is attached to a compute instance
 func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
 	volume, err := os.GetVolume(volumeID)

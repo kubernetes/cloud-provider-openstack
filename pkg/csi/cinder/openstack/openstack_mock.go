@@ -318,7 +318,7 @@ func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) error {
 }
 
 func (_m *OpenStackMock) GetMaxVolLimit() int64 {
-	return 0
+	return 256
 }
 
 func (_m *OpenStackMock) GetInstanceByID(instanceID string) (*servers.Server, error) {
