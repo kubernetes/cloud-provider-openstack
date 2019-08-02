@@ -275,7 +275,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:53093afbce1ea4297c7083d9ee45a49e38904b95a4178ab15ccb4688e5bfc27b"
+  digest = "1:bfcea53226ffc0700c9d113ba083653fb9d2c91c899c6590659dd13571d9b0f3"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -320,6 +320,7 @@
     "openstack/sharedfilesystems/apiversions",
     "openstack/sharedfilesystems/v2/messages",
     "openstack/sharedfilesystems/v2/shares",
+    "openstack/sharedfilesystems/v2/sharetypes",
     "openstack/sharedfilesystems/v2/snapshots",
     "openstack/utils",
     "pagination",
@@ -1758,6 +1759,7 @@
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares",
+    "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes",
     "github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots",
     "github.com/gophercloud/gophercloud/openstack/utils",
     "github.com/gophercloud/gophercloud/pagination",
