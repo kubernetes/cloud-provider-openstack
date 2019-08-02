@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package manila
+package manilaclient
 
 import (
 	"crypto/tls"
@@ -30,10 +30,17 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions"
 	gophercloudutils "github.com/gophercloud/gophercloud/openstack/utils"
-	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 )
+
+type ClientBuilder struct {
+	UserAgentData []string
+}
+
+func (cb *ClientBuilder) New(o *options.OpenstackOptions) (Interface, error) {
+	return New(o, cb.UserAgentData)
+}
 
 const (
 	minimumManilaVersion = "2.37"
@@ -41,14 +48,7 @@ const (
 
 var (
 	manilaMicroversionRegexp = regexp.MustCompile(`^(\d+)\.(\d+)$`)
-
-	userAgentData []string
 )
-
-// AddExtraFlags is called by the main package to add component specific command line flags
-func AddExtraFlags(fs *pflag.FlagSet) {
-	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
-}
 
 func splitManilaMicroversion(microversion string) (major, minor int) {
 	if err := validateManilaMicroversion(microversion); err != nil {
@@ -97,7 +97,7 @@ func createHTTPClient(pemCertAuthority []byte, tlsInsecure bool) (http.Client, e
 	}, nil
 }
 
-func authenticateOpenStackClient(o *options.OpenstackOptions) (*gophercloud.ProviderClient, error) {
+func authenticateOpenStackClient(o *options.OpenstackOptions, userAgentData []string) (*gophercloud.ProviderClient, error) {
 	provider, err := openstack.NewClient(o.OSAuthURL)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to Keystone: %v", err)
@@ -183,10 +183,10 @@ func validateManilaClient(c *gophercloud.ServiceClient) error {
 	return nil
 }
 
-func newManilaV2Client(o *options.OpenstackOptions) (*gophercloud.ServiceClient, error) {
+func New(o *options.OpenstackOptions, userAgentData []string) (*Client, error) {
 	// Authenticate and create Manila v2 client
 
-	provider, err := authenticateOpenStackClient(o)
+	provider, err := authenticateOpenStackClient(o, userAgentData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
@@ -203,5 +203,5 @@ func newManilaV2Client(o *options.OpenstackOptions) (*gophercloud.ServiceClient,
 		return nil, fmt.Errorf("Manila v2 client validation failed: %v", err)
 	}
 
-	return client, nil
+	return &Client{c: client}, nil
 }
