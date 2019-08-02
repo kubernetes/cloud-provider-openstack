@@ -18,6 +18,7 @@ package main
 
 import (
 	goflag "flag"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 
 	flag "github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
@@ -37,10 +38,14 @@ func main() {
 	if err := goflag.Set("logtostderr", "true"); err != nil {
 		klog.Exitf("failed to set logtostderr flag: %v", err)
 	}
-	manila.AddExtraFlags(flag.CommandLine)
+
+	manilaClientBuilder := &manilaclient.ClientBuilder{}
+
+	flag.CommandLine.StringArrayVar(&manilaClientBuilder.UserAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+
 	flag.Parse()
 
-	d, err := manila.NewDriver(*nodeID, *driverName, *endpoint, *fwdEndpoint, *protoSelector)
+	d, err := manila.NewDriver(*nodeID, *driverName, *endpoint, *fwdEndpoint, *protoSelector, manilaClientBuilder)
 	if err != nil {
 		klog.Fatalf("driver initialization failed: %v", err)
 	}

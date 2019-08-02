@@ -23,17 +23,18 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/klog"
 )
 
 type volumeCreator interface {
-	create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error)
+	create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error)
 }
 
 type blankVolume struct{}
 
-func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
+func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
 	klog.V(4).Infof("creating a new share (%s)", shareName)
 
 	createOpts := &shares.CreateOpts{
@@ -64,7 +65,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 
 type volumeFromSnapshot struct{}
 
-func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient *gophercloud.ServiceClient, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
+func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
 	snapshotSource := req.GetVolumeContentSource().GetSnapshot()
 
 	if shareOpts.Protocol == "CEPHFS" {
@@ -78,7 +79,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 	klog.V(4).Infof("restoring snapshot %s into a share (%s)", snapshotSource.GetSnapshotId(), shareName)
 
-	snapshot, err := getSnapshotByID(snapshotSource.GetSnapshotId(), manilaClient)
+	snapshot, err := manilaClient.GetSnapshotByID(snapshotSource.GetSnapshotId())
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			return nil, status.Errorf(codes.NotFound, "source snapshot %s not found: %v", snapshotSource.GetSnapshotId(), err)

@@ -22,11 +22,11 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"google.golang.org/grpc/codes"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/klog"
@@ -156,35 +156,15 @@ func bytesToGiB(sizeInBytes int64) int {
 	return sizeInGiB
 }
 
-func getAccessRightByID(id, shareID string, manilaClient *gophercloud.ServiceClient) (*shares.AccessRight, error) {
-	accessRights, err := shares.ListAccessRights(manilaClient, shareID).Extract()
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range accessRights {
-		if accessRights[i].ID == id {
-			return &accessRights[i], nil
-		}
-	}
-
-	return nil, fmt.Errorf("access right %s for share ID %s not found", id, shareID)
-}
-
-func lastResourceError(resourceID string, manilaClient *gophercloud.ServiceClient) (manilaErrorMessage, error) {
-	allPages, err := messages.List(manilaClient, &messages.ListOpts{
+func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (manilaErrorMessage, error) {
+	msgs, err := manilaClient.GetUserMessages(&messages.ListOpts{
 		ResourceID:   resourceID,
 		MessageLevel: "ERROR",
 		Limit:        1,
 		SortDir:      "desc",
 		SortKey:      "created_at",
-	}).AllPages()
+	})
 
-	if err != nil {
-		return manilaErrorMessage{}, err
-	}
-
-	msgs, err := messages.ExtractMessages(allPages)
 	if err != nil {
 		return manilaErrorMessage{}, err
 	}

@@ -246,7 +246,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b890ef67a34c497fdd0a4720797c8b5b80b649861dc0300eca35d8a95604dbff"
+  digest = "1:9d3c11e81acc4239fb51ce0d8541e1c7e2c0df441e3684cda30bcdd71fa40c0f"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",

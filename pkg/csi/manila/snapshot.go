@@ -21,6 +21,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/klog"
 	"time"
 )
@@ -37,7 +38,7 @@ const (
 
 // getOrCreateSnapshot retrieves an existing snapshot with name=snapName, or creates a new one if it doesn't exist yet.
 // Instead of waiting for the snapshot to become available (as getOrCreateShare does), CSI's ready_to_use flag is used to signal readiness
-func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, error) {
+func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient manilaclient.Interface) (*snapshots.Snapshot, error) {
 	var (
 		snapshot *snapshots.Snapshot
 		err      error
@@ -45,18 +46,18 @@ func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient *gopherclo
 
 	// First, check if the snapshot already exists or needs to be created
 
-	if snapshot, err = getSnapshotByName(snapName, manilaClient); err != nil {
+	if snapshot, err = manilaClient.GetSnapshotByName(snapName); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			// It doesn't exist, create it
 
-			req := snapshots.CreateOpts{
+			opts := snapshots.CreateOpts{
 				ShareID:     sourceShareID,
 				Name:        snapName,
 				Description: snapshotDescription,
 			}
 
 			var createErr error
-			if snapshot, createErr = snapshots.Create(manilaClient, req).Extract(); createErr != nil {
+			if snapshot, createErr = manilaClient.CreateSnapshot(opts); createErr != nil {
 				return nil, createErr
 			}
 
@@ -71,8 +72,8 @@ func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient *gopherclo
 	return snapshot, nil
 }
 
-func deleteSnapshot(snapID string, manilaClient *gophercloud.ServiceClient) error {
-	if err := snapshots.Delete(manilaClient, snapID).ExtractErr(); err != nil {
+func deleteSnapshot(snapID string, manilaClient manilaclient.Interface) error {
+	if err := manilaClient.DeleteSnapshot(snapID); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			klog.V(4).Infof("snapshot %s not found, assuming it to be already deleted", snapID)
 		} else {
@@ -83,7 +84,7 @@ func deleteSnapshot(snapID string, manilaClient *gophercloud.ServiceClient) erro
 	return nil
 }
 
-func tryDeleteSnapshot(snapshot *snapshots.Snapshot, manilaClient *gophercloud.ServiceClient) {
+func tryDeleteSnapshot(snapshot *snapshots.Snapshot, manilaClient manilaclient.Interface) {
 	if snapshot == nil {
 		return
 	}
@@ -94,28 +95,13 @@ func tryDeleteSnapshot(snapshot *snapshots.Snapshot, manilaClient *gophercloud.S
 		return
 	}
 
-	//
-
 	_, _, err := waitForSnapshotStatus(snapshot.ID, snapshotDeleting, "", true, manilaClient)
 	if err != nil && err != wait.ErrWaitTimeout {
 		klog.Errorf("couldn't retrieve snapshot %s in a roll-back procedure: %v", snapshot.ID, err)
 	}
 }
 
-func getSnapshotByName(snapshotName string, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, error) {
-	snapID, err := snapshots.IDFromName(manilaClient, snapshotName)
-	if err != nil {
-		return nil, err
-	}
-
-	return getSnapshotByID(snapID, manilaClient)
-}
-
-func getSnapshotByID(snapshotID string, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, error) {
-	return snapshots.Get(manilaClient, snapshotID).Extract()
-}
-
-func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient *gophercloud.ServiceClient) (*snapshots.Snapshot, manilaError, error) {
+func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*snapshots.Snapshot, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -129,7 +115,7 @@ func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, succ
 	)
 
 	return snapshot, manilaErrCode, wait.ExponentialBackoff(backoff, func() (bool, error) {
-		snapshot, err = getSnapshotByID(snapshotID, manilaClient)
+		snapshot, err = manilaClient.GetSnapshotByID(snapshotID)
 
 		if err != nil {
 			if _, ok := err.(gophercloud.ErrResourceNotFound); ok && successOnNotFound {
