@@ -156,12 +156,12 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	shareOpts, err := options.NewNodeVolumeContext(req.GetVolumeContext())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid volume context: %v", err)
 	}
 
 	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume secret: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
 	volID := volumeID(req.GetVolumeId())
@@ -240,12 +240,12 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 	shareOpts, err := options.NewNodeVolumeContext(req.GetVolumeContext())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid volume context: %v", err)
 	}
 
 	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume secret: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
 	volID := volumeID(req.GetVolumeId())

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
@@ -176,6 +177,26 @@ func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (
 	return manilaErrorMessage{message: "unknown error"}, nil
 }
 
+func isManilaErrNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if _, isDefault404 := err.(gophercloud.ErrDefault404); isDefault404 {
+		return true
+	}
+
+	if _, isResourceNotFound := err.(gophercloud.ErrResourceNotFound); isResourceNotFound {
+		return true
+	}
+
+	return false
+}
+
+func compareProtocol(protoA, protoB string) bool {
+	return strings.ToUpper(protoA) == strings.ToUpper(protoB)
+}
+
 //
 // Controller service request validation
 //
@@ -192,7 +213,7 @@ func validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 
 	for _, cap := range reqCaps {
 		if cap.GetBlock() != nil {
-			return errors.New("block volume not supported")
+			return errors.New("block access type not allowed")
 		}
 	}
 
@@ -257,11 +278,11 @@ func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, shar
 	}
 
 	if share.Size != sizeInGiB {
-		return fmt.Errorf("size mismatch: wanted %d, got %d", sizeInGiB, share.Size)
+		return fmt.Errorf("size mismatch: wanted %d, got %d", share.Size, sizeInGiB)
 	}
 
 	if share.ShareProto != shareOpts.Protocol {
-		return fmt.Errorf("share protocol mismatch: wanted %s, got %s", coalesceValue(shareOpts.Protocol), coalesceValue(share.ShareProto))
+		return fmt.Errorf("share protocol mismatch: wanted %s, got %s", coalesceValue(share.ShareProto), coalesceValue(shareOpts.Protocol))
 	}
 
 	// FIXME shareOpts.Type may be either type name or type ID
@@ -272,7 +293,7 @@ func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, shar
 	*/
 
 	if share.ShareNetworkID != shareOpts.ShareNetworkID {
-		return fmt.Errorf("share network ID mismatch: wanted %s, got %s", coalesceValue(shareOpts.ShareNetworkID), coalesceValue(share.ShareNetworkID))
+		return fmt.Errorf("share network ID mismatch: wanted %s, got %s", coalesceValue(share.ShareNetworkID), coalesceValue(shareOpts.ShareNetworkID))
 	}
 
 	var reqSrcSnapID string
@@ -287,9 +308,25 @@ func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, shar
 	return nil
 }
 
-func verifySnapshotCompatibility(sourceShare *shares.Share, snapshot *snapshots.Snapshot, req *csi.CreateSnapshotRequest) error {
-	if sourceShare.ID != req.SourceVolumeId {
-		return fmt.Errorf("source share ID mismatch: wanted %s, got %s", req.SourceVolumeId, sourceShare.ID)
+func verifySnapshotCompatibility(snapshot *snapshots.Snapshot, req *csi.CreateSnapshotRequest) error {
+	if snapshot.ShareID != req.GetSourceVolumeId() {
+		return fmt.Errorf("source share ID mismatch: wanted %s, got %s", snapshot.ID, req.GetSourceVolumeId())
+	}
+
+	return nil
+}
+
+func validateValidateVolumeCapabilitiesRequest(req *csi.ValidateVolumeCapabilitiesRequest) error {
+	if req.GetVolumeId() == "" {
+		return errors.New("volume ID missing in request")
+	}
+
+	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
+		return errors.New("volume capabilities cannot be nil or empty")
+	}
+
+	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
+		return errors.New("stage secrets cannot be nil or empty")
 	}
 
 	return nil
@@ -320,6 +357,10 @@ func validateNodeStageVolumeRequest(req *csi.NodeStageVolumeRequest) error {
 }
 
 func validateNodeUnstageVolumeRequest(req *csi.NodeUnstageVolumeRequest) error {
+	if req.GetStagingTargetPath() == "" {
+		return errors.New("staging path missing in request")
+	}
+
 	if req.GetVolumeId() == "" {
 		return errors.New("volume ID missing in request")
 	}
@@ -348,6 +389,10 @@ func validateNodePublishVolumeRequest(req *csi.NodePublishVolumeRequest) error {
 }
 
 func validateNodeUnpublishVolumeRequest(req *csi.NodeUnpublishVolumeRequest) error {
+	if req.GetTargetPath() == "" {
+		return errors.New("target path missing in request")
+	}
+
 	if req.GetVolumeId() == "" {
 		return errors.New("volume ID missing in request")
 	}

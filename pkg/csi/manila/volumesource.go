@@ -18,7 +18,6 @@ package manila
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -81,7 +80,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 	snapshot, err := manilaClient.GetSnapshotByID(snapshotSource.GetSnapshotId())
 	if err != nil {
-		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
+		if isManilaErrNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "source snapshot %s not found: %v", snapshotSource.GetSnapshotId(), err)
 		}
 
