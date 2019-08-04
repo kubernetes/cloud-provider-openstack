@@ -21,6 +21,7 @@ csimanila:
 
 # DeamonSet deployment
 nodeplugin:
+  # Component name
   name: nodeplugin
   # CSI Manila container compute resources constraints
   nodeplugin:
@@ -35,6 +36,8 @@ nodeplugin:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Use fullnameOverride to fully override the name of this component
+  # fullnameOverride: some-other-name
 
 # StatefulSet deployment
 controllerplugin:
@@ -59,4 +62,8 @@ controllerplugin:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Use fullnameOverride to fully override the name of this component
+  # fullnameOverride: some-other-name
 
+# Override the default app name using nameOverride
+# nameOverride: some-other-name

@@ -25,7 +25,7 @@ If release name contains chart name it will be used as a full name.
 {{- end -}}
 
 {{/*
-Create a default fully qualified app name.
+Create fully qualified app name for the node plugin.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
@@ -43,12 +43,17 @@ If release name contains chart name it will be used as a full name.
 {{- end -}}
 
 {{/*
-Create the name of the service account to use
+Create the name of the service account to use for the node plugin.
 */}}
 {{- define "openstack-manila-csi.serviceAccountName.nodeplugin" -}}
 {{ include "openstack-manila-csi.nodeplugin.fullname" . }}
 {{- end -}}
 
+{{/*
+Create fully qualified app name for the controller plugin.
+We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+If release name contains chart name it will be used as a full name.
+*/}}
 {{- define "openstack-manila-csi.controllerplugin.fullname" -}}
 {{- if .Values.controllerplugin.fullnameOverride -}}
 {{- .Values.controllerplugin.fullnameOverride | trunc 63 | trimSuffix "-" -}}
@@ -63,7 +68,7 @@ Create the name of the service account to use
 {{- end -}}
 
 {{/*
-Create the name of the service account to use
+Create the name of the service account to use for the controller plugin.
 */}}
 {{- define "openstack-manila-csi.serviceAccountName.controllerplugin" -}}
 {{ include "openstack-manila-csi.controllerplugin.fullname" . }}
