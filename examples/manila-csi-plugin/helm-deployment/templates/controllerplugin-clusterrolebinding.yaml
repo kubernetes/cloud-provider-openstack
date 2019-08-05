@@ -1,0 +1,18 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "openstack-manila-csi.controllerplugin.fullname" . }}
+  labels:
+    app: {{ include "openstack-manila-csi.name" . }}
+    chart: {{ include "openstack-manila-csi.chart" . }}
+    component: {{ .Values.controllerplugin.name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "openstack-manila-csi.serviceAccountName.controllerplugin" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "openstack-manila-csi.controllerplugin.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
