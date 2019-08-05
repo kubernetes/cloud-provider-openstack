@@ -10,7 +10,7 @@ spec:
   capacity:
     storage: 1Gi
   csi:
-    driver: manila.csi.openstack.org
+    driver: nfs.manila.csi.openstack.org
     volumeHandle: preprovisioned-nfs-share
     nodeStageSecretRef:
       name: csi-manila-secrets

@@ -1,0 +1,69 @@
+# Base name of the CSI Manila driver
+driverName: manila.csi.openstack.org
+
+# Enabled Manila share protocols
+shareProtocols:
+  - protocolSelector: NFS
+    fwdNodePluginEndpoint:
+      dir: /var/lib/kubelet/plugins/csi-nfsplugin
+      sockFile: csi.sock
+#  - protocolSelector: CEPHFS
+#    fwdNodePluginEndpoint:
+#      dir: /var/lib/kubelet/plugins/csi-cephfsplugin
+#      sockFile: csi.sock
+
+# CSI Manila image spec
+csimanila:
+  image:
+    repository: manila-csi-plugin
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# DeamonSet deployment
+nodeplugin:
+  # Component name
+  name: nodeplugin
+  # CSI Manila container compute resources constraints
+  nodeplugin:
+    resources: {}
+  # csi-node-driver-registrar
+  registrar:
+    image:
+      repository: quay.io/k8scsi/csi-node-driver-registrar
+      tag: v1.1.0
+      pullPolicy: IfNotPresent
+    resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Use fullnameOverride to fully override the name of this component
+  # fullnameOverride: some-other-name
+
+# StatefulSet deployment
+controllerplugin:
+  name: controllerplugin
+  # CSI Manila container compute resources constraints
+  nodeplugin:
+    resources: {}
+  # CSI external-provisioner container spec
+  provisioner:
+    image:
+      repository: quay.io/k8scsi/csi-provisioner
+      tag: v1.3.0
+      pullPolicy: IfNotPresent
+    resources: {}
+  # CSI external-snapshotter container spec
+  snapshotter:
+    image:
+      repository: quay.io/k8scsi/csi-snapshotter
+      tag: v1.2.0
+      pullPolicy: IfNotPresent
+    resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Use fullnameOverride to fully override the name of this component
+  # fullnameOverride: some-other-name
+
+# Override the default app name using nameOverride
+# nameOverride: some-other-name

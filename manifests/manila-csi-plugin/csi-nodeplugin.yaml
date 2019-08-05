@@ -1,77 +1,83 @@
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
-  name: csi-nodeplugin-manilaplugin
+  name: openstack-manila-csi-nodeplugin
+  labels:
+    app: openstack-manila-csi
+    component: nodeplugin
 spec:
   selector:
     matchLabels:
-      app: csi-nodeplugin-manilaplugin
+      app: openstack-manila-csi
+      component: nodeplugin
   template:
     metadata:
       labels:
-        app: csi-nodeplugin-manilaplugin
+        app: openstack-manila-csi
+        component: nodeplugin
     spec:
-      serviceAccount: manila-csi-nodeplugin
+      serviceAccountName: openstack-manila-csi-nodeplugin
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
-        - name: driver-registrar
-          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+        - name: registrar
+          image: "quay.io/k8scsi/csi-node-driver-registrar:v1.1.0"
           args:
             - "--v=5"
             - "--csi-address=/csi/csi.sock"
-            - "--kubelet-registration-path=/var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin/csi.sock"
+            - "--kubelet-registration-path=/var/lib/kubelet/plugins/manila.csi.openstack.org/csi.sock"
           lifecycle:
             preStop:
               exec:
-                command: [
-                  "/bin/sh", "-c",
-                  "rm -rf /registration/csi-nodeplugin-manilaplugin /registration/csi-nodeplugin-manilaplugin-reg.sock"
-                ]
+                  command: [
+                    "/bin/sh", "-c",
+                    'rm -rf /registration/manila.csi.openstack.org
+                  /registration/manila.csi.openstack.org-reg.sock'
+                  ]
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
-        - name: csi-nodeplugin-manilaplugin
+        - name: nodeplugin
           securityContext:
             privileged: true
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: manila-csi-plugin
-          imagePullPolicy: IfNotPresent
+          image: "manila-csi-plugin:latest"
           args:
             - "--v=5"
-            - "--drivername=manila.csi.openstack.org"
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
+            - "--drivername=$(DRIVER_NAME)"
             - "--share-protocol-selector=$(MANILA_SHARE_PROTO)"
             - "--fwdendpoint=$(FWD_CSI_ENDPOINT)"
           env:
+            - name: DRIVER_NAME
+              value: manila.csi.openstack.org
             - name: NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
             - name: CSI_ENDPOINT
-              value: unix:///csi/csi-nodeplugin-manilaplugin/csi.sock
-            - name: MANILA_SHARE_PROTO
-              value: >>>Share protocol goes here<<<
+              value: "unix:///var/lib/kubelet/plugins/manila.csi.openstack.org/csi.sock"
             - name: FWD_CSI_ENDPOINT
-              value: unix://>>>Absolute path to proxy'd plugin .sock file<<<
+              value: "unix:///var/lib/kubelet/plugins/FWD-NODEPLUGIN/csi.sock"
+            - name: MANILA_SHARE_PROTO
+              value: "SHARE-PROTOCOL"
+          imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: plugin-dir
-              mountPath: /csi/csi-nodeplugin-manilaplugin
+              mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
             - name: fwd-plugin-dir
-              mountPath: >>>Path to the directory containing .sock file of the proxy'd plugin<<<
+              mountPath: /var/lib/kubelet/plugins/FWD-NODEPLUGIN
       volumes:
         - name: registration-dir
           hostPath:
@@ -79,9 +85,10 @@ spec:
             type: Directory
         - name: plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/csi-nodeplugin-manilaplugin
+            path: /var/lib/kubelet/plugins/manila.csi.openstack.org
             type: DirectoryOrCreate
         - name: fwd-plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/>>>The other CSI plugin<<<
+            path: /var/lib/kubelet/plugins/FWD-NODEPLUGIN
             type: Directory
+

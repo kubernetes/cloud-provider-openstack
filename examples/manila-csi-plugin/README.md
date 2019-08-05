@@ -15,7 +15,7 @@ nfs/
 │   └── --> storageclass.yaml <--
 ├── snapshot/
 │   ├── pod.yaml
-│   ├── snapshotclass.yaml
+│   ├── --> snapshotclass.yaml <--
 │   ├── snapshotcreate.yaml
 │   └── snapshotrestore.yaml
 ├── static-provisioning/
@@ -24,10 +24,12 @@ nfs/
 └── --> secrets.yaml <--
 ```
 
-Files marked with `--> ... <--` need to be customized.
+Files marked with `--> ... <--` may need to be customized.
 
-* `dynamic-provisioning/` :  creates a new Manila NFS share and mounts it in a Pod
+* `dynamic-provisioning/` : creates a new Manila NFS share and mounts it in a Pod.
 * `static-provisioning/` : fetches an existing Manila NFS share and mounts it in a Pod
 * `snapshot/` : takes a snapshot from a PVC source, restores it into a new share and mounts it in a Pod. Deploy manifests in `dynamic-provisioning/` first 
+
+Make sure the `provisioner` field in `storageclass.yaml` and `snapshotclass.yaml` matches the driver name in your deployment!
 
 After deploying each example you should see the corresponding Pod with status _Running_ soon.
