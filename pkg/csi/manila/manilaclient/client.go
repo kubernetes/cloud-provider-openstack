@@ -20,20 +20,12 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 )
 
 type Client struct {
 	c *gophercloud.ServiceClient
-}
-
-func (c Client) GetUserMessages(opts messages.ListOptsBuilder) ([]messages.Message, error) {
-	allPages, err := messages.List(c.c, opts).AllPages()
-	if err != nil {
-		return nil, err
-	}
-
-	return messages.ExtractMessages(allPages)
 }
 
 func (c Client) GetShareByID(shareID string) (*shares.Share, error) {
@@ -59,6 +51,10 @@ func (c Client) DeleteShare(shareID string) error {
 
 func (c Client) GetExportLocations(shareID string) ([]shares.ExportLocation, error) {
 	return shares.GetExportLocations(c.c, shareID).Extract()
+}
+
+func (c Client) SetShareMetadata(shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error) {
+	return shares.SetMetadata(c.c, shareID, opts).Extract()
 }
 
 func (c Client) GetAccessRights(shareID string) ([]shares.AccessRight, error) {
@@ -88,4 +84,30 @@ func (c Client) CreateSnapshot(opts snapshots.CreateOptsBuilder) (*snapshots.Sna
 
 func (c Client) DeleteSnapshot(snapID string) error {
 	return snapshots.Delete(c.c, snapID).ExtractErr()
+}
+
+func (c Client) GetExtraSpecs(shareTypeID string) (sharetypes.ExtraSpecs, error) {
+	return sharetypes.GetExtraSpecs(c.c, shareTypeID).Extract()
+}
+
+func (c Client) GetShareTypes() ([]sharetypes.ShareType, error) {
+	allPages, err := sharetypes.List(c.c, sharetypes.ListOpts{}).AllPages()
+	if err != nil {
+		return nil, err
+	}
+
+	return sharetypes.ExtractShareTypes(allPages)
+}
+
+func (c Client) GetShareTypeIDFromName(shareTypeName string) (string, error) {
+	return sharetypes.IDFromName(c.c, shareTypeName)
+}
+
+func (c Client) GetUserMessages(opts messages.ListOptsBuilder) ([]messages.Message, error) {
+	allPages, err := messages.List(c.c, opts).AllPages()
+	if err != nil {
+		return nil, err
+	}
+
+	return messages.ExtractMessages(allPages)
 }
