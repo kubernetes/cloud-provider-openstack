@@ -203,6 +203,59 @@ $ kubectl exec -ti test-block -- ls -al /dev/xvda
 brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
 ```
 
+### Volume Expansion
+
+1. As Volume Expansion is an alpha feature. Make sure you have enabled it in Kubernetes API server using `--feature-gates=ExpandCSIVolumes=true` flag.
+2. Make sure to set `allowVolumeExpansion` to `true` in Storage class spec.
+3. Deploy the application.
+
+Example:
+
+```
+$ kubectl create -f examples/cinder-csi-plugin/resize/example.yaml
+```
+
+Verify PV is created and bound to PVC
+
+```
+$ kubectl get pvc
+NAME                     STATUS    VOLUME                                     CAPACITY  ACCESS MODES   STORAGECLASS   AGE
+csi-pvc-cinderplugin     Bound     pvc-e36abf50-84f3-11e8-8538-42010a800002   1Gi       RWO            csi-sc-cinderplugin     9s
+```
+Make sure Pod is running
+```
+$ kubectl get pods
+NAME                 READY     STATUS    RESTARTS   AGE
+nginx                1/1       Running   0          1m
+```
+
+Check current filesystem size on the running pod
+```
+$ kubectl exec nginx -- df -h /var/lib/www/html
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vdb        1.0G   24M  0.98G   1% /var/lib/www/html
+```
+Resize volume by modifying the field `spec -> resources -> requests -> storage`
+```
+$ kubectl edit pvc csi-pvc-cinderplugin
+apiVersion: v1
+kind: PersistentVolumeClaim
+...
+spec:
+  resources:
+    requests:
+      storage: 2Gi
+  ...
+...
+```
+
+Verify filesystem resized on the running pod
+```
+$ kubectl exec nginx -- df -h /var/lib/www/html
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vdb        2.0G   27M  1.97G   1% /var/lib/www/html
+```
+
 ## Running Sanity Tests
 
 Sanity tests creates a real instance of driver and fake cloud provider.
