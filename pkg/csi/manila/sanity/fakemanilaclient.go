@@ -17,6 +17,7 @@ limitations under the License.
 package sanity
 
 import (
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 	"strconv"
 
 	"github.com/gophercloud/gophercloud"
@@ -122,6 +123,22 @@ func (c fakeManilaClient) GetExportLocations(shareID string) ([]shares.ExportLoc
 	}
 
 	return []shares.ExportLocation{{Path: "fake-server:/fake-path"}}, nil
+}
+
+func (c fakeManilaClient) SetShareMetadata(shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error) {
+	return nil, nil
+}
+
+func (c fakeManilaClient) GetExtraSpecs(shareTypeID string) (sharetypes.ExtraSpecs, error) {
+	return map[string]interface{}{"snapshot_support": "True", "create_share_from_snapshot_support": "True"}, nil
+}
+
+func (c fakeManilaClient) GetShareTypes() ([]sharetypes.ShareType, error) {
+	return nil, nil
+}
+
+func (c fakeManilaClient) GetShareTypeIDFromName(shareTypeName string) (string, error) {
+	return "", nil
 }
 
 func (c fakeManilaClient) GetAccessRights(shareID string) ([]shares.AccessRight, error) {
