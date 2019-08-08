@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -37,6 +38,19 @@ var (
 	fwdEndpoint   string
 	userAgentData []string
 )
+
+func validateShareProtocolSelector(v string) error {
+	supportedShareProtocols := []string{"NFS", "CEPHFS"}
+
+	v = strings.ToUpper(v)
+	for _, proto := range supportedShareProtocols {
+		if v == proto {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("share protocol %q not supported; supported protocols are %v", v, supportedShareProtocols)
+}
 
 func main() {
 	flag.CommandLine.Parse([]string{})
@@ -63,6 +77,10 @@ func main() {
 			})
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := validateShareProtocolSelector(protoSelector); err != nil {
+				klog.Fatalf(err.Error())
+			}
+
 			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData})
 			if err != nil {
 				klog.Fatalf("driver initialization failed: %v", err)
@@ -75,15 +93,13 @@ func main() {
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "unix://tmp/csi.sock", "CSI endpoint")
-	cmd.MarkPersistentFlagRequired("endpoint")
 
 	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
-	cmd.MarkPersistentFlagRequired("drivername")
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
 	cmd.MarkPersistentFlagRequired("nodeid")
 
-	cmd.PersistentFlags().StringVar(&protoSelector, "share-protocol-selector", "", "specifies which Manila share protocol to use")
+	cmd.PersistentFlags().StringVar(&protoSelector, "share-protocol-selector", "", "specifies which Manila share protocol to use. Valid values are NFS and CEPHFS")
 	cmd.MarkPersistentFlagRequired("share-protocol-selector")
 
 	cmd.PersistentFlags().StringVar(&fwdEndpoint, "fwdendpoint", "", "CSI Node Plugin endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in share-protocol-selector")
