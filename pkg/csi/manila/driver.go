@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/klog"
 )
@@ -52,6 +52,7 @@ type Driver struct {
 	nscaps []*csi.NodeServiceCapability
 
 	manilaClientBuilder manilaclient.Builder
+	csiClientBuilder    csiclient.Builder
 }
 
 type nonBlockingGRPCServer struct {
@@ -75,7 +76,7 @@ func argNotEmpty(val, name string) error {
 	return nil
 }
 
-func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, manilaClientBuilder manilaclient.Builder) (*Driver, error) {
+func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, manilaClientBuilder manilaclient.Builder, csiClientBuilder csiclient.Builder) (*Driver, error) {
 	for k, v := range map[string]string{"node ID": nodeID, "driver name": driverName, "driver endpoint": endpoint, "FWD endpoint": fwdEndpoint, "share protocol selector": shareProto} {
 		if err := argNotEmpty(v, k); err != nil {
 			return nil, err
@@ -91,6 +92,7 @@ func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, man
 		fwdEndpoint:         fwdEndpoint,
 		shareProto:          strings.ToUpper(shareProto),
 		manilaClientBuilder: manilaClientBuilder,
+		csiClientBuilder:    csiClientBuilder,
 	}
 
 	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
@@ -202,26 +204,28 @@ func (d *Driver) addNodeServiceCapabilities(ns []csi.NodeServiceCapability_RPC_T
 }
 
 func (d *Driver) initProxiedDriver() (csiNodeCapabilitySet, error) {
-	conn, err := grpcConnect(nil, d.fwdEndpoint)
+	conn, err := d.csiClientBuilder.NewConnection(d.fwdEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to %s endpoint failed: %v", d.fwdEndpoint, err)
 	}
 
-	if err = connection.ProbeForever(conn, time.Second*5); err != nil {
+	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
+
+	if err = identityClient.ProbeForever(conn, time.Second*5); err != nil {
 		return nil, fmt.Errorf("probe failed: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
-	pluginInfo, err := csiGetPluginInfo(ctx, conn)
+	pluginInfo, err := identityClient.GetPluginInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get plugin info of the proxied driver: %v", err)
 	}
 
 	klog.Infof("proxying CSI driver %s version %s", pluginInfo.GetName(), pluginInfo.GetVendorVersion())
 
-	nodeCaps, err := csiNodeGetCapabilities(ctx, conn)
+	nodeCaps, err := csiNodeGetCapabilities(ctx, d.csiClientBuilder.NewNodeServiceClient(conn))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node capabilities: %v", err)
 	}
