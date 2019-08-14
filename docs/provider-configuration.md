@@ -194,6 +194,13 @@ file.
   balancer should automatically manage the security group rules. Valid values
   are `true` and `false`. The default is `false`. When `true` is specified
   `node-security-group` must also be supplied.
+
+  *NOTE*: When using Octavia, the worker nodes and the Octavia amphorae are
+  usually in the same subnet, so it's sufficient to config the port security
+  group rules manually for worker nodes, to allow the traffic coming from the
+  the subnet IP range to the node port range(usually it is 30000-32767). As a
+  result, `manage-security-groups` is not needed when using Octavia.
+
 * `monitor-delay`: The time, in seconds, between sending probes to
   members of the load balancer.
 * `monitor-max-retries`: Number of permissible ping failures before
