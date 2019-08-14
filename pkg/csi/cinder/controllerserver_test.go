@@ -392,3 +392,64 @@ func TestControllerExpandVolume(t *testing.T) {
 	assert.Equal(expectedRes, actualRes)
 
 }
+
+func TestValidateVolumeCapabilities(t *testing.T) {
+
+	// GetVolume(volumeID string)
+	osmock.On("GetVolume", FakeVolID).Return(FakeVol1)
+
+	// Init assert
+	assert := assert.New(t)
+
+	// fake req
+	fakereq := &csi.ValidateVolumeCapabilitiesRequest{
+		VolumeId: FakeVolID,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+	}
+
+	// expected result
+	expectedRes := &csi.ValidateVolumeCapabilitiesResponse{
+		Confirmed: &csi.ValidateVolumeCapabilitiesResponse_Confirmed{
+			VolumeCapabilities: []*csi.VolumeCapability{
+				{
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					},
+				},
+			},
+		},
+	}
+
+	// Testing Negative case
+	fakereq2 := &csi.ValidateVolumeCapabilitiesRequest{
+		VolumeId: FakeVolID,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
+				},
+			},
+		},
+	}
+
+	expectedRes2 := &csi.ValidateVolumeCapabilitiesResponse{Message: "Requested Volume Capabilty not supported"}
+
+	// Invoke ValidateVolumeCapabilties
+	actualRes, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq)
+	actualRes2, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq2)
+
+	if err != nil {
+		t.Errorf("failed to ValidateVolumeCapabilties: %v", err)
+	}
+
+	// assert
+	assert.Equal(expectedRes, actualRes)
+	assert.Equal(expectedRes2, actualRes2)
+
+}
