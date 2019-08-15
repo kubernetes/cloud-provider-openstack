@@ -113,7 +113,7 @@ func resourcePermissionAllowed(permissionSpec map[string][]string, attr authoriz
 
 		allowedVerbs := sets.NewString()
 		for _, val := range value {
-			allowedVerbs.Insert(val)
+			allowedVerbs.Insert(strings.ToLower(val))
 		}
 		if allowedVerbs.Has("*") {
 			allowedVerbs.Insert(verb)
@@ -125,8 +125,8 @@ func resourcePermissionAllowed(permissionSpec map[string][]string, attr authoriz
 			klog.V(4).Infof("Skip the permission definition %s", key)
 			continue
 		}
-		nsDef := strings.TrimSpace(keyList[0])
-		resDef := strings.TrimSpace(keyList[1])
+		nsDef := strings.ToLower(strings.TrimSpace(keyList[0]))
+		resDef := strings.ToLower(strings.TrimSpace(keyList[1]))
 
 		allowedNamespaces, err := getAllowed(nsDef, ns)
 		if err != nil {

@@ -5,8 +5,8 @@
       "projects": ["demo"]
     },
     "resource_permissions": {
-      "!kube-system/!['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles']": ["*"],
-      "!kube-system/['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles']": ["get", "list"]
+      "!kube-system/!['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles', 'podSecurityPolicies']": ["*"],
+      "!kube-system/['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles', 'podSecurityPolicies']": ["get", "list"]
     }
   },
   {
