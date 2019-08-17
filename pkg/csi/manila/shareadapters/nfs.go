@@ -31,7 +31,7 @@ var _ ShareAdapter = &NFS{}
 func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
 	// First, check if the access right exists or needs to be created
 
-	rights, err := shares.ListAccessRights(args.ManilaClient, args.Share.ID).Extract()
+	rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
 			return nil, fmt.Errorf("failed to list access rights: %v", err)
@@ -49,11 +49,11 @@ func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) 
 
 	// Not found, create it
 
-	return shares.GrantAccess(args.ManilaClient, args.Share.ID, shares.GrantAccessOpts{
+	return args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
 		AccessType:  "ip",
 		AccessLevel: "rw",
 		AccessTo:    args.Options.NFSShareClient,
-	}).Extract()
+	})
 }
 
 func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {

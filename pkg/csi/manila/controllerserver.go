@@ -24,12 +24,12 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
@@ -96,7 +96,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	var (
 		res = &requestResult{}
 
-		manilaClient *gophercloud.ServiceClient
+		manilaClient manilaclient.Interface
 		volCreator   volumeCreator
 		share        *shares.Share
 		accessRight  *shares.AccessRight
@@ -104,7 +104,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	defer writeResponse(handle, rbVolumeID, req.GetName(), res)
 
-	manilaClient, res.err = newManilaV2Client(osOpts)
+	manilaClient, res.err = cs.d.manilaClientBuilder.New(osOpts)
 	if res.err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", res.err)
 	}
@@ -172,7 +172,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	manilaClient, err := newManilaV2Client(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
@@ -213,7 +213,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	var (
 		res = &requestResult{}
 
-		manilaClient *gophercloud.ServiceClient
+		manilaClient manilaclient.Interface
 		sourceShare  *shares.Share
 		snapshot     *snapshots.Snapshot
 		ctime        *timestamp.Timestamp
@@ -221,14 +221,14 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	defer writeResponse(handle, rbSnapshotID, req.GetName(), res)
 
-	manilaClient, res.err = newManilaV2Client(osOpts)
+	manilaClient, res.err = cs.d.manilaClientBuilder.New(osOpts)
 	if res.err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", res.err)
 	}
 
 	// Retrieve the source share
 
-	if sourceShare, res.err = getShareByID(req.GetSourceVolumeId(), manilaClient); res.err != nil {
+	if sourceShare, res.err = manilaClient.GetShareByID(req.GetSourceVolumeId()); res.err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), res.err)
 	}
 
@@ -313,7 +313,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	manilaClient, err := newManilaV2Client(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}

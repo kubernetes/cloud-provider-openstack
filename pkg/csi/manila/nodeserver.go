@@ -49,7 +49,7 @@ type stageCacheEntry struct {
 func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *options.OpenstackOptions) (
 	volumeContext map[string]string, accessRight *shares.AccessRight, err error,
 ) {
-	manilaClient, err := newManilaV2Client(osOpts)
+	manilaClient, err := ns.d.manilaClientBuilder.New(osOpts)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
@@ -59,12 +59,12 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	var share *shares.Share
 
 	if shareOpts.ShareID != "" {
-		share, err = getShareByID(shareOpts.ShareID, manilaClient)
+		share, err = manilaClient.GetShareByID(shareOpts.ShareID)
 		if err != nil {
 			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve share %s: %v", shareOpts.ShareID, err)
 		}
 	} else {
-		share, err = getShareByName(shareOpts.ShareName, manilaClient)
+		share, err = manilaClient.GetShareByName(shareOpts.ShareName)
 		if err != nil {
 			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve share named %s: %v", shareOpts.ShareName, err)
 		}
@@ -85,7 +85,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 
 	// Get export locations and choose one
 
-	availableExportLocations, err := shares.GetExportLocations(manilaClient, share.ID).Extract()
+	availableExportLocations, err := manilaClient.GetExportLocations(share.ID)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "failed to retrieve export locations for volume %s (share ID %s): %v",
 			volID, share.ID, err)
@@ -97,7 +97,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 			volID, share.ID, err)
 	}
 
-	accessRights, err := shares.ListAccessRights(manilaClient, share.ID).Extract()
+	accessRights, err := manilaClient.GetAccessRights(share.ID)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "failed to list access rights for volume %s (share ID %s): %v",
 			volID, share.ID, err)
