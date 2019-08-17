@@ -17,13 +17,13 @@ limitations under the License.
 package shareadapters
 
 import (
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 )
 
 type GrantAccessArgs struct {
-	ManilaClient *gophercloud.ServiceClient
+	ManilaClient manilaclient.Interface
 	Share        *shares.Share
 	Options      *options.ControllerVolumeContext
 }

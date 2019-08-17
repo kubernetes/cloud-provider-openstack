@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/klog"
 )
 
@@ -41,7 +42,7 @@ const (
 
 // getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
 // Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
-func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient *gophercloud.ServiceClient) (*shares.Share, manilaError, error) {
+func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -49,12 +50,12 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 
 	// First, check if the share already exists or needs to be created
 
-	if share, err = getShareByName(shareName, manilaClient); err != nil {
+	if share, err = manilaClient.GetShareByName(shareName); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			// It doesn't exist, create it
 
 			var createErr error
-			if share, createErr = shares.Create(manilaClient, createOpts).Extract(); createErr != nil {
+			if share, createErr = manilaClient.CreateShare(createOpts); createErr != nil {
 				return nil, 0, createErr
 			}
 		} else {
@@ -74,8 +75,8 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 	return waitForShareStatus(share.ID, shareCreating, shareAvailable, false, manilaClient)
 }
 
-func deleteShare(shareID string, manilaClient *gophercloud.ServiceClient) error {
-	if err := shares.Delete(manilaClient, shareID).ExtractErr(); err != nil {
+func deleteShare(shareID string, manilaClient manilaclient.Interface) error {
+	if err := manilaClient.DeleteShare(shareID); err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 			klog.V(4).Infof("share %s not found, assuming it to be already deleted", shareID)
 		} else {
@@ -86,12 +87,12 @@ func deleteShare(shareID string, manilaClient *gophercloud.ServiceClient) error 
 	return nil
 }
 
-func tryDeleteShare(share *shares.Share, manilaClient *gophercloud.ServiceClient) {
+func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 	if share == nil {
 		return
 	}
 
-	if err := deleteShare(share.ID, manilaClient); err != nil {
+	if err := manilaClient.DeleteShare(share.ID); err != nil {
 		// TODO failure to delete a share in an error state needs proper monitoring support
 		klog.Errorf("couldn't delete share %s in a roll-back procedure: %v", share.ID, err)
 		return
@@ -103,20 +104,7 @@ func tryDeleteShare(share *shares.Share, manilaClient *gophercloud.ServiceClient
 	}
 }
 
-func getShareByID(shareID string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
-	return shares.Get(manilaClient, shareID).Extract()
-}
-
-func getShareByName(shareName string, manilaClient *gophercloud.ServiceClient) (*shares.Share, error) {
-	shareID, err := shares.IDFromName(manilaClient, shareName)
-	if err != nil {
-		return nil, err
-	}
-
-	return getShareByID(shareID, manilaClient)
-}
-
-func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient *gophercloud.ServiceClient) (*shares.Share, manilaError, error) {
+func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -130,7 +118,7 @@ func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnN
 	)
 
 	return share, manilaErrCode, wait.ExponentialBackoff(backoff, func() (bool, error) {
-		share, err = getShareByID(shareID, manilaClient)
+		share, err = manilaClient.GetShareByID(shareID)
 
 		if err != nil {
 			if _, ok := err.(gophercloud.ErrDefault404); ok && successOnNotFound {

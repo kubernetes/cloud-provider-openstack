@@ -35,7 +35,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 
 	var rights []shares.AccessRight
 
-	rights, err = shares.ListAccessRights(args.ManilaClient, args.Share.ID).Extract()
+	rights, err = args.ManilaClient.GetAccessRights(args.Share.ID)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
 			return nil, fmt.Errorf("failed to list access rights: %v", err)
@@ -56,11 +56,11 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 	if accessRight == nil {
 		// Not found, create it
 
-		accessRight, err = shares.GrantAccess(args.ManilaClient, args.Share.ID, shares.GrantAccessOpts{
+		accessRight, err = args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
 			AccessType:  "cephx",
 			AccessLevel: "rw",
 			AccessTo:    args.Share.Name,
-		}).Extract()
+		})
 
 		if err != nil {
 			return
@@ -81,7 +81,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 	}
 
 	return accessRight, wait.ExponentialBackoff(backoff, func() (bool, error) {
-		rights, err := shares.ListAccessRights(args.ManilaClient, args.Share.ID).Extract()
+		rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
 		if err != nil {
 			return false, err
 		}

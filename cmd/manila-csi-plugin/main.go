@@ -17,33 +17,103 @@ limitations under the License.
 package main
 
 import (
-	goflag "flag"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
 
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
 
 var (
-	endpoint      = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
-	driverName    = flag.String("drivername", "manila.csi.openstack.org", "name of the driver")
-	nodeID        = flag.String("nodeid", "", "this node's ID")
-	protoSelector = flag.String("share-protocol-selector", "", "specifies which Manila share protocol to use")
-	fwdEndpoint   = flag.String("fwdendpoint", "", "CSI Node Plugin endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in share-protocol-selector")
+	endpoint      string
+	driverName    string
+	nodeID        string
+	protoSelector string
+	fwdEndpoint   string
+	userAgentData []string
 )
 
+func validateShareProtocolSelector(v string) error {
+	supportedShareProtocols := []string{"NFS", "CEPHFS"}
+
+	v = strings.ToUpper(v)
+	for _, proto := range supportedShareProtocols {
+		if v == proto {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("share protocol %q not supported; supported protocols are %v", v, supportedShareProtocols)
+}
+
 func main() {
-	klog.InitFlags(nil)
-	if err := goflag.Set("logtostderr", "true"); err != nil {
-		klog.Exitf("failed to set logtostderr flag: %v", err)
-	}
-	manila.AddExtraFlags(flag.CommandLine)
-	flag.Parse()
+	flag.CommandLine.Parse([]string{})
 
-	d, err := manila.NewDriver(*nodeID, *driverName, *endpoint, *fwdEndpoint, *protoSelector)
-	if err != nil {
-		klog.Fatalf("driver initialization failed: %v", err)
+	cmd := &cobra.Command{
+		Use:   os.Args[0],
+		Short: "CSI Manila driver",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Glog requires this otherwise it complains.
+			flag.CommandLine.Parse(nil)
+
+			// This is a temporary hack to enable proper logging until upstream dependencies
+			// are migrated to fully utilize klog instead of glog.
+			klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+			klog.InitFlags(klogFlags)
+
+			// Sync the glog and klog flags.
+			cmd.Flags().VisitAll(func(f1 *pflag.Flag) {
+				f2 := klogFlags.Lookup(f1.Name)
+				if f2 != nil {
+					value := f1.Value.String()
+					f2.Value.Set(value)
+				}
+			})
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := validateShareProtocolSelector(protoSelector); err != nil {
+				klog.Fatalf(err.Error())
+			}
+
+			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData})
+			if err != nil {
+				klog.Fatalf("driver initialization failed: %v", err)
+			}
+
+			d.Run()
+		},
 	}
 
-	d.Run()
+	cmd.Flags().AddGoFlagSet(flag.CommandLine)
+
+	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "unix://tmp/csi.sock", "CSI endpoint")
+
+	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
+
+	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
+	cmd.MarkPersistentFlagRequired("nodeid")
+
+	cmd.PersistentFlags().StringVar(&protoSelector, "share-protocol-selector", "", "specifies which Manila share protocol to use. Valid values are NFS and CEPHFS")
+	cmd.MarkPersistentFlagRequired("share-protocol-selector")
+
+	cmd.PersistentFlags().StringVar(&fwdEndpoint, "fwdendpoint", "", "CSI Node Plugin endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in share-protocol-selector")
+	cmd.MarkPersistentFlagRequired("fwdendpoint")
+
+	cmd.PersistentFlags().StringArrayVar(&userAgentData, "user-agent", nil, "extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		os.Exit(1)
+	}
+
+	os.Exit(0)
 }
