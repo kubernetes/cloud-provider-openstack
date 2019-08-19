@@ -74,6 +74,8 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
+            files:
+              - ^pkg/cloudprovider/.*
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -83,6 +85,8 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
+            files:
+              - ^pkg/cloudprovider/.*
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -92,6 +96,8 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
+            files:
+              - ^pkg/cloudprovider/.*
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -101,6 +107,8 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
+            files:
+              - ^pkg/cloudprovider/.*
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
