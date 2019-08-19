@@ -310,6 +310,7 @@ func TestAuthorizerVersion2(t *testing.T) {
 		},
 	}
 
+	// Test developer
 	attrs := authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "pods"}
 	decision, _, _ := a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionAllow, decision)
@@ -325,6 +326,11 @@ func TestAuthorizerVersion2(t *testing.T) {
 	attrs = authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "create", Namespace: "", Resource: "clusterrolebindings"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// Test developer, resource name should be case insensitive.
+	attrs = authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "get", Namespace: "", Resource: "podsecuritypolicies"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
 
 	// Test viewer
 	attrs = authorizer.AttributesRecord{User: viewer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "deployments"}
