@@ -404,6 +404,9 @@ func ReadClouds(cfg *Config) error {
 	cfg.Global.TenantName = replaceEmpty(cfg.Global.TenantName, cloud.AuthInfo.ProjectName)
 	cfg.Global.DomainID = replaceEmpty(cfg.Global.DomainID, cloud.AuthInfo.UserDomainID)
 	cfg.Global.DomainName = replaceEmpty(cfg.Global.DomainName, cloud.AuthInfo.UserDomainName)
+	cfg.Global.ApplicationCredentialID = replaceEmpty(cfg.Global.ApplicationCredentialID, cloud.AuthInfo.ApplicationCredentialID)
+	cfg.Global.ApplicationCredentialName = replaceEmpty(cfg.Global.ApplicationCredentialName, cloud.AuthInfo.ApplicationCredentialName)
+	cfg.Global.ApplicationCredentialSecret = replaceEmpty(cfg.Global.ApplicationCredentialSecret, cloud.AuthInfo.ApplicationCredentialSecret)
 	cfg.Global.Region = replaceEmpty(cfg.Global.Region, cloud.RegionName)
 	cfg.Global.CAFile = replaceEmpty(cfg.Global.CAFile, cloud.CACertFile)
 
