@@ -220,6 +220,11 @@ func logcfg(cfg Config) {
 	klog.V(5).Infof("TrustID: %s", cfg.Global.TrustID)
 	klog.V(5).Infof("Region: %s", cfg.Global.Region)
 	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.V(5).Infof("UseClouds: %s", cfg.Global.UseClouds)
+	klog.V(5).Infof("CloudsFile: %s", cfg.Global.CloudsFile)
+	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
+	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
+	klog.V(5).Infof("ApplicationCredentialID: %s", cfg.Global.ApplicationCredentialID)
 }
 
 func init() {
