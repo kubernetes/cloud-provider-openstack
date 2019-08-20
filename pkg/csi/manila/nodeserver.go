@@ -200,7 +200,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	// Forward the RPC
 
-	csiConn, err := grpcConnect(ctx, ns.d.fwdEndpoint)
+	csiConn, err := ns.d.csiClientBuilder.NewConnectionWithContext(ctx, ns.d.fwdEndpoint)
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
@@ -208,7 +208,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	req.Secrets = secret
 	req.VolumeContext = volumeCtx
 
-	return csiNodePublishVolume(ctx, csiConn, req)
+	return ns.d.csiClientBuilder.NewNodeServiceClient(csiConn).PublishVolume(ctx, req)
 }
 
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
@@ -216,12 +216,12 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	csiConn, err := grpcConnect(ctx, ns.d.fwdEndpoint)
+	csiConn, err := ns.d.csiClientBuilder.NewConnectionWithContext(ctx, ns.d.fwdEndpoint)
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
 
-	return csiNodeUnpublishVolume(ctx, csiConn, req)
+	return ns.d.csiClientBuilder.NewNodeServiceClient(csiConn).UnpublishVolume(ctx, req)
 }
 
 func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
@@ -274,7 +274,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 	// Forward the RPC
 
-	csiConn, err := grpcConnect(ctx, ns.d.fwdEndpoint)
+	csiConn, err := ns.d.csiClientBuilder.NewConnectionWithContext(ctx, ns.d.fwdEndpoint)
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
@@ -282,7 +282,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	req.Secrets = stageSecret
 	req.VolumeContext = volumeCtx
 
-	return csiNodeStageVolume(ctx, csiConn, req)
+	return ns.d.csiClientBuilder.NewNodeServiceClient(csiConn).StageVolume(ctx, req)
 }
 
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
@@ -294,12 +294,12 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	delete(ns.nodeStageCache, volumeID(req.VolumeId))
 	ns.nodeStageCacheMtx.Unlock()
 
-	csiConn, err := grpcConnect(ctx, ns.d.fwdEndpoint)
+	csiConn, err := ns.d.csiClientBuilder.NewConnectionWithContext(ctx, ns.d.fwdEndpoint)
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
 
-	return csiNodeUnstageVolume(ctx, csiConn, req)
+	return ns.d.csiClientBuilder.NewNodeServiceClient(csiConn).UnstageVolume(ctx, req)
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
