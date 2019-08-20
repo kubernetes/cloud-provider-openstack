@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
@@ -81,7 +82,7 @@ func main() {
 				klog.Fatalf(err.Error())
 			}
 
-			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData})
+			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData}, &csiclient.ClientBuilder{})
 			if err != nil {
 				klog.Fatalf("driver initialization failed: %v", err)
 			}
