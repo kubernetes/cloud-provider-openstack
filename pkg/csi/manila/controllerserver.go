@@ -230,7 +230,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	if sourceShare, res.err = manilaClient.GetShareByID(req.GetSourceVolumeId()); res.err != nil {
 		if isManilaErrNotFound(res.err) {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
+			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
 		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), res.err)
@@ -251,7 +251,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		}
 
 		if isManilaErrNotFound(res.err) {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
+			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
 		return nil, status.Errorf(codes.Internal, "failed to create a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
@@ -378,7 +378,7 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	}
 
 	if share.Status != shareAvailable {
-		return nil, status.Errorf(codes.InvalidArgument, "share %s is in an unexpected state: wanted %s, got %s", share.ID, shareAvailable, share.Status)
+		return nil, status.Errorf(codes.Internal, "share %s is in an unexpected state: wanted %s, got %s", share.ID, shareAvailable, share.Status)
 	}
 
 	if !compareProtocol(share.ShareProto, cs.d.shareProto) {
