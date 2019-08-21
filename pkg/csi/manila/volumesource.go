@@ -87,6 +87,14 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 		return nil, status.Errorf(codes.Internal, "failed to retrieve snapshot %s: %v", snapshotSource.GetSnapshotId(), err)
 	}
 
+	if snapshot.Status != snapshotAvailable {
+		if snapshot.Status == snapshotCreating {
+			return nil, status.Errorf(codes.Unavailable, "snapshot %s is in transient creating state", snapshot.ID)
+		}
+
+		return nil, status.Errorf(codes.FailedPrecondition, "snapshot %s is in invalid state: expected 'available', got '%s'", snapshot.ID, snapshot.Status)
+	}
+
 	createOpts := &shares.CreateOpts{
 		SnapshotID:     snapshot.ID,
 		ShareProto:     shareOpts.Protocol,

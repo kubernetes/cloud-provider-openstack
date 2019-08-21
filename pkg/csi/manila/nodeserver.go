@@ -79,7 +79,11 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	}
 
 	if share.Status != shareAvailable {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "invalid share status for volume %s (share ID %s): expected 'available', got '%s'",
+		if share.Status == shareCreating {
+			return nil, nil, status.Errorf(codes.Unavailable, "share %s for volume %s is in transient creating state", share.ID, volID)
+		}
+
+		return nil, nil, status.Errorf(codes.FailedPrecondition, "invalid share status for volume %s (share ID %s): expected 'available', got '%s'",
 			volID, share.ID, share.Status)
 	}
 

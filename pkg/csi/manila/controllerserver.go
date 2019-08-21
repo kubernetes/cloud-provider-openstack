@@ -378,7 +378,11 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	}
 
 	if share.Status != shareAvailable {
-		return nil, status.Errorf(codes.Internal, "share %s is in an unexpected state: wanted %s, got %s", share.ID, shareAvailable, share.Status)
+		if share.Status == shareCreating {
+			return nil, status.Errorf(codes.Unavailable, "share %s is in transient creating state", share.ID)
+		}
+
+		return nil, status.Errorf(codes.FailedPrecondition, "share %s is in an unexpected state: wanted %s, got %s", share.ID, shareAvailable, share.Status)
 	}
 
 	if !compareProtocol(share.ShareProto, cs.d.shareProto) {
