@@ -2,7 +2,10 @@
 
 ## Running CSI Sanity tests
 
-Run `make test-csi-sanity` or `go test ./pkg/csi/manila/sanity/... -v`
+Sanity tests create a real instance of driver with fake Manila client and CSI forwarding node plugin.
+See [Sanity check](https://github.com/kubernetes-csi/csi-test/tree/master/pkg/sanity) for more info.
+
+Run the test suite with `make test-manila-csi-sanity`.
 
 ## Share adapters
 
