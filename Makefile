@@ -139,6 +139,7 @@ functional:
 
 test-csi-sanity: depend
 	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/cinder/sanity/
+	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/manila/sanity/
 
 fmt:
 	hack/verify-gofmt.sh
