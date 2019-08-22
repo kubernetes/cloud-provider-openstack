@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
+	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
 )
 
@@ -61,12 +62,20 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	if shareOpts.ShareID != "" {
 		share, err = manilaClient.GetShareByID(shareOpts.ShareID)
 		if err != nil {
-			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve share %s: %v", shareOpts.ShareID, err)
+			if clouderrors.IsNotFound(err) {
+				return nil, nil, status.Errorf(codes.NotFound, "share %s not found: %v", shareOpts.ShareID, err)
+			}
+
+			return nil, nil, status.Errorf(codes.Internal, "failed to retrieve share %s: %v", shareOpts.ShareID, err)
 		}
 	} else {
 		share, err = manilaClient.GetShareByName(shareOpts.ShareName)
 		if err != nil {
-			return nil, nil, status.Errorf(codes.InvalidArgument, "failed to retrieve share named %s: %v", shareOpts.ShareName, err)
+			if clouderrors.IsNotFound(err) {
+				return nil, nil, status.Errorf(codes.NotFound, "no share named %s found: %v", shareOpts.ShareName, err)
+			}
+
+			return nil, nil, status.Errorf(codes.Internal, "failed to retrieve share named %s: %v", shareOpts.ShareName, err)
 		}
 	}
 
