@@ -79,7 +79,11 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	}
 
 	if share.Status != shareAvailable {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "invalid share status for volume %s (share ID %s): expected 'available', got '%s'",
+		if share.Status == shareCreating {
+			return nil, nil, status.Errorf(codes.Unavailable, "share %s for volume %s is in transient creating state", share.ID, volID)
+		}
+
+		return nil, nil, status.Errorf(codes.FailedPrecondition, "invalid share status for volume %s (share ID %s): expected 'available', got '%s'",
 			volID, share.ID, share.Status)
 	}
 
@@ -156,12 +160,12 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	shareOpts, err := options.NewNodeVolumeContext(req.GetVolumeContext())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid volume context: %v", err)
 	}
 
 	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume secret: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
 	volID := volumeID(req.GetVolumeId())
@@ -240,12 +244,12 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 	shareOpts, err := options.NewNodeVolumeContext(req.GetVolumeContext())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid volume context: %v", err)
 	}
 
 	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume secret: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
 	volID := volumeID(req.GetVolumeId())
