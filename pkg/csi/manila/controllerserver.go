@@ -229,6 +229,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	// Retrieve the source share
 
 	if sourceShare, res.err = manilaClient.GetShareByID(req.GetSourceVolumeId()); res.err != nil {
+		if isManilaErrNotFound(res.err) {
+			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
+		}
+
 		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), res.err)
 	}
 
@@ -246,10 +250,14 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of share %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 
+		if isManilaErrNotFound(res.err) {
+			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
+		}
+
 		return nil, status.Errorf(codes.Internal, "failed to create a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
 	}
 
-	if res.err = verifySnapshotCompatibility(sourceShare, snapshot, req); res.err != nil {
+	if res.err = verifySnapshotCompatibility(snapshot, req); res.err != nil {
 		return nil, status.Errorf(codes.AlreadyExists, "a snapshot named %s already exists, but is incompatible with the request: %v", req.GetName(), res.err)
 	}
 
@@ -332,7 +340,62 @@ func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	if err := validateValidateVolumeCapabilitiesRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
+	}
+
+	for _, volCap := range req.GetVolumeCapabilities() {
+		if volCap.GetBlock() != nil {
+			return &csi.ValidateVolumeCapabilitiesResponse{Message: "block access type is not allowed"}, nil
+		}
+
+		if volCap.GetMount() == nil {
+			return &csi.ValidateVolumeCapabilitiesResponse{Message: "volume must be accessible via filesystem API"}, nil
+		}
+
+		if volCap.GetAccessMode().GetMode() == csi.VolumeCapability_AccessMode_UNKNOWN {
+			return &csi.ValidateVolumeCapabilitiesResponse{Message: "unknown volume access mode"}, nil
+		}
+	}
+
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
+	}
+
+	share, err := manilaClient.GetShareByID(req.GetVolumeId())
+	if err != nil {
+		if isManilaErrNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "share %s not found: %v", req.GetVolumeId(), err)
+		}
+
+		return nil, status.Errorf(codes.Internal, "failed to retrieve share %s: %v", req.GetVolumeId(), err)
+	}
+
+	if share.Status != shareAvailable {
+		if share.Status == shareCreating {
+			return nil, status.Errorf(codes.Unavailable, "share %s is in transient creating state", share.ID)
+		}
+
+		return nil, status.Errorf(codes.FailedPrecondition, "share %s is in an unexpected state: wanted %s, got %s", share.ID, shareAvailable, share.Status)
+	}
+
+	if !compareProtocol(share.ShareProto, cs.d.shareProto) {
+		return nil, status.Errorf(codes.InvalidArgument, "share protocol mismatch: wanted %s, got %s", cs.d.shareProto, share.ShareProto)
+	}
+
+	return &csi.ValidateVolumeCapabilitiesResponse{
+		Confirmed: &csi.ValidateVolumeCapabilitiesResponse_Confirmed{
+			VolumeContext:      req.GetVolumeContext(),
+			VolumeCapabilities: req.GetVolumeCapabilities(),
+			Parameters:         req.GetParameters(),
+		},
+	}, nil
 }
 
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
