@@ -1,5 +1,9 @@
 # CSI Manila developer's guide
 
+## Running CSI Sanity tests
+
+Run `make test-csi-sanity` or `go test ./pkg/csi/manila/sanity/... -v`
+
 ## Share adapters
 
 A share adapter is an interface found here `pkg/csi/manila/shareadapters/shareadapter.go` that forms an adapter between a Manila share and a CSI plugin.
