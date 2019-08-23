@@ -19,6 +19,7 @@ package openstack
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -178,31 +179,42 @@ type OpenStack struct {
 	localInstanceID string
 }
 
+type AuthOpts struct {
+	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID"`
+	UserID           string `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
+	Username         string `name:"os-userName" value:"optional" dependsOn:"os-password"`
+	Password         string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
+	TenantID         string `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password"`
+	TenantName       string `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password"`
+	TrustID          string `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
+	DomainID         string `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password"`
+	DomainName       string `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password"`
+	TenantDomainID   string `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
+	TenantDomainName string `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
+	UserDomainID     string `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
+	UserDomainName   string `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
+	Region           string `name:"os-region"`
+	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
+
+	// Manila only options
+	TLSInsecure string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority|os-certAuthorityPath" matches:"^true|false$"`
+	// backward compatibility with the manila-csi-plugin
+	CAFileContents  string `name:"os-certAuthority" value:"optional"`
+	TrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
+	TrusteePassword string `name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
+
+	UseClouds  bool   `gcfg:"use-clouds" mapstructure:"use-clouds" name:"os-useClouds" value:"optional"`
+	CloudsFile string `gcfg:"clouds-file,omitempty" mapstructure:"clouds-file,omitempty" name:"os-cloudsFile" value:"optional"`
+	Cloud      string `gcfg:"cloud,omitempty" mapstructure:"cloud,omitempty" name:"os-cloud" value:"optional"`
+
+	ApplicationCredentialID     string `gcfg:"application-credential-id" mapstructure:"application-credential-id" name:"os-applicationCredentialID" value:"optional"`
+	ApplicationCredentialName   string `gcfg:"application-credential-name" mapstructure:"application-credential-name" name:"os-applicationCredentialName" value:"optional"`
+	ApplicationCredentialSecret string `gcfg:"application-credential-secret" mapstructure:"application-credential-secret" name:"os-applicationCredentialSecret" value:"optional"`
+}
+
 // Config is used to read and store information from the cloud configuration file
 type Config struct {
-	Global struct {
-		AuthURL                     string `gcfg:"auth-url"`
-		UserID                      string `gcfg:"user-id"`
-		Username                    string
-		Password                    string
-		TenantID                    string `gcfg:"tenant-id"`
-		TenantName                  string `gcfg:"tenant-name"`
-		TrustID                     string `gcfg:"trust-id"`
-		DomainID                    string `gcfg:"domain-id"`
-		DomainName                  string `gcfg:"domain-name"`
-		TenantDomainID              string `gcfg:"tenant-domain-id"`
-		TenantDomainName            string `gcfg:"tenant-domain-name"`
-		UserDomainID                string `gcfg:"user-domain-id"`
-		UserDomainName              string `gcfg:"user-domain-name"`
-		Region                      string
-		CAFile                      string `gcfg:"ca-file"`
-		UseClouds                   bool   `gcfg:"use-clouds"`
-		CloudsFile                  string `gcfg:"clouds-file,omitempty"`
-		Cloud                       string `gcfg:"cloud,omitempty"`
-		ApplicationCredentialID     string `gcfg:"application-credential-id"`
-		ApplicationCredentialName   string `gcfg:"application-credential-name"`
-		ApplicationCredentialSecret string `gcfg:"application-credential-secret"`
-	}
+	Global            AuthOpts
 	LoadBalancer      LoadBalancerOpts
 	LoadBalancerClass map[string]*LBClass
 	BlockStorage      BlockStorageOpts
@@ -211,7 +223,7 @@ type Config struct {
 	Networking        NetworkingOpts
 }
 
-func logcfg(cfg Config) {
+func LogCfg(cfg Config) {
 	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthURL)
 	klog.V(5).Infof("UserID: %s", cfg.Global.UserID)
 	klog.V(5).Infof("Username: %s", cfg.Global.Username)
@@ -249,27 +261,27 @@ func init() {
 	})
 }
 
-func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
+func (cfg AuthOpts) ToAuthOptions() gophercloud.AuthOptions {
 	opts := clientconfig.ClientOpts{
 		// this is needed to disable the clientconfig.AuthOptions func env detection
 		EnvPrefix: "_",
-		Cloud:     cfg.Global.Cloud,
+		Cloud:     cfg.Cloud,
 		AuthInfo: &clientconfig.AuthInfo{
-			AuthURL:                     cfg.Global.AuthURL,
-			UserID:                      cfg.Global.UserID,
-			Username:                    cfg.Global.Username,
-			Password:                    cfg.Global.Password,
-			ProjectID:                   cfg.Global.TenantID,
-			ProjectName:                 cfg.Global.TenantName,
-			DomainID:                    cfg.Global.DomainID,
-			DomainName:                  cfg.Global.DomainName,
-			ProjectDomainID:             cfg.Global.TenantDomainID,
-			ProjectDomainName:           cfg.Global.TenantDomainName,
-			UserDomainID:                cfg.Global.UserDomainID,
-			UserDomainName:              cfg.Global.UserDomainName,
-			ApplicationCredentialID:     cfg.Global.ApplicationCredentialID,
-			ApplicationCredentialName:   cfg.Global.ApplicationCredentialName,
-			ApplicationCredentialSecret: cfg.Global.ApplicationCredentialSecret,
+			AuthURL:                     cfg.AuthURL,
+			UserID:                      cfg.UserID,
+			Username:                    cfg.Username,
+			Password:                    cfg.Password,
+			ProjectID:                   cfg.TenantID,
+			ProjectName:                 cfg.TenantName,
+			DomainID:                    cfg.DomainID,
+			DomainName:                  cfg.DomainName,
+			ProjectDomainID:             cfg.TenantDomainID,
+			ProjectDomainName:           cfg.TenantDomainName,
+			UserDomainID:                cfg.UserDomainID,
+			UserDomainName:              cfg.UserDomainName,
+			ApplicationCredentialID:     cfg.ApplicationCredentialID,
+			ApplicationCredentialName:   cfg.ApplicationCredentialName,
+			ApplicationCredentialSecret: cfg.ApplicationCredentialSecret,
 		},
 	}
 
@@ -285,8 +297,8 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 	return *ao
 }
 
-func (cfg Config) toAuth3Options() tokens3.AuthOptions {
-	ao := cfg.toAuthOptions()
+func (cfg AuthOpts) ToAuth3Options() tokens3.AuthOptions {
+	ao := cfg.ToAuthOptions()
 
 	var scope tokens3.Scope
 	if ao.Scope != nil {
@@ -314,7 +326,7 @@ func (cfg Config) toAuth3Options() tokens3.AuthOptions {
 // configFromEnv allows setting up credentials etc using the
 // standard OS_* OpenStack client environment variables.
 // TODO: Replace this with gophercloud upstream once community moves away from cloud.conf
-func configFromEnv() Config {
+func ConfigFromEnv() Config {
 	var cfg Config
 
 	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
@@ -361,14 +373,14 @@ func ReadConfig(config io.Reader) (Config, error) {
 		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
 	}
 
-	cfg := configFromEnv()
+	cfg := ConfigFromEnv()
 	klog.V(5).Infof("Config, loaded from the environment variables:")
-	logcfg(cfg)
+	LogCfg(cfg)
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 
 	klog.V(5).Infof("Config, loaded from the config file:")
-	logcfg(cfg)
+	LogCfg(cfg)
 
 	if cfg.Global.UseClouds {
 		if cfg.Global.CloudsFile != "" {
@@ -379,7 +391,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 			return Config{}, err
 		}
 		klog.V(5).Infof("Config, loaded from the %s:", cfg.Global.CloudsFile)
-		logcfg(cfg)
+		LogCfg(cfg)
 	}
 	return cfg, err
 }
@@ -466,12 +478,11 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 
 	// if need to create health monitor for Neutron LB,
 	// monitor-delay, monitor-timeout and monitor-max-retries should be set.
-	emptyDuration := MyDuration{}
 	if lbOpts.CreateMonitor {
-		if lbOpts.MonitorDelay == emptyDuration {
+		if lbOpts.MonitorDelay == (MyDuration{}) {
 			return fmt.Errorf("monitor-delay not set in cloud provider config")
 		}
-		if lbOpts.MonitorTimeout == emptyDuration {
+		if lbOpts.MonitorTimeout == (MyDuration{}) {
 			return fmt.Errorf("monitor-timeout not set in cloud provider config")
 		}
 		if lbOpts.MonitorMaxRetries == uint(0) {
@@ -482,48 +493,73 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 }
 
 // NewOpenStack creates a new new instance of the openstack struct from a config struct
-func NewOpenStack(cfg Config) (*OpenStack, error) {
-	provider, err := openstack.NewClient(cfg.Global.AuthURL)
+func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...string) (*gophercloud.ProviderClient, error) {
+	provider, err := openstack.NewClient(cfg.AuthURL)
 	if err != nil {
 		return nil, err
 	}
 
-	userAgent := gophercloud.UserAgent{}
-	userAgent.Prepend(fmt.Sprintf("openstack-cloud-controller-manager/%s", version.Version))
-	for _, data := range userAgentData {
-		userAgent.Prepend(data)
+	ua := gophercloud.UserAgent{}
+	ua.Prepend(fmt.Sprintf("%s/%s", userAgent, version.Version))
+	for _, data := range extraUserAgent {
+		ua.Prepend(data)
 	}
-	provider.UserAgent = userAgent
-	klog.V(4).Infof("Using user-agent %s", userAgent.Join())
+	provider.UserAgent = ua
+	klog.V(4).Infof("Using user-agent %s", ua.Join())
 
-	if cfg.Global.CAFile != "" {
-		roots, err := certutil.NewPool(cfg.Global.CAFile)
+	var caPool *x509.CertPool
+	if cfg.CAFile != "" {
+		// read and parse CA certificate from file
+		caPool, err = certutil.NewPool(cfg.CAFile)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read and parse %s certificate: %s", cfg.CAFile, err)
 		}
+	} else if cfg.CAFileContents != "" {
+		// parse CA certificate from the contents
+		caPool = x509.NewCertPool()
+		if ok := caPool.AppendCertsFromPEM([]byte(cfg.CAFileContents)); !ok {
+			return nil, fmt.Errorf("failed to parse os-certAuthority certificate")
+		}
+	}
+
+	if caPool != nil {
 		config := &tls.Config{}
-		config.RootCAs = roots
+		config.RootCAs = caPool
+		config.InsecureSkipVerify = cfg.TLSInsecure == "true"
 		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
 
-	if cfg.Global.TrustID != "" {
-		opts := cfg.toAuth3Options()
+	if cfg.TrustID != "" {
+		opts := cfg.ToAuth3Options()
+
+		// support for the legacy manila auth
+		// if TrusteeID and TrusteePassword were defined, then use them
+		opts.UserID = replaceEmpty(cfg.TrusteeID, opts.UserID)
+		opts.Password = replaceEmpty(cfg.TrusteePassword, opts.Password)
+
 		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.Global.TrustID,
+			TrustID:            cfg.TrustID,
 			AuthOptionsBuilder: &opts,
 		}
 		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
-	} else {
-		opts := cfg.toAuthOptions()
-		err = openstack.AuthenticateV3(provider, &opts, gophercloud.EndpointOpts{})
+
+		return provider, err
 	}
 
+	opts := cfg.ToAuthOptions()
+	err = openstack.AuthenticateV3(provider, &opts, gophercloud.EndpointOpts{})
+
+	return provider, err
+}
+
+// NewOpenStack creates a new new instance of the openstack struct from a config struct
+func NewOpenStack(cfg Config) (*OpenStack, error) {
+	provider, err := NewOpenStackClient(&cfg.Global, "openstack-cloud-controller-manager", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
 
-	emptyDuration := MyDuration{}
-	if cfg.Metadata.RequestTimeout == emptyDuration {
+	if cfg.Metadata.RequestTimeout == (MyDuration{}) {
 		cfg.Metadata.RequestTimeout.Duration = time.Duration(defaultTimeOut)
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration

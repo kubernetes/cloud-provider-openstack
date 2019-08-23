@@ -18,54 +18,20 @@ limitations under the License.
 package register
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net/http"
 
 	"github.com/gophercloud/gophercloud"
 	gopenstack "github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	netutil "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
-	certutil "k8s.io/client-go/util/cert"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
-	"k8s.io/cloud-provider-openstack/pkg/version"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (cloudprovider.CloudProvider, error) {
-	client, err := gopenstack.NewClient(cfg.OpenStack.AuthURL)
-	if err != nil {
-		return nil, err
-	}
-
-	userAgent := gophercloud.UserAgent{}
-	userAgent.Prepend(fmt.Sprintf("magnum-auto-healer/%s", version.Version))
-	client.UserAgent = userAgent
-
-	if cfg.OpenStack.CAFile != "" {
-		roots, err := certutil.NewPool(cfg.OpenStack.CAFile)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig := &tls.Config{}
-		tlsConfig.RootCAs = roots
-		client.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: tlsConfig})
-	}
-
-	if cfg.OpenStack.TrustID != "" {
-		opts := cfg.ToV3AuthOptions()
-		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.OpenStack.TrustID,
-			AuthOptionsBuilder: &opts,
-		}
-		err = gopenstack.AuthenticateV3(client, authOptsExt, gophercloud.EndpointOpts{})
-	} else {
-		err = gopenstack.Authenticate(client, cfg.ToAuthOptions())
-	}
-
+	client, err := openstack_provider.NewOpenStackClient(&cfg.OpenStack, "magnum-auto-healer")
 	if err != nil {
 		return nil, err
 	}

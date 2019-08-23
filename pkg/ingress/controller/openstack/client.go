@@ -17,19 +17,14 @@ limitations under the License.
 package openstack
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net/http"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	log "github.com/sirupsen/logrus"
 
-	netutil "k8s.io/apimachinery/pkg/util/net"
-	certutil "k8s.io/client-go/util/cert"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
-	"k8s.io/cloud-provider-openstack/pkg/version"
 )
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -42,36 +37,7 @@ type OpenStack struct {
 
 // NewOpenStack gets openstack struct
 func NewOpenStack(cfg config.Config) (*OpenStack, error) {
-	provider, err := openstack.NewClient(cfg.OpenStack.AuthURL)
-	if err != nil {
-		return nil, err
-	}
-
-	userAgent := gophercloud.UserAgent{}
-	userAgent.Prepend(fmt.Sprintf("octavia-ingress-controller/%s", version.Version))
-	provider.UserAgent = userAgent
-
-	if cfg.OpenStack.CAFile != "" {
-		roots, err := certutil.NewPool(cfg.OpenStack.CAFile)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig := &tls.Config{}
-		tlsConfig.RootCAs = roots
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: tlsConfig})
-	}
-
-	if cfg.OpenStack.TrustID != "" {
-		opts := cfg.ToV3AuthOptions()
-		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.OpenStack.TrustID,
-			AuthOptionsBuilder: &opts,
-		}
-		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
-	} else {
-		err = openstack.Authenticate(provider, cfg.ToAuthOptions())
-	}
-
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.OpenStack, "octavia-ingress-controller")
 	if err != nil {
 		return nil, err
 	}

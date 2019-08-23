@@ -20,7 +20,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 type Interface interface {
@@ -43,5 +43,5 @@ type Interface interface {
 }
 
 type Builder interface {
-	New(o *options.OpenstackOptions) (Interface, error)
+	New(o *openstack_provider.AuthOpts) (Interface, error)
 }

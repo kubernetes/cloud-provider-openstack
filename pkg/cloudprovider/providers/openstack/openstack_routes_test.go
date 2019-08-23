@@ -30,7 +30,7 @@ import (
 func TestRoutes(t *testing.T) {
 	const clusterName = "ignored"
 
-	cfg := configFromEnv()
+	cfg := ConfigFromEnv()
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {

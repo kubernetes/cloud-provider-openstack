@@ -55,6 +55,10 @@ Mandatory secrets: `os-authURL`, `os-region`.
 
 Mandatory secrets for _user authentication:_ `os-password`, `os-userID` or `os-userName`, `os-domainID` or `os-domainName`, `os-projectID` or `os-projectName`.
 
+Optional secrets for _user authentication:_ `os-projectDomainID` or `os-projectDomainName`, `os-userDomainID` or `os-userDomainName`
+
+Mandatory secrets for _application credential authentication:_ `os-applicationCredentialID` or `os-applicationCredentialName` (when `os-userID` or `os-userName` and `os-domainName` are set), `os-applicationCredentialSecret`.
+
 Mandatory secrets for _trustee authentication:_ `os-trustID`, `os-trusteeID`, `os-trusteePassword`.
 
 Optionally, a custom certificate may be sourced via `os-certAuthorityPath` (path to a PEM file inside the plugin container). By default, the usual TLS verification is performed. To override this behavior and accept insecure certificates, set `os-TLSInsecure` to `true` (defaults to `false`).

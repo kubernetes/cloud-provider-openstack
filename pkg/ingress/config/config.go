@@ -17,16 +17,15 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	ClusterName string        `mapstructure:"cluster-name"`
-	Kubernetes  kubeConfig    `mapstructure:"kubernetes"`
-	OpenStack   osConfig      `mapstructure:"openstack"`
-	Octavia     octaviaConfig `mapstructure:"octavia"`
+	ClusterName string                      `mapstructure:"cluster-name"`
+	Kubernetes  kubeConfig                  `mapstructure:"kubernetes"`
+	OpenStack   openstack_provider.AuthOpts `mapstructure:"openstack"`
+	Octavia     octaviaConfig               `mapstructure:"octavia"`
 }
 
 // Configuration for connecting to Kubernetes API server, either api_host or kubeconfig should be configured.
@@ -36,20 +35,6 @@ type kubeConfig struct {
 
 	// (Optional)Kubeconfig file used to connect to Kubernetes cluster.
 	KubeConfig string `mapstructure:"kubeconfig"`
-}
-
-// OpenStack credentials configuration, the section is required.
-type osConfig struct {
-	Username   string
-	UserID     string `mapstructure:"user-id"`
-	TrustID    string `mapstructure:"trust-id"`
-	Password   string
-	ProjectID  string `mapstructure:"project-id"`
-	AuthURL    string `mapstructure:"auth-url"`
-	Region     string
-	DomainID   string `mapstructure:"domain-id"`
-	DomainName string `mapstructure:"domain-name"`
-	CAFile     string `mapstructure:"ca-file"`
 }
 
 // Octavia service related configuration
@@ -68,30 +53,4 @@ type octaviaConfig struct {
 	// (Optional) If the ingress controller should manage the security groups attached to the cluster nodes.
 	// Default is false.
 	ManageSecurityGroups bool `mapstructure:"manage-security-groups"`
-}
-
-// ToAuthOptions gets openstack auth options
-func (cfg Config) ToAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.OpenStack.AuthURL,
-		Username:         cfg.OpenStack.Username,
-		UserID:           cfg.OpenStack.UserID,
-		Password:         cfg.OpenStack.Password,
-		TenantID:         cfg.OpenStack.ProjectID,
-		DomainID:         cfg.OpenStack.DomainID,
-		DomainName:       cfg.OpenStack.DomainName,
-		AllowReauth:      true,
-	}
-}
-
-func (cfg Config) ToV3AuthOptions() tokens.AuthOptions {
-	return tokens.AuthOptions{
-		IdentityEndpoint: cfg.OpenStack.AuthURL,
-		Username:         cfg.OpenStack.Username,
-		UserID:           cfg.OpenStack.UserID,
-		Password:         cfg.OpenStack.Password,
-		DomainID:         cfg.OpenStack.DomainID,
-		DomainName:       cfg.OpenStack.DomainName,
-		AllowReauth:      true,
-	}
 }
