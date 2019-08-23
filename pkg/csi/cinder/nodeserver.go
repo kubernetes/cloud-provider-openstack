@@ -292,8 +292,9 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 
 	nodeID, err := getNodeID(ns.Mount, ns.Metadata)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeGetInfo failed with error %v", err))
 	}
+
 	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
 	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
 
