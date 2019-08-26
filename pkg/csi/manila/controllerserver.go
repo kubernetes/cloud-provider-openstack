@@ -33,6 +33,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
+	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
 )
 
@@ -229,7 +230,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	// Retrieve the source share
 
 	if sourceShare, res.err = manilaClient.GetShareByID(req.GetSourceVolumeId()); res.err != nil {
-		if isManilaErrNotFound(res.err) {
+		if clouderrors.IsNotFound(res.err) {
 			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
@@ -250,7 +251,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of share %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 
-		if isManilaErrNotFound(res.err) {
+		if clouderrors.IsNotFound(res.err) {
 			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
@@ -370,7 +371,7 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 
 	share, err := manilaClient.GetShareByID(req.GetVolumeId())
 	if err != nil {
-		if isManilaErrNotFound(err) {
+		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "share %s not found: %v", req.GetVolumeId(), err)
 		}
 

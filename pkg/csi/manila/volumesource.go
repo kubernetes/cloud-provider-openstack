@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
 )
 
@@ -80,7 +81,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 	snapshot, err := manilaClient.GetSnapshotByID(snapshotSource.GetSnapshotId())
 	if err != nil {
-		if isManilaErrNotFound(err) {
+		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "source snapshot %s not found: %v", snapshotSource.GetSnapshotId(), err)
 		}
 

@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
@@ -175,22 +174,6 @@ func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (
 	}
 
 	return manilaErrorMessage{message: "unknown error"}, nil
-}
-
-func isManilaErrNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if _, isDefault404 := err.(gophercloud.ErrDefault404); isDefault404 {
-		return true
-	}
-
-	if _, isResourceNotFound := err.(gophercloud.ErrResourceNotFound); isResourceNotFound {
-		return true
-	}
-
-	return false
 }
 
 func compareProtocol(protoA, protoB string) bool {
