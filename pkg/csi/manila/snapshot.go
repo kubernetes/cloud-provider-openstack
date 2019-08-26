@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
 )
 
@@ -47,7 +48,7 @@ func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient manilaclie
 	// First, check if the snapshot already exists or needs to be created
 
 	if snapshot, err = manilaClient.GetSnapshotByName(snapName); err != nil {
-		if isManilaErrNotFound(err) {
+		if clouderrors.IsNotFound(err) {
 			// It doesn't exist, create it
 
 			opts := snapshots.CreateOpts{
@@ -74,7 +75,7 @@ func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient manilaclie
 
 func deleteSnapshot(snapID string, manilaClient manilaclient.Interface) error {
 	if err := manilaClient.DeleteSnapshot(snapID); err != nil {
-		if isManilaErrNotFound(err) {
+		if clouderrors.IsNotFound(err) {
 			klog.V(4).Infof("snapshot %s not found, assuming it to be already deleted", snapID)
 		} else {
 			return err
@@ -118,7 +119,7 @@ func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, succ
 		snapshot, err = manilaClient.GetSnapshotByID(snapshotID)
 
 		if err != nil {
-			if isManilaErrNotFound(err) && successOnNotFound {
+			if clouderrors.IsNotFound(err) && successOnNotFound {
 				return true, nil
 			}
 

@@ -1,5 +1,12 @@
 # CSI Manila developer's guide
 
+## Running CSI Sanity tests
+
+Sanity tests create a real instance of driver with fake Manila client and CSI forwarding node plugin.
+See [Sanity check](https://github.com/kubernetes-csi/csi-test/tree/master/pkg/sanity) for more info.
+
+Run the test suite with `make test-manila-csi-sanity`.
+
 ## Share adapters
 
 A share adapter is an interface found here `pkg/csi/manila/shareadapters/shareadapter.go` that forms an adapter between a Manila share and a CSI plugin.

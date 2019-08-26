@@ -27,6 +27,10 @@ func IsNotFound(err error) bool {
 		return true
 	}
 
+	if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
+		return true
+	}
+
 	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
 		if errCode.Actual == http.StatusNotFound {
 			return true

@@ -92,6 +92,10 @@
 name = "github.com/kubernetes-csi/csi-lib-utils"
 source = "https://github.com/kubernetes-csi/csi-lib-utils"
 
+[[constraint]]
+  name = "github.com/kubernetes-csi/csi-test"
+  version = "v2.2.0"
+
 # Picked up from k/k Godeps/Godeps.json
 [[override]]
 name = "sigs.k8s.io/structured-merge-diff"

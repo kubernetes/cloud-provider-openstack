@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
 )
 
@@ -50,7 +51,7 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 	// First, check if the share already exists or needs to be created
 
 	if share, err = manilaClient.GetShareByName(shareName); err != nil {
-		if isManilaErrNotFound(err) {
+		if clouderrors.IsNotFound(err) {
 			// It doesn't exist, create it
 
 			var createErr error
@@ -76,7 +77,7 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 
 func deleteShare(shareID string, manilaClient manilaclient.Interface) error {
 	if err := manilaClient.DeleteShare(shareID); err != nil {
-		if isManilaErrNotFound(err) {
+		if clouderrors.IsNotFound(err) {
 			klog.V(4).Infof("share %s not found, assuming it to be already deleted", shareID)
 		} else {
 			return err
@@ -120,7 +121,7 @@ func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnN
 		share, err = manilaClient.GetShareByID(shareID)
 
 		if err != nil {
-			if isManilaErrNotFound(err) && successOnNotFound {
+			if clouderrors.IsNotFound(err) && successOnNotFound {
 				return true, nil
 			}
 

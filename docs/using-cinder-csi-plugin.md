@@ -283,10 +283,10 @@ Filesystem      Size  Used Avail Use% Mounted on
 
 ## Running Sanity Tests
 
-Sanity tests creates a real instance of driver and fake cloud provider.
+Sanity tests create a real instance of driver and fake cloud provider.
 see [Sanity check](https://github.com/kubernetes-csi/csi-test/tree/master/pkg/sanity) for more info.
 ```
-$ make test-csi-sanity
+$ make test-cinder-csi-sanity
 ```
 
 ## Using CSC tool
