@@ -12,7 +12,7 @@ The following installation steps assumes that you have a Kubernetes cluster(v1.1
 
 1. Create 256bit(32 byte) cbc key and store in barbican
 ```
-$ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-length 256 key  --payload-content-type=application/octet-stream key
+$ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-length 256 --payload-content-type=application/octet-stream key
 +----------------+-----------------------------------------------------------------------+
 | Field          | Value                                                                 |
 +----------------+-----------------------------------------------------------------------+
