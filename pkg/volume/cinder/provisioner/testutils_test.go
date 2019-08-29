@@ -20,7 +20,8 @@ import (
 	"bytes"
 	"errors"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	storageapis "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
@@ -54,14 +55,21 @@ func createPVC(name string, size string) *v1.PersistentVolumeClaim {
 	}
 }
 
-func createVolumeOptions() controller.VolumeOptions {
-	return controller.VolumeOptions{
-		PVName:                        "testpv",
-		PVC:                           createPVC("curPVC", "1G"),
-		Parameters:                    make(map[string]string),
-		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimDelete,
+func createProvisionOptions() controller.ProvisionOptions {
+	reclaimpolicy := v1.PersistentVolumeReclaimDelete
+	storageClass := storageapis.StorageClass{
+		Parameters:    make(map[string]string),
+		ReclaimPolicy: &reclaimpolicy,
+	}
+
+	return controller.ProvisionOptions{
+		PVName:       "testpv",
+		PVC:          createPVC("curPVC", "1G"),
+		StorageClass: &storageClass,
 	}
 }
+
+//		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimDelete,
 
 func createPersistentVolume() *v1.PersistentVolume {
 	return &v1.PersistentVolume{
@@ -131,14 +139,14 @@ type fakeMapper struct {
 	failBuildPVSource bool
 }
 
-func (m *fakeMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.VolumeOptions) (*v1.PersistentVolumeSource, error) {
+func (m *fakeMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.ProvisionOptions) (*v1.PersistentVolumeSource, error) {
 	if m.failBuildPVSource {
 		return nil, errors.New("Injected error for testing")
 	}
 	return &v1.PersistentVolumeSource{}, nil
 }
 
-func (m *fakeMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection) error {
+func (m *fakeMapper) AuthSetup(p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection) error {
 	return m.mightFail.ret("AuthSetup")
 }
 

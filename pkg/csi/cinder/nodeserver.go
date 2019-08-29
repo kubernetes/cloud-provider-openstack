@@ -122,16 +122,16 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
-	exists, err := m.GetBaseMounter().ExistsPath(podVolumePath)
+	exists, err := m.GetHostUtil().PathExists(podVolumePath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if !exists {
-		if err := m.GetBaseMounter().MakeDir(podVolumePath); err != nil {
+		if err := m.GetHostUtil().MakeDir(podVolumePath); err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not create dir %q: %v", podVolumePath, err)
 		}
 	}
-	err = m.GetBaseMounter().MakeFile(targetPath)
+	err = m.GetHostUtil().MakeFile(targetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
 	}

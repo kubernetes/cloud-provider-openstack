@@ -199,3 +199,7 @@ func (_m *MountMock) GetBaseMounter() *mount.SafeFormatAndMount {
 		Exec:      mount.NewFakeExec(execCallback),
 	}
 }
+
+func (_m *MountMock) GetHostUtil() mount.HostUtils {
+	return mount.NewHostUtil()
+}

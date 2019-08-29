@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
@@ -86,7 +86,7 @@ func NewCinderProvisioner(client kubernetes.Interface, id, configFilePath string
 	}, nil
 }
 
-func (p *cinderProvisioner) getCreateOptions(options controller.VolumeOptions) (volumes_v2.CreateOpts, error) {
+func (p *cinderProvisioner) getCreateOptions(options controller.ProvisionOptions) (volumes_v2.CreateOpts, error) {
 	name := fmt.Sprintf("cinder-dynamic-pvc-%s", uuid.NewUUID())
 	capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
 	sizeBytes := capacity.Value()
@@ -97,7 +97,7 @@ func (p *cinderProvisioner) getCreateOptions(options controller.VolumeOptions) (
 	cloneEnabled := false
 	// Apply ProvisionerParameters (case-insensitive). We leave validation of
 	// the values to the cloud provider.
-	for k, v := range options.Parameters {
+	for k, v := range options.StorageClass.Parameters {
 		switch strings.ToLower(k) {
 		case "type":
 			volType = v
@@ -160,7 +160,7 @@ func (p *cinderProvisioner) annotatePVC(cinderVolID string, pvc *v1.PersistentVo
 }
 
 // Provision creates a storage asset and returns a PV object representing it.
-func (p *cinderProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
+func (p *cinderProvisioner) Provision(options controller.ProvisionOptions) (*v1.PersistentVolume, error) {
 	var (
 		volumeID   string
 		connection volumeservice.VolumeConnection
