@@ -14,7 +14,7 @@ enabled.
  * [Development](#development)
    + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
    + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
-   + [Running the Cloud Provider in MiniKube](#running-the-cloud-provider-in-minikube)
+   + [Running the Cloud Provider](#running-the-cloud-provider)
 
 ## Prerequisites
 
