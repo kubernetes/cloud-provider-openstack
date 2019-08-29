@@ -40,6 +40,7 @@ const (
 )
 
 type IMount interface {
+	GetHostUtil() mount.HostUtils
 	GetBaseMounter() *mount.SafeFormatAndMount
 	ScanForAttach(devicePath string) error
 	GetDevicePath(volumeID string) (string, error)
@@ -67,12 +68,17 @@ func GetMountProvider() (IMount, error) {
 // GetBaseMounter returns instance of SafeFormatAndMount
 func (m *Mount) GetBaseMounter() *mount.SafeFormatAndMount {
 	nMounter := mount.New("")
-	nExec := mount.NewOsExec()
+	nExec := mount.NewOSExec()
 	return &mount.SafeFormatAndMount{
 		Interface: nMounter,
 		Exec:      nExec,
 	}
 
+}
+
+func (m *Mount) GetHostUtil() mount.HostUtils {
+	hostutil := mount.NewHostUtil()
+	return hostutil
 }
 
 // probeVolume probes volume in compute
@@ -182,12 +188,12 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 
 // FormatAndMount
 func (m *Mount) FormatAndMount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOSExec()}
 	return diskMounter.FormatAndMount(source, target, fstype, options)
 }
 
 func (m *Mount) Mount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOSExec()}
 	return diskMounter.Mount(source, target, fstype, options)
 }
 

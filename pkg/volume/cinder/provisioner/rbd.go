@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"k8s.io/klog"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
@@ -49,7 +49,7 @@ func getRbdSecretName(pvc *v1.PersistentVolumeClaim) string {
 	return fmt.Sprintf("%s-cephx-secret", *pvc.Spec.StorageClassName)
 }
 
-func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.VolumeOptions) (*v1.PersistentVolumeSource, error) {
+func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.ProvisionOptions) (*v1.PersistentVolumeSource, error) {
 	mons := getMonitors(conn)
 	if mons == nil {
 		return nil, errors.New("No monitors could be parsed from connection info")
@@ -71,7 +71,7 @@ func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options c
 	}, nil
 }
 
-func (m *rbdMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection) error {
+func (m *rbdMapper) AuthSetup(p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection) error {
 	return nil
 }
 

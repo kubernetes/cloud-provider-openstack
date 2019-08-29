@@ -19,7 +19,7 @@ package shareoptions
 import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
 )

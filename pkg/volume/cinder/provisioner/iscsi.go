@@ -17,7 +17,7 @@ limitations under the License.
 package provisioner
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"k8s.io/klog"
@@ -32,14 +32,14 @@ type iscsiMapper struct {
 	cb clusterBroker
 }
 
-func getChapSecretName(connection volumeservice.VolumeConnection, options controller.VolumeOptions) string {
+func getChapSecretName(connection volumeservice.VolumeConnection, options controller.ProvisionOptions) string {
 	if connection.Data.AuthMethod == "CHAP" {
 		return options.PVName + "-secret"
 	}
 	return ""
 }
 
-func (m *iscsiMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.VolumeOptions) (*v1.PersistentVolumeSource, error) {
+func (m *iscsiMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.ProvisionOptions) (*v1.PersistentVolumeSource, error) {
 	initiator := initiatorName[:]
 	ret := &v1.PersistentVolumeSource{
 		ISCSI: &v1.ISCSIPersistentVolumeSource{
@@ -60,7 +60,7 @@ func (m *iscsiMapper) BuildPVSource(conn volumeservice.VolumeConnection, options
 	return ret, nil
 }
 
-func (m *iscsiMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection) error {
+func (m *iscsiMapper) AuthSetup(p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection) error {
 	// Create a secret for the CHAP credentials
 	secretName := getChapSecretName(conn, options)
 	if secretName == "" {

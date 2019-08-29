@@ -21,7 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -143,7 +143,7 @@ var _ = Describe("Mapper", func() {
 			err    error
 		)
 		p := createCinderProvisioner()
-		options := createVolumeOptions()
+		options := createProvisionOptions()
 		conn := volumeservice.VolumeConnection{}
 		volumeID := "volumeid"
 

@@ -18,6 +18,7 @@ package shareoptions
 
 import (
 	"fmt"
+
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
 	"k8s.io/cloud-provider/volume/helpers"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
@@ -55,10 +56,10 @@ var (
 )
 
 // NewShareOptions creates a new instance of ShareOptions
-func NewShareOptions(volOptions *controller.VolumeOptions) (*ShareOptions, error) {
+func NewShareOptions(volOptions *controller.ProvisionOptions) (*ShareOptions, error) {
 	opts := &ShareOptions{}
 
-	if err := shareOptionsValidator.Populate(volOptions.Parameters, opts); err != nil {
+	if err := shareOptionsValidator.Populate(volOptions.StorageClass.Parameters, opts); err != nil {
 		return nil, err
 	}
 
