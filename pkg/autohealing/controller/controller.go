@@ -245,7 +245,7 @@ func (c *Controller) getUnhealthyMasterNodes() ([]healthcheck.NodeInfo, error) {
 				continue
 			}
 
-			nodes = append(nodes, healthcheck.NodeInfo{KubeNode: node})
+			nodes = append(nodes, healthcheck.NodeInfo{KubeNode: node, IsWorker: false})
 		}
 	}
 
@@ -281,7 +281,7 @@ func (c *Controller) getUnhealthyWorkerNodes() ([]healthcheck.NodeInfo, error) {
 			log.V(4).Infof("The node %s is created less than the configured check delay, skip", node.Name)
 			continue
 		}
-		nodes = append(nodes, healthcheck.NodeInfo{KubeNode: node})
+		nodes = append(nodes, healthcheck.NodeInfo{KubeNode: node, IsWorker: true})
 	}
 
 	// Do health check

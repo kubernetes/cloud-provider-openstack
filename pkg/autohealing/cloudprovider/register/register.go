@@ -96,6 +96,7 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Magnum service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
 	}
+	magnumClient.Microversion = "latest"
 
 	var p cloudprovider.CloudProvider
 	p = openstack.OpenStackCloudProvider{
