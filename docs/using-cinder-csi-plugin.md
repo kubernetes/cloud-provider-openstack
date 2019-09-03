@@ -280,6 +280,24 @@ $ kubectl exec nginx -- df -h /var/lib/www/html
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/vdb        2.0G   27M  1.97G   1% /var/lib/www/html
 ```
+## Inline Volumes
+This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. To use this feature `--feature-gates=CSIInlineVolume=true` needs to be enabled. Until Kubernetes v1.15 CSI Driver can be operated in one mode only either `persistent` or `ephermeral`. please check the example yaml[TODO: ADD link] for volume attributes. Currently only volume `capacity` can be specified
+
+Example:
+1. Deploy CSI Driver with mode `ephermeral`, modify `manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml`.
+```
+$ kubectl create -f manifests/cinder-csi-plugin/
+```
+2. Create a pod with inline volume
+```
+$ kubectl create -f examples/cinder-csi-plugin/inline/inline-example.yaml 
+```
+3. Get the pod description
+```
+$ kubectl describe pod 
+
+```
+TODO: check the inline volume info in pod description
 
 ## Running Sanity Tests
 
