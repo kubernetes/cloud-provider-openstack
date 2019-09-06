@@ -159,58 +159,97 @@ func (provider OpenStackCloudProvider) waitForServerPoweredOff(serverID string, 
 	return err
 }
 
-// Repair soft deletes the VMs, marks the heat resource "unhealthy" then trigger Heat stack update in order to rebuild
+// For master nodes: Soft deletes the VMs, marks the heat resource "unhealthy" then trigger Heat stack update in order to rebuild
 // the VMs. The information this function needs:
-// - Nova VM IDs
-// - Heat stack ID and resource ID.
+//     - Nova VM IDs
+// 	   - Heat stack ID and resource ID.
+// For worker nodes: Call Magnum resize API directly.
 func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
+	if len(nodes) == 0 {
+		return nil
+	}
+
 	clusterName := provider.Config.ClusterName
 	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to get the cluster %s, error: %v", clusterName, err)
 	}
 
-	clusterStackName, err := provider.getStackName(cluster.StackID)
-	if err != nil {
-		return fmt.Errorf("failed to get the Heat stack for cluster %s, error: %v", clusterName, err)
-	}
+	isWorkerNode := nodes[0].IsWorker
 
-	// In order to rebuild the nodes by Heat stack update, we need to know the parent stack ID of the resources and
-	// mark them unhealthy first.
-	allMapping, err := provider.getAllStackResourceMapping(clusterStackName, cluster.StackID)
-	if err != nil {
-		return fmt.Errorf("failed to get the resource stack mapping for cluster %s, error: %v", clusterName, err)
-	}
+	if isWorkerNode {
+		nodesToReplace := sets.NewString()
+		for _, n := range nodes {
+			machineID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
+			if machineID == nil {
+				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
+				continue
+			}
+			serverID := machineID.String()
 
-	for _, n := range nodes {
-		id := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
-		if id == nil {
-			log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
-			continue
+			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
+				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
+			}
+
+			nodesToReplace.Insert(serverID)
 		}
 
-		serverID := id.String()
-		if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
-			log.Warningf("Failed to shutdown the server %s, error: %v, continue handling...", serverID, err)
+		opts := clusters.ResizeOpts{
+			NodeGroup:     "node",
+			NodeCount:     &cluster.NodeCount,
+			NodesToRemove: nodesToReplace.List(),
 		}
 
-		log.Infof("Marking Nova VM %s(Heat resource %s) unhealthy for Heat stack %s", serverID, allMapping[serverID].ResourceID, cluster.StackID)
+		clusters.Resize(provider.Magnum, clusterName, opts)
+		// TODO: Ignore the result value until https://github.com/gophercloud/gophercloud/pull/1649 is merged.
+		//if ret.Err != nil {
+		//	return fmt.Errorf("failed to resize cluster %s, error: %v", clusterName, ret.Err)
+		//}
 
-		opts := stackresources.MarkUnhealthyOpts{
-			MarkUnhealthy:        true,
-			ResourceStatusReason: "Mark resource unhealthy by autohealing service",
-		}
-		err = stackresources.MarkUnhealthy(provider.Heat, allMapping[serverID].StackName, allMapping[serverID].StackID, allMapping[serverID].ResourceID, opts).ExtractErr()
+		log.Infof("Cluster %s resized", clusterName)
+	} else {
+		clusterStackName, err := provider.getStackName(cluster.StackID)
 		if err != nil {
-			log.Errorf("failed to mark resource %s unhealthy, error: %v", serverID, err)
+			return fmt.Errorf("failed to get the Heat stack for cluster %s, error: %v", clusterName, err)
 		}
-	}
 
-	if err := stacks.UpdatePatch(provider.Heat, clusterStackName, cluster.StackID, stacks.UpdateOpts{}).ExtractErr(); err != nil {
-		return fmt.Errorf("failed to update Heat stack to rebuild resources, error: %v", err)
-	}
+		// In order to rebuild the nodes by Heat stack update, we need to know the parent stack ID of the resources and
+		// mark them unhealthy first.
+		allMapping, err := provider.getAllStackResourceMapping(clusterStackName, cluster.StackID)
+		if err != nil {
+			return fmt.Errorf("failed to get the resource stack mapping for cluster %s, error: %v", clusterName, err)
+		}
 
-	log.Infof("Started Heat stack update to rebuild resources, cluster: %s, stack: %s", clusterName, cluster.StackID)
+		for _, n := range nodes {
+			id := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
+			if id == nil {
+				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
+				continue
+			}
+			serverID := id.String()
+
+			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
+				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
+			}
+
+			log.Infof("Marking Nova VM %s(Heat resource %s) unhealthy for Heat stack %s", serverID, allMapping[serverID].ResourceID, cluster.StackID)
+
+			opts := stackresources.MarkUnhealthyOpts{
+				MarkUnhealthy:        true,
+				ResourceStatusReason: "Mark resource unhealthy by autohealing service",
+			}
+			err = stackresources.MarkUnhealthy(provider.Heat, allMapping[serverID].StackName, allMapping[serverID].StackID, allMapping[serverID].ResourceID, opts).ExtractErr()
+			if err != nil {
+				log.Errorf("failed to mark resource %s unhealthy, error: %v", serverID, err)
+			}
+		}
+
+		if err := stacks.UpdatePatch(provider.Heat, clusterStackName, cluster.StackID, stacks.UpdateOpts{}).ExtractErr(); err != nil {
+			return fmt.Errorf("failed to update Heat stack to rebuild resources, error: %v", err)
+		}
+
+		log.Infof("Started Heat stack update to rebuild resources, cluster: %s, stack: %s", clusterName, cluster.StackID)
+	}
 
 	// Remove the broken nodes from the cluster
 	for _, n := range nodes {
