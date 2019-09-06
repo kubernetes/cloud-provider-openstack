@@ -70,17 +70,52 @@ Request Body:
 
 ### Service annotations
 - loadbalancer.openstack.org/floating-network-id
+
+  The floating network id which will allocate floating ip for loadbalancer. This annotation works when the value of `service.beta.kubernetes.io/openstack-internal-load-balancer` is false.
 - loadbalancer.openstack.org/floating-subnet
+
+  A floating network can have several subnets. This annotation is one of subnets' name.
 - loadbalancer.openstack.org/floating-subnet-id
+
+  This annotation is one of subnets' id in a floating network.
 - loadbalancer.openstack.org/class
+
+  The name of a preconfigured class in the config file. The annotation of floating-subnet-id and floating-network-id won't work if you use class annotation. The next section describes how it works.
 - loadbalancer.openstack.org/subnet-id
+
+  The subnet id which loadbalancer vip will be created on it.
 - loadbalancer.openstack.org/port-id
+
+  The vip port id for loadbalancer.
 - loadbalancer.openstack.org/connection-limit
+
+  The maximum number of connections per second allowed for the listener. Positive integer or -1 for unlimited (default).
 - loadbalancer.openstack.org/keep-floatingip
+
+  If 'true', the floating ip will **NOT** be deleted. Default is false.
 - loadbalancer.openstack.org/proxy-protocol
+
+  If 'true', the protocol for listener will be set as `PROXY`. Default is 'false'.
 - loadbalancer.openstack.org/x-forwarded-for
 
   If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request.
+- loadbalancer.openstack.org/timeout-client-data
+
+  Frontend client inactivity timeout in milliseconds for the load balancer.
+
+- loadbalancer.openstack.org/timeout-member-connect
+
+  Backend member connection timeout in milliseconds for the load balancer.
+- loadbalancer.openstack.org/timeout-member-data
+
+  Backend member inactivity timeout in milliseconds for the load balancer.
+- loadbalancer.openstack.org/timeout-tcp-inspect
+
+  Time to wait for additional TCP packets for content inspection in milliseconds for the load balancer.
+- service.beta.kubernetes.io/openstack-internal-load-balancer
+
+  If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is false.
+
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
@@ -137,7 +172,26 @@ spec:
 ```
 
 ### Creating Service by specifying a floating IP
-TBD
+If you want the Service to be exposed to the public internet. One of the way is specifying a floating ip for your service.
+You need to set `loadBalancerIP` in service spec. Here is an example below.
+```shell
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
+    loadbalancer.openstack.org/floating-network-id: "9be23551-38e2-4d27-b5ea-ea2ea1321bd6"
+  name: nginx-internet
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  loadBalancerIP: 122.112.219.229
+  selector:
+    app: nginx
+  type: LoadBalancer
+```
+Please make sure 122.112.219.229 is available or not allocated, otherwise the Service creation will fail.
 
 ## Issues
 TBD
