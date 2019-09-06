@@ -30,6 +30,7 @@ type registerPlugin func(config interface{}) (HealthCheck, error)
 // NodeInfo is a wrapper of Node, may contains more information in future.
 type NodeInfo struct {
 	KubeNode apiv1.Node
+	IsWorker bool
 }
 
 type HealthCheck interface {
