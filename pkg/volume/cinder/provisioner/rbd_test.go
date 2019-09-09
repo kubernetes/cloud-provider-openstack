@@ -19,7 +19,7 @@ package provisioner
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
@@ -73,14 +73,14 @@ var _ = Describe("Rbd Mapper", func() {
 		var (
 			mapper  rbdMapper
 			conn    volumeservice.VolumeConnection
-			options controller.VolumeOptions
+			options controller.ProvisionOptions
 			source  *v1.PersistentVolumeSource
 			err     error
 		)
 
 		BeforeEach(func() {
 			conn = createRbdConnectionInfo()
-			options = createVolumeOptions()
+			options = createProvisionOptions()
 			mapper = rbdMapper{}
 		})
 
@@ -149,7 +149,7 @@ var _ = Describe("Rbd Mapper", func() {
 
 		Context("when called to setup", func() {
 			It("should do nothing and always succeed", func() {
-				err = mapper.AuthSetup(&cinderProvisioner{}, controller.VolumeOptions{},
+				err = mapper.AuthSetup(&cinderProvisioner{}, controller.ProvisionOptions{},
 					volumeservice.VolumeConnection{})
 				Expect(err).To(BeNil())
 			})

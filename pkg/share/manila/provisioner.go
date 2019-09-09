@@ -21,7 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/pborman/uuid"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
@@ -42,7 +42,7 @@ func NewProvisioner(c clientset.Interface) *Provisioner {
 }
 
 // Provision a share in Manila service
-func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.PersistentVolume, error) {
+func (p *Provisioner) Provision(volOptions controller.ProvisionOptions) (*v1.PersistentVolume, error) {
 	if volOptions.PVC.Spec.Selector != nil {
 		return nil, fmt.Errorf("claim Selector is not supported")
 	}

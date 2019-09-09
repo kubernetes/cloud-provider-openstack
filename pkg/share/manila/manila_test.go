@@ -25,7 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	th "github.com/gophercloud/gophercloud/testhelper"
 	fakeclient "github.com/gophercloud/gophercloud/testhelper/client"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
@@ -137,7 +137,7 @@ func TestCreateShare(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
 
-	volOptions := controller.VolumeOptions{PVC: &v1.PersistentVolumeClaim{}}
+	volOptions := controller.ProvisionOptions{PVC: &v1.PersistentVolumeClaim{}}
 	volOptions.PVC.Name = "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264"
 	volOptions.PVC.Namespace = "default"
 	volOptions.PVC.Spec.Resources.Requests = make(v1.ResourceList)

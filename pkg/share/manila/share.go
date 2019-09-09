@@ -21,7 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
@@ -48,7 +48,7 @@ const (
 
 func createShare(
 	volumeHandle string,
-	volOptions *controller.VolumeOptions,
+	volOptions *controller.ProvisionOptions,
 	shareOptions *shareoptions.ShareOptions,
 	client *gophercloud.ServiceClient,
 ) (*shares.Share, error) {
@@ -106,7 +106,7 @@ func getShare(shareOptions *shareoptions.ShareOptions, client *gophercloud.Servi
 }
 
 func buildCreateRequest(
-	volOptions *controller.VolumeOptions,
+	volOptions *controller.ProvisionOptions,
 	shareOptions *shareoptions.ShareOptions,
 	volumeHandle string,
 ) (*shares.CreateOpts, error) {
@@ -135,7 +135,7 @@ func buildPersistentVolume(
 	share *shares.Share,
 	accessRight *shares.AccessRight,
 	volSource *v1.PersistentVolumeSource,
-	volOptions *controller.VolumeOptions,
+	volOptions *controller.ProvisionOptions,
 	shareSecretRef *v1.SecretReference,
 	shareOptions *shareoptions.ShareOptions,
 ) *v1.PersistentVolume {
@@ -157,7 +157,7 @@ func buildPersistentVolume(
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
-			PersistentVolumeReclaimPolicy: volOptions.PersistentVolumeReclaimPolicy,
+			PersistentVolumeReclaimPolicy: *volOptions.StorageClass.ReclaimPolicy,
 			AccessModes:                   getPVAccessMode(volOptions.PVC.Spec.AccessModes),
 			Capacity:                      v1.ResourceList{v1.ResourceStorage: resource.MustParse(fmt.Sprintf("%dG", share.Size))},
 			PersistentVolumeSource:        *volSource,
