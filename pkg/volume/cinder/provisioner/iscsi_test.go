@@ -19,7 +19,7 @@ package provisioner
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
@@ -30,7 +30,7 @@ var _ = Describe("Iscsi Mapper", func() {
 			secretName string
 			conn       volumeservice.VolumeConnection
 		)
-		options := createVolumeOptions()
+		options := createProvisionOptions()
 
 		JustBeforeEach(func() {
 			secretName = getChapSecretName(conn, options)
@@ -63,7 +63,7 @@ var _ = Describe("Iscsi Mapper", func() {
 			secretName string
 			conn       volumeservice.VolumeConnection
 		)
-		options := controller.VolumeOptions{
+		options := controller.ProvisionOptions{
 			PVName: "myPV",
 		}
 
@@ -102,7 +102,7 @@ var _ = Describe("Iscsi Mapper", func() {
 			cb      *fakeClusterBroker
 			mapper  iscsiMapper
 			conn    volumeservice.VolumeConnection
-			options controller.VolumeOptions
+			options controller.ProvisionOptions
 			err     error
 		)
 
@@ -110,7 +110,7 @@ var _ = Describe("Iscsi Mapper", func() {
 			cb = &fakeClusterBroker{}
 			mapper = iscsiMapper{cb: cb}
 			conn = createIscsiConnectionInfo()
-			options = createVolumeOptions()
+			options = createProvisionOptions()
 		})
 
 		JustBeforeEach(func() {

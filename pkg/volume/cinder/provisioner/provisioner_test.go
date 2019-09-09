@@ -23,7 +23,7 @@ import (
 	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
@@ -35,7 +35,7 @@ var _ = Describe("Provisioner", func() {
 			err           error
 			p             cinderProvisioner
 			cb            *fakeClusterBroker
-			options       controller.VolumeOptions
+			options       controller.ProvisionOptions
 			createOptions volumes_v2.CreateOpts
 			sourcePVC     *v1.PersistentVolumeClaim
 			sourceVolID   string
@@ -43,7 +43,7 @@ var _ = Describe("Provisioner", func() {
 		BeforeEach(func() {
 			cb = &fakeClusterBroker{}
 			p = cinderProvisioner{cb: cb}
-			options = createVolumeOptions()
+			options = createProvisionOptions()
 			sourcePVC = createPVC("srcPVC", "1G")
 			sourceVolID = "src-vol-id"
 		})
@@ -53,7 +53,7 @@ var _ = Describe("Provisioner", func() {
 
 		Context("when an unrecognized option is specified in the storage class", func() {
 			BeforeEach(func() {
-				options.Parameters = map[string]string{
+				options.StorageClass.Parameters = map[string]string{
 					"foo": "bar",
 				}
 			})
@@ -66,7 +66,7 @@ var _ = Describe("Provisioner", func() {
 
 		Context("when recognized options are used", func() {
 			BeforeEach(func() {
-				options.Parameters = map[string]string{
+				options.StorageClass.Parameters = map[string]string{
 					"type":         "gold",
 					"availability": "zone",
 				}
@@ -82,7 +82,7 @@ var _ = Describe("Provisioner", func() {
 		Context("when a clone from a different namespace is requested", func() {
 			BeforeEach(func() {
 				options.PVC.Annotations[CloneRequestAnn] = "otherns/srcPVC"
-				options.Parameters[SmartCloneEnabled] = "true"
+				options.StorageClass.Parameters[SmartCloneEnabled] = "true"
 				sourcePVC.Annotations[CinderVolumeIDAnn] = sourceVolID
 				sourcePVC.Namespace = "otherns"
 				cb.srcPVC = sourcePVC
@@ -100,7 +100,7 @@ var _ = Describe("Provisioner", func() {
 
 			Context("when the storage class is configured for smart clone", func() {
 				BeforeEach(func() {
-					options.Parameters[SmartCloneEnabled] = "true"
+					options.StorageClass.Parameters[SmartCloneEnabled] = "true"
 				})
 
 				Context("when a valid source PVC is found", func() {
@@ -149,7 +149,7 @@ var _ = Describe("Provisioner", func() {
 			vsb     *fakeVolumeServiceBroker
 			mb      *fakeMapperBroker
 			cb      *fakeClusterBroker
-			options controller.VolumeOptions
+			options controller.ProvisionOptions
 			cleanup string
 			err     error
 		)
@@ -162,7 +162,7 @@ var _ = Describe("Provisioner", func() {
 			p.vsb = vsb
 			p.mb = mb
 			p.cb = cb
-			options = createVolumeOptions()
+			options = createProvisionOptions()
 			cb.srcPVC = createPVC("srcPVC", "1G")
 			cb.srcPVC.Annotations[CinderVolumeIDAnn] = "src-vol-id"
 			cb.curPVC = options.PVC
@@ -191,7 +191,7 @@ var _ = Describe("Provisioner", func() {
 
 		Context("when an unrecognized option is specified in the storage class", func() {
 			BeforeEach(func() {
-				options.Parameters = map[string]string{
+				options.StorageClass.Parameters = map[string]string{
 					"foo": "bar",
 				}
 			})
@@ -323,7 +323,7 @@ var _ = Describe("Provisioner", func() {
 			}
 			Context("when the storage class is configured for smart clone", func() {
 				BeforeEach(func() {
-					options.Parameters[SmartCloneEnabled] = "true"
+					options.StorageClass.Parameters[SmartCloneEnabled] = "true"
 				})
 				It("should mark the PVC as a clone", func() {
 					pvcShouldBeAnnotated(true)
@@ -516,7 +516,7 @@ func (mb *fakeMapperBroker) newVolumeMapperFromPV(pv *v1.PersistentVolume) (volu
 	return mb.FakeVolumeMapper, nil
 }
 
-func (mb *fakeMapperBroker) buildPV(m volumeMapper, p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
+func (mb *fakeMapperBroker) buildPV(m volumeMapper, p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
 	if mb.mightFail.isSet("buildPV") {
 		return nil, errors.New("injected error for testing")
 	}

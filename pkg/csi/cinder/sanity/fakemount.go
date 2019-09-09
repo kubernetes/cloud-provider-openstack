@@ -46,3 +46,7 @@ func (m *fakemount) GetDevicePath(volumeID string) (string, error) {
 func (m *fakemount) GetBaseMounter() *mount.SafeFormatAndMount {
 	return nil
 }
+
+func (_m *fakemount) GetHostUtil() mount.HostUtils {
+	return nil
+}

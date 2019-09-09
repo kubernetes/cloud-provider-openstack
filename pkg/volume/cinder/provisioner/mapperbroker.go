@@ -17,7 +17,7 @@ limitations under the License.
 package provisioner
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
@@ -25,7 +25,7 @@ import (
 type mapperBroker interface {
 	newVolumeMapperFromConnection(conn volumeservice.VolumeConnection) (volumeMapper, error)
 	newVolumeMapperFromPV(pv *v1.PersistentVolume) (volumeMapper, error)
-	buildPV(m volumeMapper, p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error)
+	buildPV(m volumeMapper, p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error)
 }
 
 type volumeMapperBroker struct {
@@ -40,6 +40,6 @@ func (mb *volumeMapperBroker) newVolumeMapperFromPV(pv *v1.PersistentVolume) (vo
 	return newVolumeMapperFromPV(pv)
 }
 
-func (mb *volumeMapperBroker) buildPV(m volumeMapper, p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
+func (mb *volumeMapperBroker) buildPV(m volumeMapper, p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
 	return buildPV(m, p, options, conn, volumeID)
 }
