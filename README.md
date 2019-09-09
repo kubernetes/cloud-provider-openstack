@@ -21,7 +21,7 @@ Please Refer [Getting Started Guide](/docs/getting-started-provider-dev.md/) for
 
 ## Contact
 
-* Please join us on [Kubernetes Slack](https://kubernetes.slack.com/messages/cloud-provider-openstack)
+* Please join us on [Kubernetes Slack](https://kubernetes.slack.com/messages/provider-openstack)
 * [SIG OpenStack Mailing List](https://groups.google.com/forum/#!forum/kubernetes-sig-openstack)
 
 ## License
