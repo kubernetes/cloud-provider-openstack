@@ -45,6 +45,8 @@ Identity v2 API.
 
 ‡ Block Storage v3 API support was added in Kubernetes 1.9.
 
+  *NOTE*: Cinder CSI Supports Block Storage V3 API only.
+
 § Load Balancing v1 API support was removed in Kubernetes 1.9.
 
 Service discovery is achieved by listing the service catalog managed by
