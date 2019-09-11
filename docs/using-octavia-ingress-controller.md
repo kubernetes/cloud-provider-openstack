@@ -136,6 +136,7 @@ spec:
   selector:
     matchLabels:
       k8s-app: octavia-ingress-controller
+  serviceName: octavia-ingress-controller
   template:
     metadata:
       labels:
