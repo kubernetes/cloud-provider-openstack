@@ -236,7 +236,16 @@ func (volumes *VolumesV3) expandVolume(volumeID string, newSize int) error {
 	createOpts := volumeexpand.ExtendSizeOpts{
 		NewSize: newSize,
 	}
+
+	// save initial microversion
+	mv := volumes.blockstorage.Microversion
+	volumes.blockstorage.Microversion = "3.42"
+
 	err := volumeexpand.ExtendSize(volumes.blockstorage, volumeID, createOpts).ExtractErr()
+
+	// restore initial microversion
+	volumes.blockstorage.Microversion = mv
+
 	timeTaken := time.Since(startTime).Seconds()
 	recordOpenstackOperationMetric("expand_volume", timeTaken, err)
 	return err
@@ -346,10 +355,6 @@ func (os *OpenStack) ExpandVolume(volumeID string, oldSize resource.Quantity, ne
 	if err != nil {
 		return oldSize, err
 	}
-	if volume.Status != volumeAvailableStatus {
-		// cinder volume can not be expanded if its status is not available
-		return oldSize, fmt.Errorf("volume status is not available")
-	}
 
 	// Cinder works with gigabytes, convert to GiB with rounding up
 	volSizeGiB, err := volumeutil.RoundUpToGiBInt(newSize)
@@ -366,6 +371,17 @@ func (os *OpenStack) ExpandVolume(volumeID string, oldSize resource.Quantity, ne
 	volumes, err := os.volumeService("")
 	if err != nil {
 		return oldSize, err
+	}
+
+	if volume.Status != volumeAvailableStatus {
+		if _, ok := volumes.(*VolumesV3); !ok {
+			// cinder volume can not be expanded if cinder API is not v3
+			return oldSize, fmt.Errorf("volume status is not available")
+		}
+		if volume.Status != volumeInUseStatus {
+			// cinder volume can not be expanded if volume status is not volumeInUseStatus or volumeAvailableStatus
+			return oldSize, fmt.Errorf("volume status is %s", volume.Status)
+		}
 	}
 
 	err = volumes.expandVolume(volumeID, volSizeGiB)
