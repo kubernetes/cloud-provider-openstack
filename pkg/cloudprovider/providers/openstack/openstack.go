@@ -182,8 +182,8 @@ type OpenStack struct {
 type Config struct {
 	Global struct {
 		AuthURL                     string `gcfg:"auth-url"`
-		Username                    string
 		UserID                      string `gcfg:"user-id"`
+		Username                    string
 		Password                    string
 		TenantID                    string `gcfg:"tenant-id"`
 		TenantName                  string `gcfg:"tenant-name"`
@@ -192,6 +192,8 @@ type Config struct {
 		DomainName                  string `gcfg:"domain-name"`
 		TenantDomainID              string `gcfg:"tenant-domain-id"`
 		TenantDomainName            string `gcfg:"tenant-domain-name"`
+		UserDomainID                string `gcfg:"user-domain-id"`
+		UserDomainName              string `gcfg:"user-domain-name"`
 		Region                      string
 		CAFile                      string `gcfg:"ca-file"`
 		UseClouds                   bool   `gcfg:"use-clouds"`
@@ -211,15 +213,24 @@ type Config struct {
 
 func logcfg(cfg Config) {
 	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthURL)
-	klog.V(5).Infof("Username: %s", cfg.Global.Username)
 	klog.V(5).Infof("UserID: %s", cfg.Global.UserID)
+	klog.V(5).Infof("Username: %s", cfg.Global.Username)
 	klog.V(5).Infof("TenantID: %s", cfg.Global.TenantID)
 	klog.V(5).Infof("TenantName: %s", cfg.Global.TenantName)
-	klog.V(5).Infof("DomainName: %s", cfg.Global.DomainName)
-	klog.V(5).Infof("DomainID: %s", cfg.Global.DomainID)
 	klog.V(5).Infof("TrustID: %s", cfg.Global.TrustID)
+	klog.V(5).Infof("DomainID: %s", cfg.Global.DomainID)
+	klog.V(5).Infof("DomainName: %s", cfg.Global.DomainName)
+	klog.V(5).Infof("TenantDomainID: %s", cfg.Global.TenantDomainID)
+	klog.V(5).Infof("TenantDomainName: %s", cfg.Global.TenantDomainName)
+	klog.V(5).Infof("UserDomainID: %s", cfg.Global.UserDomainID)
+	klog.V(5).Infof("UserDomainName: %s", cfg.Global.UserDomainName)
 	klog.V(5).Infof("Region: %s", cfg.Global.Region)
 	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.V(5).Infof("UseClouds: %t", cfg.Global.UseClouds)
+	klog.V(5).Infof("CloudsFile: %s", cfg.Global.CloudsFile)
+	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
+	klog.V(5).Infof("ApplicationCredentialID: %s", cfg.Global.ApplicationCredentialID)
+	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
 }
 
 func init() {
@@ -227,7 +238,6 @@ func init() {
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
-		logcfg(cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -240,74 +250,77 @@ func init() {
 }
 
 func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint:            cfg.Global.AuthURL,
-		Username:                    cfg.Global.Username,
-		UserID:                      cfg.Global.UserID,
-		Password:                    cfg.Global.Password,
-		TenantID:                    cfg.Global.TenantID,
-		TenantName:                  cfg.Global.TenantName,
-		DomainID:                    cfg.Global.DomainID,
-		DomainName:                  cfg.Global.DomainName,
-		ApplicationCredentialID:     cfg.Global.ApplicationCredentialID,
-		ApplicationCredentialName:   cfg.Global.ApplicationCredentialName,
-		ApplicationCredentialSecret: cfg.Global.ApplicationCredentialSecret,
-
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
+	opts := clientconfig.ClientOpts{
+		// this is needed to disable the clientconfig.AuthOptions func env detection
+		EnvPrefix: "_",
+		Cloud:     cfg.Global.Cloud,
+		AuthInfo: &clientconfig.AuthInfo{
+			AuthURL:                     cfg.Global.AuthURL,
+			UserID:                      cfg.Global.UserID,
+			Username:                    cfg.Global.Username,
+			Password:                    cfg.Global.Password,
+			ProjectID:                   cfg.Global.TenantID,
+			ProjectName:                 cfg.Global.TenantName,
+			DomainID:                    cfg.Global.DomainID,
+			DomainName:                  cfg.Global.DomainName,
+			ProjectDomainID:             cfg.Global.TenantDomainID,
+			ProjectDomainName:           cfg.Global.TenantDomainName,
+			UserDomainID:                cfg.Global.UserDomainID,
+			UserDomainName:              cfg.Global.UserDomainName,
+			ApplicationCredentialID:     cfg.Global.ApplicationCredentialID,
+			ApplicationCredentialName:   cfg.Global.ApplicationCredentialName,
+			ApplicationCredentialSecret: cfg.Global.ApplicationCredentialSecret,
+		},
 	}
+
+	ao, err := clientconfig.AuthOptions(&opts)
+	if err != nil {
+		klog.V(1).Infof("Error parsing auth: %s", err)
+		return gophercloud.AuthOptions{}
+	}
+
+	// Persistent service, so we need to be able to renew tokens.
+	ao.AllowReauth = true
+
+	return *ao
 }
 
 func (cfg Config) toAuth3Options() tokens3.AuthOptions {
-	// Setting up a scope
-	scope := tokens3.Scope{}
+	ao := cfg.toAuthOptions()
 
-	// Gophercloud requires that either ProjectID or ProjectName is specified,
-	// but not both.
-	if cfg.Global.TenantID != "" {
-		scope.ProjectID = cfg.Global.TenantID
-	} else {
-		scope.ProjectName = cfg.Global.TenantName
-
-		// If Tenant Domain Name/ID was provided, then use it for the scope, otherwise
-		// fall back to Domain Name/ID
-		if cfg.Global.TenantDomainID != "" {
-			scope.DomainID = cfg.Global.TenantDomainID
-		} else {
-			scope.DomainID = cfg.Global.DomainID
-		}
-		if cfg.Global.TenantDomainName != "" {
-			scope.DomainName = cfg.Global.TenantDomainName
-		} else {
-			scope.DomainName = cfg.Global.DomainName
-		}
+	var scope tokens3.Scope
+	if ao.Scope != nil {
+		scope.ProjectID = ao.Scope.ProjectID
+		scope.ProjectName = ao.Scope.ProjectName
+		scope.DomainID = ao.Scope.DomainID
+		scope.DomainName = ao.Scope.DomainName
 	}
 
 	return tokens3.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-		Scope:            scope,
-		AllowReauth:      true,
+		IdentityEndpoint:            ao.IdentityEndpoint,
+		UserID:                      ao.UserID,
+		Username:                    ao.Username,
+		Password:                    ao.Password,
+		DomainID:                    ao.DomainID,
+		DomainName:                  ao.DomainName,
+		ApplicationCredentialID:     ao.ApplicationCredentialID,
+		ApplicationCredentialName:   ao.ApplicationCredentialName,
+		ApplicationCredentialSecret: ao.ApplicationCredentialSecret,
+		Scope:                       scope,
+		AllowReauth:                 ao.AllowReauth,
 	}
 }
 
 // configFromEnv allows setting up credentials etc using the
 // standard OS_* OpenStack client environment variables.
 // TODO: Replace this with gophercloud upstream once community moves away from cloud.conf
-func configFromEnv() (cfg Config, ok bool) {
+func configFromEnv() Config {
+	var cfg Config
+
 	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
+	cfg.Global.UserID = os.Getenv("OS_USER_ID")
 	cfg.Global.Username = os.Getenv("OS_USERNAME")
 	cfg.Global.Password = os.Getenv("OS_PASSWORD")
-	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
-	cfg.Global.UserID = os.Getenv("OS_USER_ID")
-	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
-	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
-	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
-	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
 
 	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
 	if cfg.Global.TenantID == "" {
@@ -318,41 +331,17 @@ func configFromEnv() (cfg Config, ok bool) {
 		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
 	}
 
+	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
 	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
-	if cfg.Global.DomainID == "" {
-		cfg.Global.DomainID = os.Getenv("OS_USER_DOMAIN_ID")
-	}
 	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
-	if cfg.Global.DomainName == "" {
-		cfg.Global.DomainName = os.Getenv("OS_USER_DOMAIN_NAME")
-	}
-
 	cfg.Global.TenantDomainID = os.Getenv("OS_PROJECT_DOMAIN_ID")
 	cfg.Global.TenantDomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
-
-	ok = cfg.Global.AuthURL != "" &&
-		((cfg.Global.Username != "" && cfg.Global.Password != "") ||
-			((cfg.Global.ApplicationCredentialID != "" || cfg.Global.ApplicationCredentialName != "") && cfg.Global.ApplicationCredentialSecret != "")) &&
-		(cfg.Global.TenantID != "" || cfg.Global.TenantName != "" ||
-			cfg.Global.DomainID != "" || cfg.Global.DomainName != "" ||
-			cfg.Global.Region != "" || cfg.Global.UserID != "" ||
-			cfg.Global.TrustID != "")
-
-	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
-	cfg.BlockStorage.BSVersion = "auto"
-	cfg.Networking.IPv6SupportDisabled = false
-	cfg.Networking.PublicNetworkName = "public"
-
-	return
-}
-
-// ReadConfig reads values from environment variables and the cloud.conf, prioritizing cloud-config
-func ReadConfig(config io.Reader) (Config, error) {
-	if config == nil {
-		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
-	}
-
-	cfg, _ := configFromEnv()
+	cfg.Global.UserDomainID = os.Getenv("OS_USER_DOMAIN_ID")
+	cfg.Global.UserDomainName = os.Getenv("OS_USER_DOMAIN_NAME")
+	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
+	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
+	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
+	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
 
 	// Set default values for config params
 	cfg.BlockStorage.BSVersion = "auto"
@@ -363,7 +352,24 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.Networking.PublicNetworkName = "public"
 	cfg.LoadBalancer.InternalLB = false
 
+	return cfg
+}
+
+// ReadConfig reads values from environment variables and the cloud.conf, prioritizing cloud-config
+func ReadConfig(config io.Reader) (Config, error) {
+	if config == nil {
+		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
+	}
+
+	cfg := configFromEnv()
+	klog.V(5).Infof("Config, loaded from the environment variables:")
+	logcfg(cfg)
+
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
+
+	klog.V(5).Infof("Config, loaded from the config file:")
+	logcfg(cfg)
+
 	if cfg.Global.UseClouds {
 		if cfg.Global.CloudsFile != "" {
 			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
@@ -372,6 +378,8 @@ func ReadConfig(config io.Reader) (Config, error) {
 		if err != nil {
 			return Config{}, err
 		}
+		klog.V(5).Infof("Config, loaded from the %s:", cfg.Global.CloudsFile)
+		logcfg(cfg)
 	}
 	return cfg, err
 }
@@ -397,15 +405,22 @@ func ReadClouds(cfg *Config) error {
 	}
 
 	cfg.Global.AuthURL = replaceEmpty(cfg.Global.AuthURL, cloud.AuthInfo.AuthURL)
-	cfg.Global.Username = replaceEmpty(cfg.Global.Username, cloud.AuthInfo.Username)
 	cfg.Global.UserID = replaceEmpty(cfg.Global.UserID, cloud.AuthInfo.UserID)
+	cfg.Global.Username = replaceEmpty(cfg.Global.Username, cloud.AuthInfo.Username)
 	cfg.Global.Password = replaceEmpty(cfg.Global.Password, cloud.AuthInfo.Password)
 	cfg.Global.TenantID = replaceEmpty(cfg.Global.TenantID, cloud.AuthInfo.ProjectID)
 	cfg.Global.TenantName = replaceEmpty(cfg.Global.TenantName, cloud.AuthInfo.ProjectName)
-	cfg.Global.DomainID = replaceEmpty(cfg.Global.DomainID, cloud.AuthInfo.UserDomainID)
-	cfg.Global.DomainName = replaceEmpty(cfg.Global.DomainName, cloud.AuthInfo.UserDomainName)
+	cfg.Global.DomainID = replaceEmpty(cfg.Global.DomainID, cloud.AuthInfo.DomainID)
+	cfg.Global.DomainName = replaceEmpty(cfg.Global.DomainName, cloud.AuthInfo.DomainName)
+	cfg.Global.TenantDomainID = replaceEmpty(cfg.Global.TenantDomainID, cloud.AuthInfo.ProjectDomainID)
+	cfg.Global.TenantDomainName = replaceEmpty(cfg.Global.TenantDomainName, cloud.AuthInfo.ProjectDomainName)
+	cfg.Global.UserDomainID = replaceEmpty(cfg.Global.UserDomainID, cloud.AuthInfo.UserDomainID)
+	cfg.Global.UserDomainName = replaceEmpty(cfg.Global.UserDomainName, cloud.AuthInfo.UserDomainName)
 	cfg.Global.Region = replaceEmpty(cfg.Global.Region, cloud.RegionName)
 	cfg.Global.CAFile = replaceEmpty(cfg.Global.CAFile, cloud.CACertFile)
+	cfg.Global.ApplicationCredentialID = replaceEmpty(cfg.Global.ApplicationCredentialID, cloud.AuthInfo.ApplicationCredentialID)
+	cfg.Global.ApplicationCredentialName = replaceEmpty(cfg.Global.ApplicationCredentialName, cloud.AuthInfo.ApplicationCredentialName)
+	cfg.Global.ApplicationCredentialSecret = replaceEmpty(cfg.Global.ApplicationCredentialSecret, cloud.AuthInfo.ApplicationCredentialSecret)
 
 	return nil
 }
@@ -489,8 +504,8 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		config := &tls.Config{}
 		config.RootCAs = roots
 		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
-
 	}
+
 	if cfg.Global.TrustID != "" {
 		opts := cfg.toAuth3Options()
 		authOptsExt := trusts.AuthOptsExt{
@@ -498,11 +513,9 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 			AuthOptionsBuilder: &opts,
 		}
 		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
-	} else if cfg.Global.TenantDomainID != "" || cfg.Global.TenantDomainName != "" {
-		opts := cfg.toAuth3Options()
-		err = openstack.AuthenticateV3(provider, &opts, gophercloud.EndpointOpts{})
 	} else {
-		err = openstack.Authenticate(provider, cfg.toAuthOptions())
+		opts := cfg.toAuthOptions()
+		err = openstack.AuthenticateV3(provider, &opts, gophercloud.EndpointOpts{})
 	}
 
 	if err != nil {

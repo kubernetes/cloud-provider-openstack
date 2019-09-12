@@ -286,7 +286,6 @@ func TestToAuthOptions(t *testing.T) {
 	cfg := Config{}
 	cfg.Global.Username = "user"
 	cfg.Global.Password = "pass"
-	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 	cfg.Global.DomainName = "local"
 	cfg.Global.AuthURL = "http://auth.url"
 	cfg.Global.UserID = "user"
@@ -302,20 +301,26 @@ func TestToAuthOptions(t *testing.T) {
 	if ao.Password != cfg.Global.Password {
 		t.Errorf("Password %s != %s", ao.Password, cfg.Global.Password)
 	}
-	if ao.DomainID != cfg.Global.DomainID {
-		t.Errorf("DomainID %s != %s", ao.DomainID, cfg.Global.DomainID)
-	}
 	if ao.IdentityEndpoint != cfg.Global.AuthURL {
 		t.Errorf("IdentityEndpoint %s != %s", ao.IdentityEndpoint, cfg.Global.AuthURL)
 	}
 	if ao.UserID != cfg.Global.UserID {
 		t.Errorf("UserID %s != %s", ao.UserID, cfg.Global.UserID)
 	}
-	if ao.DomainName != cfg.Global.DomainName {
-		t.Errorf("DomainName %s != %s", ao.DomainName, cfg.Global.DomainName)
+	if ao.Scope.DomainName != cfg.Global.DomainName {
+		t.Errorf("DomainName %s != %s", ao.Scope.DomainName, cfg.Global.DomainName)
 	}
 	if ao.TenantID != cfg.Global.TenantID {
 		t.Errorf("TenantID %s != %s", ao.TenantID, cfg.Global.TenantID)
+	}
+
+	// test setting of the DomainID
+	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
+
+	ao = cfg.toAuthOptions()
+
+	if ao.Scope.DomainID != cfg.Global.DomainID {
+		t.Errorf("DomainID %s != %s", ao.Scope.DomainID, cfg.Global.DomainID)
 	}
 }
 
@@ -723,22 +728,16 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 }
 
 func TestNewOpenStack(t *testing.T) {
-	cfg, ok := configFromEnv()
-	if !ok {
-		t.Skip("No config found in environment")
-	}
+	cfg := configFromEnv()
 
 	_, err := NewOpenStack(cfg)
 	if err != nil {
-		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
+		testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
 	}
 }
 
 func TestLoadBalancer(t *testing.T) {
-	cfg, ok := configFromEnv()
-	if !ok {
-		t.Skip("No config found in environment")
-	}
+	cfg := configFromEnv()
 
 	versions := []string{"v2"}
 
@@ -748,7 +747,7 @@ func TestLoadBalancer(t *testing.T) {
 
 		os, err := NewOpenStack(cfg)
 		if err != nil {
-			t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
+			testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
 		}
 
 		lb, ok := os.LoadBalancer()
@@ -805,14 +804,11 @@ func TestZones(t *testing.T) {
 var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
 
 func TestVolumes(t *testing.T) {
-	cfg, ok := configFromEnv()
-	if !ok {
-		t.Skip("No config found in environment")
-	}
+	cfg := configFromEnv()
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {
-		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
+		testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
 	}
 
 	tags := map[string]string{
@@ -982,7 +978,7 @@ func TestToAuth3OptionsScope(t *testing.T) {
 		t.Errorf("DomainName %s != %s", ao.Scope.DomainName, cfg.Global.DomainName)
 	}
 	if ao.Scope.DomainID != cfg.Global.DomainID {
-		t.Errorf("DomainID %s != %s", ao.Scope.DomainName, cfg.Global.DomainID)
+		t.Errorf("DomainID %s != %s", ao.Scope.DomainID, cfg.Global.DomainID)
 	}
 
 	// Use Tenant Domain Name/ID if set
@@ -1090,4 +1086,11 @@ func resetEnviron(t *testing.T, items []string) {
 			}
 		}
 	}
+}
+
+func testConfigFromEnv(t *testing.T, msg string, err error) {
+	if err.Error() == "You must provide a password to authenticate" {
+		t.Skip("No config found in environment")
+	}
+	t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 }
