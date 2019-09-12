@@ -129,19 +129,28 @@ with information about domain: `domain-id` or `domain-name`.
   to.
 * `tenant-domain-name`: Used to specify the name of the domain your project
   belongs to.
+* `user-domain-id`: Used to specify the ID of the domain your user belongs to.
+* `user-domain-name`: Used to specify the name of the domain your user belongs
+  to.
 * `trust-id`: Used to specify the identifier of the trust to use for
   authorization. A trust represents a user's (the trustor) authorization to
   delegate roles to another user (the trustee), and optionally allow the trustee
   to impersonate the trustor. Available trusts are found under the
   `/v3/OS-TRUST/trusts` endpoint of the Keystone API.
-* `UseClouds`: Set this flag to `true` to get authorization credentials from a clouds.yaml file. Options manually set in the `[Global]` section of $CLOUD_CONFIG file will be prioritized over values read from clouds.yaml. The recommended usage is to set the option `CloudsFile` with the path to your clouds.yaml file. However, by default a clouds.yaml file will be looked for in the following locations, in order, if it is not set:
+* `use-clouds`: Set this flag to `true` to get authorization credentials from a clouds.yaml file. Options manually set in the `[Global]` section of $CLOUD_CONFIG file will be prioritized over values read from clouds.yaml. The recommended usage is to set the option `CloudsFile` with the path to your clouds.yaml file. However, by default a clouds.yaml file will be looked for in the following locations, in order, if it is not set:
     1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
     2. The directory `pkg/cloudprovider/providers/openstack/`
     3. The directory `~/.config/openstack`
     4. The directory `/etc/openstack`
-* `CloudsFile`: Used to specify the path to a clouds.yaml file that you want read authorization data from
-* `Cloud`: Used to specify which named cloud in the clouds.yaml file that you want to use
-
+* `clouds-file`: Used to specify the path to a clouds.yaml file that you want read authorization data from
+* `cloud`: Used to specify which named cloud in the clouds.yaml file that you want to use
+* `application-credential-id`: The ID of an application credential to
+  authenticate with. An `application-credential-secret` has to bet set along
+  with this parameter.
+* `application-credential-name`: The name of an application credential to
+  authenticate with.
+* `application-credential-secret`: The secret of an application credential to
+  authenticate with.
 
 ####  Networking
 
