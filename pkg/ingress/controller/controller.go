@@ -36,7 +36,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	extlisters "k8s.io/client-go/listers/extensions/v1beta1"
+	extlisters "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
@@ -236,7 +236,7 @@ func NewController(conf config.Config) *Controller {
 		kubeClient:          kubeClient,
 	}
 
-	ingInformer := kubeInformerFactory.Extensions().V1beta1().Ingresses()
+	ingInformer := kubeInformerFactory.Networking().V1beta1().Ingresses()
 	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*nwv1beta1.Ingress)
