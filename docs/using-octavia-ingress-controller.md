@@ -25,8 +25,19 @@ The octavia-ingress-controller could solve all the above problems in the OpenSta
 
 ```yaml
 annotations:
-  kubernetes.io/ingress.class: "openstack"
+ kubernetes.io/ingress.class: "openstack"
 ```
+
+## Requirements
+
+octavia-ingress-controller implementation relies on load balancer management by OpenStack Octavia service, so:
+
+- Communication between octavia-ingress-controller and Octavia is needed.
+- Octavia stable/queens or higher version is required because of some needed features such as bulk pool members operation.
+
+## Caveats
+
+- TLS Ingress is not supported for now, although it's possible to integrate with OpenStack Barbican for the implementation.
 
 ## Deploy octavia-ingress-controller in the Kubernetes cluster
 
