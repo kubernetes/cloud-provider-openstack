@@ -41,9 +41,30 @@ Key | For backend | Required | Default Value | Description
 ## Authentication with Manila v2 client
 The provisioner authenticates to the OpenStack Manila service with the credentials supplied from the Kubernetes Secret object referenced by `osSecretNamespace` : `osSecretName`. One can authenticate either as a user or as a trustee, with each of those having its own set of parameters. Note that if the Secret object is created from a manifest, the Secret's values need to be encoded in base64.
 
-Available Secret parameters: `os-authURL`, `os-region`, `os-certAuthority`, `os-TLSInsecure`, `os-userID`, `os-userName`, `os-password`, `os-projectID`, `os-projectName`, `os-domainID`, `os-domainName`, `os-trustID`, `os-trusteeID` and `os-trusteePassword`.
+Available Secret parameters:
+* `os-authURL`
+* `os-region`
+* `os-certAuthority`
+* `os-TLSInsecure`
+* `os-userID`
+* `os-userName`
+* `os-password`
+* `os-projectID`
+* `os-projectName`
+* `os-domainID`
+* `os-domainName`
+* `os-projectDomainID`
+* `os-projectDomainName`
+* `os-userDomainID`
+* `os-userDomainName`
+* `os-trustID`
+* `os-trusteeID`
+* `os-trusteePassword`
+* `os-applicationCredentialID`
+* `os-applicationCredentialName`
+* `os-applicationCredentialSecret`
 
-Parameters `os-authURL` and `os-region` are required for both user and trustee authentication.
+Parameters `os-authURL` and `os-region` are required.
 
 Optionally, you can supply a custom certificate via `os-certAuthority` secret parameter (PEM file contents). By default, the usual TLS verification is performed. To override this behaviour and accept insecure certificates, set `os-TLSInsecure` to `true` (optional, defaults to `false`).
 
@@ -68,3 +89,6 @@ Required parameters:
 
 Requires `os-trustID`, `os-trusteeID` and `os-trusteePassword`.
 
+**Application credential authentication**
+
+Requires `os-applicationCredentialID` or `os-applicationCredentialName` (when `os-userID` or `os-userName` and `os-domainName` are set) and `os-applicationCredentialSecret`.

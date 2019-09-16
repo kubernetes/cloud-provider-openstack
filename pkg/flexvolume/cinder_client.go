@@ -26,7 +26,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	gcfg "gopkg.in/gcfg.v1"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
-	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
@@ -39,22 +38,6 @@ type openStackConfig struct {
 	openstack_provider.Config
 	RBD struct {
 		Keyring string `gcfg:"keyring"`
-	}
-}
-
-func (cfg openStackConfig) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantID,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
 	}
 }
 
@@ -82,14 +65,10 @@ func newCinderClient(configFile string) (*cinderClient, error) {
 		return nil, err
 	}
 
-	provider, err := openstack.AuthenticatedClient(cfg.toAuthOptions())
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.Config.Global, "cinder-flex-volume-driver")
 	if err != nil {
 		return nil, err
 	}
-
-	userAgent := gophercloud.UserAgent{}
-	userAgent.Prepend(fmt.Sprintf("cinder-flex-volume-driver/%s", version.Version))
-	provider.UserAgent = userAgent
 
 	client, err := openstack.NewBlockStorageV2(provider, gophercloud.EndpointOpts{
 		Region: cfg.Global.Region,

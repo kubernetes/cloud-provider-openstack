@@ -25,6 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 var fakeFileName = "cloud.conf"
@@ -67,25 +68,20 @@ region=` + fakeRegion + `
 	expectedOpts := Config{}
 	expectedOpts.Global.Username = fakeUserName
 	expectedOpts.Global.Password = fakePassword
-	expectedOpts.Global.DomainId = fakeDomainID
-	expectedOpts.Global.AuthUrl = fakeAuthUrl
+	expectedOpts.Global.DomainID = fakeDomainID
+	expectedOpts.Global.AuthURL = fakeAuthUrl
 	expectedOpts.Global.CAFile = fakeCAfile
-	expectedOpts.Global.TenantId = fakeTenantID
+	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
 
-	expectedEpOpts := gophercloud.EndpointOpts{
-		Region: fakeRegion,
-	}
-
 	// Invoke GetConfigFromFile
-	actualAuthOpts, actualEpOpts, err := GetConfigFromFile(fakeFileName)
+	actualAuthOpts, err := GetConfigFromFile(fakeFileName)
 	if err != nil {
 		t.Errorf("failed to GetConfigFromFile: %v", err)
 	}
 
 	// Assert
 	assert.Equal(expectedOpts, actualAuthOpts)
-	assert.Equal(expectedEpOpts, actualEpOpts)
 }
 
 // Test GetConfigFromEnv
@@ -110,20 +106,18 @@ func TestGetConfigFromEnv(t *testing.T) {
 		Password:         fakePassword,
 		TenantID:         fakeTenantID,
 		DomainID:         fakeDomainID,
-	}
-	expectedEpOpts := gophercloud.EndpointOpts{
-		Region: fakeRegion,
+		AllowReauth:      true,
+		Scope: &gophercloud.AuthScope{
+			ProjectID: fakeTenantID,
+		},
 	}
 
-	// Invoke GetConfigFromEnv
-	actualAuthOpts, actualEpOpts, err := GetConfigFromEnv()
-	if err != nil {
-		t.Errorf("failed to GetConfigFromEnv: %v", err)
-	}
+	// Invoke openstack_provider.ConfigFromEnv
+	actualAuthOpts := openstack_provider.ConfigFromEnv()
 
 	// Assert
-	assert.Equal(expectedAuthOpts, actualAuthOpts)
-	assert.Equal(expectedEpOpts, actualEpOpts)
+	assert.Equal(fakeRegion, actualAuthOpts.Global.Region)
+	assert.Equal(expectedAuthOpts, actualAuthOpts.Global.ToAuthOptions())
 }
 
 func TestUserAgentFlag(t *testing.T) {

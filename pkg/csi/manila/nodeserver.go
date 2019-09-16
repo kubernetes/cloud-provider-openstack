@@ -26,6 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -47,7 +48,7 @@ type stageCacheEntry struct {
 	publishSecret map[string]string
 }
 
-func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *options.OpenstackOptions) (
+func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *openstack_provider.AuthOpts) (
 	volumeContext map[string]string, accessRight *shares.AccessRight, err error,
 ) {
 	manilaClient, err := ns.d.manilaClientBuilder.New(osOpts)

@@ -17,26 +17,19 @@ limitations under the License.
 package volumeservice
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"net/http"
 	"os"
 	"reflect"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/noauth"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/spf13/pflag"
 	"gopkg.in/gcfg.v1"
 
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 
-	netutil "k8s.io/apimachinery/pkg/util/net"
-	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog"
 )
 
@@ -55,61 +48,8 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 }
 
-func (cfg cinderConfig) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantID,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
-	}
-}
-
-func (cfg cinderConfig) toAuth3Options() tokens3.AuthOptions {
-	return tokens3.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-		AllowReauth:      true,
-	}
-}
-
 func getConfigFromEnv() cinderConfig {
-	var cfg cinderConfig
-
-	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
-	cfg.Global.Username = os.Getenv("OS_USERNAME")
-	cfg.Global.Password = os.Getenv("OS_PASSWORD")
-	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
-	cfg.Global.UserID = os.Getenv("OS_USER_ID")
-	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
-
-	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
-	if cfg.Global.TenantID == "" {
-		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
-	}
-	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
-	if cfg.Global.TenantName == "" {
-		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
-	}
-
-	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
-	if cfg.Global.DomainID == "" {
-		cfg.Global.DomainID = os.Getenv("OS_USER_DOMAIN_ID")
-	}
-	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
-	if cfg.Global.DomainName == "" {
-		cfg.Global.DomainName = os.Getenv("OS_USER_DOMAIN_NAME")
-	}
+	cfg := cinderConfig{Config: openstack_provider.ConfigFromEnv()}
 
 	cfg.Cinder.Endpoint = os.Getenv("OS_CINDER_ENDPOINT")
 	return cfg
@@ -143,40 +83,7 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 }
 
 func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, error) {
-	provider, err := openstack.NewClient(cfg.Global.AuthURL)
-	if err != nil {
-		return nil, err
-	}
-
-	userAgent := gophercloud.UserAgent{}
-	userAgent.Prepend(fmt.Sprintf("cinder-provisioner/%s", version.Version))
-	for _, data := range userAgentData {
-		userAgent.Prepend(data)
-	}
-	provider.UserAgent = userAgent
-
-	if cfg.Global.CAFile != "" {
-		var roots *x509.CertPool
-		roots, err = certutil.NewPool(cfg.Global.CAFile)
-		if err != nil {
-			return nil, err
-		}
-		config := &tls.Config{}
-		config.RootCAs = roots
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
-
-	}
-	if cfg.Global.TrustID != "" {
-		opts := cfg.toAuth3Options()
-		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.Global.TrustID,
-			AuthOptionsBuilder: &opts,
-		}
-		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
-	} else {
-		err = openstack.Authenticate(provider, cfg.toAuthOptions())
-	}
-
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.Config.Global, "cinder-provisioner", userAgentData...)
 	if err != nil {
 		return nil, err
 	}

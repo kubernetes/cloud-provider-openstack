@@ -17,48 +17,18 @@ limitations under the License.
 package shareoptions
 
 import (
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
 )
 
-// OpenStackOptions contains fields used for authenticating to OpenStack
-type OpenStackOptions struct {
-	// Common options
-
-	OSAuthURL    string `name:"os-authURL" dependsOn:"os-password|os-trustID"`
-	OSRegionName string `name:"os-region"`
-
-	OSCertAuthority string `name:"os-certAuthority" value:"optional"`
-	OSTLSInsecure   string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority" matches:"^true|false$"`
-
-	// User authentication
-
-	OSPassword string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
-	OSUserID   string `name:"os-userID" value:"optional" dependsOn:"os-password"`
-	OSUsername string `name:"os-userName" value:"optional" dependsOn:"os-password"`
-
-	OSDomainID   string `name:"os-domainID" value:"optional" dependsOn:"os-password"`
-	OSDomainName string `name:"os-domainName" value:"optional" dependsOn:"os-password"`
-
-	OSProjectID   string `name:"os-projectID" value:"optional" dependsOn:"os-password"`
-	OSProjectName string `name:"os-projectName" value:"optional" dependsOn:"os-password"`
-
-	// Trustee authentication
-
-	OSTrustID         string `name:"os-trustID" value:"optional" dependsOn:"os-trusteeID,os-trusteePassword"`
-	OSTrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
-	OSTrusteePassword string `name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
-}
-
 var (
-	osOptionsValidator = validator.New(&OpenStackOptions{})
+	osOptionsValidator = validator.New(&openstack_provider.AuthOpts{})
 )
 
 // NewOpenStackOptionsFromSecret reads k8s secrets, validates and populates OpenStackOptions
-func NewOpenStackOptionsFromSecret(c clientset.Interface, secretRef *v1.SecretReference) (*OpenStackOptions, error) {
+func NewOpenStackOptionsFromSecret(c clientset.Interface, secretRef *v1.SecretReference) (*openstack_provider.AuthOpts, error) {
 	params, err := readSecrets(c, secretRef)
 	if err != nil {
 		return nil, err
@@ -68,37 +38,7 @@ func NewOpenStackOptionsFromSecret(c clientset.Interface, secretRef *v1.SecretRe
 }
 
 // NewOpenStackOptionsFromMap validates and populates OpenStackOptions
-func NewOpenStackOptionsFromMap(params map[string]string) (*OpenStackOptions, error) {
-	opts := &OpenStackOptions{}
+func NewOpenStackOptionsFromMap(params map[string]string) (*openstack_provider.AuthOpts, error) {
+	opts := &openstack_provider.AuthOpts{}
 	return opts, osOptionsValidator.Populate(params, opts)
-}
-
-// ToAuthOptions converts OpenStackOptions to gophercloud.AuthOptions
-func (o *OpenStackOptions) ToAuthOptions() *gophercloud.AuthOptions {
-	authOpts := &gophercloud.AuthOptions{
-		IdentityEndpoint: o.OSAuthURL,
-		UserID:           o.OSUserID,
-		Username:         o.OSUsername,
-		Password:         o.OSPassword,
-		TenantID:         o.OSProjectID,
-		TenantName:       o.OSProjectName,
-		DomainID:         o.OSDomainID,
-		DomainName:       o.OSDomainName,
-	}
-
-	if o.OSTrustID != "" {
-		// gophercloud doesn't have dedicated options for trustee credentials
-		authOpts.UserID = o.OSTrusteeID
-		authOpts.Password = o.OSTrusteePassword
-	}
-
-	return authOpts
-}
-
-// ToAuthOptionsExt converts OpenStackOptions to trusts.AuthOptsExt
-func (o *OpenStackOptions) ToAuthOptionsExt() *trusts.AuthOptsExt {
-	return &trusts.AuthOptsExt{
-		AuthOptionsBuilder: o.ToAuthOptions(),
-		TrustID:            o.OSTrustID,
-	}
 }

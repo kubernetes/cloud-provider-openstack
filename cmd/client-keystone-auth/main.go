@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/spf13/pflag"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -196,11 +196,12 @@ func main() {
 			}
 		} else {
 			// Use environment variables if arguments are missing
-			options.AuthOptions, err = openstack.AuthOptionsFromEnv()
+			authOpts, err := clientconfig.AuthOptions(nil)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s\n", err)
 				os.Exit(1)
 			}
+			options.AuthOptions = *authOpts
 		}
 	} else {
 		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
