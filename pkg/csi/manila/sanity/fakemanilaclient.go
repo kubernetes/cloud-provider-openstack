@@ -23,8 +23,8 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 )
 
 var (
@@ -39,7 +39,7 @@ var (
 
 type fakeManilaClientBuilder struct{}
 
-func (b fakeManilaClientBuilder) New(o *options.OpenstackOptions) (manilaclient.Interface, error) {
+func (b fakeManilaClientBuilder) New(o *openstack_provider.AuthOpts) (manilaclient.Interface, error) {
 	return &fakeManilaClient{}, nil
 }
 

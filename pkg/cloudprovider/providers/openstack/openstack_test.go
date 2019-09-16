@@ -290,7 +290,7 @@ func TestToAuthOptions(t *testing.T) {
 	cfg.Global.AuthURL = "http://auth.url"
 	cfg.Global.UserID = "user"
 
-	ao := cfg.toAuthOptions()
+	ao := cfg.Global.ToAuthOptions()
 
 	if !ao.AllowReauth {
 		t.Errorf("Will need to be able to reauthenticate")
@@ -317,7 +317,7 @@ func TestToAuthOptions(t *testing.T) {
 	// test setting of the DomainID
 	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 
-	ao = cfg.toAuthOptions()
+	ao = cfg.Global.ToAuthOptions()
 
 	if ao.Scope.DomainID != cfg.Global.DomainID {
 		t.Errorf("DomainID %s != %s", ao.Scope.DomainID, cfg.Global.DomainID)
@@ -728,7 +728,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 }
 
 func TestNewOpenStack(t *testing.T) {
-	cfg := configFromEnv()
+	cfg := ConfigFromEnv()
 
 	_, err := NewOpenStack(cfg)
 	if err != nil {
@@ -737,7 +737,7 @@ func TestNewOpenStack(t *testing.T) {
 }
 
 func TestLoadBalancer(t *testing.T) {
-	cfg := configFromEnv()
+	cfg := ConfigFromEnv()
 
 	versions := []string{"v2"}
 
@@ -804,7 +804,7 @@ func TestZones(t *testing.T) {
 var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
 
 func TestVolumes(t *testing.T) {
-	cfg := configFromEnv()
+	cfg := ConfigFromEnv()
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {
@@ -927,7 +927,7 @@ func TestToAuth3Options(t *testing.T) {
 	cfg.Global.TenantName = "demo"
 	cfg.Global.TenantDomainName = "Default"
 
-	ao := cfg.toAuth3Options()
+	ao := cfg.Global.ToAuth3Options()
 
 	if !ao.AllowReauth {
 		t.Errorf("Will need to be able to reauthenticate")
@@ -969,7 +969,7 @@ func TestToAuth3OptionsScope(t *testing.T) {
 	cfg.Global.UserID = "user"
 	cfg.Global.TenantName = "demo"
 
-	ao := cfg.toAuth3Options()
+	ao := cfg.Global.ToAuth3Options()
 
 	if ao.Scope.ProjectName != cfg.Global.TenantName {
 		t.Errorf("TenantName %s != %s", ao.Scope.ProjectName, cfg.Global.TenantName)
@@ -993,7 +993,7 @@ func TestToAuth3OptionsScope(t *testing.T) {
 	cfg.Global.TenantDomainName = "Default"
 	cfg.Global.TenantDomainID = "default"
 
-	ao = cfg.toAuth3Options()
+	ao = cfg.Global.ToAuth3Options()
 
 	if ao.Scope.ProjectName != cfg.Global.TenantName {
 		t.Errorf("TenantName %s != %s", ao.Scope.ProjectName, cfg.Global.TenantName)
@@ -1017,7 +1017,7 @@ func TestToAuth3OptionsScope(t *testing.T) {
 	cfg.Global.TenantDomainName = "Default"
 	cfg.Global.TenantDomainID = "default"
 
-	ao = cfg.toAuth3Options()
+	ao = cfg.Global.ToAuth3Options()
 
 	if ao.Scope.ProjectName != "" {
 		t.Errorf("TenantName in the scope  is not empty")

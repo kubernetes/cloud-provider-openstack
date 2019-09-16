@@ -19,8 +19,7 @@ package config
 import (
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 // Config struct contains ingress controller configuration
@@ -47,7 +46,7 @@ type Config struct {
 	Kubernetes kubeConfig `mapstructure:"kubernetes"`
 
 	// (Required) OpenStack related configuration.
-	OpenStack osConfig `mapstructure:"openstack"`
+	OpenStack openstack_provider.AuthOpts `mapstructure:"openstack"`
 
 	// (Optional) Healthcheck configuration for master and worker.
 	HealthCheck healthCheck `mapstructure:"healthcheck"`
@@ -79,46 +78,6 @@ type kubeConfig struct {
 
 	// (Optional) Kubeconfig file used to connect to Kubernetes cluster.
 	KubeConfig string `mapstructure:"kubeconfig"`
-}
-
-// OpenStack credentials configuration, the section is required.
-type osConfig struct {
-	Username   string
-	UserID     string `mapstructure:"user-id"`
-	TrustID    string `mapstructure:"trust-id"`
-	Password   string
-	ProjectID  string `mapstructure:"project-id"`
-	AuthURL    string `mapstructure:"auth-url"`
-	Region     string
-	DomainID   string `mapstructure:"domain-id"`
-	DomainName string `mapstructure:"domain-name"`
-	CAFile     string `mapstructure:"ca-file"`
-}
-
-// ToAuthOptions gets openstack auth options
-func (cfg Config) ToAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.OpenStack.AuthURL,
-		Username:         cfg.OpenStack.Username,
-		UserID:           cfg.OpenStack.UserID,
-		Password:         cfg.OpenStack.Password,
-		TenantID:         cfg.OpenStack.ProjectID,
-		DomainID:         cfg.OpenStack.DomainID,
-		DomainName:       cfg.OpenStack.DomainName,
-		AllowReauth:      true,
-	}
-}
-
-func (cfg Config) ToV3AuthOptions() tokens.AuthOptions {
-	return tokens.AuthOptions{
-		IdentityEndpoint: cfg.OpenStack.AuthURL,
-		Username:         cfg.OpenStack.Username,
-		UserID:           cfg.OpenStack.UserID,
-		Password:         cfg.OpenStack.Password,
-		DomainID:         cfg.OpenStack.DomainID,
-		DomainName:       cfg.OpenStack.DomainName,
-		AllowReauth:      true,
-	}
 }
 
 // NewConfig defines the default values for Config
