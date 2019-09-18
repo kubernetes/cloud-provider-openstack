@@ -267,7 +267,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:08ea11524c106b664f4fd84f2734f318dda486b4b4a9e78c55fb4dcb9d4129a8"
+  digest = "1:53093afbce1ea4297c7083d9ee45a49e38904b95a4178ab15ccb4688e5bfc27b"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -291,6 +291,7 @@
     "openstack/identity/v3/extensions/trusts",
     "openstack/identity/v3/tokens",
     "openstack/keymanager/v1/secrets",
+    "openstack/loadbalancer/v2/apiversions",
     "openstack/loadbalancer/v2/l7policies",
     "openstack/loadbalancer/v2/listeners",
     "openstack/loadbalancer/v2/loadbalancers",
@@ -318,7 +319,7 @@
     "testhelper/client",
   ]
   pruneopts = "UT"
-  revision = "aa85070daf8982f91c77f1aa4269c4f52bf7b4b6"
+  revision = "3d65851f4b6868efed5114aeb499305b0ff86870"
 
 [[projects]]
   branch = "master"
@@ -1718,6 +1719,7 @@
     "github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts",
     "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens",
     "github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets",
+    "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/apiversions",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners",
     "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers",

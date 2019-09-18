@@ -48,7 +48,9 @@ import (
 	"k8s.io/klog"
 
 	v1service "k8s.io/cloud-provider-openstack/pkg/api/v1/service"
+	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
@@ -923,12 +925,15 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 	}
 
+	var listenerAllowedCIDRs []string
 	sourceRanges, err := v1service.GetLoadBalancerSourceRanges(apiService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
-
-	if !v1service.IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
+	if lbaas.opts.UseOctavia && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
+		klog.V(4).Info("loadBalancerSourceRanges is suppported")
+		listenerAllowedCIDRs = sourceRanges.StringSlice()
+	} else if !v1service.IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
 		return nil, fmt.Errorf("source range restrictions are not supported for openstack load balancers without managing security groups")
 	}
 
@@ -1010,55 +1015,56 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				LoadbalancerID: loadbalancer.ID,
 			}
 
-			if timeoutClientData, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutClientData); ok {
-				listenerCreateOpt.TimeoutClientData = &timeoutClientData
-			}
-			if timeoutMemberData, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberData); ok {
-				listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
-			}
-			if timeoutMemberConnect, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberConnect); ok {
-				listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
-			}
-			if timeoutTCPInspect, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutTCPInspect); ok {
-				listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
-			}
-
-			if keepClientIP {
-				listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
+			if lbaas.opts.UseOctavia {
+				if timeoutClientData, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutClientData); ok {
+					listenerCreateOpt.TimeoutClientData = &timeoutClientData
+				}
+				if timeoutMemberData, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberData); ok {
+					listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
+				}
+				if timeoutMemberConnect, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberConnect); ok {
+					listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
+				}
+				if timeoutTCPInspect, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutTCPInspect); ok {
+					listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
+				}
+				if keepClientIP {
+					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
+				}
+				if len(listenerAllowedCIDRs) > 0 {
+					listenerCreateOpt.AllowedCIDRs = listenerAllowedCIDRs
+				}
 			}
 
 			klog.V(4).Infof("Creating listener for port %d using protocol: %s", int(port.Port), listenerProtocol)
 
-			listener, err = listeners.Create(lbaas.lb, listenerCreateOpt).Extract()
+			listener, err = openstackutil.CreateListener(lbaas.lb, loadbalancer.ID, listenerCreateOpt)
 			if err != nil {
-				// Unknown error, retry later
-				return nil, fmt.Errorf("error creating LB listener: %v", err)
+				return nil, fmt.Errorf("failed to create listener for loadbalancer %s: %v", loadbalancer.ID, err)
 			}
-			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-			if err != nil {
-				return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after creating listener, current provisioning status %s", provisioningStatus)
-			}
+
+			klog.V(4).Infof("Listener %s created for loadbalancer %s", listener.ID, loadbalancer.ID)
 		} else {
+			listenerChanged := false
+			updateOpts := listeners.UpdateOpts{}
+
 			if connLimit != listener.ConnLimit {
-				klog.V(4).Infof("Updating listener connection limit from %d to %d", listener.ConnLimit, connLimit)
+				updateOpts.ConnLimit = &connLimit
+				listenerChanged = true
+			}
+			if !cpoutil.StringListEqual(listenerAllowedCIDRs, listener.AllowedCIDRs) {
+				updateOpts.AllowedCIDRs = listenerAllowedCIDRs
+				listenerChanged = true
+			}
 
-				updateOpts := listeners.UpdateOpts{
-					ConnLimit: &connLimit,
+			if listenerChanged {
+				if err := openstackutil.UpdateListener(lbaas.lb, loadbalancer.ID, listener.ID, updateOpts); err != nil {
+					return nil, fmt.Errorf("failed to update listener %s of loadbalancer %s: %v", listener.ID, loadbalancer.ID, err)
 				}
 
-				_, err := listeners.Update(lbaas.lb, listener.ID, updateOpts).Extract()
-				if err != nil {
-					return nil, fmt.Errorf("error updating LB listener: %v", err)
-				}
-
-				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-				if err != nil {
-					return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after updating listener, current provisioning status %s", provisioningStatus)
-				}
+				klog.V(4).Infof("Listener %s updated for loadbalancer %s", listener.ID, loadbalancer.ID)
 			}
 		}
-
-		klog.V(4).Infof("Listener %s created", listener.ID)
 
 		// After all ports have been processed, remaining listeners are removed as obsolete.
 		// Pop valid listeners.
