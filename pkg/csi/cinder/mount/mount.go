@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/mount"
+	"k8s.io/kubernetes/pkg/volume/util/hostutil"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -40,7 +41,7 @@ const (
 )
 
 type IMount interface {
-	GetHostUtil() mount.HostUtils
+	GetHostUtil() hostutil.HostUtils
 	GetBaseMounter() *mount.SafeFormatAndMount
 	ScanForAttach(devicePath string) error
 	GetDevicePath(volumeID string) (string, error)
@@ -50,6 +51,8 @@ type IMount interface {
 	Mount(source string, target string, fstype string, options []string) error
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
+	MakeFile(pathname string) error
+	MakeDir(pathname string) error
 }
 
 type Mount struct {
@@ -76,8 +79,8 @@ func (m *Mount) GetBaseMounter() *mount.SafeFormatAndMount {
 
 }
 
-func (m *Mount) GetHostUtil() mount.HostUtils {
-	hostutil := mount.NewHostUtil()
+func (m *Mount) GetHostUtil() hostutil.HostUtils {
+	hostutil := hostutil.NewHostUtil()
 	return hostutil
 }
 
@@ -242,6 +245,29 @@ func (m *Mount) GetInstanceID() (string, error) {
 		}
 	}
 	return "", err
+}
+
+// MakeDir creates dir
+func (m *Mount) MakeDir(pathname string) error {
+	err := os.MkdirAll(pathname, os.FileMode(0755))
+	if err != nil {
+		if !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// MakeFile creates an empty file
+func (m *Mount) MakeFile(pathname string) error {
+	f, err := os.OpenFile(pathname, os.O_CREATE, os.FileMode(0644))
+	defer f.Close()
+	if err != nil {
+		if !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func IsCorruptedMnt(err error) bool {
