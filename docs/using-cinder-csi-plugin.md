@@ -7,10 +7,10 @@
 CSI version | Cinder CSI Plugin Version | Kubernetes Version
 :------     | :------------             | :-----------
 v1.1.0 |  v1.0.0, v1.1.0  docker image: k8scloudprovider/cinder-csi-plugin:latest | v1.15+
-v1.0.0 |  v1.0.0  docker image: k8scloudprovider/cinder-csi-plugin:1.14 | v1.13
+v1.0.0 |  v1.0.0  docker image: k8scloudprovider/cinder-csi-plugin:v1.14 | v1.13, v1.14
 v0.3.0 |  v0.3.0 docker image: k8scloudprovider/cinder-csi-plugin:1.13.x| v1.11, v1.12, v1.13
-v0.2.0 |  v0.2.0 docker image: k8scloudprovider/cinder-csi-plugin:0.2.0 | v1.10, v1.9
-v0.1.0 |  v0.1.0 docker image: k8scloudprovider/cinder-csi-plugin:0.1.0| v1.9
+v0.2.0 |  v0.2.0 docker image: k8scloudprovider/cinder-csi-plugin:v0.2.0 | v1.10, v1.9
+v0.1.0 |  v0.1.0 docker image: k8scloudprovider/cinder-csi-plugin:v0.1.0| v1.9
 
 For sidecar version compatibility , please refer compatibility matrix for each sidecar here -
 https://kubernetes-csi.github.io/docs/sidecar-containers.html
