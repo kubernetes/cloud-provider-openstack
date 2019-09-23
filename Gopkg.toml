@@ -54,39 +54,39 @@
 
 [[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/cloud-provider"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/component-base"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[override]]
   name = "k8s.io/kube-controller-manager"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.16.0-beta.1"
+  version = "kubernetes-1.16.0"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  version = "v1.16.0-beta.1"
+  version = "v1.16.0"
 
 [[constraint]]
   name = "sigs.k8s.io/sig-storage-lib-external-provisioner"
@@ -135,9 +135,6 @@ name = "gopkg.in/fsnotify.v1"
 source = "https://github.com/fsnotify/fsnotify.git"
 version="v1.4.7"
 
-[[override]]
-name = "k8s.io/kube-openapi"
-revision = "33be087ad058f99c78e067996202b60230737e49"
 
 [[override]]
 name = "k8s.io/utils"
@@ -146,6 +143,14 @@ revision = "581e00157fb1a0435d4fac54a52d1ca1e481d60e"
 [[override]]
 name = "github.com/prometheus/client_golang"
 version = "v0.9.2"
+
+[[override]]
+name = "github.com/coreos/etcd"
+version = "v3.3.15"
+
+[[override]]
+name = "k8s.io/kube-openapi"
+revision = "0270cf2f1c1d995d34b36019a6f65d58e6e33ad4"
 
 [prune]
   go-tests = true

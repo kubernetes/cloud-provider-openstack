@@ -3,6 +3,7 @@ package sanity
 import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/kubernetes/pkg/util/mount"
+	"k8s.io/kubernetes/pkg/volume/util/hostutil"
 )
 
 type fakemount struct {
@@ -47,6 +48,15 @@ func (m *fakemount) GetBaseMounter() *mount.SafeFormatAndMount {
 	return nil
 }
 
-func (_m *fakemount) GetHostUtil() mount.HostUtils {
+func (m *fakemount) GetHostUtil() hostutil.HostUtils {
+	return nil
+}
+
+func (m *fakemount) MakeDir(pathname string) error {
+	return nil
+}
+
+// MakeFile creates an empty file
+func (m *fakemount) MakeFile(pathname string) error {
 	return nil
 }
