@@ -127,11 +127,11 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if !exists {
-		if err := m.GetHostUtil().MakeDir(podVolumePath); err != nil {
+		if err := m.MakeDir(podVolumePath); err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not create dir %q: %v", podVolumePath, err)
 		}
 	}
-	err = m.GetHostUtil().MakeFile(targetPath)
+	err = m.MakeFile(targetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
 	}
