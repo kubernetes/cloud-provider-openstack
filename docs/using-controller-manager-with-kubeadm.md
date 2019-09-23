@@ -56,6 +56,7 @@
    Update `cloud.conf` configuration in `manifests/controller-manager/cloud-config-secret.yaml`:
 
     ```shell
+    export CLOUD_CONFIG=/etc/kubernetes/cloud-config
     kubectl create secret -n kube-system generic cloud-config --from-literal=cloud.conf="$(cat $CLOUD_CONFIG)" --dry-run -o yaml > manifests/controller-manager/cloud-config-secret.yaml
     kubectl -f manifests/controller-manager/cloud-config-secret.yaml apply
     ```
