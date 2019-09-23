@@ -35,7 +35,7 @@ spec:
       serviceAccount: csi-cinder-controller-sa
       containers:
         - name: csi-attacher
-          image: quay.io/k8scsi/csi-attacher:v1.2.0
+          image: quay.io/k8scsi/csi-attacher:v1.2.1
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -69,7 +69,7 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
         - name: csi-resizer
-          image: quay.io/k8scsi/csi-resizer:canary
+          image: quay.io/k8scsi/csi-resizer:v0.2.0
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
