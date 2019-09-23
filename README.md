@@ -3,7 +3,7 @@
 
 Thank you for visiting the `Cloud Provider OpenStack` repository!
 
-This Repository hosts various plugins relavant to OpenStack and Kubernetes Integration
+This Repository hosts various plugins relevant to OpenStack and Kubernetes Integration
 
 * [OpenStack Cloud Controller Manager](/docs/openstack-cloud-controller-manager.md/)
 * [Octavia Ingress Controller](/docs/using-octavia-ingress-controller.md/)
