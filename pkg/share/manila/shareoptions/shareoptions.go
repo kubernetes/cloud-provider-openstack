@@ -43,6 +43,8 @@ type ShareOptions struct {
 	OSShareName     string `name:"osShareName" value:"optional" dependsOn:"osShareAccessID"`
 	OSShareAccessID string `name:"osShareAccessID" value:"optional" dependsOn:"osShareID|osShareName"`
 
+	AppendShareMetadata string `name:"appendShareMetadata" value:"optional"`
+
 	// Backend options
 
 	CSICEPHFSdriver  string `name:"csi-driver" value:"requiredIf:backend=^csi-cephfs$"`
