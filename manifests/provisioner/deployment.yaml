@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: standalone-cinder-provisioner
-        image: docker.io/k8scloudprovider/cinder-provisioner:latest
+        image: docker.io/k8scloudprovider/cinder-provisioner:v1.16.0
         imagePullPolicy: IfNotPresent
         env:
         - name: OS_AUTH_URL

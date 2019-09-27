@@ -65,7 +65,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "manila-csi-plugin:latest"
+          image: "manila-csi-plugin:v1.16.0"
           args:
             - "--v=5"
             - "--nodeid=$(NODE_ID)"
