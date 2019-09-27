@@ -12,7 +12,6 @@ import (
 var s = new(KMSserver)
 
 func TestInitConfig(t *testing.T) {
-
 }
 
 func TestVersion(t *testing.T) {
@@ -38,5 +37,4 @@ func TestEncryptDecrypt(t *testing.T) {
 		t.Log(err)
 		t.FailNow()
 	}
-
 }

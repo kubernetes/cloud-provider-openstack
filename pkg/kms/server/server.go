@@ -29,7 +29,6 @@ type KMSserver struct {
 }
 
 func initConfig(configFilePath string, cfg *barbican.Config) error {
-
 	config, err := os.Open(configFilePath)
 	defer config.Close()
 	if err != nil {
@@ -44,15 +43,20 @@ func initConfig(configFilePath string, cfg *barbican.Config) error {
 
 // Run Grpc server for barbican KMS
 func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (err error) {
-
 	klog.Infof("Barbican KMS Plugin Starting Version: %s, RunTimeVersion: %s", version, runtimeversion)
 	s := new(KMSserver)
 	err = initConfig(configFilePath, &s.cfg)
-	s.barbican = &barbican.Barbican{}
 	if err != nil {
 		klog.V(4).Infof("Error in Getting Config File: %v", err)
 		return err
 	}
+
+	client, err := barbican.NewBarbicanClient(s.cfg)
+	if err != nil {
+		klog.V(4).Infof("Failed to get Barbican client: %v", err)
+		return err
+	}
+	s.barbican = &barbican.Barbican{Client: client}
 
 	// unlink the unix socket
 	if err = unix.Unlink(socketpath); err != nil {
@@ -82,7 +86,6 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 
 // Version returns KMS service version
 func (s *KMSserver) Version(ctx context.Context, req *pb.VersionRequest) (*pb.VersionResponse, error) {
-
 	klog.V(4).Infof("Version Information Requested by Kubernetes api server")
 
 	res := &pb.VersionResponse{
@@ -96,10 +99,9 @@ func (s *KMSserver) Version(ctx context.Context, req *pb.VersionRequest) (*pb.Ve
 
 // Decrypt decrypts the cipher
 func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.DecryptResponse, error) {
-
 	klog.V(4).Infof("Decrypt Request by Kubernetes api server")
 
-	key, err := s.barbican.GetSecret(s.cfg)
+	key, err := s.barbican.GetSecret(s.cfg.KeyManager.KeyID)
 	if err != nil {
 		klog.V(4).Infof("Failed to get key %v: ", err)
 		return nil, err
@@ -116,10 +118,9 @@ func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.De
 
 // Encrypt encrypts DEK
 func (s *KMSserver) Encrypt(ctx context.Context, req *pb.EncryptRequest) (*pb.EncryptResponse, error) {
-
 	klog.V(4).Infof("Encrypt Request by Kubernetes api server")
 
-	key, err := s.barbican.GetSecret(s.cfg)
+	key, err := s.barbican.GetSecret(s.cfg.KeyManager.KeyID)
 
 	if err != nil {
 		klog.V(4).Infof("Failed to get key %v: ", err)
