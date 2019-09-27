@@ -197,7 +197,7 @@ type AuthOpts struct {
 	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 
 	// Manila only options
-	TLSInsecure string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority|os-certAuthorityPath" matches:"^true|false$"`
+	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
 	// backward compatibility with the manila-csi-plugin
 	CAFileContents  string `name:"os-certAuthority" value:"optional"`
 	TrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
@@ -522,12 +522,12 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		}
 	}
 
+	config := &tls.Config{}
 	if caPool != nil {
-		config := &tls.Config{}
 		config.RootCAs = caPool
-		config.InsecureSkipVerify = cfg.TLSInsecure == "true"
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
+	config.InsecureSkipVerify = cfg.TLSInsecure == "true"
+	provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 
 	if cfg.TrustID != "" {
 		opts := cfg.ToAuth3Options()
