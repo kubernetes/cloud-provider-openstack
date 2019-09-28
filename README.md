@@ -10,7 +10,7 @@ This Repository hosts various plugins relavant to OpenStack and Kubernetes Integ
 * [Cinder CSI Plugin](/docs/using-cinder-csi-plugin.md/)
 * [Keystone Webhook Authentication Authorization](/docs/using-keystone-webhook-authenticator-and-authorizer.md/)
 * [Client Keystone](/docs/using-client-keystone-auth.md/)
-* [Cinder Standalone Provisioner](/docs/using-cinder-standalone-provisioner.md/)
+* [Cinder Standalone Provisioner](/docs/using-cinder-standalone-provisioner.md/)**[DEPRECATED]**
 * [Manila CSI Plugin](/docs/using-manila-csi-plugin.md/)
 * [Manila Provisioner](/docs/using-manila-provisioner.md/)
 * [Barbican KMS Plugin](/docs/using-barbican-kms-plugin.md/)
