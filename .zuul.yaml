@@ -45,15 +45,16 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-standalone-cinder:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-standalone-cinder:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
+    # Disable Standalone Cinder Driver Job as it is deprecated
+    # cloud-provider-openstack-acceptance-test-standalone-cinder:
+    #  jobs:
+    #    - cloud-provider-openstack-acceptance-test-standalone-cinder:
+    #        irrelevant-files:
+    #          - ^docs/.*$
+    #          - ^.*\.md$
+    #          - ^OWNERS$
+    #          - ^SECURITY_CONTACTS$
+    #          - ^.gitignore$
     cloud-provider-openstack-acceptance-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-cinder:
