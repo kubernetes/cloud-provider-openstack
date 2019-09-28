@@ -170,6 +170,7 @@ type ServerAttributesExt struct {
 type OpenStack struct {
 	provider       *gophercloud.ProviderClient
 	region         string
+	endpointType   gophercloud.Availability
 	lbOpts         LoadBalancerOpts
 	bsOpts         BlockStorageOpts
 	routeOpts      RouterOpts
@@ -196,6 +197,12 @@ type AuthOpts struct {
 	Region           string `name:"os-region"`
 	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 
+	EndpointType gophercloud.Availability `gcfg:"endpoint-type" mapstructure:"endpoint-type" name:"os-endpointType" value:"optional"`
+
+	ApplicationCredentialID     string `gcfg:"application-credential-id" mapstructure:"application-credential-id" name:"os-applicationCredentialID" value:"optional"`
+	ApplicationCredentialName   string `gcfg:"application-credential-name" mapstructure:"application-credential-name" name:"os-applicationCredentialName" value:"optional"`
+	ApplicationCredentialSecret string `gcfg:"application-credential-secret" mapstructure:"application-credential-secret" name:"os-applicationCredentialSecret" value:"optional"`
+
 	// Manila only options
 	TLSInsecure string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority|os-certAuthorityPath" matches:"^true|false$"`
 	// backward compatibility with the manila-csi-plugin
@@ -206,10 +213,6 @@ type AuthOpts struct {
 	UseClouds  bool   `gcfg:"use-clouds" mapstructure:"use-clouds" name:"os-useClouds" value:"optional"`
 	CloudsFile string `gcfg:"clouds-file,omitempty" mapstructure:"clouds-file,omitempty" name:"os-cloudsFile" value:"optional"`
 	Cloud      string `gcfg:"cloud,omitempty" mapstructure:"cloud,omitempty" name:"os-cloud" value:"optional"`
-
-	ApplicationCredentialID     string `gcfg:"application-credential-id" mapstructure:"application-credential-id" name:"os-applicationCredentialID" value:"optional"`
-	ApplicationCredentialName   string `gcfg:"application-credential-name" mapstructure:"application-credential-name" name:"os-applicationCredentialName" value:"optional"`
-	ApplicationCredentialSecret string `gcfg:"application-credential-secret" mapstructure:"application-credential-secret" name:"os-applicationCredentialSecret" value:"optional"`
 }
 
 // Config is used to read and store information from the cloud configuration file
@@ -238,6 +241,7 @@ func LogCfg(cfg Config) {
 	klog.V(5).Infof("UserDomainName: %s", cfg.Global.UserDomainName)
 	klog.V(5).Infof("Region: %s", cfg.Global.Region)
 	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.V(5).Infof("EndpointType: %s", cfg.Global.EndpointType)
 	klog.V(5).Infof("UseClouds: %t", cfg.Global.UseClouds)
 	klog.V(5).Infof("CloudsFile: %s", cfg.Global.CloudsFile)
 	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
@@ -354,6 +358,15 @@ func ConfigFromEnv() Config {
 	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
 	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
 	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
+
+	endpointType := os.Getenv("OS_ENDPOINT_TYPE")
+	if endpointType == "internal" || endpointType == "internalURL" {
+		cfg.Global.EndpointType = gophercloud.AvailabilityInternal
+	} else if endpointType == "admin" || endpointType == "adminURL" {
+		cfg.Global.EndpointType = gophercloud.AvailabilityAdmin
+	} else {
+		cfg.Global.EndpointType = gophercloud.AvailabilityPublic
+	}
 
 	// Set default values for config params
 	cfg.BlockStorage.BSVersion = "auto"
@@ -567,6 +580,7 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	os := OpenStack{
 		provider:       provider,
 		region:         cfg.Global.Region,
+		endpointType:   cfg.Global.EndpointType,
 		lbOpts:         cfg.LoadBalancer,
 		bsOpts:         cfg.BlockStorage,
 		routeOpts:      cfg.Route,

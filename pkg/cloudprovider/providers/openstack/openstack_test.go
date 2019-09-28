@@ -110,6 +110,7 @@ func TestReadConfig(t *testing.T) {
  tenant-name = demo
  tenant-domain-name = Default
  region = RegionOne
+ endpoint-type = admin
  [LoadBalancer]
  create-monitor = yes
  monitor-delay = 1m
@@ -148,6 +149,10 @@ func TestReadConfig(t *testing.T) {
 
 	if cfg.Global.Region != "RegionOne" {
 		t.Errorf("incorrect region: %s", cfg.Global.Region)
+	}
+
+	if cfg.Global.EndpointType != gophercloud.AvailabilityAdmin {
+		t.Errorf("incorrect endpoint type: %s", cfg.Global.EndpointType)
 	}
 
 	if !cfg.LoadBalancer.CreateMonitor {

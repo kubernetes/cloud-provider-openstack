@@ -88,10 +88,10 @@ func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, err
 		return nil, err
 	}
 
-	volumeService, err := openstack.NewBlockStorageV2(provider,
-		gophercloud.EndpointOpts{
-			Region: cfg.Global.Region,
-		})
+	volumeService, err := openstack.NewBlockStorageV2(provider, gophercloud.EndpointOpts{
+		Region:       cfg.Global.Region,
+		Availability: cfg.Global.EndpointType,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get volume service: %v", err)
 	}

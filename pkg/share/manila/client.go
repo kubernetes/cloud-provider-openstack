@@ -105,7 +105,10 @@ func NewManilaV2Client(o *openstack_provider.AuthOpts) (*gophercloud.ServiceClie
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
-	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{Region: o.Region})
+	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{
+		Region:       o.Region,
+		Availability: o.EndpointType,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
 	}

@@ -125,7 +125,8 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 	}
 
 	epOpts := gophercloud.EndpointOpts{
-		Region: cfg.Global.Region,
+		Region:       cfg.Global.Region,
+		Availability: cfg.Global.EndpointType,
 	}
 
 	// Init Nova ServiceClient

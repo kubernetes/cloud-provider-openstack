@@ -71,7 +71,8 @@ func newCinderClient(configFile string) (*cinderClient, error) {
 	}
 
 	client, err := openstack.NewBlockStorageV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.Global.Region,
+		Region:       cfg.Global.Region,
+		Availability: cfg.Global.EndpointType,
 	})
 	if err != nil {
 		return nil, err

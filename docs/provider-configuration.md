@@ -121,6 +121,9 @@ with information about domain: `domain-id` or `domain-name`.
   connotation, a deployment can use a geographical name for a region identifier
   such as `us-east`. Available regions are found under the `/v3/regions`
   endpoint of the Keystone API.
+* `endpoint_type`: Specify which type of endpoint to use from the service
+  catalog. Can be `admin`, `internal` or `public`. If not set, public endpoint
+  is used.
 * `tenant-id`: Used to specify the ID of the project where you want
   to create your resources. When using Keystone V3 - which changed the
   identifier `tenant` to `project` - the `tenant-id` value is automatically

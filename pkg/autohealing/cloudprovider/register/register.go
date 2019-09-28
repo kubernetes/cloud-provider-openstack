@@ -39,7 +39,8 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 	// get nova service client
 	var novaClient *gophercloud.ServiceClient
 	novaClient, err = gopenstack.NewComputeV2(client, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Nova service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
@@ -48,7 +49,8 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 	// get heat service client
 	var heatClient *gophercloud.ServiceClient
 	heatClient, err = gopenstack.NewOrchestrationV1(client, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Heat service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
@@ -57,7 +59,8 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 	// get magnum service client
 	var magnumClient *gophercloud.ServiceClient
 	magnumClient, err = gopenstack.NewContainerInfraV1(client, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Magnum service endpoint in the region %s: %v", cfg.OpenStack.Region, err)

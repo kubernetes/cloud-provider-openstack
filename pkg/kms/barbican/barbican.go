@@ -34,7 +34,8 @@ func newBarbicanClient(cfg Config) (client *gophercloud.ServiceClient, err error
 	}
 
 	client, err = openstack.NewKeyManagerV1(provider, gophercloud.EndpointOpts{
-		Region: cfg.Global.Region,
+		Region:       cfg.Global.Region,
+		Availability: cfg.Global.EndpointType,
 	})
 	if err != nil {
 		return nil, err

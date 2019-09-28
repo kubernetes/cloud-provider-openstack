@@ -45,7 +45,8 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 	// get octavia service client
 	var lb *gophercloud.ServiceClient
 	lb, err = openstack.NewLoadBalancerV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find octavia endpoint for region %s: %v", cfg.OpenStack.Region, err)
@@ -54,7 +55,8 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 	// get neutron service client
 	var network *gophercloud.ServiceClient
 	network, err = openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find neutron endpoint for region %s: %v", cfg.OpenStack.Region, err)
@@ -63,7 +65,8 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 	// get nova service client
 	var compute *gophercloud.ServiceClient
 	compute, err = openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find compute v2 endpoint for region %s: %v", cfg.OpenStack.Region, err)
