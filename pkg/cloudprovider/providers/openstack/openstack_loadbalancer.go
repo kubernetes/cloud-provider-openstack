@@ -119,52 +119,6 @@ func networkExtensions(client *gophercloud.ServiceClient) (map[string]bool, erro
 	return seen, err
 }
 
-func getFloatingIPByFloatingIP(client *gophercloud.ServiceClient, floatingIP string) (*floatingips.FloatingIP, error) {
-	opts := floatingips.ListOpts{
-		FloatingIP: floatingIP,
-	}
-	return getFloatingIP(client, opts)
-}
-
-func getFloatingIPByPortID(client *gophercloud.ServiceClient, portID string) (*floatingips.FloatingIP, error) {
-	opts := floatingips.ListOpts{
-		PortID: portID,
-	}
-	return getFloatingIP(client, opts)
-}
-
-func getFloatingIP(client *gophercloud.ServiceClient, opts floatingips.ListOpts) (*floatingips.FloatingIP, error) {
-	pager := floatingips.List(client, opts)
-
-	floatingIPList := make([]floatingips.FloatingIP, 0, 1)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		f, err := floatingips.ExtractFloatingIPs(page)
-		if err != nil {
-			return false, err
-		}
-		floatingIPList = append(floatingIPList, f...)
-		if len(floatingIPList) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(floatingIPList) == 0 {
-		return nil, ErrNotFound
-	} else if len(floatingIPList) > 1 {
-		return nil, ErrMultipleResults
-	}
-
-	return &floatingIPList[0], nil
-}
-
 func getLoadBalancers(client *gophercloud.ServiceClient, opts loadbalancers.ListOpts) ([]loadbalancers.LoadBalancer, error) {
 	allPages, err := loadbalancers.List(client, opts).AllPages()
 	if err != nil {
@@ -532,16 +486,18 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 
 	portID := loadbalancer.VipPortID
 	if portID != "" {
-		floatIP, err := getFloatingIPByPortID(lbaas.network, portID)
+		floatIP, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
 		if err != nil {
-			return nil, false, fmt.Errorf("error getting floating ip for port %s: %v", portID, err)
+			return nil, false, fmt.Errorf("failed when trying to get floating IP for port %s: %v", portID, err)
 		}
-		status.Ingress = []corev1.LoadBalancerIngress{{IP: floatIP.FloatingIP}}
-	} else {
-		status.Ingress = []corev1.LoadBalancerIngress{{IP: loadbalancer.VipAddress}}
+		if floatIP != nil {
+			status.Ingress = []corev1.LoadBalancerIngress{{IP: floatIP.FloatingIP}}
+		} else {
+			status.Ingress = []corev1.LoadBalancerIngress{{IP: loadbalancer.VipAddress}}
+		}
 	}
 
-	return status, true, err
+	return status, true, nil
 }
 
 // GetLoadBalancerName returns the constructed load balancer name.
@@ -1258,20 +1214,33 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		klog.V(2).Infof("Deleted obsolete listener: %s", listener.ID)
 	}
 
+	// Priority of choosing VIP port floating IP:
+	// 1. The floating IP that is already attached to the VIP port.
+	// 2. Floating IP specified in Spec.LoadBalancerIP
+	// 3. Create a new one
 	portID := loadbalancer.VipPortID
-	floatIP, err := getFloatingIPByPortID(lbaas.network, portID)
-	if err != nil && err != ErrNotFound {
-		return nil, fmt.Errorf("error getting floating ip for port %s: %v", portID, err)
+	floatIP, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
+	if err != nil {
+		return nil, fmt.Errorf("failed when getting floating IP for port %s: %v", portID, err)
 	}
+
 	if floatIP == nil && floatingPool != "" && !internalAnnotation {
 		loadBalancerIP := apiService.Spec.LoadBalancerIP
 		needCreate := true
-		// check first does floatingip exist already in project, otherwise try to create new one
+
 		if loadBalancerIP != "" {
-			floatingip, err := getFloatingIPByFloatingIP(lbaas.network, loadBalancerIP)
+			opts := floatingips.ListOpts{
+				FloatingIP: loadBalancerIP,
+			}
+			existingIPs, err := openstackutil.GetFloatingIPs(lbaas.network, opts)
 			if err != nil {
-				klog.V(4).Infof("could not find floating ip %s from project: %v", floatingip, err)
+				return nil, fmt.Errorf("failed when trying to get existing flaoting IP %s, error: %v", loadBalancerIP, err)
+			}
+
+			if len(existingIPs) == 0 {
+				klog.Infof("Could not find the given floating IP %s, will create a new one.", loadBalancerIP)
 			} else {
+				floatingip := existingIPs[0]
 				if len(floatingip.PortID) == 0 {
 					floatUpdateOpts := floatingips.UpdateOpts{
 						PortID: &portID,
@@ -1282,12 +1251,13 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 					}
 					needCreate = false
 				} else {
-					return nil, fmt.Errorf("floatingip is attached already to another port")
+					return nil, fmt.Errorf("floating IP %s is not available", loadBalancerIP)
 				}
 			}
 		}
+
 		if needCreate {
-			klog.V(4).Infof("Creating floating ip for loadbalancer %s port %s", loadbalancer.ID, portID)
+			klog.V(4).Infof("Creating floating IP for loadbalancer %s", loadbalancer.ID)
 			floatIPOpts := floatingips.CreateOpts{
 				FloatingNetworkID: floatingPool,
 				PortID:            portID,
@@ -1342,7 +1312,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 	if lbaas.opts.ManageSecurityGroups {
 		err := lbaas.ensureSecurityGroup(clusterName, apiService, nodes, loadbalancer)
 		if err != nil {
-			return status, fmt.Errorf("Error reconciling security groups for LB service %v/%v: %v", apiService.Namespace, apiService.Name, err)
+			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", apiService.Namespace, apiService.Name, err)
 		}
 	}
 
@@ -1839,15 +1809,13 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 	if !keepFloatingAnnotation {
 		if loadbalancer.VipPortID != "" {
 			portID := loadbalancer.VipPortID
-			floatingIP, err := getFloatingIPByPortID(lbaas.network, portID)
-			if err != nil && err != ErrNotFound {
-				return err
+			fip, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
+			if err != nil {
+				return fmt.Errorf("failed to get floating IP for loadbalancer VIP port %s: %v", portID, err)
 			}
-
-			if floatingIP != nil {
-				err = floatingips.Delete(lbaas.network, floatingIP.ID).ExtractErr()
-				if err != nil && !cpoerrors.IsNotFound(err) {
-					return err
+			if fip != nil {
+				if err := floatingips.Delete(lbaas.network, fip.ID).ExtractErr(); err != nil {
+					return fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
 				}
 			}
 		}
