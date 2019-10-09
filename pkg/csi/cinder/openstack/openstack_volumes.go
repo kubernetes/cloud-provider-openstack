@@ -256,8 +256,16 @@ func (os *OpenStack) ExpandVolume(volumeID string, newSize int) error {
 	createOpts := volumeexpand.ExtendSizeOpts{
 		NewSize: newSize,
 	}
+
+	// save initial microversion
+	mv := os.blockstorage.Microversion
 	os.blockstorage.Microversion = "3.42"
+
 	err := volumeexpand.ExtendSize(os.blockstorage, volumeID, createOpts).ExtractErr()
+
+	// restore initial microversion
+	os.blockstorage.Microversion = mv
+
 	return err
 }
 
