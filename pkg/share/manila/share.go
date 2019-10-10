@@ -17,8 +17,8 @@ limitations under the License.
 package manila
 
 import (
+	"encoding/json"
 	"fmt"
-
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	v1 "k8s.io/api/core/v1"
@@ -115,7 +115,24 @@ func buildCreateRequest(
 		return nil, fmt.Errorf("couldn't retrieve PVC storage size: %v", err)
 	}
 
+	var appendMetadata map[string]string
+	if shareOptions.AppendShareMetadata != "" {
+		if err = json.Unmarshal([]byte(shareOptions.AppendShareMetadata), &appendMetadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal appendShareMetadata option: %v", err)
+		}
+	}
+
 	shareName := "pvc-" + string(volOptions.PVC.GetUID())
+
+	metadata := map[string]string{
+		persistentvolume.CloudVolumeCreatedForClaimNamespaceTag: volOptions.PVC.Namespace,
+		persistentvolume.CloudVolumeCreatedForClaimNameTag:      volOptions.PVC.Name,
+		persistentvolume.CloudVolumeCreatedForVolumeNameTag:     shareName,
+	}
+
+	for k, v := range appendMetadata {
+		metadata[k] = v
+	}
 
 	return &shares.CreateOpts{
 		ShareProto:     shareOptions.Protocol,
@@ -123,11 +140,7 @@ func buildCreateRequest(
 		Size:           storageSize,
 		Name:           shareName,
 		ShareType:      shareOptions.Type,
-		Metadata: map[string]string{
-			persistentvolume.CloudVolumeCreatedForClaimNamespaceTag: volOptions.PVC.Namespace,
-			persistentvolume.CloudVolumeCreatedForClaimNameTag:      volOptions.PVC.Name,
-			persistentvolume.CloudVolumeCreatedForVolumeNameTag:     shareName,
-		},
+		Metadata:       metadata,
 	}, nil
 }
 
