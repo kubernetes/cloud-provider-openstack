@@ -28,6 +28,7 @@ Key | Required | Default value | Description
 `osShareName` | No | None | The name of an existing share. Used for static provisioning
 `osShareAccessID` | No | None | The UUID of an existing access rule to a share. Used for static provisioning
 `osShareNetworkID` | No | None | The UUID of a share network where the share server exists or will be created.
+`appendShareMetadata` | No | None | Append user-defined metadata to the provisioned share. Must contain a JSON string in format `{..., "key": "value"}`.
 
 
 **Share-backend specific options**
