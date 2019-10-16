@@ -93,7 +93,8 @@ data:
     cluster-name: ${cluster_name}
     openstack:
       auth-url: ${auth_url}
-      user-id: ${user_id}
+      domain-name: ${domain-name}
+      username: ${user_id}
       password: ${password}
       project-id: ${project_id}
       region: ${region}
