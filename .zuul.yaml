@@ -85,18 +85,6 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$              
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.13:
-            files:
-              - ^pkg/cloudprovider/.*
-              - ^Gopkg.toml$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
@@ -112,6 +100,18 @@
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
+            files:
+              - ^pkg/cloudprovider/.*
+              - ^Gopkg.toml$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
             files:
               - ^pkg/cloudprovider/.*
               - ^Gopkg.toml$
