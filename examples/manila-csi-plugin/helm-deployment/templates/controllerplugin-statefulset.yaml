@@ -70,6 +70,9 @@ spec:
             - "--drivername=$(DRIVER_NAME)"
             - "--share-protocol-selector=$(MANILA_SHARE_PROTO)"
             - "--fwdendpoint=$(FWD_CSI_ENDPOINT)"
+            {{- if .compatibilitySettings }}
+            - "--compatibility-settings={{ .compatibilitySettings }}"
+            {{- end }}
           env:
             - name: DRIVER_NAME
               value: {{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}

@@ -19,6 +19,7 @@ package manilaclient
 import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
@@ -31,6 +32,8 @@ type Interface interface {
 
 	GetExportLocations(shareID string) ([]shares.ExportLocation, error)
 
+	SetShareMetadata(shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error)
+
 	GetAccessRights(shareID string) ([]shares.AccessRight, error)
 	GrantAccess(shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error)
 
@@ -38,6 +41,10 @@ type Interface interface {
 	GetSnapshotByName(snapName string) (*snapshots.Snapshot, error)
 	CreateSnapshot(opts snapshots.CreateOptsBuilder) (*snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
+
+	GetExtraSpecs(shareTypeID string) (sharetypes.ExtraSpecs, error)
+	GetShareTypes() ([]sharetypes.ShareType, error)
+	GetShareTypeIDFromName(shareTypeName string) (string, error)
 
 	GetUserMessages(opts messages.ListOptsBuilder) ([]messages.Message, error)
 }

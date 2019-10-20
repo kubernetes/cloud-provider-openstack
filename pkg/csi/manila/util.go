@@ -19,6 +19,7 @@ package manila
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -26,6 +27,8 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"google.golang.org/grpc/codes"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/compatibility"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
@@ -180,6 +183,18 @@ func compareProtocol(protoA, protoB string) bool {
 	return strings.ToUpper(protoA) == strings.ToUpper(protoB)
 }
 
+func tryCompatForVolumeSource(compatOpts *options.CompatibilityOptions, shareOpts *options.ControllerVolumeContext, source *csi.VolumeContentSource, shareTypeCaps capabilities.ManilaCapabilities) compatibility.Layer {
+	if source != nil {
+		if source.GetSnapshot() != nil && shareTypeCaps[capabilities.ManilaCapabilitySnapshot] {
+			if createShareFromSnapshotEnabled, _ := strconv.ParseBool(compatOpts.CreateShareFromSnapshotEnabled); createShareFromSnapshotEnabled {
+				return compatibility.FindCompatibilityLayer(shareOpts.Protocol, capabilities.ManilaCapabilityShareFromSnapshot, shareTypeCaps)
+			}
+		}
+	}
+
+	return nil
+}
+
 //
 // Controller service request validation
 //
@@ -232,7 +247,7 @@ func validateCreateSnapshotRequest(req *csi.CreateSnapshotRequest) error {
 		return errors.New("secrets cannot be nil or empty")
 	}
 
-	if req.GetParameters() != nil || len(req.GetParameters()) > 0 {
+	if req.GetParameters() != nil {
 		klog.Info("parameters in CreateSnapshot requests are ignored")
 	}
 
@@ -251,7 +266,7 @@ func validateDeleteSnapshotRequest(req *csi.DeleteSnapshotRequest) error {
 	return nil
 }
 
-func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext) error {
+func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions, shareTypeCaps capabilities.ManilaCapabilities) error {
 	coalesceValue := func(v string) string {
 		if v == "" {
 			return "<none>"
