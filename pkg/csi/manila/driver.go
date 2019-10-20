@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/klog"
 )
 
@@ -42,6 +43,8 @@ type Driver struct {
 
 	serverEndpoint string
 	fwdEndpoint    string
+
+	compatOpts *options.CompatibilityOptions
 
 	ids *identityServer
 	cs  *controllerServer
@@ -76,7 +79,7 @@ func argNotEmpty(val, name string) error {
 	return nil
 }
 
-func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, manilaClientBuilder manilaclient.Builder, csiClientBuilder csiclient.Builder) (*Driver, error) {
+func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, manilaClientBuilder manilaclient.Builder, csiClientBuilder csiclient.Builder, compatOpts *options.CompatibilityOptions) (*Driver, error) {
 	for k, v := range map[string]string{"node ID": nodeID, "driver name": driverName, "driver endpoint": endpoint, "FWD endpoint": fwdEndpoint, "share protocol selector": shareProto} {
 		if err := argNotEmpty(v, k); err != nil {
 			return nil, err
@@ -91,6 +94,7 @@ func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, man
 		serverEndpoint:      endpoint,
 		fwdEndpoint:         fwdEndpoint,
 		shareProto:          strings.ToUpper(shareProto),
+		compatOpts:          compatOpts,
 		manilaClientBuilder: manilaClientBuilder,
 		csiClientBuilder:    csiClientBuilder,
 	}

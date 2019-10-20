@@ -27,17 +27,19 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
 
 var (
-	endpoint      string
-	driverName    string
-	nodeID        string
-	protoSelector string
-	fwdEndpoint   string
-	userAgentData []string
+	endpoint              string
+	driverName            string
+	nodeID                string
+	protoSelector         string
+	fwdEndpoint           string
+	userAgentData         []string
+	compatibilitySettings string
 )
 
 func validateShareProtocolSelector(v string) error {
@@ -51,6 +53,38 @@ func validateShareProtocolSelector(v string) error {
 	}
 
 	return fmt.Errorf("share protocol %q not supported; supported protocols are %v", v, supportedShareProtocols)
+}
+
+func parseCompatOpts() (*options.CompatibilityOptions, error) {
+	data := make(map[string]string)
+
+	if compatibilitySettings == "" {
+		return options.NewCompatibilityOptions(data)
+	}
+
+	knownCompatSettings := map[string]interface{}{}
+
+	isKnown := func(v string) bool {
+		_, ok := knownCompatSettings[v]
+		return ok
+	}
+
+	settings := strings.Split(compatibilitySettings, ",")
+	for _, elem := range settings {
+		setting := strings.SplitN(elem, "=", 2)
+
+		if len(setting) != 2 || setting[0] == "" || setting[1] == "" {
+			return nil, fmt.Errorf("invalid format in option %v, expected KEY=VALUE", setting)
+		}
+
+		if !isKnown(setting[0]) {
+			return nil, fmt.Errorf("unrecognized option '%s'", setting[0])
+		}
+
+		data[setting[0]] = setting[1]
+	}
+
+	return options.NewCompatibilityOptions(data)
 }
 
 func main() {
@@ -82,7 +116,12 @@ func main() {
 				klog.Fatalf(err.Error())
 			}
 
-			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData}, &csiclient.ClientBuilder{})
+			compatOpts, err := parseCompatOpts()
+			if err != nil {
+				klog.Fatalf("failed to parse compatibility settings: %v", err)
+			}
+
+			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData}, &csiclient.ClientBuilder{}, compatOpts)
 			if err != nil {
 				klog.Fatalf("driver initialization failed: %v", err)
 			}
@@ -105,6 +144,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&fwdEndpoint, "fwdendpoint", "", "CSI Node Plugin endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in share-protocol-selector")
 	cmd.MarkPersistentFlagRequired("fwdendpoint")
+
+	cmd.PersistentFlags().StringVar(&compatibilitySettings, "compatibility-settings", "", "settings for the compatibility layer")
 
 	cmd.PersistentFlags().StringArrayVar(&userAgentData, "user-agent", nil, "extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 
