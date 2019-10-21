@@ -22,4 +22,7 @@ if ! which import-boss > /dev/null; then
   exit 1
 fi
 
-import-boss -i k8s.io/cloud-provider-openstack/... --verify-only
+# prepare the vendor dir
+go mod vendor
+
+GO111MODULE=off import-boss -i k8s.io/cloud-provider-openstack/... --verify-only

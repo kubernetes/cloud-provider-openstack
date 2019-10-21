@@ -131,15 +131,15 @@ fmt:
 
 lint:
 ifndef HAS_LINT
-		go get -u golang.org/x/lint/golint
-		echo "installing lint"
+	echo "installing lint"
+	GO111MODULE=off go get -u golang.org/x/lint/golint
 endif
 	hack/verify-golint.sh
 
 import-boss:
 ifndef HAS_IMPORT_BOSS
-		go get -u k8s.io/code-generator/cmd/import-boss
-		echo "installing import-boss"
+	echo "installing import-boss"
+	GO111MODULE=off go get -u k8s.io/code-generator/cmd/import-boss
 endif
 	hack/verify-import-boss.sh
 
@@ -312,7 +312,8 @@ version:
 build-cross: LDFLAGS += -extldflags "-static"
 build-cross: work
 ifndef HAS_GOX
-	go get -u github.com/mitchellh/gox
+	echo "installing gox"
+	GO111MODULE=off go get -u github.com/mitchellh/gox
 endif
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/openstack-cloud-controller-manager/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/cinder-provisioner/
