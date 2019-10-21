@@ -547,7 +547,7 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 	}
 
 	opts := cfg.ToAuthOptions()
-	err = openstack.AuthenticateV3(provider, &opts, gophercloud.EndpointOpts{})
+	err = openstack.Authenticate(provider, opts)
 
 	return provider, err
 }
