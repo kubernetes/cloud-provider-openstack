@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gophercloud/gophercloud/openstack"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
@@ -257,16 +258,17 @@ func (os *OpenStack) ExpandVolume(volumeID string, newSize int) error {
 		NewSize: newSize,
 	}
 
-	// save initial microversion
-	mv := os.blockstorage.Microversion
-	os.blockstorage.Microversion = "3.42"
+	// Init a local thread safe copy of the Cinder ServiceClient
+	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
+	if err != nil {
+		return err
+	}
 
-	err := volumeexpand.ExtendSize(os.blockstorage, volumeID, createOpts).ExtractErr()
+	// cinder online resize is available since 3.42 microversion
+	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
+	blockstorageClient.Microversion = "3.42"
 
-	// restore initial microversion
-	os.blockstorage.Microversion = mv
-
-	return err
+	return volumeexpand.ExtendSize(blockstorageClient, volumeID, createOpts).ExtractErr()
 }
 
 //GetMaxVolLimit returns max vol limit

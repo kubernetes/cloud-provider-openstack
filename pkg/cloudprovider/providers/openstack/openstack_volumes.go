@@ -237,14 +237,13 @@ func (volumes *VolumesV3) expandVolume(volumeID string, newSize int) error {
 		NewSize: newSize,
 	}
 
-	// save initial microversion
-	mv := volumes.blockstorage.Microversion
+	// cinder online resize is available since 3.42 microversion
+	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
+	// this operation is thread-safe, since a dedicated client is initialized before the
+	// "expandVolume" method call
 	volumes.blockstorage.Microversion = "3.42"
 
 	err := volumeexpand.ExtendSize(volumes.blockstorage, volumeID, createOpts).ExtractErr()
-
-	// restore initial microversion
-	volumes.blockstorage.Microversion = mv
 
 	timeTaken := time.Since(startTime).Seconds()
 	recordOpenstackOperationMetric("expand_volume", timeTaken, err)
@@ -368,6 +367,7 @@ func (os *OpenStack) ExpandVolume(volumeID string, oldSize resource.Quantity, ne
 		return newSizeQuant, nil
 	}
 
+	// Init a local thread safe copy of the Cinder ServiceClient
 	volumes, err := os.volumeService("")
 	if err != nil {
 		return oldSize, err

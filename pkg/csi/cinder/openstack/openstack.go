@@ -64,6 +64,7 @@ type OpenStack struct {
 	compute      *gophercloud.ServiceClient
 	blockstorage *gophercloud.ServiceClient
 	bsOpts       BlockStorageOpts
+	epOpts       gophercloud.EndpointOpts
 }
 
 type BlockStorageOpts struct {
@@ -145,6 +146,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		compute:      computeclient,
 		blockstorage: blockstorageclient,
 		bsOpts:       cfg.BlockStorage,
+		epOpts:       epOpts,
 	}
 
 	return OsInstance, nil
