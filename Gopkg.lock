@@ -1029,7 +1029,7 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:a926b602f570632e0dc8fdf2cd6f29dcb00665d673a3955cebafb0e8ac3fb94e"
+  digest = "1:67d43d790d6aa712c6bb27570a3fc82e705456db4b764644d942aeeeac7c0233"
   name = "k8s.io/api"
   packages = [
     "admission/v1",
@@ -1074,19 +1074,19 @@
     "storage/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "95b840bb6a1f5f0462af804c8589396d294d4914"
-  version = "kubernetes-1.16.0"
+  revision = "50883c57a7c2218eb102cae2f3310b101e16b4e1"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
   digest = "1:226ba15b4916a2fe2d0623bcf191b7dbd208519c60d61b6777077d344671d524"
   name = "k8s.io/apiextensions-apiserver"
   packages = ["pkg/features"]
   pruneopts = "UT"
-  revision = "8f644eb6e783291c4b8cb8cb25a9983be1a74f5c"
-  version = "kubernetes-1.16.0"
+  revision = "d1485fa968cc153aad951215155ade8143430efb"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
-  digest = "1:cb69a1760e5e21838b16f4b3704f525156f25fd0bce0023e588f2271801c1fb9"
+  digest = "1:173ea0ac7749835495b247d7818c0cc8a38c002749687ad6efe25353d36cf021"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -1096,6 +1096,7 @@
     "pkg/api/validation",
     "pkg/api/validation/path",
     "pkg/apis/meta/internalversion",
+    "pkg/apis/meta/internalversion/scheme",
     "pkg/apis/meta/v1",
     "pkg/apis/meta/v1/unstructured",
     "pkg/apis/meta/v1/validation",
@@ -1142,11 +1143,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "27d36303b6556f377b4f34e64705fa9024a12b0c"
-  version = "kubernetes-1.16.0"
+  revision = "082230a5ffdd4ae12f1204049ffb5a87a9a0cb72"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
-  digest = "1:4b5d6256f3cf486e4f560bc5d82d83e6b56870642aef0829fce223c90407ea9a"
+  digest = "1:d3ec9046077004f35d3c8d5aeea8edce1108a093914a30eb1e27dac59331d42d"
   name = "k8s.io/apiserver"
   packages = [
     "pkg/admission",
@@ -1255,11 +1256,11 @@
     "plugin/pkg/authorizer/webhook",
   ]
   pruneopts = "UT"
-  revision = "bfa5e2e684ad413c22fd0dab55b2592af1ead049"
-  version = "kubernetes-1.16.0"
+  revision = "19bb7e38c40d807b97b05a1b26e53eb69abd4565"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
-  digest = "1:934980c9c58ba7e57a462bcc6910d03555c7ce9d55bc4a70cd4f40e490d36e79"
+  digest = "1:9a113568b5dcf6bd135cfff6760e5c642a84224160275641bb8938bfd680b220"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1467,11 +1468,11 @@
     "util/workqueue",
   ]
   pruneopts = "UT"
-  revision = "1fbdaa4c8d908275eee958429b1cafc2591a2c5d"
-  version = "kubernetes-1.16.0"
+  revision = "e4642e2516bd4375dbbdf4bdc972971f1304e069"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
-  digest = "1:27a5db5dd640bce99d24a4ebb64bb9c3be638559638da844b5730ae09fd13e75"
+  digest = "1:0e2b88b582f8b032fb1a54c5d6be5a3df319951856dd2e7b221f7ef161722082"
   name = "k8s.io/cloud-provider"
   packages = [
     ".",
@@ -1481,11 +1482,11 @@
     "volume/helpers",
   ]
   pruneopts = "UT"
-  revision = "a9c1f33e9fb973aced01c110c71f09cd9007f949"
-  version = "kubernetes-1.16.0"
+  revision = "7c4519f942ad02002d63b5268b8cdc71d1495333"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
-  digest = "1:b3cf5cf11bff2391bbf9ccadfdc87f1ab61928e4c39b1ae9c35db47deac82637"
+  digest = "1:24d351f7f074a69d311a7b82ef8a261cec49eb1bfa763d898bc17f2e8a6ceee9"
   name = "k8s.io/component-base"
   packages = [
     "cli/flag",
@@ -1496,22 +1497,25 @@
     "logs",
     "metrics",
     "metrics/legacyregistry",
+    "metrics/prometheus/restclient",
+    "metrics/prometheus/version",
     "version",
+    "version/verflag",
   ]
   pruneopts = "UT"
-  revision = "547f6c5d70902c6683e93ad96f84adc6b943aedf"
-  version = "kubernetes-1.16.0"
+  revision = "bfb2f01fe0d35c8cceee3af53ec7b128877f8b28"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:afe2f405e6e2d9d4ff09af6ef522a62d91251d6b535e02777a3afa20a1de81f6"
+  digest = "1:391d34fa297f60fd85376f9db23356613de8ffd84955617cde683a309337c2c4"
   name = "k8s.io/csi-translation-lib"
   packages = [
     ".",
     "plugins",
   ]
   pruneopts = "UT"
-  revision = "73126f855ddd60c2e0e18dc85f03fd49bf127c1f"
+  revision = "c7c394b691687c5f6e0edebb0a7bebf4d4e560f9"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
   digest = "1:ccb9be4c583b6ec848eb98aa395a4e8c8f8ad9ebb823642c0dd1c1c45939a5bb"
@@ -1526,8 +1530,8 @@
   name = "k8s.io/kube-controller-manager"
   packages = ["config/v1alpha1"]
   pruneopts = "UT"
-  revision = "7a93a0ddadd81206441dd993811f0781812f9efb"
-  version = "kubernetes-1.16.0"
+  revision = "6e5951ddbc2e32d71a4240b940c0c74add05fe26"
+  version = "kubernetes-1.17.0-alpha.1"
 
 [[projects]]
   digest = "1:855801c47e7250d076684d32c218ab6cd3cc110e2f8251a09c44044c6a398052"
@@ -1544,7 +1548,7 @@
   revision = "0270cf2f1c1d995d34b36019a6f65d58e6e33ad4"
 
 [[projects]]
-  digest = "1:dbcc306a548557a75cd9b9f0e59514ab461c566206a9f08e65aee5a01036599c"
+  digest = "1:0667bf6aab2e1dc8b3bfe6495c7389b5aa9b5859907d078ba50f30bb38885a48"
   name = "k8s.io/kubernetes"
   packages = [
     "cmd/cloud-controller-manager/app",
@@ -1570,7 +1574,6 @@
     "pkg/apis/scheduling",
     "pkg/capabilities",
     "pkg/client/leaderelectionconfig",
-    "pkg/client/metrics/prometheus",
     "pkg/controller",
     "pkg/controller/apis/config",
     "pkg/controller/apis/config/v1alpha1",
@@ -1644,9 +1647,6 @@
     "pkg/util/parsers",
     "pkg/util/resizefs",
     "pkg/util/taints",
-    "pkg/version",
-    "pkg/version/prometheus",
-    "pkg/version/verflag",
     "pkg/volume",
     "pkg/volume/testing",
     "pkg/volume/util",
@@ -1660,8 +1660,8 @@
     "pkg/volume/util/volumepathhandler",
   ]
   pruneopts = "UT"
-  revision = "2bd9643cee5b3b3a5ecbd3af49d09018f0773c77"
-  version = "v1.16.0"
+  revision = "0960c74c3788b1724bd7e7b9933bc49c7e5b5afa"
+  version = "v1.17.0-alpha.1"
 
 [[projects]]
   digest = "1:f23ff14508752bd26aaba967ecebed6845b7ea77f70d71a0fd9ff47ca06da572"
@@ -1831,11 +1831,13 @@
     "k8s.io/cloud-provider/volume/helpers",
     "k8s.io/component-base/cli/flag",
     "k8s.io/component-base/logs",
+    "k8s.io/component-base/metrics/prometheus/restclient",
+    "k8s.io/component-base/metrics/prometheus/version",
+    "k8s.io/component-base/version/verflag",
     "k8s.io/klog",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app/config",
     "k8s.io/kubernetes/cmd/cloud-controller-manager/app/options",
-    "k8s.io/kubernetes/pkg/client/metrics/prometheus",
     "k8s.io/kubernetes/pkg/controller/cloud",
     "k8s.io/kubernetes/pkg/controller/route",
     "k8s.io/kubernetes/pkg/controller/service",
@@ -1844,8 +1846,6 @@
     "k8s.io/kubernetes/pkg/util/flag",
     "k8s.io/kubernetes/pkg/util/mount",
     "k8s.io/kubernetes/pkg/util/resizefs",
-    "k8s.io/kubernetes/pkg/version/prometheus",
-    "k8s.io/kubernetes/pkg/version/verflag",
     "k8s.io/kubernetes/pkg/volume",
     "k8s.io/kubernetes/pkg/volume/testing",
     "k8s.io/kubernetes/pkg/volume/util",

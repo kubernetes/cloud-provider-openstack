@@ -37,18 +37,18 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
+	_ "k8s.io/component-base/metrics/prometheus/restclient" // for client metric registration
+	_ "k8s.io/component-base/metrics/prometheus/version"    // for version metric registration
+	"k8s.io/component-base/version/verflag"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
 	cloudcontrollerconfig "k8s.io/kubernetes/cmd/cloud-controller-manager/app/config"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app/options"
-	_ "k8s.io/kubernetes/pkg/client/metrics/prometheus" // for client metric registration
 	cloudcontrollers "k8s.io/kubernetes/pkg/controller/cloud"
 	routecontroller "k8s.io/kubernetes/pkg/controller/route"
 	servicecontroller "k8s.io/kubernetes/pkg/controller/service"
 	_ "k8s.io/kubernetes/pkg/features" // add the kubernetes feature gates
 	utilflag "k8s.io/kubernetes/pkg/util/flag"
-	_ "k8s.io/kubernetes/pkg/version/prometheus" // for version metric registration
-	"k8s.io/kubernetes/pkg/version/verflag"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -160,12 +160,17 @@ func newControllerInitializers() map[string]initFunc {
 
 func startCloudNodeController(ctx *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface, stopCh <-chan struct{}) (http.Handler, bool, error) {
 	// Start the CloudNodeController
-	nodeController := cloudcontrollers.NewCloudNodeController(
+	nodeController, err := cloudcontrollers.NewCloudNodeController(
 		ctx.SharedInformers.Core().V1().Nodes(),
 		// cloud node controller uses existing cluster role from node-controller
 		ctx.ClientBuilder.ClientOrDie("node-controller"),
 		cloud,
 		ctx.ComponentConfig.NodeStatusUpdateFrequency.Duration)
+
+	if err != nil {
+		klog.Warningf("failed to start cloud node controller: %s", err)
+		return nil, false, nil
+	}
 
 	go nodeController.Run(stopCh)
 
