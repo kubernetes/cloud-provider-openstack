@@ -115,7 +115,7 @@ test: unit functional
 check: work fmt vet lint import-boss
 
 unit: work
-	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }') $(TESTARGS)
+	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}' | sed -e '/test/ {N; d;}') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
