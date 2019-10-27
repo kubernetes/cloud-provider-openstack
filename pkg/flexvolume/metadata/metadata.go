@@ -37,7 +37,7 @@ func MapToJson(m map[string]interface{}) string {
 	return string(bs)
 }
 
-// MapToJson converts the specified map object to unindented JSON.
+// MapToJsonUnindented converts the specified map object to unindented JSON.
 // It panics in case if the map cannot be converted.
 func MapToJsonUnindented(m map[string]interface{}) string {
 	bs, err := json.Marshal(m)

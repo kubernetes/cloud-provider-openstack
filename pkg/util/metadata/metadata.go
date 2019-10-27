@@ -50,7 +50,7 @@ const (
 	configDriveLabel        = "config-2"
 	configDrivePathTemplate = "openstack/%s/meta_data.json"
 
-	// configDriveID is used as an identifier on the metadata search order configuration.
+	// ConfigDriveID is used as an identifier on the metadata search order configuration.
 	ConfigDriveID = "configDrive"
 )
 

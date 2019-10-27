@@ -26,15 +26,15 @@ import (
 )
 
 const (
-	// The driver name used in cinder-flexvolume
+	// DriverName used in cinder-flexvolume
 	DriverName = "rbd"
 )
 
-// The driver of cinder-flexvolume
+// RBDDriver is the driver of cinder-flexvolume
 type RBDDriver struct {
 }
 
-// The RBD volume used by Cinder
+// RBDVolume used by Cinder
 type RBDVolume struct {
 	Keyring     string   `json:"keyring"`
 	AuthEnabled bool     `json:"auth_enabled"`

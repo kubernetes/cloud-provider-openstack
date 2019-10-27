@@ -44,7 +44,7 @@ type HealthCheck interface {
 	IsWorkerSupported() bool
 }
 
-// The purpose of NodeController is to avoid circle reference.
+// NodeController is to avoid circle reference.
 type NodeController interface {
 	// UpdateNodeAnnotation updates the specified node annotation, if value equals empty string, the annotation will be
 	// removed.

@@ -79,8 +79,7 @@ func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string)
 
 }
 
-// GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
-// Returns a list of Volume references with the specified name
+// GetSnapshotByNameAndVolumeID returns a list of snapshot references with the specified name and volume ID
 func (os *OpenStack) GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error) {
 	opts := snapshots.ListOpts{Name: n, VolumeID: volumeId}
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()

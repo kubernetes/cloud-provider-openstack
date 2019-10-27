@@ -323,7 +323,7 @@ func (cfg AuthOpts) ToAuth3Options() tokens3.AuthOptions {
 	}
 }
 
-// configFromEnv allows setting up credentials etc using the
+// ConfigFromEnv allows setting up credentials etc using the
 // standard OS_* OpenStack client environment variables.
 // TODO: Replace this with gophercloud upstream once community moves away from cloud.conf
 func ConfigFromEnv() Config {
@@ -492,7 +492,7 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
-// NewOpenStack creates a new new instance of the openstack struct from a config struct
+// NewOpenStackClient creates a new instance of the openstack client
 func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...string) (*gophercloud.ProviderClient, error) {
 	provider, err := openstack.NewClient(cfg.AuthURL)
 	if err != nil {
