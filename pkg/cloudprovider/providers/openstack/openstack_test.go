@@ -729,15 +729,17 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 
 func TestNewOpenStack(t *testing.T) {
 	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	_, err := NewOpenStack(cfg)
 	if err != nil {
-		testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
+		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}
 }
 
 func TestLoadBalancer(t *testing.T) {
 	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	versions := []string{"v2"}
 
@@ -747,7 +749,7 @@ func TestLoadBalancer(t *testing.T) {
 
 		os, err := NewOpenStack(cfg)
 		if err != nil {
-			testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
+			t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 		}
 
 		lb, ok := os.LoadBalancer()
@@ -805,10 +807,11 @@ var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
 
 func TestVolumes(t *testing.T) {
 	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {
-		testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
+		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}
 
 	tags := map[string]string{
@@ -1088,9 +1091,8 @@ func resetEnviron(t *testing.T, items []string) {
 	}
 }
 
-func testConfigFromEnv(t *testing.T, msg string, err error) {
-	if err.Error() == "You must provide a password to authenticate" {
+func testConfigFromEnv(t *testing.T, cfg *Config) {
+	if cfg.Global.AuthURL == "" {
 		t.Skip("No config found in environment")
 	}
-	t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 }
