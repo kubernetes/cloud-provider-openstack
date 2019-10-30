@@ -76,7 +76,7 @@ const (
 	// Default to true.
 	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
 
-	// The IngressControllerTag that is added to the related resources.
+	// IngressControllerTag is added to the related resources.
 	IngressControllerTag = "octavia.ingress.kubernetes.io"
 )
 

@@ -27,7 +27,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
-// Defines Non blocking GRPC server interfaces
+// NonBlockingGRPCServer defines Non blocking GRPC server interfaces
 type NonBlockingGRPCServer interface {
 	// Start services at the endpoint
 	Start(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer)
