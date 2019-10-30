@@ -73,9 +73,8 @@ func NewShareOptions(volOptions *controller.ProvisionOptions) (*ShareOptions, er
 	zones := helpers.ChooseZonesForVolume(setOfZones, volOptions.PVC.GetName(), 1)
 	if zones.Len() == 0 {
 		return nil, fmt.Errorf("could not find a zone")
-	} else {
-		opts.Zones = zones.List()[0]
 	}
+	opts.Zones = zones.List()[0]
 
 	return opts, nil
 }

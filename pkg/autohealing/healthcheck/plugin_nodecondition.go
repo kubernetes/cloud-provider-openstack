@@ -56,17 +56,15 @@ func (check *NodeConditionCheck) Check(node NodeInfo, controller NodeController)
 				if utils.Contains(check.ErrorValues, string(cond.Status)) {
 					if unhealthyDuration >= check.UnhealthyDuration {
 						return false
-					} else {
-						log.Warningf("Node %s is unhealthy, %s: %s", nodeName, string(cond.Type), string(cond.Status))
 					}
+					log.Warningf("Node %s is unhealthy, %s: %s", nodeName, string(cond.Type), string(cond.Status))
 				}
 			} else if len(check.OKValues) > 0 {
 				if !utils.Contains(check.OKValues, string(cond.Status)) {
 					if unhealthyDuration >= check.UnhealthyDuration {
 						return false
-					} else {
-						log.Warningf("Node %s is unhealthy, %s: %s", nodeName, string(cond.Type), string(cond.Status))
 					}
+					log.Warningf("Node %s is unhealthy, %s: %s", nodeName, string(cond.Type), string(cond.Status))
 				}
 			}
 		}

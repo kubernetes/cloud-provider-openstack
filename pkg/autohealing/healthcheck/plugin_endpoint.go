@@ -110,10 +110,9 @@ func (check *EndpointCheck) checkDuration(node NodeInfo, controller NodeControll
 	if now.Sub(*unhealthyStartTime) >= check.UnhealthyDuration {
 		// Need repair
 		return false
-	} else {
-		// Keep the annotation value
-		return true
 	}
+	// Keep the annotation value
+	return true
 }
 
 // Check checks the node health, returns false if the node is unhealthy. Update the node cache accordingly.
