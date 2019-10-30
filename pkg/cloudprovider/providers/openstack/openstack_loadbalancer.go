@@ -651,15 +651,17 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 		}
 
 		for _, port := range allPorts {
-			newSGs := append(port.SecurityGroups, sg)
-			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
-			res := neutronports.Update(network, port.ID, updateOpts)
-			if res.Err != nil {
-				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
-			}
-			// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
-			if err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr(); err != nil {
-				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, res.Err)
+			if !cpoutil.Contains(port.SecurityGroups, sg) {
+				newSGs := append(port.SecurityGroups, sg)
+				updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+				res := neutronports.Update(network, port.ID, updateOpts)
+				if res.Err != nil {
+					return fmt.Errorf("failed to update security group for port %s: %v ", port.ID, res.Err)
+				}
+				// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
+				if err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr(); err != nil {
+					return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, res.Err)
+				}
 			}
 		}
 	}

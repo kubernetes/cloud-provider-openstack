@@ -25,3 +25,13 @@ func StringListEqual(list1, list2 []string) bool {
 
 	return s1.Equal(s2)
 }
+
+// Contains is checking does array contain single word
+func Contains(array []string, word string) bool {
+	for _, item := range array {
+		if item == word {
+			return true
+		}
+	}
+	return false
+}
