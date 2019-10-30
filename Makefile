@@ -15,11 +15,8 @@ GOBIN_DEFAULT := $(GOPATH)/bin
 export GOBIN ?= $(GOBIN_DEFAULT)
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
-PKG := $(shell awk  -F "\"" '/^ignored = / { print $$2 }' Gopkg.toml)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 SOURCES := $(shell find $(DEST) -name '*.go')
-HAS_MERCURIAL := $(shell command -v hg;)
-HAS_DEP := $(shell command -v dep;)
 HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
 HAS_IMPORT_BOSS := $(shell command -v import-boss;)
@@ -48,16 +45,10 @@ $(GOBIN):
 work: $(GOBIN)
 
 depend: work
-ifndef HAS_MERCURIAL
-	pip install Mercurial
-endif
-ifndef HAS_DEP
-	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-endif
-	dep ensure -v
+	GO111MODULE=on go mod tidy
+	GO111MODULE=on go mod vendor
 
-depend-update: work
-	dep ensure -update -v
+depend-update: work depend
 
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin barbican-kms-plugin magnum-auto-healer
 
@@ -187,7 +178,6 @@ env:
 	@echo "GOPATH: $(GOPATH)"
 	@echo "GOROOT: $(GOROOT)"
 	@echo "DEST: $(DEST)"
-	@echo "PKG: $(PKG)"
 	go version
 	go env
 
