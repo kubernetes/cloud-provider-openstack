@@ -222,10 +222,10 @@ github.com/googleapis/gnostic v0.3.1 h1:WeAefnSUHlBb0iJKwxFDZdbfGwkd7xRNuV+IpXMJ
 github.com/googleapis/gnostic v0.3.1/go.mod h1:on+2t9HRStVgn95RSsFWFz+6Q0Snyqv1awfrALZdbtU=
 github.com/gophercloud/gophercloud v0.0.0-20190212181753-892256c46858/go.mod h1:vxM41WHh5uqHVBMZHzuwNOHh8XEoIEcSTewFxm1c5g8=
 github.com/gophercloud/gophercloud v0.1.0/go.mod h1:vxM41WHh5uqHVBMZHzuwNOHh8XEoIEcSTewFxm1c5g8=
-github.com/gophercloud/gophercloud v0.4.1-0.20190925150248-13466e32a4a3 h1:SUu4p5D8XJD6Q6YuHPAP3o7CTxUl35DDxnwkrMrhXqg=
-github.com/gophercloud/gophercloud v0.4.1-0.20190925150248-13466e32a4a3/go.mod h1:vxM41WHh5uqHVBMZHzuwNOHh8XEoIEcSTewFxm1c5g8=
-github.com/gophercloud/utils v0.0.0-20190829151529-94e6842399e5 h1:W6TC1Dd95ocK2YK5jLmKmh1lg+oZaXdLl+CRP7pUdfA=
-github.com/gophercloud/utils v0.0.0-20190829151529-94e6842399e5/go.mod h1:SZ9FTKibIotDtCrxAU/evccoyu1yhKST6hgBvwTB5Eg=
+github.com/gophercloud/gophercloud v0.6.1-0.20191025185032-6ad562af8c1f h1:oUSh4Z++AIcYE3FClYjEqC+T/esZ2ZDaDeaEeXQ2mkE=
+github.com/gophercloud/gophercloud v0.6.1-0.20191025185032-6ad562af8c1f/go.mod h1:GICNByuaEBibcjmjvI7QvYJSZEbGkcYwAR7EZK2WMqM=
+github.com/gophercloud/utils v0.0.0-20191020172814-bd86af96d544 h1:tnybJ2o5gp2wWaKB0jgNp2sa7oDHVI6wkPtNEs/2B7E=
+github.com/gophercloud/utils v0.0.0-20191020172814-bd86af96d544/go.mod h1:SZ9FTKibIotDtCrxAU/evccoyu1yhKST6hgBvwTB5Eg=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/gorilla/context v1.1.1/go.mod h1:kBGZzfjB9CEq2AlWe17Uuf7NDRt0dE0s8S51q0aT7Yg=
 github.com/gorilla/mux v1.7.0/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=

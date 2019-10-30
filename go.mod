@@ -14,8 +14,8 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
-	github.com/gophercloud/gophercloud v0.4.1-0.20190925150248-13466e32a4a3
-	github.com/gophercloud/utils v0.0.0-20190829151529-94e6842399e5
+	github.com/gophercloud/gophercloud v0.6.1-0.20191025185032-6ad562af8c1f
+	github.com/gophercloud/utils v0.0.0-20191020172814-bd86af96d544
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
