@@ -254,21 +254,34 @@ func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string,
 
 // ExpandVolume expands the volume to new size
 func (os *OpenStack) ExpandVolume(volumeID string, newSize int) error {
-	createOpts := volumeexpand.ExtendSizeOpts{
-		NewSize: newSize,
-	}
-
-	// Init a local thread safe copy of the Cinder ServiceClient
-	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
+	volume, err := os.GetVolume(volumeID)
 	if err != nil {
 		return err
 	}
 
-	// cinder online resize is available since 3.42 microversion
-	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
-	blockstorageClient.Microversion = "3.42"
+	createOpts := volumeexpand.ExtendSizeOpts{
+		NewSize: newSize,
+	}
 
-	return volumeexpand.ExtendSize(blockstorageClient, volumeID, createOpts).ExtractErr()
+	switch volume.Status {
+	case VolumeInUseStatus:
+		// Init a local thread safe copy of the Cinder ServiceClient
+		blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
+		if err != nil {
+			return err
+		}
+
+		// cinder online resize is available since 3.42 microversion
+		// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
+		blockstorageClient.Microversion = "3.42"
+
+		return volumeexpand.ExtendSize(blockstorageClient, volumeID, createOpts).ExtractErr()
+	case VolumeAvailableStatus:
+		return volumeexpand.ExtendSize(os.blockstorage, volumeID, createOpts).ExtractErr()
+	}
+
+	// cinder volume can not be expanded when volume status is not volumeInUseStatus or not volumeAvailableStatus
+	return fmt.Errorf("volume cannot be resized, when status is %s", volume.Status)
 }
 
 //GetMaxVolLimit returns max vol limit

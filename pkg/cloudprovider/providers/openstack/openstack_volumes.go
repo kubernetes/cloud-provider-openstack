@@ -58,7 +58,7 @@ type volumeService interface {
 	createVolume(opts volumeCreateOpts) (string, string, error)
 	getVolume(volumeID string) (Volume, error)
 	deleteVolume(volumeName string) error
-	expandVolume(volumeID string, newSize int) error
+	expandVolume(volumeID string, newSize int, volumeStatus string) error
 }
 
 // VolumesV2 is a Volumes implementation for cinder v2
@@ -220,7 +220,12 @@ func (volumes *VolumesV3) deleteVolume(volumeID string) error {
 	return err
 }
 
-func (volumes *VolumesV2) expandVolume(volumeID string, newSize int) error {
+func (volumes *VolumesV2) expandVolume(volumeID string, newSize int, volumeStatus string) error {
+	if volumeStatus != volumeAvailableStatus {
+		// cinder volume can not be expanded if cinder API is v2
+		return fmt.Errorf("volume status is not 'available'")
+	}
+
 	startTime := time.Now()
 	createOpts := volumeexpand.ExtendSizeOpts{
 		NewSize: newSize,
@@ -231,17 +236,24 @@ func (volumes *VolumesV2) expandVolume(volumeID string, newSize int) error {
 	return err
 }
 
-func (volumes *VolumesV3) expandVolume(volumeID string, newSize int) error {
+func (volumes *VolumesV3) expandVolume(volumeID string, newSize int, volumeStatus string) error {
+	switch volumeStatus {
+	case volumeAvailableStatus:
+	case volumeInUseStatus:
+		// cinder online resize is available since 3.42 microversion
+		// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
+		// this operation is thread-safe, since a dedicated client is initialized before the
+		// "expandVolume" method call
+		volumes.blockstorage.Microversion = "3.42"
+	default:
+		// cinder volume can not be expanded when volume status is not volumeInUseStatus or not volumeAvailableStatus
+		return fmt.Errorf("volume cannot be resized, when status is %s", volumeStatus)
+	}
+
 	startTime := time.Now()
 	createOpts := volumeexpand.ExtendSizeOpts{
 		NewSize: newSize,
 	}
-
-	// cinder online resize is available since 3.42 microversion
-	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
-	// this operation is thread-safe, since a dedicated client is initialized before the
-	// "expandVolume" method call
-	volumes.blockstorage.Microversion = "3.42"
 
 	err := volumeexpand.ExtendSize(volumes.blockstorage, volumeID, createOpts).ExtractErr()
 
@@ -373,18 +385,7 @@ func (os *OpenStack) ExpandVolume(volumeID string, oldSize resource.Quantity, ne
 		return oldSize, err
 	}
 
-	if volume.Status != volumeAvailableStatus {
-		if _, ok := volumes.(*VolumesV3); !ok {
-			// cinder volume can not be expanded if cinder API is not v3
-			return oldSize, fmt.Errorf("volume status is not available")
-		}
-		if volume.Status != volumeInUseStatus {
-			// cinder volume can not be expanded if volume status is not volumeInUseStatus or volumeAvailableStatus
-			return oldSize, fmt.Errorf("volume status is %s", volume.Status)
-		}
-	}
-
-	err = volumes.expandVolume(volumeID, volSizeGiB)
+	err = volumes.expandVolume(volumeID, volSizeGiB, volume.Status)
 	if err != nil {
 		return oldSize, err
 	}
