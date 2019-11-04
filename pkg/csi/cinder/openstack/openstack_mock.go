@@ -180,17 +180,6 @@ func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) er
 
 // GetVolumesByName provides a mock function with given fields: name
 func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error) {
-	/* var vlist []volumes.Volume
-	if strings.Contains(name, "fake-duplicate") {
-		vlist = append(vlist, fakeVol1)
-	}
-
-	if name == "fake-duplicate2x" {
-		vlist[0].Name = "fake-duplicate2x"
-		vlist = append(vlist, fakeVol2)
-		vlist[1].Name = "fake-duplicate2x"
-	}
-	return vlist, nil */
 
 	ret := _m.Called(name)
 

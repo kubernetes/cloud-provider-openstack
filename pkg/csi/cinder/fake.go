@@ -22,7 +22,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-var FakeMode = "persistent"
 var FakeCluster = "cluster"
 var FakeNodeID = "CSINodeID"
 var FakeEndpoint = "tcp://127.0.0.1:10000"

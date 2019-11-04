@@ -21,7 +21,6 @@ spec:
         - name: node-driver-registrar
           image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
           lifecycle:
@@ -55,8 +54,6 @@ spec:
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
-            - "--mode=ephemeral"
-            - "--v=5"
           env:
             - name: NODE_ID
               valueFrom:

@@ -17,7 +17,6 @@ limitations under the License.
 package cinder
 
 import (
-	"flag"
 	"fmt"
 	"testing"
 
@@ -35,10 +34,8 @@ var omock *openstack.OpenStackMock
 // Init Node Server
 func init() {
 	if fakeNs == nil {
-		// to avoid annoying ERROR: logging before flag.Parse
-		flag.Parse()
 
-		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster, FakeMode)
+		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
 
 		// mock MountMock
 		mmock = new(mount.MountMock)
@@ -144,7 +141,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	openstack.MetadataService = omock
 	openstack.OsInstance = omock
 
-	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster, "ephemeral")
+	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
 	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
 
 	// Init assert
@@ -160,6 +157,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 		},
 	}
+
 	// Fake request
 	fakeReq := &csi.NodePublishVolumeRequest{
 		VolumeId:         FakeVolID,
@@ -167,7 +165,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 		TargetPath:       FakeTargetPath,
 		VolumeCapability: stdVolCap,
 		Readonly:         false,
-		VolumeContext:    map[string]string{"capacity": "2Gi"},
+		VolumeContext:    map[string]string{"capacity": "2Gi", "csi.storage.k8s.io/ephemeral": "true"},
 	}
 
 	// Invoke NodePublishVolume
@@ -302,7 +300,7 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	omock.On("WaitDiskDetached", FakeNodeID, FakeVolID).Return(nil)
 	omock.On("DeleteVolume", FakeVolID).Return(nil)
 
-	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster, "ephemeral")
+	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
 	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
 
 	// Init assert

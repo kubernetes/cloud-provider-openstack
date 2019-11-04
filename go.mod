@@ -9,7 +9,6 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
-	github.com/go-logfmt/logfmt v0.4.0 // indirect
 	github.com/go-openapi/swag v0.19.5 // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.3.2

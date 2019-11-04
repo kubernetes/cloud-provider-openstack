@@ -35,7 +35,6 @@ var (
 	nodeID      string
 	cloudconfig string
 	cluster     string
-	mode        string
 )
 
 func init() {
@@ -85,9 +84,6 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
-	// TODO(v1.16): Either reomve this flag or priortize CSIDriver.mode
-	cmd.PersistentFlags().StringVar(&mode, "mode", "persistent", "Mode of CSI Driver valid values are \"persistent\" or \"ephemeral\" ")
-
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	logs.InitLogs()
@@ -103,12 +99,7 @@ func main() {
 
 func handle() {
 
-	if mode != "persistent" && mode != "ephemeral" {
-		klog.V(2).Infof("Invalid Driver mode %s, allowed values are \"persistent\" \"ephemeral\" ", mode)
-		return
-	}
-
-	d := cinder.NewDriver(nodeID, endpoint, cluster, mode)
+	d := cinder.NewDriver(nodeID, endpoint, cluster)
 
 	//Intiliaze mount
 	mount, err := mount.GetMountProvider()

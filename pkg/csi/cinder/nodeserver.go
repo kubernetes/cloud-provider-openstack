@@ -62,10 +62,8 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
 	}
 
-	// TODO: after kubernetes v1.16
-	// ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
-	mode := ns.Driver.mode
-	if mode == "ephemeral" {
+	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+	if ephemeralVolume {
 		return nodePublishEphermeral(req, ns)
 	}
 
@@ -133,7 +131,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		size, err = strconv.Atoi(strings.TrimSuffix(capacity, "Gi"))
 		if err != nil {
 			klog.V(3).Infof("Unable to parse capacity: %v", err)
-			return nil, err
+			return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to parse capacity %v", err))
 		}
 	}
 
@@ -142,7 +140,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)
-		return nil, err
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to create Ephermal Volume %v", err))
 	}
 
 	klog.V(4).Infof("Ephermeral Volume %s is created", evol.ID)
@@ -152,19 +150,19 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	nodeID, err := getNodeID(ns.Mount, ns.Metadata)
 	if err != nil {
 		klog.V(3).Infof("Ephermal Volume Attach: Failed to get Instance ID: %v", err)
-		return nil, err
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to get Instance ID: %v", err))
 	}
 
 	_, err = ns.Cloud.AttachVolume(nodeID, evol.ID)
 	if err != nil {
-		klog.V(2).Infof("Ephermal Volume Attach: %v", err)
-		return nil, err
+		klog.V(3).Infof("Ephermal Volume Attach: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to Attach Volume: %v", err))
 	}
 
 	err = ns.Cloud.WaitDiskAttached(nodeID, evol.ID)
 	if err != nil {
 		klog.V(3).Infof("Ephermal Volume Attach: %v", err)
-		return nil, err
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to Attach Volume: %v", err))
 	}
 
 	m := ns.Mount
@@ -256,29 +254,31 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume volumeID must be provided")
 	}
 
-	//TODO: ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
-	mode := ns.Driver.mode
-	var vol volumes.Volume
-	if mode == "ephemeral" {
+	ephemeralVolume := false
+
+	vol, err := ns.Cloud.GetVolume(volumeID)
+
+	if err != nil {
+
+		if !cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
+		}
+
+		// if not found by id, try to search by name
 		volName := fmt.Sprintf("ephemeral-%s", volumeID)
+
 		vols, err := ns.Cloud.GetVolumesByName(volName)
+
+		//if volume not found then GetVolumesByName returns empty list
 		if err != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 		}
 		if len(vols) > 0 {
-			vol = vols[0]
+			vol = &vols[0]
+			ephemeralVolume = true
 		} else {
 			return nil, status.Error(codes.NotFound, fmt.Sprintf("Volume not found %s", volName))
 		}
-	} else {
-		_, err := ns.Cloud.GetVolume(volumeID)
-		if err != nil {
-			if cpoerrors.IsNotFound(err) {
-				return nil, status.Error(codes.NotFound, fmt.Sprintf("Volume not found %s", volumeID))
-			}
-			return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
-		}
-
 	}
 
 	m := ns.Mount
@@ -295,12 +295,12 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	//TODO: ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
-	if mode == "ephemeral" {
-		return nodeUnpublishEphermeral(req, ns, &vol)
+	if ephemeralVolume {
+		return nodeUnpublishEphermeral(req, ns, vol)
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
+
 }
 
 func nodeUnpublishEphermeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer, vol *volumes.Volume) (*csi.NodeUnpublishVolumeResponse, error) {
