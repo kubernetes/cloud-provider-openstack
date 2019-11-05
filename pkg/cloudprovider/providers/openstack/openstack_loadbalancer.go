@@ -1009,7 +1009,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				listenerChanged = true
 			}
 			if !cpoutil.StringListEqual(listenerAllowedCIDRs, listener.AllowedCIDRs) {
-				updateOpts.AllowedCIDRs = listenerAllowedCIDRs
+				updateOpts.AllowedCIDRs = &listenerAllowedCIDRs
 				listenerChanged = true
 			}
 

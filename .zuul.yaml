@@ -78,7 +78,8 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             files:
               - ^pkg/cloudprovider/.*
-              - ^Gopkg.toml$
+              - ^go.mod$
+              - ^go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -90,7 +91,8 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.14:
             files:
               - ^pkg/cloudprovider/.*
-              - ^Gopkg.toml$
+              - ^go.mod$
+              - ^go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -102,7 +104,8 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
             files:
               - ^pkg/cloudprovider/.*
-              - ^Gopkg.toml$
+              - ^go.mod$
+              - ^go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -114,7 +117,8 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
             files:
               - ^pkg/cloudprovider/.*
-              - ^Gopkg.toml$
+              - ^go.mod$
+              - ^go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$

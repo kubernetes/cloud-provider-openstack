@@ -65,8 +65,8 @@ function install_k8s_cloud_provider {
     go env
     go version
 
-    go get -u github.com/jteeuwen/go-bindata/go-bindata || true
-    go get -u github.com/cloudflare/cfssl/cmd/... || true
+    GO111MODULE=off go get -u github.com/jteeuwen/go-bindata/go-bindata || true
+    GO111MODULE=off go get -u github.com/cloudflare/cfssl/cmd/... || true
 
     # Get Kubernetes from source
     mkdir -p ${GOPATH}/src/k8s.io/
