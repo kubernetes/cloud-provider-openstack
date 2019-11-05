@@ -13,13 +13,12 @@ GOPATH_DEFAULT := $(PWD)/.go
 export GOPATH ?= $(GOPATH_DEFAULT)
 GOBIN_DEFAULT := $(GOPATH)/bin
 export GOBIN ?= $(GOBIN_DEFAULT)
+export GO111MODULE := on
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
-PKG := $(shell awk  -F "\"" '/^ignored = / { print $$2 }' Gopkg.toml)
+PKG := $(shell awk '/^module/ { print $$2 }' go.mod)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 SOURCES := $(shell find $(DEST) -name '*.go')
-HAS_MERCURIAL := $(shell command -v hg;)
-HAS_DEP := $(shell command -v dep;)
 HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
 HAS_IMPORT_BOSS := $(shell command -v import-boss;)
@@ -35,10 +34,6 @@ TAGS      :=
 LDFLAGS   := "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
 REGISTRY ?= k8scloudprovider
 
-ifneq ("$(DEST)", "$(PWD)")
-    $(error Please run 'make' from $(DEST). Current directory is $(PWD))
-endif
-
 # CTI targets
 
 $(GOBIN):
@@ -47,100 +42,88 @@ $(GOBIN):
 
 work: $(GOBIN)
 
-depend: work
-ifndef HAS_MERCURIAL
-	pip install Mercurial
-endif
-ifndef HAS_DEP
-	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-endif
-	dep ensure -v
-
-depend-update: work
-	dep ensure -update -v
-
 build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin barbican-kms-plugin magnum-auto-healer
 
-openstack-cloud-controller-manager: depend $(SOURCES)
+openstack-cloud-controller-manager: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o openstack-cloud-controller-manager \
 		cmd/openstack-cloud-controller-manager/main.go
 
-cinder-provisioner: depend $(SOURCES)
+cinder-provisioner: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o cinder-provisioner \
 		cmd/cinder-provisioner/main.go
 
-cinder-csi-plugin: depend $(SOURCES)
+cinder-csi-plugin: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
-cinder-flex-volume-driver: depend $(SOURCES)
+cinder-flex-volume-driver: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o cinder-flex-volume-driver \
 		cmd/cinder-flex-volume-driver/main.go
 
-k8s-keystone-auth: depend $(SOURCES)
+k8s-keystone-auth: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o k8s-keystone-auth \
 		cmd/k8s-keystone-auth/main.go
 
-client-keystone-auth: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+client-keystone-auth: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o client-keystone-auth \
 		cmd/client-keystone-auth/main.go
 
-octavia-ingress-controller: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+octavia-ingress-controller: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o octavia-ingress-controller \
 		cmd/octavia-ingress-controller/main.go
 
-manila-provisioner: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+manila-provisioner: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o manila-provisioner \
 		cmd/manila-provisioner/main.go
 
-manila-csi-plugin: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+manila-csi-plugin: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o manila-csi-plugin \
 		cmd/manila-csi-plugin/main.go
 
-barbican-kms-plugin: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+barbican-kms-plugin: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o barbican-kms-plugin \
 		cmd/barbican-kms-plugin/main.go
 
-magnum-auto-healer: depend $(SOURCES)
-	cd $(DEST) && CGO_ENABLED=0 GOOS=$(GOOS) go build \
+magnum-auto-healer: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o magnum-auto-healer \
 		cmd/magnum-auto-healer/main.go
 
 test: unit functional
 
-check: depend fmt vet lint import-boss
+check: work fmt vet lint import-boss
 
-unit: depend
+unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
 
-test-cinder-csi-sanity: depend
+test-cinder-csi-sanity: work
 	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/cinder/sanity/
 
-test-manila-csi-sanity: depend
+test-manila-csi-sanity: work
 	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/manila/sanity/
 
 fmt:
@@ -148,22 +131,22 @@ fmt:
 
 lint:
 ifndef HAS_LINT
-		go get -u golang.org/x/lint/golint
-		echo "installing lint"
+	echo "installing lint"
+	GO111MODULE=off go get -u golang.org/x/lint/golint
 endif
 	hack/verify-golint.sh
 
 import-boss:
 ifndef HAS_IMPORT_BOSS
-		go get -u k8s.io/code-generator/cmd/import-boss
-		echo "installing import-boss"
+	echo "installing import-boss"
+	GO111MODULE=off go get -u k8s.io/code-generator/cmd/import-boss
 endif
 	hack/verify-import-boss.sh
 
 vet:
 	go vet ./...
 
-cover: depend
+cover: work
 	go test -tags=unit $(shell go list ./...) -cover
 
 docs:
@@ -219,7 +202,7 @@ shell:
 
 images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-manila-csi-plugin image-kms-plugin image-magnum-auto-healer
 
-image-controller-manager: depend openstack-cloud-controller-manager
+image-controller-manager: work openstack-cloud-controller-manager
 ifeq ($(GOOS),linux)
 	cp openstack-cloud-controller-manager cluster/images/controller-manager
 	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) cluster/images/controller-manager
@@ -228,7 +211,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-flex-volume-driver: depend cinder-flex-volume-driver
+image-flex-volume-driver: work cinder-flex-volume-driver
 ifeq ($(GOOS),linux)
 	cp cinder-flex-volume-driver cluster/images/flex-volume-driver
 	docker build -t $(REGISTRY)/cinder-flex-volume-driver:$(VERSION) cluster/images/flex-volume-driver
@@ -237,7 +220,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-provisioner: depend cinder-provisioner
+image-provisioner: work cinder-provisioner
 ifeq ($(GOOS),linux)
 	cp cinder-provisioner cluster/images/cinder-provisioner
 	docker build -t $(REGISTRY)/cinder-provisioner:$(VERSION) cluster/images/cinder-provisioner
@@ -246,7 +229,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-csi-plugin: depend cinder-csi-plugin
+image-csi-plugin: work cinder-csi-plugin
 ifeq ($(GOOS),linux)
 	cp cinder-csi-plugin cluster/images/cinder-csi-plugin
 	docker build -t $(REGISTRY)/cinder-csi-plugin:$(VERSION) cluster/images/cinder-csi-plugin
@@ -255,7 +238,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-k8s-keystone-auth: depend k8s-keystone-auth
+image-k8s-keystone-auth: work k8s-keystone-auth
 ifeq ($(GOOS),linux)
 	cp k8s-keystone-auth cluster/images/webhook
 	docker build -t $(REGISTRY)/k8s-keystone-auth:$(VERSION) cluster/images/webhook
@@ -264,7 +247,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-octavia-ingress-controller: depend octavia-ingress-controller
+image-octavia-ingress-controller: work octavia-ingress-controller
 ifeq ($(GOOS),linux)
 	cp octavia-ingress-controller cluster/images/octavia-ingress-controller
 	docker build -t $(REGISTRY)/octavia-ingress-controller:$(VERSION) cluster/images/octavia-ingress-controller
@@ -273,7 +256,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-manila-provisioner: depend manila-provisioner
+image-manila-provisioner: work manila-provisioner
 ifeq ($(GOOS),linux)
 	cp manila-provisioner cluster/images/manila-provisioner
 	docker build -t $(REGISTRY)/manila-provisioner:$(VERSION) cluster/images/manila-provisioner
@@ -282,7 +265,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-manila-csi-plugin: depend manila-csi-plugin
+image-manila-csi-plugin: work manila-csi-plugin
 ifeq ($(GOOS),linux)
 	cp manila-csi-plugin cluster/images/manila-csi-plugin
 	docker build -t $(REGISTRY)/manila-csi-plugin:$(VERSION) cluster/images/manila-csi-plugin
@@ -291,7 +274,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-kms-plugin: depend barbican-kms-plugin
+image-kms-plugin: work barbican-kms-plugin
 ifeq ($(GOOS), linux)
 	cp barbican-kms-plugin cluster/images/barbican-kms-plugin
 	docker build -t $(REGISTRY)/barbican-kms-plugin:$(VERSION) cluster/images/barbican-kms-plugin
@@ -300,7 +283,7 @@ else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-magnum-auto-healer: depend magnum-auto-healer
+image-magnum-auto-healer: work magnum-auto-healer
 ifeq ($(GOOS),linux)
 	cp magnum-auto-healer cluster/images/magnum-auto-healer
 	docker build -t $(REGISTRY)/magnum-auto-healer:$(VERSION) cluster/images/magnum-auto-healer
@@ -327,9 +310,10 @@ version:
 
 .PHONY: build-cross
 build-cross: LDFLAGS += -extldflags "-static"
-build-cross: depend
+build-cross: work
 ifndef HAS_GOX
-	go get -u github.com/mitchellh/gox
+	echo "installing gox"
+	GO111MODULE=off go get -u github.com/mitchellh/gox
 endif
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/openstack-cloud-controller-manager/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/cinder-provisioner/
@@ -352,5 +336,5 @@ dist: build-cross
 		$(DIST_DIRS) zip -r cloud-provider-openstack-$(VERSION)-{}.zip {} \; \
 	)
 
-.PHONY: bindep build clean cover depend docs fmt functional lint import-boss realclean \
+.PHONY: bindep build clean cover work docs fmt functional lint import-boss realclean \
 	relnotes test translation version build-cross dist
