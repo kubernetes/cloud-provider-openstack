@@ -31,10 +31,11 @@ func TestRoutes(t *testing.T) {
 	const clusterName = "ignored"
 
 	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {
-		testConfigFromEnv(t, "Failed to construct/authenticate OpenStack: %s", err)
+		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
 	}
 
 	vms := getServers(os)
