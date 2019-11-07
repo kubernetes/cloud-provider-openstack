@@ -17,7 +17,6 @@ limitations under the License.
 package cinder
 
 import (
-	"flag"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -34,9 +33,6 @@ var omock *openstack.OpenStackMock
 // Init Node Server
 func init() {
 	if fakeNs == nil {
-		// to avoid annoying ERROR: logging before flag.Parse
-		flag.Parse()
-
 		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
 
 		// mock MountMock
