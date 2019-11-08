@@ -48,7 +48,7 @@ const (
 )
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
+func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
 	opts := &volumes.CreateOpts{
 		Name:             name,
 		Size:             size,
@@ -56,6 +56,7 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		AvailabilityZone: availability,
 		Description:      volumeDescription,
 		SnapshotID:       snapshotID,
+		SourceVolID:      sourcevolID,
 	}
 	if tags != nil {
 		opts.Metadata = *tags

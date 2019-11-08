@@ -98,12 +98,17 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
 	content := req.GetVolumeContentSource()
 	var snapshotID string
+	var sourcevolID string
 
 	if content != nil && content.GetSnapshot() != nil {
 		snapshotID = content.GetSnapshot().GetSnapshotId()
 	}
 
-	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, &properties)
+	if content != nil && content.GetVolume() != nil {
+		sourcevolID = content.GetVolume().GetVolumeId()
+	}
+
+	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
 	if err != nil {
 		klog.V(3).Infof("Failed to CreateVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume failed with error %v", err))
@@ -543,6 +548,16 @@ func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: vol.SnapshotID,
+				},
+			},
+		}
+	}
+
+	if vol.SourceVolID != "" {
+		volsrc = &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Volume{
+				Volume: &csi.VolumeContentSource_VolumeSource{
+					VolumeId: vol.SourceVolID,
 				},
 			},
 		}
