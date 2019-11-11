@@ -53,6 +53,49 @@ const (
 	volumeStatusSteps     = 13
 )
 
+// ConfigFromEnv allows setting up credentials etc using the
+// standard OS_* OpenStack client environment variables. USed only in tests
+func ConfigFromEnv() Config {
+	var cfg Config
+
+	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
+	cfg.Global.UserID = os.Getenv("OS_USER_ID")
+	cfg.Global.Username = os.Getenv("OS_USERNAME")
+	cfg.Global.Password = os.Getenv("OS_PASSWORD")
+
+	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
+	if cfg.Global.TenantID == "" {
+		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
+	}
+	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
+	if cfg.Global.TenantName == "" {
+		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
+	}
+
+	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
+	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
+	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
+	cfg.Global.TenantDomainID = os.Getenv("OS_PROJECT_DOMAIN_ID")
+	cfg.Global.TenantDomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
+	cfg.Global.UserDomainID = os.Getenv("OS_USER_DOMAIN_ID")
+	cfg.Global.UserDomainName = os.Getenv("OS_USER_DOMAIN_NAME")
+	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
+	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
+	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
+	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
+
+	// Set default values for config params
+	cfg.BlockStorage.BSVersion = "auto"
+	cfg.BlockStorage.TrustDevicePath = false
+	cfg.BlockStorage.IgnoreVolumeAZ = false
+	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
+	cfg.Networking.IPv6SupportDisabled = false
+	cfg.Networking.PublicNetworkName = "public"
+	cfg.LoadBalancer.InternalLB = false
+
+	return cfg
+}
+
 func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status string) {
 	backoff := wait.Backoff{
 		Duration: volumeStatusInitDelay,
@@ -92,21 +135,11 @@ func TestReadConfig(t *testing.T) {
 		t.Errorf("Should fail when no config is provided: %s", err)
 	}
 
-	// Since we are setting env vars, we need to reset old
-	// values for other tests to succeed.
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
-
-	os.Setenv("OS_PASSWORD", "mypass")
-	defer os.Unsetenv("OS_PASSWORD")
-
-	os.Setenv("OS_TENANT_NAME", "admin")
-	defer os.Unsetenv("OS_TENANT_NAME")
-
 	cfg, err := ReadConfig(strings.NewReader(`
  [Global]
  auth-url = http://auth.url
  user-id = user
+ password = mypass
  tenant-name = demo
  tenant-domain-name = Default
  region = RegionOne
@@ -177,9 +210,6 @@ func TestReadConfig(t *testing.T) {
 }
 
 func TestReadClouds(t *testing.T) {
-	// Clean up env
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
 
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
@@ -188,16 +218,6 @@ func TestReadClouds(t *testing.T) {
 
 	cloudFile := dir + "/test_clouds.yaml"
 	_ = os.Remove(cloudFile)
-
-	// Environment setup
-	os.Setenv("OS_PASSWORD", "mypass")
-	defer os.Unsetenv("OS_PASSWORD")
-
-	os.Setenv("OS_AUTH_URL", "http://wrong-auth.url")
-	defer os.Unsetenv("OS_AUTH_URL")
-
-	os.Setenv("OS_CLOUD", "default")
-	defer os.Unsetenv("OS_CLOUD")
 
 	var cloud = `
 clouds:
@@ -222,6 +242,7 @@ clouds:
  [Global]
  auth-url = http://auth.url
  trust-id = mytrust
+ password = mypass
  use-clouds = true
  clouds-file = ` + cloudFile + `
  [LoadBalancer]
