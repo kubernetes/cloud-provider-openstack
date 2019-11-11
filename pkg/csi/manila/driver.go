@@ -130,20 +130,20 @@ func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, man
 
 	var supportsNodeStage bool
 
-	if nodeCapsMap, err := d.initProxiedDriver(); err != nil {
+	nodeCapsMap, err := d.initProxiedDriver()
+	if err != nil {
 		return nil, fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
-	} else {
-		var nscaps []csi.NodeServiceCapability_RPC_Type
-		for c := range nodeCapsMap {
-			nscaps = append(nscaps, c)
-
-			if c == csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME {
-				supportsNodeStage = true
-			}
-		}
-
-		d.addNodeServiceCapabilities(nscaps)
 	}
+	var nscaps []csi.NodeServiceCapability_RPC_Type
+	for c := range nodeCapsMap {
+		nscaps = append(nscaps, c)
+
+		if c == csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME {
+			supportsNodeStage = true
+		}
+	}
+
+	d.addNodeServiceCapabilities(nscaps)
 
 	d.ids = &identityServer{d: d}
 	d.cs = &controllerServer{d: d}

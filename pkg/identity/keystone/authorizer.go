@@ -59,23 +59,21 @@ func getAllowed(definition string, str string) (sets.String, error) {
 		// "!namespace"
 		if definition[1:] == str || definition[1:] == "*" {
 			return nil, fmt.Errorf("")
-		} else {
-			allowed.Insert(str)
 		}
+		allowed.Insert(str)
 	} else if strings.Index(definition, "[") == 0 && strings.Index(definition, "]") == (len(definition)-1) {
 		// "['namespace1', 'namespace2']"
 		var items []string
 		if err := json.Unmarshal([]byte(strings.Replace(definition, "'", "\"", -1)), &items); err != nil {
 			klog.V(4).Infof("Skip the permission definition %s", definition)
 			return nil, fmt.Errorf("")
-		} else {
-			for _, val := range items {
-				if val == "*" {
-					allowed.Insert(str)
-					continue
-				}
-				allowed.Insert(val)
+		}
+		for _, val := range items {
+			if val == "*" {
+				allowed.Insert(str)
+				continue
 			}
+			allowed.Insert(val)
 		}
 	} else if strings.Index(definition, "!") == 0 && strings.Index(definition, "[") == 1 && strings.Index(definition, "]") == (len(definition)-1) {
 		// "!['namespace1', 'namespace2']"
@@ -83,20 +81,18 @@ func getAllowed(definition string, str string) (sets.String, error) {
 		if err := json.Unmarshal([]byte(strings.Replace(definition[1:], "'", "\"", -1)), &items); err != nil {
 			klog.V(4).Infof("Skip the permission definition %s", definition)
 			return nil, fmt.Errorf("")
-		} else {
-			found := false
-			for _, val := range items {
-				if val == str || val == "*" {
-					found = true
-				}
-			}
-
-			if found {
-				return nil, fmt.Errorf("")
-			} else {
-				allowed.Insert(str)
+		}
+		found := false
+		for _, val := range items {
+			if val == str || val == "*" {
+				found = true
 			}
 		}
+
+		if found {
+			return nil, fmt.Errorf("")
+		}
+		allowed.Insert(str)
 	}
 
 	return allowed, nil
