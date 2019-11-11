@@ -121,6 +121,7 @@ func (m *Mount) GetDevicePath(volumeID string) (string, error) {
 		if devicePath != "" {
 			return true, nil
 		}
+		probeVolume()
 		return false, nil
 	})
 
