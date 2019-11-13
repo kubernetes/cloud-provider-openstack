@@ -17,7 +17,6 @@ limitations under the License.
 package cinder
 
 import (
-	"flag"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -32,9 +31,6 @@ var osmock *openstack.OpenStackMock
 // Init Controller Server
 func init() {
 	if fakeCs == nil {
-		// to avoid annoying ERROR: logging before flag.Parse
-		flag.Parse()
-
 		osmock = new(openstack.OpenStackMock)
 		openstack.OsInstance = osmock
 
