@@ -18,14 +18,13 @@ package openstack
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/apiversions"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
+	version "github.com/hashicorp/go-version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 )
@@ -43,16 +42,16 @@ const (
 )
 
 var (
-	octaviaVersion float64
+	octaviaVersion string
 )
 
 // getOctaviaVersion returns the current Octavia API version.
-func getOctaviaVersion(client *gophercloud.ServiceClient) (float64, error) {
-	if octaviaVersion != 0 {
+func getOctaviaVersion(client *gophercloud.ServiceClient) (string, error) {
+	if octaviaVersion != "" {
 		return octaviaVersion, nil
 	}
 
-	var defaultVer = 0.0
+	var defaultVer = "0.0"
 	allPages, err := apiversions.List(client).AllPages()
 	if err != nil {
 		return defaultVer, err
@@ -68,36 +67,35 @@ func getOctaviaVersion(client *gophercloud.ServiceClient) (float64, error) {
 	klog.V(4).Infof("Found Octavia API versions: %v", versions)
 
 	// The current version is always the last one in the list
-	cur := versions[len(versions)-1]
-	octaviaVersion, err = strconv.ParseFloat(strings.TrimLeft(cur.ID, "v"), 32)
-	if err != nil {
-		return defaultVer, err
-	}
-
+	octaviaVersion = versions[len(versions)-1].ID
 	klog.V(4).Infof("The current Octavia API version: %v", octaviaVersion)
 
 	return octaviaVersion, nil
 }
 
-// IsOctaviaFeatureSupported returns true if the given feature is supported in Octavia
+// IsOctaviaFeatureSupported returns true if the given feature is supported in the deployed Octavia version.
 func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int) bool {
-	version, err := getOctaviaVersion(client)
+	octaviaVer, err := getOctaviaVersion(client)
 	if err != nil {
 		klog.Warningf("Failed to get current Octavia API version: %v", err)
 		return false
 	}
 
+	currentVer, _ := version.NewVersion(octaviaVer)
+
 	switch feature {
 	case OctaviaFeatureVIPACL:
-		if version >= 2.12 {
+		verACL, _ := version.NewVersion("v2.12")
+		if currentVer.GreaterThanOrEqual(verACL) {
 			return true
 		}
 	case OctaviaFeatureTags:
-		if version >= 2.5 {
+		verTags, _ := version.NewVersion("v2.5")
+		if currentVer.GreaterThanOrEqual(verTags) {
 			return true
 		}
 	default:
-		klog.V(4).Infof("Feature %d not recognized", feature)
+		klog.Warningf("Feature %d not recognized", feature)
 	}
 
 	return false
