@@ -18,21 +18,16 @@ package manila
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/keyset"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
@@ -43,8 +38,8 @@ type controllerServer struct {
 }
 
 var (
-	rbVolumeID   = responsebroker.New()
-	rbSnapshotID = responsebroker.New()
+	pendingVolumes   = keyset.New()
+	pendingSnapshots = keyset.New()
 )
 
 func getVolumeCreator(source *csi.VolumeContentSource, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions, shareTypeCaps capabilities.ManilaCapabilities) (volumeCreator, error) {
@@ -92,33 +87,20 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	// Acquire a lock for this volume
-	handle, isNewRequest := rbVolumeID.Acquire(req.GetName())
-	if !isNewRequest {
-		if respData := readResponse(handle); respData != nil {
-			return respData.(*csi.CreateVolumeResponse), nil
-		}
+	// Check for pending CreateVolume for this volume name
+	if !pendingVolumes.TryStore(req.GetName()) {
+		return nil, status.Errorf(codes.Aborted, "a volume named %s is already being created", req.GetName())
+	}
+	defer pendingVolumes.Remove(req.GetName())
+
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	var (
-		res = &requestResult{}
-
-		manilaClient  manilaclient.Interface
-		volCreator    volumeCreator
-		share         *shares.Share
-		accessRight   *shares.AccessRight
-		shareTypeCaps capabilities.ManilaCapabilities
-	)
-
-	defer writeResponse(handle, rbVolumeID, req.GetName(), res)
-
-	manilaClient, res.err = cs.d.manilaClientBuilder.New(osOpts)
-	if res.err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", res.err)
-	}
-
-	if shareTypeCaps, res.err = capabilities.GetManilaCapabilities(shareOpts.Type, manilaClient); res.err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get Manila capabilities for share type %s: %v", shareOpts.Type, res.err)
+	shareTypeCaps, err := capabilities.GetManilaCapabilities(shareOpts.Type, manilaClient)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get Manila capabilities for share type %s: %v", shareOpts.Type, err)
 	}
 
 	requestedSize := req.GetCapacityRange().GetRequiredBytes()
@@ -131,16 +113,18 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Retrieve an existing share or create a new one
 
-	if volCreator, res.err = getVolumeCreator(req.GetVolumeContentSource(), shareOpts, cs.d.compatOpts, shareTypeCaps); res.err != nil {
-		return nil, res.err
+	volCreator, err := getVolumeCreator(req.GetVolumeContentSource(), shareOpts, cs.d.compatOpts, shareTypeCaps)
+	if err != nil {
+		return nil, err
 	}
 
-	if share, res.err = volCreator.create(req, req.GetName(), sizeInGiB, manilaClient, shareOpts); res.err != nil {
-		return nil, res.err
+	share, err := volCreator.create(req, req.GetName(), sizeInGiB, manilaClient, shareOpts)
+	if err != nil {
+		return nil, err
 	}
 
-	if res.err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts, cs.d.compatOpts, shareTypeCaps); res.err != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "a share named %s already exists, but is incompatible with the request: %v", req.GetName(), res.err)
+	if err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts, cs.d.compatOpts, shareTypeCaps); err != nil {
+		return nil, status.Errorf(codes.AlreadyExists, "a share named %s already exists, but is incompatible with the request: %v", req.GetName(), err)
 	}
 
 	// Grant access to the share
@@ -149,25 +133,25 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	klog.V(4).Infof("creating an access rule for share %s", share.ID)
 
-	accessRight, res.err = ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
-	if res.err != nil {
-		if res.err == wait.ErrWaitTimeout {
+	accessRight, err := ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
+	if err != nil {
+		if err == wait.ErrWaitTimeout {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rights %s for share %s to become available", accessRight.ID, share.ID)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to grant access for share %s: %v", share.ID, res.err)
+		return nil, status.Errorf(codes.Internal, "failed to grant access for share %s: %v", share.ID, err)
 	}
 
 	// Check if compatibility layer is needed and can be used
 	if compatLayer := tryCompatForVolumeSource(cs.d.compatOpts, shareOpts, req.GetVolumeContentSource(), shareTypeCaps); compatLayer != nil {
-		if res.err = compatLayer.SupplementCapability(cs.d.compatOpts, share, accessRight, req, cs.d.fwdEndpoint, manilaClient, cs.d.csiClientBuilder); res.err != nil {
+		if err = compatLayer.SupplementCapability(cs.d.compatOpts, share, accessRight, req, cs.d.fwdEndpoint, manilaClient, cs.d.csiClientBuilder); err != nil {
 			// An error occurred, the user must clean the share manually
 			// TODO needs proper monitoring
-			return nil, res.err
+			return nil, err
 		}
 	}
 
-	res.dataPtr = &csi.CreateVolumeResponse{
+	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:      share.ID,
 			ContentSource: req.GetVolumeContentSource(),
@@ -178,9 +162,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 				"cephfs-mounter": shareOpts.CephfsMounter,
 			},
 		},
-	}
-
-	return res.dataPtr.(*csi.CreateVolumeResponse), nil
+	}, nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -223,38 +205,26 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	// Acquire a lock for this snapshot
-	handle, isNewRequest := rbSnapshotID.Acquire(req.GetName())
-	if !isNewRequest {
-		if respData := readResponse(handle); respData != nil {
-			return respData.(*csi.CreateSnapshotResponse), nil
-		}
+	// Check for pending CreateSnapshots for this snapshot name
+	if !pendingSnapshots.TryStore(req.GetName()) {
+		return nil, status.Errorf(codes.Aborted, "a snapshot named %s is already being created", req.GetName())
 	}
+	defer pendingSnapshots.Remove(req.GetName())
 
-	var (
-		res = &requestResult{}
-
-		manilaClient manilaclient.Interface
-		sourceShare  *shares.Share
-		snapshot     *snapshots.Snapshot
-		ctime        *timestamp.Timestamp
-	)
-
-	defer writeResponse(handle, rbSnapshotID, req.GetName(), res)
-
-	manilaClient, res.err = cs.d.manilaClientBuilder.New(osOpts)
-	if res.err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", res.err)
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
 	// Retrieve the source share
 
-	if sourceShare, res.err = manilaClient.GetShareByID(req.GetSourceVolumeId()); res.err != nil {
-		if clouderrors.IsNotFound(res.err) {
+	sourceShare, err := manilaClient.GetShareByID(req.GetSourceVolumeId())
+	if err != nil {
+		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), res.err)
+		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), err)
 	}
 
 	if strings.ToUpper(sourceShare.ShareProto) != cs.d.shareProto {
@@ -266,20 +236,21 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	klog.V(4).Infof("creating a snapshot (%s) of share %s", req.GetName(), req.GetSourceVolumeId())
 
-	if snapshot, res.err = getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient); res.err != nil {
-		if res.err == wait.ErrWaitTimeout {
+	snapshot, err := getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient)
+	if err != nil {
+		if err == wait.ErrWaitTimeout {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of share %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 
-		if clouderrors.IsNotFound(res.err) {
+		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to create a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
+		return nil, status.Errorf(codes.Internal, "failed to create a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), err)
 	}
 
-	if res.err = verifySnapshotCompatibility(snapshot, req); res.err != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "a snapshot named %s already exists, but is incompatible with the request: %v", req.GetName(), res.err)
+	if err = verifySnapshotCompatibility(snapshot, req); err != nil {
+		return nil, status.Errorf(codes.AlreadyExists, "a snapshot named %s already exists, but is incompatible with the request: %v", req.GetName(), err)
 	}
 
 	// Check for snapshot status, determine whether it's ready
@@ -294,26 +265,24 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	case snapshotError:
 		manilaErrMsg, err := lastResourceError(snapshot.ID, manilaClient)
 		if err != nil {
-			res.err = fmt.Errorf("snapshot %s of share %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err)
-			return nil, status.Error(codes.Internal, res.err.Error())
+			return nil, status.Errorf(codes.Internal, "snapshot %s of share %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err)
 		}
 
 		// An error occurred, try to roll-back the snapshot
 		tryDeleteSnapshot(snapshot, manilaClient)
 
-		res.err = fmt.Errorf("snapshot %s of share %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
-		return nil, status.Error(manilaErrMsg.errCode.toRpcErrorCode(), res.err.Error())
+		return nil, status.Errorf(manilaErrMsg.errCode.toRpcErrorCode(), "snapshot %s of share %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
 	default:
-		res.err = fmt.Errorf("snapshot %s is in an unexpected state: wanted creating/available, got %s", snapshot.ID, snapshot.Status)
-		return nil, status.Errorf(codes.Internal, "an error occurred while creating a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), res.err)
+		return nil, status.Errorf(codes.Internal, "snapshot %s is in an unexpected state: wanted creating/available, got %s", snapshot.ID, snapshot.Status)
 	}
 
 	// Parse CreatedAt timestamp
-	if ctime, err = ptypes.TimestampProto(snapshot.CreatedAt); err != nil {
+	ctime, err := ptypes.TimestampProto(snapshot.CreatedAt)
+	if err != nil {
 		klog.Warningf("couldn't parse timestamp %v from snapshot %s: %v", snapshot.CreatedAt, snapshot.ID, err)
 	}
 
-	res.dataPtr = &csi.CreateSnapshotResponse{
+	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     snapshot.ID,
 			SourceVolumeId: req.GetSourceVolumeId(),
@@ -321,9 +290,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			CreationTime:   ctime,
 			ReadyToUse:     readyToUse,
 		},
-	}
-
-	return res.dataPtr.(*csi.CreateSnapshotResponse), nil
+	}, nil
 }
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
