@@ -30,14 +30,13 @@ import (
 )
 
 var (
-	kubeconfig      = flag.String("kubeconfig", "", "Path to a kube config. Only required if out-of-cluster.")
-	provisionerName = flag.String("provisioner", "externalstorage.k8s.io/manila", "Name of the provisioner. The provisioner will only provision volumes for claims that request a StorageClass with a provisioner field set equal to this name.")
+	kubeconfig         = flag.String("kubeconfig", "", "Path to a kube config. Only required if out-of-cluster.")
+	provisionerName    = flag.String("provisioner", "externalstorage.k8s.io/manila", "Name of the provisioner. The provisioner will only provision volumes for claims that request a StorageClass with a provisioner field set equal to this name.")
+	extraUserAgentData = flag.StringArray("user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 )
 
 func main() {
 	flag.Set("logtostderr", "true")
-
-	manila.AddExtraFlags(flag.CommandLine)
 
 	// Glog requires this otherwise it complains.
 	flag.Parse()
@@ -78,7 +77,7 @@ func main() {
 	provisioner := controller.NewProvisionController(
 		clientset,
 		*provisionerName,
-		manila.NewProvisioner(clientset),
+		manila.NewProvisioner(clientset, "manila-provisioner", *extraUserAgentData),
 		serverVersion.GitVersion,
 	)
 

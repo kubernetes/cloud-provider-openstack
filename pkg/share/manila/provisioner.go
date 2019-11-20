@@ -23,6 +23,8 @@ import (
 	"github.com/pborman/uuid"
 	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"k8s.io/klog"
@@ -31,13 +33,17 @@ import (
 
 // Provisioner struct, implements controller.Provisioner interface
 type Provisioner struct {
-	clientset clientset.Interface
+	clientset          clientset.Interface
+	userAgent          string
+	extraUserAgentData []string
 }
 
 // NewProvisioner creates a new instance of Manila provisioner
-func NewProvisioner(c clientset.Interface) *Provisioner {
+func NewProvisioner(c clientset.Interface, userAgent string, extraUserAgentData []string) *Provisioner {
 	return &Provisioner{
-		clientset: c,
+		clientset:          c,
+		userAgent:          userAgent,
+		extraUserAgentData: extraUserAgentData,
 	}
 }
 
@@ -69,7 +75,7 @@ func (p *Provisioner) Provision(volOptions controller.ProvisionOptions) (*v1.Per
 		return nil, fmt.Errorf("failed to get share backend: %v", err)
 	}
 
-	client, err := NewManilaV2Client(osOptions)
+	client, err := manilaclient.New(osOptions, p.userAgent, p.extraUserAgentData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
 	}
@@ -109,14 +115,9 @@ func (p *Provisioner) Provision(volOptions controller.ProvisionOptions) (*v1.Per
 
 	// Get the export location
 
-	availableExportLocations, err := shares.GetExportLocations(client, share.ID).Extract()
+	chosenExportLocation, err := manilautil.GetChosenExportLocation(share.ID, client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get export locations for share %s: %v", share.ID, err)
-	}
-
-	chosenExportLocation, err := chooseExportLocation(availableExportLocations)
-	if err != nil {
-		return nil, fmt.Errorf("failed to choose an export location for share %s: %v", share.ID, err)
+		return nil, fmt.Errorf("failed to resolve export location for volume %s: %v", share.ID, err)
 	}
 
 	accessRight, err := shareBackend.GrantAccess(&sharebackends.GrantAccessArgs{
@@ -138,7 +139,7 @@ func (p *Provisioner) Provision(volOptions controller.ProvisionOptions) (*v1.Per
 		Share:          share,
 		Options:        shareOptions,
 		ShareSecretRef: &shareSecretRef,
-		Location:       &chosenExportLocation,
+		Location:       chosenExportLocation,
 		Clientset:      p.clientset,
 		AccessRight:    accessRight,
 	})
@@ -180,7 +181,7 @@ func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to create OpenStack options for share %s: %v", shareID, err)
 	}
 
-	client, err := NewManilaV2Client(osOptions)
+	client, err := manilaclient.New(osOptions, p.userAgent, p.extraUserAgentData)
 	if err != nil {
 		return fmt.Errorf("failed to create Manila v2 client for share %s: %v", shareID, err)
 	}
