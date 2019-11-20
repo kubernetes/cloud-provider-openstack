@@ -29,11 +29,12 @@ import (
 )
 
 type ClientBuilder struct {
-	UserAgentData []string
+	UserAgent          string
+	ExtraUserAgentData []string
 }
 
 func (cb *ClientBuilder) New(o *openstack_provider.AuthOpts) (Interface, error) {
-	return New(o, cb.UserAgentData)
+	return New(o, cb.UserAgent, cb.ExtraUserAgentData)
 }
 
 const (
@@ -96,9 +97,9 @@ func validateManilaClient(c *gophercloud.ServiceClient) error {
 	return nil
 }
 
-func New(o *openstack_provider.AuthOpts, userAgentData []string) (*Client, error) {
+func New(o *openstack_provider.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
 	// Authenticate and create Manila v2 client
-	provider, err := openstack_provider.NewOpenStackClient(o, "manila-csi-plugin", userAgentData...)
+	provider, err := openstack_provider.NewOpenStackClient(o, userAgent, extraUserAgentData...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
