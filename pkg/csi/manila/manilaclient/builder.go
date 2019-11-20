@@ -118,3 +118,7 @@ func New(o *openstack_provider.AuthOpts, userAgent string, extraUserAgentData []
 
 	return &Client{c: client}, nil
 }
+
+func NewFromServiceClient(c *gophercloud.ServiceClient) *Client {
+	return &Client{c: c}
+}
