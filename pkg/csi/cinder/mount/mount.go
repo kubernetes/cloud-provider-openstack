@@ -121,6 +121,8 @@ func (m *Mount) GetDevicePath(volumeID string) (string, error) {
 		if devicePath != "" {
 			return true, nil
 		}
+		// see issue https://github.com/kubernetes/cloud-provider-openstack/issues/705
+		probeVolume()
 		return false, nil
 	})
 
