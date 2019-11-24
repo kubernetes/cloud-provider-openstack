@@ -72,15 +72,18 @@
               - ^pkg/util/.*
               - ^go.mod$
               - ^go.sum$
+    cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+    cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
-        - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+        - cloud-provider-openstack-acceptance-test-csi-manila:
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
