@@ -36,7 +36,7 @@ spec:
       serviceAccountName: openstack-manila-csi-controllerplugin
       containers:
         - name: provisioner
-          image: "quay.io/k8scsi/csi-provisioner:v1.3.0"
+          image: "quay.io/k8scsi/csi-provisioner:v1.3.1"
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -48,7 +48,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: snapshotter
-          image: "quay.io/k8scsi/csi-snapshotter:v1.2.0"
+          image: "quay.io/k8scsi/csi-snapshotter:v1.2.2"
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
