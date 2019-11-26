@@ -17,6 +17,7 @@ require (
 	github.com/gophercloud/gophercloud v0.6.1-0.20191025185032-6ad562af8c1f
 	github.com/gophercloud/utils v0.0.0-20191020172814-bd86af96d544
 	github.com/gorilla/mux v1.7.3
+	github.com/hashicorp/go-version v1.2.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
