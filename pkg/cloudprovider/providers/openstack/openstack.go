@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -177,8 +176,6 @@ type OpenStack struct {
 	routeOpts      RouterOpts
 	metadataOpts   MetadataOpts
 	networkingOpts NetworkingOpts
-	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID string
 }
 
 type AuthOpts struct {
@@ -451,29 +448,6 @@ func (c *caller) call(f func()) {
 	}
 }
 
-func readInstanceID(searchOrder string) (string, error) {
-	// First, try to get data from metadata service because local
-	// data might be changed by accident
-	md, err := metadata.Get(searchOrder)
-	if err == nil {
-		return md.UUID, nil
-	}
-
-	// Try to find instance ID on the local filesystem (created by cloud-init)
-	const instanceIDFile = "/var/lib/cloud/data/instance-id"
-	idBytes, err := ioutil.ReadFile(instanceIDFile)
-	if err == nil {
-		instanceID := string(idBytes)
-		instanceID = strings.TrimSpace(instanceID)
-		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" && instanceID != "iid-datasource-none" {
-			return instanceID, nil
-		}
-	}
-
-	return "", err
-}
-
 // check opts for OpenStack
 func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	lbOpts := openstackOpts.lbOpts
@@ -596,22 +570,6 @@ func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuil
 // This is a simple string cast.
 func mapNodeNameToServerName(nodeName types.NodeName) string {
 	return string(nodeName)
-}
-
-// GetNodeNameByID maps instanceid to types.NodeName
-func (os *OpenStack) GetNodeNameByID(instanceID string) (types.NodeName, error) {
-	client, err := os.NewComputeV2()
-	var nodeName types.NodeName
-	if err != nil {
-		return nodeName, err
-	}
-
-	server, err := servers.Get(client, instanceID).Extract()
-	if err != nil {
-		return nodeName, err
-	}
-	nodeName = mapServerToNodeName(server)
-	return nodeName, nil
 }
 
 // mapServerToNodeName maps an OpenStack Server to a k8s NodeName
@@ -811,11 +769,6 @@ func (os *OpenStack) ProviderName() string {
 	return ProviderName
 }
 
-// ScrubDNS filters DNS settings for pods.
-func (os *OpenStack) ScrubDNS(nameServers, searches []string) ([]string, []string) {
-	return nameServers, searches
-}
-
 // HasClusterID returns true if the cluster has a clusterID
 func (os *OpenStack) HasClusterID() bool {
 	return true
@@ -964,53 +917,6 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	klog.V(1).Info("Claiming to support Routes")
 	return r, true
-}
-
-func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
-	bsVersion := ""
-	if forceVersion == "" {
-		bsVersion = os.bsOpts.BSVersion
-	} else {
-		bsVersion = forceVersion
-	}
-
-	switch bsVersion {
-	case "v2":
-		sClient, err := os.NewBlockStorageV2()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V2")
-		return &VolumesV2{sClient, os.bsOpts}, nil
-	case "v3":
-		sClient, err := os.NewBlockStorageV3()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V3")
-		return &VolumesV3{sClient, os.bsOpts}, nil
-	case "auto":
-		// Currently kubernetes support Cinder v1 / Cinder v2 / Cinder v3.
-		// Choose Cinder v3 firstly, if kubernetes can't initialize cinder v3 client, try to initialize cinder v2 client.
-		// If kubernetes can't initialize cinder v2 client, try to initialize cinder v1 client.
-		// Return appropriate message when kubernetes can't initialize them.
-		if sClient, err := os.NewBlockStorageV3(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V3")
-			return &VolumesV3{sClient, os.bsOpts}, nil
-		}
-
-		if sClient, err := os.NewBlockStorageV2(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V2")
-			return &VolumesV2{sClient, os.bsOpts}, nil
-		}
-
-		errTxt := "BlockStorage API version autodetection failed. " +
-			"Please set it explicitly in cloud.conf in section [BlockStorage] with key `bs-version`"
-		return nil, errors.New(errTxt)
-	default:
-		errTxt := fmt.Sprintf("Config error: unrecognised bs-version \"%v\"", os.bsOpts.BSVersion)
-		return nil, errors.New(errTxt)
-	}
 }
 
 func checkMetadataSearchOrder(order string) error {

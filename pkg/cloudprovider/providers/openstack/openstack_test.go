@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -34,57 +33,13 @@ import (
 	"github.com/spf13/pflag"
 
 	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 const (
 	testClusterName = "testCluster"
-
-	// volumeStatus* is configuration of exponential backoff for
-	// waiting for specified volume status. Starting with 1
-	// seconds, multiplying by 1.2 with each step and taking 13 steps at maximum
-	// it will time out after 32s, which roughly corresponds to 30s
-	volumeStatusInitDelay = 1 * time.Second
-	volumeStatusFactor    = 1.2
-	volumeStatusSteps     = 13
 )
-
-func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status string) {
-	backoff := wait.Backoff{
-		Duration: volumeStatusInitDelay,
-		Factor:   volumeStatusFactor,
-		Steps:    volumeStatusSteps,
-	}
-	start := time.Now().Second()
-	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		getVol, err := os.getVolume(volumeName)
-		if err != nil {
-			return false, err
-		}
-		if getVol.Status == status {
-			t.Logf("Volume (%s) status changed to %s after %v seconds\n",
-				volumeName,
-				status,
-				time.Now().Second()-start)
-			return true, nil
-		}
-		return false, nil
-	})
-	if err == wait.ErrWaitTimeout {
-		t.Logf("Volume (%s) status did not change to %s after %v seconds\n",
-			volumeName,
-			status,
-			time.Now().Second()-start)
-		return
-	}
-	if err != nil {
-		t.Fatalf("Cannot get existing Cinder volume (%s): %v", volumeName, err)
-	}
-}
 
 func TestReadConfig(t *testing.T) {
 	_, err := ReadConfig(nil)
@@ -801,78 +756,6 @@ func TestZones(t *testing.T) {
 	if zone.FailureDomain != "nova" {
 		t.Fatalf("GetZone() returned wrong failure domain (%s)", zone.FailureDomain)
 	}
-}
-
-var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
-
-func TestVolumes(t *testing.T) {
-	cfg := ConfigFromEnv()
-	testConfigFromEnv(t, &cfg)
-
-	os, err := NewOpenStack(cfg)
-	if err != nil {
-		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
-	}
-
-	tags := map[string]string{
-		"test": "value",
-	}
-	vol, _, _, _, err := os.CreateVolume("kubernetes-test-volume-"+rand.String(10), 1, "", "", &tags)
-	if err != nil {
-		t.Fatalf("Cannot create a new Cinder volume: %v", err)
-	}
-	t.Logf("Volume (%s) created\n", vol)
-
-	WaitForVolumeStatus(t, os, vol, volumeAvailableStatus)
-
-	id, err := os.InstanceID()
-	if err != nil {
-		t.Logf("Cannot find instance id: %v - perhaps you are running this test outside a VM launched by OpenStack", err)
-	} else {
-		diskID, err := os.AttachDisk(id, vol)
-		if err != nil {
-			t.Fatalf("Cannot AttachDisk Cinder volume %s: %v", vol, err)
-		}
-		t.Logf("Volume (%s) attached, disk ID: %s\n", vol, diskID)
-
-		WaitForVolumeStatus(t, os, vol, volumeInUseStatus)
-
-		devicePath, err := os.GetDevicePath(diskID)
-		if err != nil {
-			t.Fatalf("Cannot GetDevicePath for Cinder volume %s: %v", vol, err)
-		}
-		if diskPathRegexp.FindString(devicePath) == "" {
-			t.Fatalf("GetDevicePath returned and unexpected path for Cinder volume %s, returned %s", vol, devicePath)
-		}
-		t.Logf("Volume (%s) found at path: %s\n", vol, devicePath)
-
-		err = os.DetachDisk(id, vol)
-		if err != nil {
-			t.Fatalf("Cannot DetachDisk Cinder volume %s: %v", vol, err)
-		}
-		t.Logf("Volume (%s) detached\n", vol)
-
-		WaitForVolumeStatus(t, os, vol, volumeAvailableStatus)
-	}
-
-	expectedVolSize := resource.MustParse("2Gi")
-	newVolSize, err := os.ExpandVolume(vol, resource.MustParse("1Gi"), expectedVolSize)
-	if err != nil {
-		t.Fatalf("Cannot expand a Cinder volume: %v", err)
-	}
-	if newVolSize != expectedVolSize {
-		t.Logf("Expected: %v but got: %v ", expectedVolSize, newVolSize)
-	}
-	t.Logf("Volume expanded to (%v) \n", newVolSize)
-
-	WaitForVolumeStatus(t, os, vol, volumeAvailableStatus)
-
-	err = os.DeleteVolume(vol)
-	if err != nil {
-		t.Fatalf("Cannot delete Cinder volume %s: %v", vol, err)
-	}
-	t.Logf("Volume (%s) deleted\n", vol)
-
 }
 
 func TestInstanceIDFromProviderID(t *testing.T) {

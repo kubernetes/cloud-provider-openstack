@@ -152,18 +152,6 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 	return false, nil
 }
 
-// InstanceID returns the kubelet's cloud provider ID.
-func (os *OpenStack) InstanceID() (string, error) {
-	if len(os.localInstanceID) == 0 {
-		id, err := readInstanceID(os.metadataOpts.SearchOrder)
-		if err != nil {
-			return "", err
-		}
-		os.localInstanceID = id
-	}
-	return os.localInstanceID, nil
-}
-
 // InstanceID returns the cloud provider ID of the specified instance.
 func (i *Instances) InstanceID(ctx context.Context, name types.NodeName) (string, error) {
 	srv, err := getServerByName(i.compute, name)

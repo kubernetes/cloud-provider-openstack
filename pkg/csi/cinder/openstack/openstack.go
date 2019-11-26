@@ -104,7 +104,6 @@ const defaultMaxVolAttachLimit int64 = 256
 
 var OsInstance IOpenStack = nil
 var configFile = "/etc/cloud.conf"
-var cfg Config
 
 func InitOpenStackProvider(cfgFile string) {
 	configFile = cfgFile
