@@ -494,16 +494,14 @@ func (mounter *SafeFormatAndMount) formatAndMount(source string, target string, 
 			}
 			klog.Errorf("format of disk %q failed: type:(%q) target:(%q) options:(%q)error:(%v)", source, fstype, target, options, err)
 			return err
-		} else {
-			// Disk is already formatted and failed to mount
-			if len(fstype) == 0 || fstype == existingFormat {
-				// This is mount error
-				return mountErr
-			} else {
-				// Block device is formatted with unexpected filesystem, let the user know
-				return fmt.Errorf("failed to mount the volume as %q, it already contains %s. Mount error: %v", fstype, existingFormat, mountErr)
-			}
 		}
+		// Disk is already formatted and failed to mount
+		if len(fstype) == 0 || fstype == existingFormat {
+			// This is mount error
+			return mountErr
+		}
+		// Block device is formatted with unexpected filesystem, let the user know
+		return fmt.Errorf("failed to mount the volume as %q, it already contains %s. Mount error: %v", fstype, existingFormat, mountErr)
 	}
 	return mountErr
 }
