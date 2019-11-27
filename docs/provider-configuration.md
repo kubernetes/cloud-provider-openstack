@@ -201,6 +201,10 @@ file.
 * `subnet-id`: Used to specify the ID of the subnet you want to
   create your loadbalancer on. Can be found at Network > Networks. Click on the
   respective network to get its subnets.
+* `network-id`: Used to specify the ID of the network you want to create your
+  loadbalancer on. A subnet with available IP addresses will be selected to
+  create loadbalancer's virtual IP. In case of Octavia, preference will be given
+  to IPv4 over IPv6 subnets.
 * `manage-security-groups`: Determines whether or not the load
   balancer should automatically manage the security group rules. Valid values
   are `true` and `false`. The default is `false`. When `true` is specified
