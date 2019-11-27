@@ -85,6 +85,7 @@ const (
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
+	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
 	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
 	ServiceAnnotationLoadBalancerTimeoutMemberConnect = "loadbalancer.openstack.org/timeout-member-connect"
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
@@ -456,6 +457,14 @@ func (lbaas *LbaasV2) createLoadBalancer(service *corev1.Service, name, clusterN
 		} else {
 			createOpts.VipSubnetID = lbaas.opts.SubnetID
 		}
+
+		if lbClass != nil && lbClass.NetworkID != "" {
+			createOpts.VipNetworkID = lbClass.NetworkID
+		} else if lbaas.opts.NetworkID != "" {
+			createOpts.VipNetworkID = lbaas.opts.NetworkID
+		} else {
+			klog.V(4).Infof("network-id parameter not passed, it will be inferred from subnet-id")
+		}
 	}
 
 	loadBalancerIP := service.Spec.LoadBalancerIP
@@ -464,6 +473,12 @@ func (lbaas *LbaasV2) createLoadBalancer(service *corev1.Service, name, clusterN
 	}
 
 	loadbalancer, err := loadbalancers.Create(lbaas.lb, createOpts).Extract()
+
+	// when NetworkID is specified, subnet will be selected by the backend for allocating virtual IP
+	if (lbClass != nil && lbClass.NetworkID != "") || lbaas.opts.NetworkID != "" {
+		lbaas.opts.SubnetID = loadbalancer.VipSubnetID
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
 	}
@@ -808,8 +823,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		return nil, fmt.Errorf("there are no available nodes for LoadBalancer service %s", serviceName)
 	}
 
+	lbaas.opts.NetworkID = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerNetworkID, lbaas.opts.NetworkID)
 	lbaas.opts.SubnetID = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
-	if len(lbaas.opts.SubnetID) == 0 {
+	if len(lbaas.opts.SubnetID) == 0 && len(lbaas.opts.NetworkID) == 0 {
 		// Get SubnetID automatically.
 		// The LB needs to be configured with instance addresses on the same subnet, so get SubnetID by one node.
 		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
