@@ -41,6 +41,19 @@ Encode your ```$CLOUD_CONFIG``` file content using base64.
 Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
 
+> NOTE: if your openstack cloud has cert (which means you already has cafile definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
+
+```
+volumes:
+...
+- name: cacert
+  hostPath:
+    path: /etc/cacert
+    type: Directory
+```
+
+Then call following command by using existing manifests:
+
 ```kubectl -f manifests/cinder-csi-plugin apply```
 
 This creates a set of cluster roles, cluster role bindings, and statefulsets etc to communicate with openstack(cinder).
