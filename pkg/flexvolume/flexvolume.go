@@ -264,14 +264,12 @@ func (d *FlexVolumeDriver) doRun(args []string) (map[string]interface{}, error) 
 	if cmdInfo, found := commands[op]; found {
 		if cmdInfo.numArgs == nArgs {
 			return cmdInfo.run(d, args[1:])
-		} else {
-			return nil, fmt.Errorf("unexpected number of args %d (expected %d) for operation %q", nArgs, cmdInfo.numArgs, op)
 		}
-	} else {
-		return map[string]interface{}{
-			"status": "Not supported",
-		}, nil
+		return nil, fmt.Errorf("unexpected number of args %d (expected %d) for operation %q", nArgs, cmdInfo.numArgs, op)
 	}
+	return map[string]interface{}{
+		"status": "Not supported",
+	}, nil
 }
 
 func (d *FlexVolumeDriver) Run(args []string) string {
