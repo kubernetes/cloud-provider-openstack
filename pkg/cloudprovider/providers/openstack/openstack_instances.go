@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
@@ -222,12 +223,18 @@ func srvInstanceType(srv *servers.Server) (string, error) {
 	return "", fmt.Errorf("flavor name/id not found")
 }
 
+// If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
+var providerIDRegexp = regexp.MustCompile(`^` + ProviderName + `:///([^/]+)$`)
+
 // instanceIDFromProviderID splits a provider's id and return instanceID.
 // A providerID is build out of '${ProviderName}:///${instance-id}'which contains ':///'.
 // See cloudprovider.GetInstanceProviderID and Instances.InstanceID.
 func instanceIDFromProviderID(providerID string) (instanceID string, err error) {
-	// If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
-	var providerIDRegexp = regexp.MustCompile(`^` + ProviderName + `:///([^/]+)$`)
+
+	// https://github.com/kubernetes/kubernetes/issues/85731
+	if providerID != "" && !strings.Contains(providerID, "://") {
+		providerID = ProviderName + "://" + providerID
+	}
 
 	matches := providerIDRegexp.FindStringSubmatch(providerID)
 	if len(matches) != 2 {
