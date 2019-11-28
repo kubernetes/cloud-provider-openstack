@@ -98,6 +98,7 @@ func main() {
 }
 
 func handle() {
+
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
 
 	//Intiliaze mount

@@ -149,7 +149,7 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
-	klog.V(2).Infof("Successfully attached %s volume to %s compute", volumeID, instanceID)
+
 	return volume.ID, nil
 }
 
