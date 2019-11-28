@@ -435,8 +435,12 @@ func (os *OpenStack) GetDevicePathBySerialID(volumeID string) string {
 	candidateDeviceNodes := []string{
 		// KVM
 		fmt.Sprintf("virtio-%s", volumeID[:20]),
+		// KVM #852
+		fmt.Sprintf("virtio-%s", volumeID),
 		// KVM virtio-scsi
 		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID[:20]),
+		// KVM virtio-scsi #852
+		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID),
 		// ESXi
 		fmt.Sprintf("wwn-0x%s", strings.Replace(volumeID, "-", "", -1)),
 	}
