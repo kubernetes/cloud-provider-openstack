@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -33,6 +34,7 @@ var omock *openstack.OpenStackMock
 // Init Node Server
 func init() {
 	if fakeNs == nil {
+
 		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
 
 		// mock MountMock
@@ -114,6 +116,60 @@ func TestNodePublishVolume(t *testing.T) {
 
 	// Invoke NodePublishVolume
 	actualRes, err := fakeNs.NodePublishVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodePublishVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+func TestNodePublishVolumeEphermeral(t *testing.T) {
+
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
+
+	omock.On("CreateVolume", fvolName, 2, "", "", "", &properties).Return(&FakeVol, nil)
+
+	omock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
+	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
+	mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
+	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
+	mmock.On("FormatAndMount", FakeDevicePath, FakeTargetPath, "ext4", []string(nil)).Return(nil)
+
+	mount.MInstance = mmock
+	openstack.MetadataService = omock
+	openstack.OsInstance = omock
+
+	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodePublishVolumeResponse{}
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	// Fake request
+	fakeReq := &csi.NodePublishVolumeRequest{
+		VolumeId:         FakeVolID,
+		PublishContext:   map[string]string{"DevicePath": FakeDevicePath},
+		TargetPath:       FakeTargetPath,
+		VolumeCapability: stdVolCap,
+		Readonly:         false,
+		VolumeContext:    map[string]string{"capacity": "2Gi", "csi.storage.k8s.io/ephemeral": "true"},
+	}
+
+	// Invoke NodePublishVolume
+	actualRes, err := fakeNse.NodePublishVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to NodePublishVolume: %v", err)
 	}
@@ -222,6 +278,45 @@ func TestNodeUnpublishVolume(t *testing.T) {
 
 	// Invoke NodeUnpublishVolume
 	actualRes, err := fakeNs.NodeUnpublishVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to NodeUnpublishVolume: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedRes, actualRes)
+}
+
+func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
+
+	mount.MInstance = mmock
+	openstack.MetadataService = omock
+	openstack.OsInstance = omock
+	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
+
+	mmock.On("IsLikelyNotMountPointDetach", FakeTargetPath).Return(false, nil)
+	mmock.On("UnmountPath", FakeTargetPath).Return(nil)
+	omock.On("GetVolumesByName", fvolName).Return(FakeVolList, nil)
+	omock.On("DetachVolume", FakeNodeID, FakeVolID).Return(nil)
+	omock.On("WaitDiskDetached", FakeNodeID, FakeVolID).Return(nil)
+	omock.On("DeleteVolume", FakeVolID).Return(nil)
+
+	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Expected Result
+	expectedRes := &csi.NodeUnpublishVolumeResponse{}
+
+	// Fake request
+	fakeReq := &csi.NodeUnpublishVolumeRequest{
+		VolumeId:   FakeVolID,
+		TargetPath: FakeTargetPath,
+	}
+
+	// Invoke NodeUnpublishVolume
+	actualRes, err := fakeNse.NodeUnpublishVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to NodeUnpublishVolume: %v", err)
 	}
