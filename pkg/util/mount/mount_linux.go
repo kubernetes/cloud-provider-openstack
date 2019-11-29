@@ -106,14 +106,14 @@ func (mounter *Mounter) Mount(source string, target string, fstype string, optio
 }
 
 // doMount runs the mount command. mounterPath is the path to mounter binary if containerized mounter is used.
-func (m *Mounter) doMount(mounterPath string, mountCmd string, source string, target string, fstype string, options []string) error {
+func (mounter *Mounter) doMount(mounterPath string, mountCmd string, source string, target string, fstype string, options []string) error {
 	mountArgs := makeMountArgs(source, target, fstype, options)
 	if len(mounterPath) > 0 {
 		mountArgs = append([]string{mountCmd}, mountArgs...)
 		mountCmd = mounterPath
 	}
 
-	if m.withSystemd {
+	if mounter.withSystemd {
 		// Try to run mount via systemd-run --scope. This will escape the
 		// service where kubelet runs and any fuse daemons will be started in a
 		// specific scope. kubelet service than can be restarted without killing
@@ -308,7 +308,7 @@ func exclusiveOpenFailsOnDevice(pathname string) (bool, error) {
 	return false, errno
 }
 
-//GetDeviceNameFromMount: given a mount point, find the device name from its global mount point
+// GetDeviceNameFromMount is given a mount point, find the device name from its global mount point
 func (mounter *Mounter) GetDeviceNameFromMount(mountPath, pluginDir string) (string, error) {
 	return getDeviceNameFromMount(mounter, mountPath, pluginDir)
 }

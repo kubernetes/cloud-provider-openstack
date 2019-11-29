@@ -205,11 +205,11 @@ func (_m *MountMock) GetHostUtil() hostutil.HostUtils {
 	return hostutil.NewHostUtil()
 }
 
-func (m *MountMock) MakeDir(pathname string) error {
+func (_m *MountMock) MakeDir(pathname string) error {
 	return nil
 }
 
 // MakeFile creates an empty file
-func (m *MountMock) MakeFile(pathname string) error {
+func (_m *MountMock) MakeFile(pathname string) error {
 	return nil
 }
