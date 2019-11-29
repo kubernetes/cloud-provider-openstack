@@ -66,7 +66,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 
 // prompt pulls keystone auth url, domain, project, username and password from stdin,
 // if they are not specified initially (i.e. equal "").
-func prompt(url string, domain string, user string, project string, password string, application_credential_id string, application_credential_name string, application_credential_secret string) (gophercloud.AuthOptions, error) {
+func prompt(url string, domain string, user string, project string, password string, applicationCredentialID string, applicationCredentialName string, applicationCredentialSecret string) (gophercloud.AuthOptions, error) {
 	var err error
 	var options gophercloud.AuthOptions
 
@@ -91,14 +91,14 @@ func prompt(url string, domain string, user string, project string, password str
 		}
 	}
 
-	if project == "" && application_credential_id == "" && application_credential_name == "" {
+	if project == "" && applicationCredentialID == "" && applicationCredentialName == "" {
 		project, err = promptForString("project name", os.Stdin, true)
 		if err != nil {
 			return options, err
 		}
 	}
 
-	if password == "" && application_credential_id == "" && application_credential_name == "" {
+	if password == "" && applicationCredentialID == "" && applicationCredentialName == "" {
 		password, err = promptForString("password", nil, false)
 		if err != nil {
 			return options, err
@@ -111,9 +111,9 @@ func prompt(url string, domain string, user string, project string, password str
 		TenantName:                  project,
 		Password:                    password,
 		DomainName:                  domain,
-		ApplicationCredentialID:     application_credential_id,
-		ApplicationCredentialName:   application_credential_name,
-		ApplicationCredentialSecret: application_credential_secret,
+		ApplicationCredentialID:     applicationCredentialID,
+		ApplicationCredentialName:   applicationCredentialName,
+		ApplicationCredentialSecret: applicationCredentialSecret,
 	}
 
 	return options, nil
