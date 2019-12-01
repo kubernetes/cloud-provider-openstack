@@ -63,6 +63,7 @@ require (
 )
 
 replace (
+	github.com/opencontainers/runc => github.com/opencontainers/runc v1.0.0-rc9
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20191105135202-3d13137d1b45
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20191105135202-3d13137d1b45
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20191105135202-3d13137d1b45
