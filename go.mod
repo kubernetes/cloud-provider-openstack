@@ -14,7 +14,7 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
-	github.com/gophercloud/gophercloud v0.6.1-0.20191025185032-6ad562af8c1f
+	github.com/gophercloud/gophercloud v0.6.1-0.20191127023939-978be3847c66
 	github.com/gophercloud/utils v0.0.0-20191020172814-bd86af96d544
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/go-version v1.2.0
@@ -38,9 +38,9 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/crypto v0.0.0-20190829043050-9756ffdc2472
+	golang.org/x/crypto v0.0.0-20191122220453-ac88ee75c92c
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
-	golang.org/x/sys v0.0.0-20190830023255-19e00faab6ad
+	golang.org/x/sys v0.0.0-20191128015809-6d18c012aee9
 	google.golang.org/appengine v1.6.2 // indirect
 	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55 // indirect
 	google.golang.org/grpc v1.23.1
@@ -48,7 +48,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.3.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.2.4
+	gopkg.in/yaml.v2 v2.2.7
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/apiserver v0.0.0
