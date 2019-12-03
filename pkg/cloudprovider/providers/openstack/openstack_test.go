@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -521,13 +520,6 @@ func TestCaller(t *testing.T) {
 	}
 }
 
-// An arbitrary sort.Interface, just for easier comparison
-type AddressSlice []v1.NodeAddress
-
-func (a AddressSlice) Len() int           { return len(a) }
-func (a AddressSlice) Less(i, j int) bool { return a[i].Address < a[j].Address }
-func (a AddressSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
 func TestNodeAddresses(t *testing.T) {
 	srv := servers.Server{
 		Status:     "ACTIVE",
@@ -579,22 +571,21 @@ func TestNodeAddresses(t *testing.T) {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
 
-	sort.Sort(AddressSlice(addrs))
-	t.Logf("addresses is %v", addrs)
+	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 		{Type: v1.NodeHostName, Address: "a1-yinvcez57-0-bvynoyawrhcg-kube-minion-fg5i4jwcc2yy.novalocal"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
-		t.Errorf("nodeAddresses returned incorrect value %v", addrs)
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
 	}
 }
 
@@ -645,21 +636,20 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
 
-	sort.Sort(AddressSlice(addrs))
-	t.Logf("addresses is %v", addrs)
+	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
-		t.Errorf("nodeAddresses returned incorrect value %v", addrs)
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
 	}
 }
 
@@ -711,19 +701,18 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
 
-	sort.Sort(AddressSlice(addrs))
-	t.Logf("addresses is %v", addrs)
+	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
-		t.Errorf("nodeAddresses returned incorrect value %v", addrs)
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
 	}
 }
 
