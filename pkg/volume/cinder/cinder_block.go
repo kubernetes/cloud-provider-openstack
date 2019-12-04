@@ -145,7 +145,7 @@ func (b *cinderVolumeMapper) SetUpDevice() (string, error) {
 }
 
 func (b *cinderVolumeMapper) MapDevice(devicePath, globalMapPath, volumeMapPath, volumeMapName string, podUID types.UID) error {
-	return util.MapBlockVolume(devicePath, globalMapPath, volumeMapPath, volumeMapName, podUID)
+	return util.MapBlockVolume(volumepathhandler.NewBlockVolumePathHandler(), devicePath, globalMapPath, volumeMapPath, volumeMapName, podUID)
 }
 
 // GetGlobalMapPath returns global map path and error
