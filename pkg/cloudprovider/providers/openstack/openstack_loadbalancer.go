@@ -890,10 +890,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 	}
 
-	// Check for TCP protocol on each port
-	for _, port := range ports {
-		if port.Protocol != corev1.ProtocolTCP {
-			return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
+	if !lbaas.opts.UseOctavia {
+		// Check for TCP protocol on each port
+		for _, port := range ports {
+			if port.Protocol != corev1.ProtocolTCP {
+				return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
+			}
 		}
 	}
 
@@ -1051,8 +1053,8 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 		}
 		if pool == nil {
-			// By default, use TCP as the pool protocol.
-			poolProto := v2pools.ProtocolTCP
+			// Use the protocol of the listerner
+			poolProto := v2pools.Protocol(listener.Protocol)
 
 			useProxyProtocol, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
 			if err != nil {
@@ -1146,10 +1148,14 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		monitorID := pool.MonitorID
 		if monitorID == "" && lbaas.opts.CreateMonitor {
 			klog.V(4).Infof("Creating monitor for pool %s", pool.ID)
+			monitorProtocol := string(port.Protocol)
+			if port.Protocol == corev1.ProtocolUDP {
+				monitorProtocol = "UDP-CONNECT"
+			}
 			monitor, err := v2monitors.Create(lbaas.lb, v2monitors.CreateOpts{
 				Name:       cutString(fmt.Sprintf("monitor_%d_%s)", portIndex, name)),
 				PoolID:     pool.ID,
-				Type:       string(port.Protocol),
+				Type:       monitorProtocol,
 				Delay:      int(lbaas.opts.MonitorDelay.Duration.Seconds()),
 				Timeout:    int(lbaas.opts.MonitorTimeout.Duration.Seconds()),
 				MaxRetries: int(lbaas.opts.MonitorMaxRetries),
