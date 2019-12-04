@@ -26,9 +26,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume/util/hostutil"
-	utilexec "k8s.io/utils/exec"
+	"k8s.io/utils/exec"
+	"k8s.io/utils/mount"
 )
 
 const (
@@ -71,7 +71,7 @@ func GetMountProvider() (IMount, error) {
 // GetBaseMounter returns instance of SafeFormatAndMount
 func (m *Mount) GetBaseMounter() *mount.SafeFormatAndMount {
 	nMounter := mount.New("")
-	nExec := mount.NewOSExec()
+	nExec := exec.New()
 	return &mount.SafeFormatAndMount{
 		Interface: nMounter,
 		Exec:      nExec,
@@ -96,7 +96,7 @@ func probeVolume() error {
 		}
 	}
 
-	executor := utilexec.New()
+	executor := exec.New()
 	args := []string{"trigger"}
 	cmd := executor.Command("udevadm", args...)
 	_, err := cmd.CombinedOutput()
@@ -196,12 +196,12 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 
 // FormatAndMount
 func (m *Mount) FormatAndMount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOSExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
 	return diskMounter.FormatAndMount(source, target, fstype, options)
 }
 
 func (m *Mount) Mount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOSExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
 	return diskMounter.Mount(source, target, fstype, options)
 }
 

@@ -32,10 +32,10 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/kubernetes/pkg/features"
-	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/utils/keymutex"
+	"k8s.io/utils/mount"
 	kstrings "k8s.io/utils/strings"
 )
 
