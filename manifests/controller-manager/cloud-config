@@ -1,10 +1,13 @@
 [Global]
-region=RegionOne
+auth-url=http://192.128.1.15:5000/v3
+#Tip: You can also use Application Credential ID and Secret in place of username, password, tenant-id, and domain-id.
+#application-credential-id=
+#application-credential-secret=
 username=admin
 password=passw0rd
-auth-url=http://192.128.1.15:5000/v3
-tenant-id=0db2280918794317aeea697f4b022783
-domain-id=29825027971c42f8866a223574af23d0
+region=RegionOne
+tenant-id=
+domain-id=
 
 [LoadBalancer]
 subnet-id=9c018814-f2a8-45dd-9679-5400d49b333a
@@ -15,4 +18,5 @@ bs-version=v2
 
 [Networking]
 public-network-name=public
+internal-network-name=internal
 ipv6-support-disabled=false
