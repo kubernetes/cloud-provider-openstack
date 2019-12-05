@@ -252,10 +252,11 @@ func LogCfg(cfg Config) {
 type logger struct{}
 
 func (l logger) Printf(format string, args ...interface{}) {
+	debugger := klog.V(6)
 	// extra check in case, when verbosity has been changed dynamically
-	if klog.V(6) {
+	if debugger {
 		for _, v := range strings.Split(fmt.Sprintf(format, args...), "\n") {
-			klog.V(6).Info(v)
+			debugger.Info(v)
 		}
 	}
 }
