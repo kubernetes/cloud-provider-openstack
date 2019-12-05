@@ -514,19 +514,19 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		}
 	}
 
+	config := &tls.Config{}
+	config.InsecureSkipVerify = cfg.TLSInsecure == "true"
+
 	if caPool != nil {
-		config := &tls.Config{}
 		config.RootCAs = caPool
-		config.InsecureSkipVerify = cfg.TLSInsecure == "true"
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
 
+	provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
+
 	if klog.V(6) {
-		provider.HTTPClient = http.Client{
-			Transport: &client.RoundTripper{
-				Rt:     &http.Transport{},
-				Logger: &logger{},
-			},
+		provider.HTTPClient.Transport = &client.RoundTripper{
+			Rt:     provider.HTTPClient.Transport,
+			Logger: &logger{},
 		}
 	}
 
