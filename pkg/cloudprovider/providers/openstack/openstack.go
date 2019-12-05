@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -253,10 +254,29 @@ type logger struct{}
 
 func (l logger) Printf(format string, args ...interface{}) {
 	debugger := klog.V(6)
+
 	// extra check in case, when verbosity has been changed dynamically
 	if debugger {
+		var skip int
+		var found bool
+		var gc = "/github.com/gophercloud/gophercloud"
+
+		// detect the depth of the actual function, which calls gophercloud code
+		// 10 is the common depth from the logger to "github.com/gophercloud/gophercloud"
+		for i := 10; i <= 20; i++ {
+			if _, file, _, ok := runtime.Caller(i); ok && !found && strings.Contains(file, gc) {
+				found = true
+				continue
+			} else if ok && found && !strings.Contains(file, gc) {
+				skip = i
+				break
+			} else if !ok {
+				break
+			}
+		}
+
 		for _, v := range strings.Split(fmt.Sprintf(format, args...), "\n") {
-			debugger.Info(v)
+			klog.InfoDepth(skip, v)
 		}
 	}
 }
