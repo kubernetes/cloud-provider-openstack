@@ -16,6 +16,7 @@ spec:
       labels:
         k8s-app: k8s-keystone-auth
     spec:
+      serviceAccountName: k8s-keystone
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -35,8 +36,8 @@ spec:
             - /etc/kubernetes/pki/apiserver.crt
             - --tls-private-key-file
             - /etc/kubernetes/pki/apiserver.key
-            - --keystone-policy-file
-            - /etc/kubernetes/webhook/policy.json
+            - --policy-configmap-name
+            - k8s-auth-policy
             - --keystone-url=http://ctl:5000/v3
           volumeMounts:
             - mountPath: /etc/kubernetes/pki
