@@ -41,6 +41,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/utils/client"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
@@ -246,6 +247,17 @@ func LogCfg(cfg Config) {
 	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
 	klog.V(5).Infof("ApplicationCredentialID: %s", cfg.Global.ApplicationCredentialID)
 	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
+}
+
+type logger struct{}
+
+func (l logger) Printf(format string, args ...interface{}) {
+	// extra check in case, when verbosity has been changed dynamically
+	if klog.V(6) {
+		for _, v := range strings.Split(fmt.Sprintf(format, args...), "\n") {
+			klog.V(6).Info(v)
+		}
+	}
 }
 
 func init() {
@@ -486,6 +498,15 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		config.RootCAs = caPool
 		config.InsecureSkipVerify = cfg.TLSInsecure == "true"
 		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
+	}
+
+	if klog.V(6) {
+		provider.HTTPClient = http.Client{
+			Transport: &client.RoundTripper{
+				Rt:     &http.Transport{},
+				Logger: &logger{},
+			},
+		}
 	}
 
 	if cfg.TrustID != "" {
