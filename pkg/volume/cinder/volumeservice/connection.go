@@ -48,15 +48,18 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 }
 
-func getConfigFromEnv() cinderConfig {
-	cfg := cinderConfig{Config: openstack_provider.ConfigFromEnv()}
+// getConfigFromEnv() is no longer supported
+// func getConfigFromEnv() cinderConfig {
+// 	cfg := cinderConfig{Config: openstack_provider.ConfigFromEnv()}
 
-	cfg.Cinder.Endpoint = os.Getenv("OS_CINDER_ENDPOINT")
-	return cfg
-}
+// 	cfg.Cinder.Endpoint = os.Getenv("OS_CINDER_ENDPOINT")
+// 	return cfg
+// }
 
 func getConfig(configFilePath string) (cinderConfig, error) {
-	config := getConfigFromEnv()
+	// Support from loading from Env is no longer supported. kubernetes/kubernetes#81117
+	// config := getConfigFromEnv()
+	var config cinderConfig
 	if configFilePath != "" {
 		var configFile *os.File
 		configFile, err := os.Open(configFilePath)

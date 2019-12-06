@@ -17,7 +17,6 @@ limitations under the License.
 package volumeservice
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
 	"strings"
@@ -32,35 +31,6 @@ var fakeAuthUrl = "https://169.254.169.254/identity/v3"
 var fakeTenantID = "c869168a828847f39f7f06edd7305637"
 var fakeDomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 var fakeRegion = "RegionOne"
-
-// Test GetConfigFromEnv
-func TestGetConfigFromEnv(t *testing.T) {
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
-
-	// init env
-	os.Setenv("OS_AUTH_URL", fakeAuthUrl)
-	os.Setenv("OS_USERNAME", fakeUserName)
-	os.Setenv("OS_PASSWORD", fakePassword)
-	os.Setenv("OS_TENANT_ID", fakeTenantID)
-	os.Setenv("OS_DOMAIN_ID", fakeDomainID)
-	os.Setenv("OS_REGION_NAME", fakeRegion)
-
-	// Init assert
-	assert := assert.New(t)
-
-	// Invoke GetConfigFromEnv
-	cfg, err := getConfig("")
-	assert.Nil(err)
-
-	// Assert
-	assert.Equal(cfg.Global.AuthURL, fakeAuthUrl)
-	assert.Equal(cfg.Global.Username, fakeUserName)
-	assert.Equal(cfg.Global.Password, fakePassword)
-	assert.Equal(cfg.Global.TenantID, fakeTenantID)
-	assert.Equal(cfg.Global.DomainID, fakeDomainID)
-	assert.Equal(cfg.Global.Region, fakeRegion)
-}
 
 func TestUserAgentFlag(t *testing.T) {
 	tests := []struct {

@@ -22,10 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gophercloud/gophercloud"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 var fakeFileName = "cloud.conf"
@@ -82,42 +80,6 @@ region=` + fakeRegion + `
 
 	// Assert
 	assert.Equal(expectedOpts, actualAuthOpts)
-}
-
-// Test GetConfigFromEnv
-func TestGetConfigFromEnv(t *testing.T) {
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
-
-	// init env
-	os.Setenv("OS_AUTH_URL", fakeAuthUrl)
-	os.Setenv("OS_USERNAME", fakeUserName)
-	os.Setenv("OS_PASSWORD", fakePassword)
-	os.Setenv("OS_TENANT_ID", fakeTenantID)
-	os.Setenv("OS_DOMAIN_ID", fakeDomainID)
-	os.Setenv("OS_REGION_NAME", fakeRegion)
-
-	// Init assert
-	assert := assert.New(t)
-
-	expectedAuthOpts := gophercloud.AuthOptions{
-		IdentityEndpoint: fakeAuthUrl,
-		Username:         fakeUserName,
-		Password:         fakePassword,
-		TenantID:         fakeTenantID,
-		DomainID:         fakeDomainID,
-		AllowReauth:      true,
-		Scope: &gophercloud.AuthScope{
-			ProjectID: fakeTenantID,
-		},
-	}
-
-	// Invoke openstack_provider.ConfigFromEnv
-	actualAuthOpts := openstack_provider.ConfigFromEnv()
-
-	// Assert
-	assert.Equal(fakeRegion, actualAuthOpts.Global.Region)
-	assert.Equal(expectedAuthOpts, actualAuthOpts.Global.ToAuthOptions())
 }
 
 func TestUserAgentFlag(t *testing.T) {

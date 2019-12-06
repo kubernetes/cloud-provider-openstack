@@ -325,60 +325,12 @@ func (cfg AuthOpts) ToAuth3Options() tokens3.AuthOptions {
 	}
 }
 
-// ConfigFromEnv allows setting up credentials etc using the
-// standard OS_* OpenStack client environment variables.
-// TODO: Replace this with gophercloud upstream once community moves away from cloud.conf
-func ConfigFromEnv() Config {
-	var cfg Config
-
-	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
-	cfg.Global.UserID = os.Getenv("OS_USER_ID")
-	cfg.Global.Username = os.Getenv("OS_USERNAME")
-	cfg.Global.Password = os.Getenv("OS_PASSWORD")
-
-	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
-	if cfg.Global.TenantID == "" {
-		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
-	}
-	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
-	if cfg.Global.TenantName == "" {
-		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
-	}
-
-	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
-	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
-	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
-	cfg.Global.TenantDomainID = os.Getenv("OS_PROJECT_DOMAIN_ID")
-	cfg.Global.TenantDomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
-	cfg.Global.UserDomainID = os.Getenv("OS_USER_DOMAIN_ID")
-	cfg.Global.UserDomainName = os.Getenv("OS_USER_DOMAIN_NAME")
-	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
-	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
-	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
-	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
-
-	// Set default values for config params
-	cfg.BlockStorage.BSVersion = "auto"
-	cfg.BlockStorage.TrustDevicePath = false
-	cfg.BlockStorage.IgnoreVolumeAZ = false
-	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
-	cfg.Networking.IPv6SupportDisabled = false
-	cfg.Networking.PublicNetworkName = "public"
-	cfg.LoadBalancer.InternalLB = false
-
-	return cfg
-}
-
-// ReadConfig reads values from environment variables and the cloud.conf, prioritizing cloud-config
+// ReadConfig reads values from the cloud.conf
 func ReadConfig(config io.Reader) (Config, error) {
 	if config == nil {
 		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
 	}
-
-	cfg := ConfigFromEnv()
-	klog.V(5).Infof("Config, loaded from the environment variables:")
-	LogCfg(cfg)
-
+	var cfg Config
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 
 	klog.V(5).Infof("Config, loaded from the config file:")
@@ -394,6 +346,10 @@ func ReadConfig(config io.Reader) (Config, error) {
 		}
 		klog.V(5).Infof("Config, loaded from the %s:", cfg.Global.CloudsFile)
 		LogCfg(cfg)
+	}
+	// Set the default values for search order if not set
+	if cfg.Metadata.SearchOrder == "" {
+		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
 	return cfg, err
 }
