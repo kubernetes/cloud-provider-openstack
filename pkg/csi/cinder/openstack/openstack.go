@@ -116,7 +116,8 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 	// Get config from file
 	cfg, err := GetConfigFromFile(configFile)
 	if err != nil {
-		cfg = Config{Config: openstack_provider.ConfigFromEnv()}
+		klog.Errorf("GetConfigFromFile %s failed with error: %v", configFile, err)
+		return nil, err
 	}
 	logcfg(cfg)
 
