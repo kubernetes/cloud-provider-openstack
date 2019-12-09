@@ -34,6 +34,13 @@ spec:
     spec:
       serviceAccount: csi-cinder-controller-sa
       containers:
+        - name: liveness-probe
+          image: quay.io/k8scsi/livenessprobe:v1.1.0
+          args:
+            - --csi-address=/csi/csi.sock
+          volumeMounts:
+            - name: socker-dir
+              mountPath: /csi
         - name: csi-attacher
           image: quay.io/k8scsi/csi-attacher:v2.0.0
           args:
@@ -106,6 +113,18 @@ spec:
             - name: secret-cinderplugin
               mountPath: /etc/config
               readOnly: true
+          ports:
+            - name: healthz
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+            failureThreshold: 5
       volumes:
         - name: socket-dir
           emptyDir:
