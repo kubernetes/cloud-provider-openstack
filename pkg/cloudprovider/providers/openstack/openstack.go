@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -642,8 +643,14 @@ func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.Nod
 		return nil, err
 	}
 
-	for network, addrList := range addresses {
-		for _, props := range addrList {
+	var networks []string
+	for k := range addresses {
+		networks = append(networks, k)
+	}
+	sort.Strings(networks)
+
+	for _, network := range networks {
+		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
 			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
 				addressType = v1.NodeExternalIP
