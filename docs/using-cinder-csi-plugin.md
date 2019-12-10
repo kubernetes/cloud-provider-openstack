@@ -297,6 +297,35 @@ $ kubectl exec nginx -- df -h /var/lib/www/html
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/vdb        2.0G   27M  1.97G   1% /var/lib/www/html
 ```
+## Inline Volumes
+This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. As of Kubernetes v1.16 this feature is beta so enabled by default. To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes. `podInfoOnMount` must be `true` to use this feature. 
+
+Example:
+1. Deploy CSI Driver, in default yamls both modes are enabled. 
+```
+$ kubectl create -f manifests/cinder-csi-plugin/
+```
+2. Create a pod with inline volume
+```
+$ kubectl create -f examples/cinder-csi-plugin/inline/inline-example.yaml 
+```
+3. Get the pod description, verify created volume in Volumes section.
+```
+$ kubectl describe pod 
+
+Volumes:
+  my-csi-volume:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            cinder.csi.openstack.org
+    FSType:            ext4
+    ReadOnly:          false
+    VolumeAttributes:      capacity=1Gi
+  default-token-dn78p:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-dn78p
+    Optional:    false
+
+```
 
 ## Running Sanity Tests
 
