@@ -64,6 +64,7 @@ type nonBlockingGRPCServer struct {
 }
 
 const (
+	specVersion   = "1.2.0"
 	driverVersion = "0.9.0"
 )
 
@@ -86,7 +87,7 @@ func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, man
 		}
 	}
 
-	klog.Infof("Driver: %v version: %v CSI spec version: 1.1.0", driverName, driverVersion)
+	klog.Infof("Driver: %s version: %s CSI spec version: %s", driverName, driverVersion, specVersion)
 
 	d := &Driver{
 		nodeID:              nodeID,
