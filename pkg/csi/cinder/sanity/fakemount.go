@@ -2,8 +2,8 @@ package sanity
 
 import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume/util/hostutil"
+	"k8s.io/utils/mount"
 )
 
 type fakemount struct {
