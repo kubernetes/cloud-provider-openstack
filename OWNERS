@@ -1,34 +1,4 @@
+# See the CONTRIBUTING docs: https://github.com/openshift/origin/blob/master/CONTRIBUTING.adoc
+
 approvers:
-- anguslees
-- dims
-- dixudx
-- dklyle
-- edisonxiang
-- FengyunPan2
-- flaper87
-- hogepodge
-- NickrenREN
-- rootfs
-- zetaab
-reviewers:
-- adisky
-- anguslees
-- dims
-- dixudx
-- dklyle
-- edisonxiang
-- Fedosin
-- FengyunPan2
-- flaper87
-- ghugo
-- gonzolino
-- hogepodge
-- jichenjc
-- lingxiankong
-- mrhillsman
-- NickrenREN
-- rootfs
-- strigazi
-- v1k0d3n
-- zetaab
-- ricolin
+  - shiftstack-team
