@@ -17,11 +17,11 @@ ifeq ($(REGISTRY),)
 endif
 
 ifeq ($(VERSION),)
-	VERSION = latest
+	VERSION = v1.17.0
 endif
 
 IMAGE = $(REGISTRY)standalone-cinder-provisioner:$(VERSION)
-MUTABLE_IMAGE = $(REGISTRY)standalone-cinder-provisioner:latest
+MUTABLE_IMAGE = $(REGISTRY)standalone-cinder-provisioner:v1.17.0
 
 .PHONY: all build container test
 
