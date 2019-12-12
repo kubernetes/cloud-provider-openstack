@@ -22,7 +22,7 @@ spec:
         - /etc/kubernetes/pki/apiserver.key
         - --policy-configmap-name
         - k8s-auth-policy
-        - --keystone-url=http://ctl:5000/v3
+        - --keystone-url=http://{{ keystone_auth_url }}:5000/v3
       volumeMounts:
         - mountPath: /etc/kubernetes/pki
           name: k8s-certs

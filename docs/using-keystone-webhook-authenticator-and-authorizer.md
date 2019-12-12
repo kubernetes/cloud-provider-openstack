@@ -20,13 +20,6 @@ by kubelet) or a normal kubernetes service.
 
 ## Running k8s-keystone-auth as a Kubernetes service
 
-First, create a folder in which we will put all the manifest files and
-config files.
-
-```shell
-$ mkdir -p /etc/kubernetes/keystone-auth
-```
-
 ### Prepare the authorization policy
 
 The authorization policy can be specified using an existing ConfigMap name in
@@ -81,28 +74,10 @@ $ kubectl apply -f /etc/kubernetes/keystone-auth/policy-config.yaml
 ```
 Version 2:
 
+please refer to [configmap](../examples/webhook/keystone-policy-configmap.yaml) for the definition of 
+policy config map.
 ```shell
-$ cat <<EOF > /etc/kubernetes/keystone-auth/policy-config.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k8s-auth-policy
-  namespace: kube-system
-data:
-  policies: |
-    [
-      {
-        "users": {
-          "projects": ["demo"],
-          "roles": ["member"]
-        },
-        "resource_permissions": {
-          "*/pods": ["get", "list", "watch"]
-        }
-      }
-    ]
-EOF
-$ kubectl apply -f /etc/kubernetes/keystone-auth/policy-config.yaml
+$ kubectl apply -f examples/webhook/keystone-policy-configmap.yaml
 ```
 
 As you can see, the version 2 policy definition is much simpler and
@@ -217,11 +192,11 @@ service, so the TLS certificates need to be configured. For testing purpose, we
 are about to reuse the API server certificates, it's recommended to create new
 ones in production environment though.
 
+please refer to [secret](../examples/webhook/keystone-auth-certs-secret.yaml) for definition of secret.
+you need replace `keystone_cert_file` and `keystone_key_file`, for example, `/etc/kubernetes/pki/apiserver.crt`
+and `/etc/kubernetes/pki/apiserver.key` respectively.
 ```shell
-kubectl create secret generic keystone-auth-certs \
-  --from-file=cert-file=/etc/kubernetes/pki/apiserver.crt \
-  --from-file=key-file=/etc/kubernetes/pki/apiserver.key \
-  -n kube-system
+$ kubectl apply -f examples/webhook/keystone-auth-certs-secret.yaml
 ```
 
 ### Create service account for k8s-keystone-auth
@@ -232,31 +207,11 @@ specify a kubeconfig file or relies on the in-cluster configuration capability
 to instantiate the kubernetes client, the latter approach is recommended.
 
 Next, we create a new service account `keystone-auth` and grant the
-cluster admin role to it.
+cluster admin role to it. please refer to [rbac](../examples/webhook/keystone-rbac.yaml)
+for definition of the rbac such as clusterroles and rolebinding.
 
 ```shell
-$ cat <<EOF > /etc/kubernetes/keystone-auth/serviceaccount.yaml
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: keystone-auth
-  namespace: kube-system
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: keystone-auth
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-  - kind: ServiceAccount
-    name: keystone-auth
-    namespace: kube-system
-EOF
-$ kubectl apply -f /etc/kubernetes/keystone-auth/serviceaccount.yaml
+$ kubectl apply -f examples/webhook/keystone-rbac.yaml
 ```
 
 ### Deploy k8s-keystone-auth
@@ -274,82 +229,29 @@ deployment manifest:
 - The value of `keystone_auth_url` needs to be changed according to your
   environment.
 
+please refer to [pods](../manifests/webhook/k8s-keystone-auth-pod.yaml) for definition
+of the pods and [service](../examples/webhook/keystone-service.yaml) for definition
+of the service, before applying, make sure you replaced correct configuration
+such as `keystone_auth_url` to your keystone url and `image` to desired image,
+e.g `k8scloudprovider/k8s-keystone-auth:latest`.
+
 ```shell
-$ keystone_auth_url="http://192.168.206.8/identity/v3"
-$ image="k8scloudprovider/k8s-keystone-auth:latest"
-$ cat <<EOF > /etc/kubernetes/keystone-auth/keystone-auth.yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: keystone-auth
-  namespace: kube-system
-  labels:
-    k8s-app: keystone-auth
-spec:
-  serviceName: keystone-auth
-  replicas: 1
-  selector:
-    matchLabels:
-      k8s-app: keystone-auth
-  template:
-    metadata:
-      labels:
-        k8s-app: keystone-auth
-    spec:
-      serviceAccountName: keystone-auth
-      tolerations:
-        - effect: NoSchedule # Make sure the pod can be scheduled on master kubelet.
-          operator: Exists
-        - key: CriticalAddonsOnly # Mark the pod as a critical add-on for rescheduling.
-          operator: Exists
-        - effect: NoExecute
-          operator: Exists
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
-      containers:
-        - name: keystone-auth
-          image: ${image}
-          imagePullPolicy: IfNotPresent
-          args:
-            - ./bin/k8s-keystone-auth
-            - --tls-cert-file
-            - /etc/kubernetes/pki/cert-file
-            - --tls-private-key-file
-            - /etc/kubernetes/pki/key-file
-            - --policy-configmap-name
-            - k8s-auth-policy
-            - --keystone-url
-            - ${keystone_auth_url}
-            - --v
-            - "2"
-          volumeMounts:
-            - mountPath: /etc/kubernetes/pki
-              name: k8s-certs
-              readOnly: true
-          ports:
-            - containerPort: 8443
-      volumes:
-      - name: k8s-certs
-        secret:
-          secretName: keystone-auth-certs
----
-kind: Service
-apiVersion: v1
-metadata:
-  name: keystone-auth
-  namespace: kube-system
-spec:
-  selector:
-    k8s-app: keystone-auth
-  ports:
-    - protocol: TCP
-      port: 8443
-      targetPort: 8443
-EOF
-$ kubectl apply -f /etc/kubernetes/keystone-auth/keystone-auth.yaml
+$ kubectl apply -f manifests/webhook/k8s-keystone-auth-pod.yaml
+$ kubectl apply -f examples/webhook/keystone-service.yaml
 ```
 
 ### Test k8s-keystone-auth service
+
+- Test k8s-keystone-auth service and its pods running well
+
+First we need test whether the k8s-keystone-auth service and pods is running:
+
+```shell
+$ kubectl get pods --all-namespaces
+NAMESPACE     NAME                        READY   STATUS    RESTARTS   AGE
+kube-system   k8s-keystone-auth           1/1     Running   0          2m27s
+kube-system   kube-dns-547db76c8f-6wf49   3/3     Running   0          7m42s
+```
 
 Before we continue to config kube-apiserver, we could test the
 k8s-keystone-auth service by sending HTTP request directly to make sure
