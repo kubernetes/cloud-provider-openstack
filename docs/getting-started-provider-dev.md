@@ -15,6 +15,7 @@ enabled.
    + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
    + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
    + [Running the Cloud Provider](#running-the-cloud-provider)
+ * [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
@@ -119,7 +120,7 @@ sudo yum install -y -q git gcc etcd
 You will also need a recent version of Go and set your environment variables.
 
 ```
-GO_VERSION=1.12
+GO_VERSION=1.13
 GO_ARCH=linux-amd64
 curl -o go.tgz https://dl.google.com/go/go${GO_VERSION}.${GO_ARCH}.tar.gz
 sudo tar -C /usr/local/ -xvzf go.tgz
@@ -252,3 +253,7 @@ otherwise the cloud-controller-manager is not able to access k8s API.
 ```
 
 Have a good time with OpenStack and Kubernetes!
+
+## Troubleshooting
+
+You can increase a log level verbosity (`-v` parameter) to know better what is happening during the OpenStack Cloud Controller Manager runtime. Setting the log level to **6** allows you to see OpeStack API JSON requests and responses. It is recommended to set a `--concurrent-service-syncs` parameter to **1** for a better output tracking.
