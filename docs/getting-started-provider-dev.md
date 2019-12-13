@@ -256,4 +256,4 @@ Have a good time with OpenStack and Kubernetes!
 
 ## Troubleshooting
 
-You can increase a log level verbosity (`-v` parameter) to know better what is happening during the OpenStack Cloud Controller Manager runtime. Setting the log level to **6** allows you to see OpeStack API JSON requests and responses. It is recommended to set a `--concurrent-service-syncs` parameter to **1** for a better output tracking.
+You can increase a log level verbosity (`-v` parameter) to know better what is happening during the OpenStack Cloud Controller Manager runtime. Setting the log level to **6** allows you to see OpenStack API JSON requests and responses. It is recommended to set a `--concurrent-service-syncs` parameter to **1** for a better output tracking.
