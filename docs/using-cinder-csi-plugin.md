@@ -191,33 +191,56 @@ Following prerequisite needed for volume snapshot feature to work.
 1. Enable `--feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
 2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass. external-snapshotter is a part of `csi-cinder-controllerplugin`
 
-For Snapshot Creation and Volume Restore, please follow  below steps:
+For Snapshot Creation and Volume Restore, please follow below steps:
 
 * Create Storage Class, Snapshot Class and PVC    
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/example.yaml create
-```     
+storageclass.storage.k8s.io/csi-sc-cinderplugin created
+volumesnapshotclass.snapshot.storage.k8s.io/csi-cinder-snapclass created
+persistentvolumeclaim/pvc-snapshot-demo created
+```
 * Verify that pvc is bounded
 ``` 
-$ kubectl describe pvc <pvc-name>
+$ kubectl get pvc --all-namespaces
+NAMESPACE   NAME                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS          AGE
+default     pvc-snapshot-demo   Bound    pvc-4699fa78-4149-4772-b900-9536891fe200   1Gi        RWO 
 ```   
 * Create Snapshot of the PVC    
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotcreate.yaml create
+volumesnapshot.snapshot.storage.k8s.io/new-snapshot-demo created
 ```       
 * Verify that snapshot is created    
 ```
 $ kubectl get volumesnapshot 
-$ kubectl get volumesnapshotcontent
+NAME                AGE
+new-snapshot-demo   2m54s
+$ openstack snapshot list
++--------------------------------------+-----------------------------------------------+-------------+-----------+------+
+| ID                                   | Name                                          | Description | Status    | Size |
++--------------------------------------+-----------------------------------------------+-------------+-----------+------+
+| 1b673af2-3a69-4cc6-8dd0-9ac62e29df9e | snapshot-332a8a7e-c5f2-4df9-b6a0-cf52e18e72b1 | None        | available |    1 |
++--------------------------------------+-----------------------------------------------+-------------+-----------+------+
 ```   
 * Restore volume from snapshot    
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotrestore.yaml create
+persistentvolumeclaim/snapshot-demo-restore created
 ```
 * Verify that volume from snapshot is created    
 ```
-$ kubectl get pv
+$ kubectl get pvc
+NAME                    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS          AGE
+pvc-snapshot-demo       Bound    pvc-4699fa78-4149-4772-b900-9536891fe200   1Gi        RWO            csi-sc-cinderplugin   4m5s
+snapshot-demo-restore   Bound    pvc-400b1ca8-8786-435f-a6cc-f684afddbbea   1Gi        RWO            csi-sc-cinderplugin   8s
 
+$ openstack volume list
++--------------------------------------+------------------------------------------+-----------+------+-------------------------------------------------+
+| ID                                   | Display Name                             | Status    | Size | Attached to                                     |
++--------------------------------------+------------------------------------------+-----------+------+-------------------------------------------------+
+| 07522a3b-95db-4bfa-847c-ffa179d08c39 | pvc-400b1ca8-8786-435f-a6cc-f684afddbbea | available |    1 |                                                 |
+| bf8f9ae9-87b4-42bb-b74c-ba4645634be6 | pvc-4699fa78-4149-4772-b900-9536891fe200 | available |    1 |                                                 |
 ``` 
 ### Example: Raw Block Volume
 
