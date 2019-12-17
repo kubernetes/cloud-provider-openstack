@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -41,6 +42,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/utils/client"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
@@ -200,7 +202,7 @@ type AuthOpts struct {
 	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 
 	// Manila only options
-	TLSInsecure string `name:"os-TLSInsecure" value:"optional" dependsOn:"os-certAuthority|os-certAuthorityPath" matches:"^true|false$"`
+	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
 	// backward compatibility with the manila-csi-plugin
 	CAFileContents  string `name:"os-certAuthority" value:"optional"`
 	TrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
@@ -246,6 +248,37 @@ func LogCfg(cfg Config) {
 	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
 	klog.V(5).Infof("ApplicationCredentialID: %s", cfg.Global.ApplicationCredentialID)
 	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
+}
+
+type logger struct{}
+
+func (l logger) Printf(format string, args ...interface{}) {
+	debugger := klog.V(6)
+
+	// extra check in case, when verbosity has been changed dynamically
+	if debugger {
+		var skip int
+		var found bool
+		var gc = "/github.com/gophercloud/gophercloud"
+
+		// detect the depth of the actual function, which calls gophercloud code
+		// 10 is the common depth from the logger to "github.com/gophercloud/gophercloud"
+		for i := 10; i <= 20; i++ {
+			if _, file, _, ok := runtime.Caller(i); ok && !found && strings.Contains(file, gc) {
+				found = true
+				continue
+			} else if ok && found && !strings.Contains(file, gc) {
+				skip = i
+				break
+			} else if !ok {
+				break
+			}
+		}
+
+		for _, v := range strings.Split(fmt.Sprintf(format, args...), "\n") {
+			klog.InfoDepth(skip, v)
+		}
+	}
 }
 
 func init() {
@@ -481,11 +514,20 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		}
 	}
 
+	config := &tls.Config{}
+	config.InsecureSkipVerify = cfg.TLSInsecure == "true"
+
 	if caPool != nil {
-		config := &tls.Config{}
 		config.RootCAs = caPool
-		config.InsecureSkipVerify = cfg.TLSInsecure == "true"
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
+	}
+
+	provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
+
+	if klog.V(6) {
+		provider.HTTPClient.Transport = &client.RoundTripper{
+			Rt:     provider.HTTPClient.Transport,
+			Logger: &logger{},
+		}
 	}
 
 	if cfg.TrustID != "" {
