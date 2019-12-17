@@ -61,24 +61,7 @@ func getBlockDeviceSize(path string) (int64, error) {
 	return int64(devSize), nil
 }
 
-func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
-	if newSize == 0 {
-		klog.Error("newSize is empty, skipping the polling")
-		return nil
-	}
-
-	// don't fail if resolving doesn't work
-	if blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath); err != nil {
-		klog.Errorf("Error resolving block device path from %q: %v", devicePath, err)
-	} else {
-		klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
-		klog.V(4).Infof("Polling %q block device geometry", devicePath)
-		err = ioutil.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
-		if err != nil {
-			klog.Errorf("Error polling new block device geometry: %v", err)
-		}
-	}
-
+func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) error {
 	klog.V(4).Infof("Detecting %q volume size", deviceMountPath)
 	size, err := getBlockDeviceSize(devicePath)
 	if err != nil {
@@ -94,4 +77,30 @@ func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64)
 	}
 
 	return nil
+}
+
+func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
+	if newSize == 0 {
+		klog.Error("newSize is empty, skipping the polling")
+		return nil
+	}
+
+	// when block device size corresponds expectations, return nil
+	if err := checkBlockDeviceSize(devicePath, deviceMountPath, newSize); err == nil {
+		return nil
+	}
+
+	// don't fail if resolving doesn't work
+	if blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath); err != nil {
+		klog.Errorf("Error resolving block device path from %q: %v", devicePath, err)
+	} else {
+		klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
+		klog.V(4).Infof("Polling %q block device geometry", devicePath)
+		err = ioutil.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
+		if err != nil {
+			klog.Errorf("Error polling new block device geometry: %v", err)
+		}
+	}
+
+	return checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
 }
