@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/spf13/pflag"
 
@@ -587,7 +588,20 @@ func TestNodeAddresses(t *testing.T) {
 		PublicNetworkName: "public",
 	}
 
-	addrs, err := nodeAddresses(&srv, networkingOpts)
+	interfaces := []attachinterfaces.Interface{
+		{
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -596,13 +610,13 @@ func TestNodeAddresses(t *testing.T) {
 
 	want := []v1.NodeAddress{
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
 		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 		{Type: v1.NodeHostName, Address: "a1-yinvcez57-0-bvynoyawrhcg-kube-minion-fg5i4jwcc2yy.novalocal"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
@@ -652,7 +666,20 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		PublicNetworkName: "pub-net",
 	}
 
-	addrs, err := nodeAddresses(&srv, networkingOpts)
+	interfaces := []attachinterfaces.Interface{
+		{
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -661,12 +688,12 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 
 	want := []v1.NodeAddress{
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
 		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
@@ -717,7 +744,20 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 		IPv6SupportDisabled: true,
 	}
 
-	addrs, err := nodeAddresses(&srv, networkingOpts)
+	interfaces := []attachinterfaces.Interface{
+		{
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -726,10 +766,10 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 
 	want := []v1.NodeAddress{
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
