@@ -25,7 +25,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog"
 )
 
@@ -61,22 +60,21 @@ func getBlockDeviceSize(path string) (int64, error) {
 	return int64(devSize), nil
 }
 
-func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) error {
+func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) (error, bool) {
 	klog.V(4).Infof("Detecting %q volume size", deviceMountPath)
 	size, err := getBlockDeviceSize(devicePath)
 	if err != nil {
-		return err
+		return err, false
 	}
 
-	currentSize := resource.NewQuantity(size, resource.BinarySI).ToDec()
-	klog.V(3).Infof("Detected %q volume size: %d", deviceMountPath, currentSize.Value())
+	klog.V(3).Infof("Detected %q volume size: %d", deviceMountPath, size)
 	// Cmp returns 0 if the quantity is equal to y, -1 if the quantity is less than y,
 	// or 1 if the quantity is greater than y.
-	if size := resource.NewQuantity(newSize, resource.BinarySI).ToDec(); currentSize.Cmp(*size) < 0 {
-		return fmt.Errorf("current volume size is less than expected one: %d < %d", currentSize.Value(), size.Value())
+	if size < newSize {
+		return fmt.Errorf("current volume size is less than expected one: %d < %d", size, newSize), true
 	}
 
-	return nil
+	return nil, true
 }
 
 func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
@@ -86,21 +84,31 @@ func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64)
 	}
 
 	// when block device size corresponds expectations, return nil
-	if err := checkBlockDeviceSize(devicePath, deviceMountPath, newSize); err == nil {
+	bdSizeErr, ok := checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
+	if bdSizeErr == nil {
 		return nil
+	} else if !ok {
+		// no access to the blockdevice, or other fatal error
+		return bdSizeErr
 	}
 
 	// don't fail if resolving doesn't work
-	if blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath); err != nil {
+	blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath)
+	if err != nil {
 		klog.Errorf("Error resolving block device path from %q: %v", devicePath, err)
-	} else {
-		klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
-		klog.V(4).Infof("Polling %q block device geometry", devicePath)
-		err = ioutil.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
-		if err != nil {
-			klog.Errorf("Error polling new block device geometry: %v", err)
-		}
+		// no need to run checkBlockDeviceSize second time here, return the saved error
+		return bdSizeErr
 	}
 
-	return checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
+	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
+	klog.V(4).Infof("Polling %q block device geometry", devicePath)
+	err = ioutil.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
+	if err != nil {
+		klog.Errorf("Error polling new block device geometry: %v", err)
+		// no need to run checkBlockDeviceSize second time here, return the saved error
+		return bdSizeErr
+	}
+
+	err, _ = checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
+	return err
 }
