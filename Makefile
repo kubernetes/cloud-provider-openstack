@@ -114,7 +114,7 @@ test: unit functional
 check: depend fmt vet lint import-boss
 
 unit: depend
-	go test -tags=unit $(shell go list ./...) $(TESTARGS)
+	go test -tags=unit ./cmd/... ./pkg/... ./staging/... $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
