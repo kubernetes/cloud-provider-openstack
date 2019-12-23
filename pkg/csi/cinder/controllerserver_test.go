@@ -17,7 +17,6 @@ limitations under the License.
 package cinder
 
 import (
-	"flag"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
@@ -31,8 +30,6 @@ var fakeCs *controllerServer
 // Init Controller Server
 func init() {
 	if fakeCs == nil {
-		// to avoid annoying ERROR: logging before flag.Parse
-		flag.Parse()
 
 		d := NewDriver(fakeNodeID, fakeEndpoint, fakeConfig)
 		fakeCs = NewControllerServer(d)
