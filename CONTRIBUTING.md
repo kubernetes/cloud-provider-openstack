@@ -22,4 +22,4 @@ If you find a bug or a feature request related to cloud-provider-openstack you c
 
 * [Slack](https://kubernetes.slack.com/messages/sig-openstack).
 * [Mailing list](https://groups.google.com/forum/#!forum/kubernetes-sig-openstack).
-* Please check the [sig-openstack community page](https://github.com/kubernetes/community/tree/master/sig-openstack) for meeting time.
+* Please check the [sig-openstack community page](https://github.com/kubernetes/community/tree/master/sig-cloud-provider#provider-openstack) for meeting time.
