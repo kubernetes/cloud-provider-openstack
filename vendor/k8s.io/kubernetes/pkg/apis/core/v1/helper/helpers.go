@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -108,23 +108,6 @@ func IsServiceIPSet(service *v1.Service) bool {
 	return service.Spec.ClusterIP != v1.ClusterIPNone && service.Spec.ClusterIP != ""
 }
 
-// AddToNodeAddresses appends the NodeAddresses to the passed-by-pointer slice,
-// only if they do not already exist
-func AddToNodeAddresses(addresses *[]v1.NodeAddress, addAddresses ...v1.NodeAddress) {
-	for _, add := range addAddresses {
-		exists := false
-		for _, existing := range *addresses {
-			if existing.Address == add.Address && existing.Type == add.Type {
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			*addresses = append(*addresses, add)
-		}
-	}
-}
-
 // TODO: make method on LoadBalancerStatus?
 func LoadBalancerStatusEqual(l, r *v1.LoadBalancerStatus) bool {
 	return ingressSliceEqual(l.Ingress, r.Ingress)
@@ -150,16 +133,6 @@ func ingressEqual(lhs, rhs *v1.LoadBalancerIngress) bool {
 		return false
 	}
 	return true
-}
-
-// TODO: make method on LoadBalancerStatus?
-func LoadBalancerStatusDeepCopy(lb *v1.LoadBalancerStatus) *v1.LoadBalancerStatus {
-	c := &v1.LoadBalancerStatus{}
-	c.Ingress = make([]v1.LoadBalancerIngress, len(lb.Ingress))
-	for i := range lb.Ingress {
-		c.Ingress[i] = lb.Ingress[i]
-	}
-	return c
 }
 
 // GetAccessModesAsString returns a string representation of an array of access modes.

@@ -17,20 +17,21 @@ limitations under the License.
 package options
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"path"
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apiserver/pkg/server"
-	utilflag "k8s.io/apiserver/pkg/util/flag"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/client-go/util/keyutil"
+	cliflag "k8s.io/component-base/cli/flag"
 )
 
 type SecureServingOptions struct {
@@ -54,7 +55,7 @@ type SecureServingOptions struct {
 	// ServerCert is the TLS cert info for serving secure traffic
 	ServerCert GeneratableKeyCert
 	// SNICertKeys are named CertKeys for serving secure traffic with SNI support.
-	SNICertKeys []utilflag.NamedCertKey
+	SNICertKeys []cliflag.NamedCertKey
 	// CipherSuites is the list of allowed cipher suites for the server.
 	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
 	CipherSuites []string
@@ -87,7 +88,7 @@ type GeneratableKeyCert struct {
 	PairName string
 
 	// GeneratedCert holds an in-memory generated certificate if CertFile/KeyFile aren't explicitly set, and CertDirectory/PairName are not set.
-	GeneratedCert *tls.Certificate
+	GeneratedCert dynamiccertificates.CertKeyContentProvider
 
 	// FixtureDirectory is a directory that contains test fixture used to avoid regeneration of certs during tests.
 	// The format is:
@@ -108,10 +109,10 @@ func NewSecureServingOptions() *SecureServingOptions {
 }
 
 func (s *SecureServingOptions) DefaultExternalAddress() (net.IP, error) {
-	if !s.ExternalAddress.IsUnspecified() {
+	if s.ExternalAddress != nil && !s.ExternalAddress.IsUnspecified() {
 		return s.ExternalAddress, nil
 	}
-	return utilnet.ChooseBindAddress(s.BindAddress)
+	return utilnet.ResolveBindAddress(s.BindAddress)
 }
 
 func (s *SecureServingOptions) Validate() []error {
@@ -165,18 +166,18 @@ func (s *SecureServingOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.ServerCert.CertKey.KeyFile, "tls-private-key-file", s.ServerCert.CertKey.KeyFile,
 		"File containing the default x509 private key matching --tls-cert-file.")
 
-	tlsCipherPossibleValues := utilflag.TLSCipherPossibleValues()
+	tlsCipherPossibleValues := cliflag.TLSCipherPossibleValues()
 	fs.StringSliceVar(&s.CipherSuites, "tls-cipher-suites", s.CipherSuites,
 		"Comma-separated list of cipher suites for the server. "+
 			"If omitted, the default Go cipher suites will be use.  "+
 			"Possible values: "+strings.Join(tlsCipherPossibleValues, ","))
 
-	tlsPossibleVersions := utilflag.TLSPossibleVersions()
+	tlsPossibleVersions := cliflag.TLSPossibleVersions()
 	fs.StringVar(&s.MinTLSVersion, "tls-min-version", s.MinTLSVersion,
 		"Minimum TLS version supported. "+
 			"Possible values: "+strings.Join(tlsPossibleVersions, ", "))
 
-	fs.Var(utilflag.NewNamedCertKeyArray(&s.SNICertKeys), "tls-sni-cert-key", ""+
+	fs.Var(cliflag.NewNamedCertKeyArray(&s.SNICertKeys), "tls-sni-cert-key", ""+
 		"A pair of x509 certificate and private key file paths, optionally suffixed with a list of "+
 		"domain patterns which are fully qualified domain names, possibly with prefixed wildcard "+
 		"segments. If no domain patterns are provided, the names of the certificate are "+
@@ -224,17 +225,17 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 	serverCertFile, serverKeyFile := s.ServerCert.CertKey.CertFile, s.ServerCert.CertKey.KeyFile
 	// load main cert
 	if len(serverCertFile) != 0 || len(serverKeyFile) != 0 {
-		tlsCert, err := tls.LoadX509KeyPair(serverCertFile, serverKeyFile)
+		var err error
+		c.Cert, err = dynamiccertificates.NewDynamicServingContentFromFiles("serving-cert", serverCertFile, serverKeyFile)
 		if err != nil {
-			return fmt.Errorf("unable to load server certificate: %v", err)
+			return err
 		}
-		c.Cert = &tlsCert
 	} else if s.ServerCert.GeneratedCert != nil {
 		c.Cert = s.ServerCert.GeneratedCert
 	}
 
 	if len(s.CipherSuites) != 0 {
-		cipherSuites, err := utilflag.TLSCipherSuites(s.CipherSuites)
+		cipherSuites, err := cliflag.TLSCipherSuites(s.CipherSuites)
 		if err != nil {
 			return err
 		}
@@ -242,27 +243,21 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 	}
 
 	var err error
-	c.MinTLSVersion, err = utilflag.TLSVersion(s.MinTLSVersion)
+	c.MinTLSVersion, err = cliflag.TLSVersion(s.MinTLSVersion)
 	if err != nil {
 		return err
 	}
 
 	// load SNI certs
-	namedTLSCerts := make([]server.NamedTLSCert, 0, len(s.SNICertKeys))
+	namedTLSCerts := make([]dynamiccertificates.SNICertKeyContentProvider, 0, len(s.SNICertKeys))
 	for _, nck := range s.SNICertKeys {
-		tlsCert, err := tls.LoadX509KeyPair(nck.CertFile, nck.KeyFile)
-		namedTLSCerts = append(namedTLSCerts, server.NamedTLSCert{
-			TLSCert: tlsCert,
-			Names:   nck.Names,
-		})
+		tlsCert, err := dynamiccertificates.NewDynamicSNIContentFromFiles("sni-serving-cert", nck.CertFile, nck.KeyFile, nck.Names...)
+		namedTLSCerts = append(namedTLSCerts, tlsCert)
 		if err != nil {
 			return fmt.Errorf("failed to load SNI cert and key: %v", err)
 		}
 	}
-	c.SNICerts, err = server.GetNamedCertificateMap(namedTLSCerts)
-	if err != nil {
-		return err
-	}
+	c.SNICerts = namedTLSCerts
 
 	return nil
 }
@@ -305,17 +300,16 @@ func (s *SecureServingOptions) MaybeDefaultWithSelfSignedCerts(publicAddress str
 			if err := certutil.WriteCert(keyCert.CertFile, cert); err != nil {
 				return err
 			}
-			if err := certutil.WriteKey(keyCert.KeyFile, key); err != nil {
+			if err := keyutil.WriteKey(keyCert.KeyFile, key); err != nil {
 				return err
 			}
-			glog.Infof("Generated self-signed cert (%s, %s)", keyCert.CertFile, keyCert.KeyFile)
+			klog.Infof("Generated self-signed cert (%s, %s)", keyCert.CertFile, keyCert.KeyFile)
 		} else {
-			tlsCert, err := tls.X509KeyPair(cert, key)
+			s.ServerCert.GeneratedCert, err = dynamiccertificates.NewStaticCertKeyContent("Generated self signed cert", cert, key)
 			if err != nil {
-				return fmt.Errorf("unable to generate self signed cert: %v", err)
+				return err
 			}
-			s.ServerCert.GeneratedCert = &tlsCert
-			glog.Infof("Generated self-signed cert in-memory")
+			klog.Infof("Generated self-signed cert in-memory")
 		}
 	}
 

@@ -24,12 +24,13 @@ import (
 
 	"os"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 const (
-	rwMask = os.FileMode(0660)
-	roMask = os.FileMode(0440)
+	rwMask   = os.FileMode(0660)
+	roMask   = os.FileMode(0440)
+	execMask = os.FileMode(0110)
 )
 
 // SetVolumeOwnership modifies the given volume to be owned by
@@ -40,6 +41,8 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64) error {
 	if fsGroup == nil {
 		return nil
 	}
+
+	klog.Warningf("Setting volume ownership for %s and fsGroup set. If the volume has a lot of files then setting volume ownership could be slow, see https://github.com/kubernetes/kubernetes/issues/69699", mounter.GetPath())
 
 	return filepath.Walk(mounter.GetPath(), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -63,13 +66,13 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64) error {
 		}
 
 		if stat == nil {
-			glog.Errorf("Got nil stat_t for path %v while setting ownership of volume", path)
+			klog.Errorf("Got nil stat_t for path %v while setting ownership of volume", path)
 			return nil
 		}
 
 		err = os.Chown(path, int(stat.Uid), int(*fsGroup))
 		if err != nil {
-			glog.Errorf("Chown failed on %v: %v", path, err)
+			klog.Errorf("Chown failed on %v: %v", path, err)
 		}
 
 		mask := rwMask
@@ -79,11 +82,12 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64) error {
 
 		if info.IsDir() {
 			mask |= os.ModeSetgid
+			mask |= execMask
 		}
 
 		err = os.Chmod(path, info.Mode()|mask)
 		if err != nil {
-			glog.Errorf("Chmod failed on %v: %v", path, err)
+			klog.Errorf("Chmod failed on %v: %v", path, err)
 		}
 
 		return nil

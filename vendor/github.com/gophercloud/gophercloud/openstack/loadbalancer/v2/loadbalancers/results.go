@@ -1,8 +1,12 @@
 package loadbalancers
 
 import (
+	"encoding/json"
+	"time"
+
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/pagination"
 )
 
@@ -20,6 +24,11 @@ type LoadBalancer struct {
 	// Owner of the LoadBalancer.
 	ProjectID string `json:"project_id"`
 
+	// UpdatedAt and CreatedAt contain ISO-8601 timestamps of when the state of the
+	// loadbalancer last changed, and when it was created.
+	UpdatedAt time.Time `json:"-"`
+	CreatedAt time.Time `json:"-"`
+
 	// The provisioning status of the LoadBalancer.
 	// This value is ACTIVE, PENDING_CREATE or ERROR.
 	ProvisioningStatus string `json:"provisioning_status"`
@@ -34,6 +43,10 @@ type LoadBalancer struct {
 	// Loadbalancer address.
 	VipSubnetID string `json:"vip_subnet_id"`
 
+	// The UUID of the network on which to allocate the virtual IP for the
+	// Loadbalancer address.
+	VipNetworkID string `json:"vip_network_id"`
+
 	// The unique ID for the LoadBalancer.
 	ID string `json:"id"`
 
@@ -44,13 +57,58 @@ type LoadBalancer struct {
 	Name string `json:"name"`
 
 	// The UUID of a flavor if set.
-	Flavor string `json:"flavor"`
+	FlavorID string `json:"flavor_id"`
 
 	// The name of the provider.
 	Provider string `json:"provider"`
 
 	// Listeners are the listeners related to this Loadbalancer.
 	Listeners []listeners.Listener `json:"listeners"`
+
+	// Pools are the pools related to this Loadbalancer.
+	Pools []pools.Pool `json:"pools"`
+
+	// Tags is a list of resource tags. Tags are arbitrarily defined strings
+	// attached to the resource.
+	Tags []string `json:"tags"`
+}
+
+func (r *LoadBalancer) UnmarshalJSON(b []byte) error {
+	type tmp LoadBalancer
+
+	// Support for older neutron time format
+	var s1 struct {
+		tmp
+		CreatedAt gophercloud.JSONRFC3339NoZ `json:"created_at"`
+		UpdatedAt gophercloud.JSONRFC3339NoZ `json:"updated_at"`
+	}
+
+	err := json.Unmarshal(b, &s1)
+	if err == nil {
+		*r = LoadBalancer(s1.tmp)
+		r.CreatedAt = time.Time(s1.CreatedAt)
+		r.UpdatedAt = time.Time(s1.UpdatedAt)
+
+		return nil
+	}
+
+	// Support for newer neutron time format
+	var s2 struct {
+		tmp
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+	}
+
+	err = json.Unmarshal(b, &s2)
+	if err != nil {
+		return err
+	}
+
+	*r = LoadBalancer(s2.tmp)
+	r.CreatedAt = time.Time(s2.CreatedAt)
+	r.UpdatedAt = time.Time(s2.UpdatedAt)
+
+	return nil
 }
 
 // StatusTree represents the status of a loadbalancer.

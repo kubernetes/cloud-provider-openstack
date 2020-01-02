@@ -67,6 +67,7 @@ const (
 
 	ProtocolTCP   Protocol = "TCP"
 	ProtocolUDP   Protocol = "UDP"
+	ProtocolPROXY Protocol = "PROXY"
 	ProtocolHTTP  Protocol = "HTTP"
 	ProtocolHTTPS Protocol = "HTTPS"
 )
@@ -86,7 +87,7 @@ type CreateOpts struct {
 	LBMethod LBMethod `json:"lb_algorithm" required:"true"`
 
 	// The protocol used by the pool members, you can use either
-	// ProtocolTCP, ProtocolUDP, ProtocolHTTP, or ProtocolHTTPS.
+	// ProtocolTCP, ProtocolUDP, ProtocolPROXY, ProtocolHTTP, or ProtocolHTTPS.
 	Protocol Protocol `json:"protocol" required:"true"`
 
 	// The Loadbalancer on which the members of the pool will be associated with.
@@ -149,10 +150,10 @@ type UpdateOptsBuilder interface {
 // operation.
 type UpdateOpts struct {
 	// Name of the pool.
-	Name string `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
 
 	// Human-readable description for the pool.
-	Description string `json:"description,omitempty"`
+	Description *string `json:"description,omitempty"`
 
 	// The algorithm used to distribute load between the members of the pool. The
 	// current specification supports LBMethodRoundRobin, LBMethodLeastConnections
@@ -308,7 +309,7 @@ type UpdateMemberOptsBuilder interface {
 // operation.
 type UpdateMemberOpts struct {
 	// Name of the Member.
-	Name string `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
 
 	// A positive integer value that indicates the relative portion of traffic
 	// that this member should receive from the pool. For example, a member with
@@ -344,16 +345,54 @@ type BatchUpdateMemberOptsBuilder interface {
 	ToBatchMemberUpdateMap() (map[string]interface{}, error)
 }
 
-type BatchUpdateMemberOpts CreateMemberOpts
+// BatchUpdateMemberOpts is the common options struct used in this package's BatchUpdateMembers
+// operation.
+type BatchUpdateMemberOpts struct {
+	// The IP address of the member to receive traffic from the load balancer.
+	Address string `json:"address" required:"true"`
+
+	// The port on which to listen for client traffic.
+	ProtocolPort int `json:"protocol_port" required:"true"`
+
+	// Name of the Member.
+	Name *string `json:"name,omitempty"`
+
+	// ProjectID is the UUID of the project who owns the Member.
+	// Only administrative users can specify a project UUID other than their own.
+	ProjectID string `json:"project_id,omitempty"`
+
+	// A positive integer value that indicates the relative portion of traffic
+	// that this member should receive from the pool. For example, a member with
+	// a weight of 10 receives five times as much traffic as a member with a
+	// weight of 2.
+	Weight *int `json:"weight,omitempty"`
+
+	// If you omit this parameter, LBaaS uses the vip_subnet_id parameter value
+	// for the subnet UUID.
+	SubnetID *string `json:"subnet_id,omitempty"`
+
+	// The administrative state of the Pool. A valid value is true (UP)
+	// or false (DOWN).
+	AdminStateUp *bool `json:"admin_state_up,omitempty"`
+}
 
 // ToBatchMemberUpdateMap builds a request body from BatchUpdateMemberOpts.
 func (opts BatchUpdateMemberOpts) ToBatchMemberUpdateMap() (map[string]interface{}, error) {
-	return gophercloud.BuildRequestBody(opts, "")
+	b, err := gophercloud.BuildRequestBody(opts, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if b["subnet_id"] == "" {
+		b["subnet_id"] = nil
+	}
+
+	return b, nil
 }
 
 // BatchUpdateMembers updates the pool members in batch
 func BatchUpdateMembers(c *gophercloud.ServiceClient, poolID string, opts []BatchUpdateMemberOpts) (r UpdateMembersResult) {
-	var members []map[string]interface{}
+	members := []map[string]interface{}{}
 	for _, opt := range opts {
 		b, err := opt.ToBatchMemberUpdateMap()
 		if err != nil {

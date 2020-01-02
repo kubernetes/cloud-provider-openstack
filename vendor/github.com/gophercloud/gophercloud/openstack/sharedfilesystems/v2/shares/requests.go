@@ -341,3 +341,138 @@ func Shrink(client *gophercloud.ServiceClient, id string, opts ShrinkOptsBuilder
 
 	return
 }
+
+// UpdateOptsBuilder allows extensions to add additional parameters to the
+// Update request.
+type UpdateOptsBuilder interface {
+	ToShareUpdateMap() (map[string]interface{}, error)
+}
+
+// UpdateOpts contain options for updating an existing Share. This object is passed
+// to the share.Update function. For more information about the parameters, see
+// the Share object.
+type UpdateOpts struct {
+	// Share name. Manila share update logic doesn't have a "name" alias.
+	DisplayName *string `json:"display_name,omitempty"`
+	// Share description. Manila share update logic doesn't have a "description" alias.
+	DisplayDescription *string `json:"display_description,omitempty"`
+	// Determines whether or not the share is public
+	IsPublic *bool `json:"is_public,omitempty"`
+}
+
+// ToShareUpdateMap assembles a request body based on the contents of an
+// UpdateOpts.
+func (opts UpdateOpts) ToShareUpdateMap() (map[string]interface{}, error) {
+	return gophercloud.BuildRequestBody(opts, "share")
+}
+
+// Update will update the Share with provided information. To extract the updated
+// Share from the response, call the Extract method on the UpdateResult.
+func Update(client *gophercloud.ServiceClient, id string, opts UpdateOptsBuilder) (r UpdateResult) {
+	b, err := opts.ToShareUpdateMap()
+	if err != nil {
+		r.Err = err
+		return
+	}
+	_, r.Err = client.Put(updateURL(client, id), b, &r.Body, &gophercloud.RequestOpts{
+		OkCodes: []int{200},
+	})
+	return
+}
+
+// GetMetadata retrieves metadata of the specified share. To extract the retrieved
+// metadata from the response, call the Extract method on the MetadataResult.
+func GetMetadata(client *gophercloud.ServiceClient, id string) (r MetadataResult) {
+	_, r.Err = client.Get(getMetadataURL(client, id), &r.Body, nil)
+	return
+}
+
+// GetMetadatum retrieves a single metadata item of the specified share. To extract the retrieved
+// metadata from the response, call the Extract method on the GetMetadatumResult.
+func GetMetadatum(client *gophercloud.ServiceClient, id, key string) (r GetMetadatumResult) {
+	_, r.Err = client.Get(getMetadatumURL(client, id, key), &r.Body, nil)
+	return
+}
+
+// SetMetadataOpts contains options for setting share metadata.
+// For more information about these parameters, please, refer to the shared file systems API v2,
+// Share Metadata, Show share metadata documentation.
+type SetMetadataOpts struct {
+	Metadata map[string]string `json:"metadata"`
+}
+
+// ToSetMetadataMap assembles a request body based on the contents of an
+// SetMetadataOpts.
+func (opts SetMetadataOpts) ToSetMetadataMap() (map[string]interface{}, error) {
+	return gophercloud.BuildRequestBody(opts, "")
+}
+
+// SetMetadataOptsBuilder allows extensions to add additional parameters to the
+// SetMetadata request.
+type SetMetadataOptsBuilder interface {
+	ToSetMetadataMap() (map[string]interface{}, error)
+}
+
+// SetMetadata sets metadata of the specified share.
+// Existing metadata items are either kept or overwritten by the metadata from the request.
+// To extract the updated metadata from the response, call the Extract
+// method on the MetadataResult.
+func SetMetadata(client *gophercloud.ServiceClient, id string, opts SetMetadataOptsBuilder) (r MetadataResult) {
+	b, err := opts.ToSetMetadataMap()
+	if err != nil {
+		r.Err = err
+		return
+	}
+
+	_, r.Err = client.Post(setMetadataURL(client, id), b, &r.Body, &gophercloud.RequestOpts{
+		OkCodes: []int{200},
+	})
+
+	return
+}
+
+// UpdateMetadataOpts contains options for updating share metadata.
+// For more information about these parameters, please, refer to the shared file systems API v2,
+// Share Metadata, Update share metadata documentation.
+type UpdateMetadataOpts struct {
+	Metadata map[string]string `json:"metadata"`
+}
+
+// ToUpdateMetadataMap assembles a request body based on the contents of an
+// UpdateMetadataOpts.
+func (opts UpdateMetadataOpts) ToUpdateMetadataMap() (map[string]interface{}, error) {
+	return gophercloud.BuildRequestBody(opts, "")
+}
+
+// UpdateMetadataOptsBuilder allows extensions to add additional parameters to the
+// UpdateMetadata request.
+type UpdateMetadataOptsBuilder interface {
+	ToUpdateMetadataMap() (map[string]interface{}, error)
+}
+
+// UpdateMetadata updates metadata of the specified share.
+// All existing metadata items are discarded and replaced by the metadata from the request.
+// To extract the updated metadata from the response, call the Extract
+// method on the MetadataResult.
+func UpdateMetadata(client *gophercloud.ServiceClient, id string, opts UpdateMetadataOptsBuilder) (r MetadataResult) {
+	b, err := opts.ToUpdateMetadataMap()
+	if err != nil {
+		r.Err = err
+		return
+	}
+
+	_, r.Err = client.Post(updateMetadataURL(client, id), b, &r.Body, &gophercloud.RequestOpts{
+		OkCodes: []int{200},
+	})
+
+	return
+}
+
+// DeleteMetadatum deletes a single key-value pair from the metadata of the specified share.
+func DeleteMetadatum(client *gophercloud.ServiceClient, id, key string) (r DeleteMetadatumResult) {
+	_, r.Err = client.Delete(deleteMetadatumURL(client, id, key), &gophercloud.RequestOpts{
+		OkCodes: []int{200},
+	})
+
+	return
+}
