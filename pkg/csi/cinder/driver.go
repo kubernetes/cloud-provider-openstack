@@ -17,69 +17,131 @@ limitations under the License.
 package cinder
 
 import (
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
-	"github.com/golang/glog"
+	"fmt"
 
-	"github.com/kubernetes-csi/drivers/pkg/csi-common"
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/klog"
 )
 
-type driver struct {
-	csiDriver   *csicommon.CSIDriver
-	endpoint    string
-	cloudconfig string
-
-	ids *csicommon.DefaultIdentityServer
-	cs  *controllerServer
-	ns  *nodeServer
-
-	cap   []*csi.VolumeCapability_AccessMode
-	cscap []*csi.ControllerServiceCapability
-}
-
 const (
-	driverName = "cinder.csi.openstack.org"
+	driverName  = "cinder.csi.openstack.org"
+	topologyKey = "topology." + driverName + "/zone"
 )
 
 var (
-	version = "0.3.0"
+	version = "1.2.0"
 )
 
-func NewDriver(nodeID, endpoint string, cloudconfig string) *driver {
-	glog.Infof("Driver: %v version: %v", driverName, version)
+type CinderDriver struct {
+	name        string
+	nodeID      string
+	version     string
+	endpoint    string
+	cloudconfig string
+	cluster     string
 
-	d := &driver{}
+	ids *identityServer
+	cs  *controllerServer
+	ns  *nodeServer
 
+	vcap  []*csi.VolumeCapability_AccessMode
+	cscap []*csi.ControllerServiceCapability
+	nscap []*csi.NodeServiceCapability
+}
+
+func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
+	klog.Infof("Driver: %v version: %v", driverName, version)
+
+	d := &CinderDriver{}
+	d.name = driverName
+	d.nodeID = nodeID
+	d.version = version
 	d.endpoint = endpoint
-	d.cloudconfig = cloudconfig
+	d.cluster = cluster
 
-	csiDriver := csicommon.NewCSIDriver(driverName, version, nodeID)
-	csiDriver.AddControllerServiceCapabilities(
+	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{
 			csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
 			csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 			csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+			csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+			csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
+			csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 		})
-	csiDriver.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
+	d.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 
-	d.csiDriver = csiDriver
+	d.AddNodeServiceCapabilities(
+		[]csi.NodeServiceCapability_RPC_Type{
+			csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+			csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+		})
 
 	return d
 }
 
-func NewControllerServer(d *driver) *controllerServer {
-	return &controllerServer{
-		DefaultControllerServer: csicommon.NewDefaultControllerServer(d.csiDriver),
+func (d *CinderDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) {
+	var csc []*csi.ControllerServiceCapability
+
+	for _, c := range cl {
+		klog.Infof("Enabling controller service capability: %v", c.String())
+		csc = append(csc, NewControllerServiceCapability(c))
 	}
+
+	d.cscap = csc
+
+	return
 }
 
-func NewNodeServer(d *driver) *nodeServer {
-	return &nodeServer{
-		DefaultNodeServer: csicommon.NewDefaultNodeServer(d.csiDriver),
+func (d *CinderDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) []*csi.VolumeCapability_AccessMode {
+	var vca []*csi.VolumeCapability_AccessMode
+	for _, c := range vc {
+		klog.Infof("Enabling volume access mode: %v", c.String())
+		vca = append(vca, NewVolumeCapabilityAccessMode(c))
 	}
+	d.vcap = vca
+	return vca
 }
 
-func (d *driver) Run() {
-	openstack.InitOpenStackProvider(d.cloudconfig)
-	csicommon.RunControllerandNodePublishServer(d.endpoint, d.csiDriver, NewControllerServer(d), NewNodeServer(d))
+func (d *CinderDriver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error {
+	var nsc []*csi.NodeServiceCapability
+	for _, n := range nl {
+		klog.Infof("Enabling node service capability: %v", n.String())
+		nsc = append(nsc, NewNodeServiceCapability(n))
+	}
+	d.nscap = nsc
+	return nil
+}
+
+func (d *CinderDriver) ValidateControllerServiceRequest(c csi.ControllerServiceCapability_RPC_Type) error {
+	if c == csi.ControllerServiceCapability_RPC_UNKNOWN {
+		return nil
+	}
+
+	for _, cap := range d.cscap {
+		if c == cap.GetRpc().GetType() {
+			return nil
+		}
+	}
+	return status.Error(codes.InvalidArgument, fmt.Sprintf("%s", c))
+}
+
+func (d *CinderDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_AccessMode {
+	return d.vcap
+}
+
+func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata openstack.IMetadata) {
+
+	d.ids = NewIdentityServer(d)
+	d.cs = NewControllerServer(d, cloud)
+	d.ns = NewNodeServer(d, mount, metadata, cloud)
+
+}
+
+func (d *CinderDriver) Run() {
+
+	RunControllerandNodePublishServer(d.endpoint, d.ids, d.cs, d.ns)
 }

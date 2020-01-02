@@ -17,18 +17,18 @@ limitations under the License.
 package manila
 
 import (
+	"encoding/json"
 	"fmt"
-
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"k8s.io/kubernetes/pkg/controller/volume/persistentvolume"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 const (
@@ -47,11 +47,12 @@ const (
 )
 
 func createShare(
-	volOptions *controller.VolumeOptions,
+	volumeHandle string,
+	volOptions *controller.ProvisionOptions,
 	shareOptions *shareoptions.ShareOptions,
 	client *gophercloud.ServiceClient,
 ) (*shares.Share, error) {
-	req, err := buildCreateRequest(volOptions, shareOptions)
+	req, err := buildCreateRequest(volOptions, shareOptions, volumeHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -104,22 +105,42 @@ func getShare(shareOptions *shareoptions.ShareOptions, client *gophercloud.Servi
 	return nil, fmt.Errorf("both OSShareName and OSShareID are empty")
 }
 
-func buildCreateRequest(volOptions *controller.VolumeOptions, shareOptions *shareoptions.ShareOptions) (*shares.CreateOpts, error) {
+func buildCreateRequest(
+	volOptions *controller.ProvisionOptions,
+	shareOptions *shareoptions.ShareOptions,
+	volumeHandle string,
+) (*shares.CreateOpts, error) {
 	storageSize, err := getStorageSizeInGiga(volOptions.PVC)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't retrieve PVC storage size: %v", err)
 	}
 
+	var appendMetadata map[string]string
+	if shareOptions.AppendShareMetadata != "" {
+		if err = json.Unmarshal([]byte(shareOptions.AppendShareMetadata), &appendMetadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal appendShareMetadata option: %v", err)
+		}
+	}
+
+	shareName := "pvc-" + string(volOptions.PVC.GetUID())
+
+	metadata := map[string]string{
+		persistentvolume.CloudVolumeCreatedForClaimNamespaceTag: volOptions.PVC.Namespace,
+		persistentvolume.CloudVolumeCreatedForClaimNameTag:      volOptions.PVC.Name,
+		persistentvolume.CloudVolumeCreatedForVolumeNameTag:     shareName,
+	}
+
+	for k, v := range appendMetadata {
+		metadata[k] = v
+	}
+
 	return &shares.CreateOpts{
-		ShareProto: shareOptions.Protocol,
-		Size:       storageSize,
-		Name:       shareOptions.ShareName,
-		ShareType:  shareOptions.Type,
-		Metadata: map[string]string{
-			persistentvolume.CloudVolumeCreatedForClaimNamespaceTag: volOptions.PVC.Namespace,
-			persistentvolume.CloudVolumeCreatedForClaimNameTag:      volOptions.PVC.Name,
-			persistentvolume.CloudVolumeCreatedForVolumeNameTag:     shareOptions.ShareName,
-		},
+		ShareProto:     shareOptions.Protocol,
+		ShareNetworkID: shareOptions.OSShareNetworkID,
+		Size:           storageSize,
+		Name:           shareName,
+		ShareType:      shareOptions.Type,
+		Metadata:       metadata,
 	}, nil
 }
 
@@ -127,7 +148,8 @@ func buildPersistentVolume(
 	share *shares.Share,
 	accessRight *shares.AccessRight,
 	volSource *v1.PersistentVolumeSource,
-	volOptions *controller.VolumeOptions,
+	volOptions *controller.ProvisionOptions,
+	shareSecretRef *v1.SecretReference,
 	shareOptions *shareoptions.ShareOptions,
 ) *v1.PersistentVolume {
 	provisionType := manilaProvisionTypeDynamic
@@ -142,13 +164,13 @@ func buildPersistentVolume(
 				manilaAnnotationID:                   share.ID,
 				manilaAnnotationOSSecretName:         shareOptions.OSSecretName,
 				manilaAnnotationOSSecretNamespace:    shareOptions.OSSecretNamespace,
-				manilaAnnotationShareSecretName:      shareOptions.ShareSecretRef.Name,
-				manilaAnnotationShareSecretNamespace: shareOptions.ShareSecretRef.Namespace,
+				manilaAnnotationShareSecretName:      shareSecretRef.Name,
+				manilaAnnotationShareSecretNamespace: shareSecretRef.Namespace,
 				manilaAnnotationProvisionType:        provisionType,
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
-			PersistentVolumeReclaimPolicy: volOptions.PersistentVolumeReclaimPolicy,
+			PersistentVolumeReclaimPolicy: *volOptions.StorageClass.ReclaimPolicy,
 			AccessModes:                   getPVAccessMode(volOptions.PVC.Spec.AccessModes),
 			Capacity:                      v1.ResourceList{v1.ResourceStorage: resource.MustParse(fmt.Sprintf("%dG", share.Size))},
 			PersistentVolumeSource:        *volSource,

@@ -19,6 +19,7 @@ package sharebackends
 import (
 	"fmt"
 	"io/ioutil"
+	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"net/http"
 	"reflect"
 	"testing"
@@ -28,7 +29,6 @@ import (
 	fakeclient "github.com/gophercloud/gophercloud/testhelper/client"
 	"k8s.io/api/core/v1"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 )
 
 func TestSplitExportLocation(t *testing.T) {
@@ -56,23 +56,24 @@ func TestCSICephFSBuildSource(t *testing.T) {
 	var b CSICephFS
 
 	args := BuildSourceArgs{
+		VolumeHandle: "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264",
 		Share: &shares.Share{
 			ID: "011d21e2-fbc3-4e4a-9993-9ea223f73264",
 		},
 		Options: &shareoptions.ShareOptions{
-			ShareName: "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264",
-			ShareSecretRef: v1.SecretReference{
-				Name:      "manila-011d21e2-fbc3-4e4a-9993-9ea223f73264",
-				Namespace: "default",
-			},
+			CSICEPHFSdriver:      "csi-cephfs",
+			CSICEPHFSmounter:     "fuse",
+			OSSecretNamespace:    "default",
+			ShareSecretNamespace: "default",
+		},
+		ShareSecretRef: &v1.SecretReference{
+			Name:      "manila-011d21e2-fbc3-4e4a-9993-9ea223f73264",
+			Namespace: "default",
 		},
 		Location: &shares.ExportLocation{
 			Path: "192.168.2.1:6789,192.168.2.2:6789:/shares/011d21e2-fbc3-4e4a-9993-9ea223f73264",
 		},
 	}
-
-	args.Options.CSICEPHFSdriver = "csi-cephfs"
-	args.Options.OSSecretNamespace = "default"
 
 	source, err := b.BuildSource(&args)
 
@@ -83,7 +84,7 @@ func TestCSICephFSBuildSource(t *testing.T) {
 	expected := v1.PersistentVolumeSource{
 		CSI: &v1.CSIPersistentVolumeSource{
 			Driver:       "csi-cephfs",
-			VolumeHandle: args.Options.ShareName,
+			VolumeHandle: args.VolumeHandle,
 			VolumeAttributes: map[string]string{
 				"monitors":        "192.168.2.1:6789,192.168.2.2:6789",
 				"rootPath":        "/shares/011d21e2-fbc3-4e4a-9993-9ea223f73264",
@@ -169,14 +170,14 @@ func TestCSICephFSGrantAccess(t *testing.T) {
 			ID:   "011d21e2-fbc3-4e4a-9993-9ea223f73264",
 			Name: "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264",
 		},
+		ShareSecretRef: &v1.SecretReference{Namespace: "default", Name: "manila-xxx"},
 		Options: &shareoptions.ShareOptions{
-			ShareName: "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264",
+			OSSecretNamespace:    "default",
+			ShareSecretNamespace: "default",
 		},
 		Clientset: fakeclientset.NewSimpleClientset(),
 		Client:    fakeclient.ServiceClient(),
 	}
-
-	args.Options.OSSecretNamespace = "default"
 
 	b := CSICephFS{}
 

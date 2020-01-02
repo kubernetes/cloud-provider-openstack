@@ -19,22 +19,25 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"k8s.io/api/core/v1"
+	"github.com/spf13/pflag"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 const (
@@ -48,6 +51,49 @@ const (
 	volumeStatusFactor    = 1.2
 	volumeStatusSteps     = 13
 )
+
+// ConfigFromEnv allows setting up credentials etc using the
+// standard OS_* OpenStack client environment variables. USed only in tests
+func ConfigFromEnv() Config {
+	var cfg Config
+
+	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
+	cfg.Global.UserID = os.Getenv("OS_USER_ID")
+	cfg.Global.Username = os.Getenv("OS_USERNAME")
+	cfg.Global.Password = os.Getenv("OS_PASSWORD")
+
+	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
+	if cfg.Global.TenantID == "" {
+		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
+	}
+	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
+	if cfg.Global.TenantName == "" {
+		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
+	}
+
+	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
+	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
+	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
+	cfg.Global.TenantDomainID = os.Getenv("OS_PROJECT_DOMAIN_ID")
+	cfg.Global.TenantDomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
+	cfg.Global.UserDomainID = os.Getenv("OS_USER_DOMAIN_ID")
+	cfg.Global.UserDomainName = os.Getenv("OS_USER_DOMAIN_NAME")
+	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
+	cfg.Global.ApplicationCredentialID = os.Getenv("OS_APPLICATION_CREDENTIAL_ID")
+	cfg.Global.ApplicationCredentialName = os.Getenv("OS_APPLICATION_CREDENTIAL_NAME")
+	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
+
+	// Set default values for config params
+	cfg.BlockStorage.BSVersion = "auto"
+	cfg.BlockStorage.TrustDevicePath = false
+	cfg.BlockStorage.IgnoreVolumeAZ = false
+	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
+	cfg.Networking.IPv6SupportDisabled = false
+	cfg.Networking.PublicNetworkName = "public"
+	cfg.LoadBalancer.InternalLB = false
+
+	return cfg
+}
 
 func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status string) {
 	backoff := wait.Backoff{
@@ -88,22 +134,13 @@ func TestReadConfig(t *testing.T) {
 		t.Errorf("Should fail when no config is provided: %s", err)
 	}
 
-	// Since we are setting env vars, we need to reset old
-	// values for other tests to succeed.
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
-
-	os.Setenv("OS_PASSWORD", "mypass")
-	defer os.Unsetenv("OS_PASSWORD")
-
-	os.Setenv("OS_TENANT_NAME", "admin")
-	defer os.Unsetenv("OS_TENANT_NAME")
-
 	cfg, err := ReadConfig(strings.NewReader(`
  [Global]
  auth-url = http://auth.url
  user-id = user
+ password = mypass
  tenant-name = demo
+ tenant-domain-name = Default
  region = RegionOne
  [LoadBalancer]
  create-monitor = yes
@@ -137,6 +174,10 @@ func TestReadConfig(t *testing.T) {
 		t.Errorf("incorrect tenant name: %s", cfg.Global.TenantName)
 	}
 
+	if cfg.Global.TenantDomainName != "Default" {
+		t.Errorf("incorrect tenant domain name: %s", cfg.Global.TenantDomainName)
+	}
+
 	if cfg.Global.Region != "RegionOne" {
 		t.Errorf("incorrect region: %s", cfg.Global.Region)
 	}
@@ -167,16 +208,109 @@ func TestReadConfig(t *testing.T) {
 	}
 }
 
+func TestReadClouds(t *testing.T) {
+
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		t.Error(err)
+	}
+
+	cloudFile := dir + "/test_clouds.yaml"
+	_ = os.Remove(cloudFile)
+
+	var cloud = `
+clouds:
+  default:
+    auth:
+      domain_name: default
+      auth_url: http://not-auth.url
+      project_name: demo
+      username: admin
+      user_id: user
+    region_name: RegionOne
+    identity_api_version: 3
+`
+	data := []byte(cloud)
+	err = ioutil.WriteFile(cloudFile, data, 0644)
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(cloudFile)
+
+	cfg, err := ReadConfig(strings.NewReader(`
+ [Global]
+ auth-url = http://auth.url
+ trust-id = mytrust
+ password = mypass
+ use-clouds = true
+ clouds-file = ` + cloudFile + `
+ [LoadBalancer]
+ create-monitor = yes
+ monitor-delay = 1m
+ monitor-timeout = 30s
+ monitor-max-retries = 3
+ [BlockStorage]
+ bs-version = auto
+ trust-device-path = yes
+ ignore-volume-az = yes
+ [Metadata]
+ search-order = configDrive, metadataService
+`))
+
+	if err != nil {
+		t.Fatalf("Should succeed when a valid config is provided: %s", err)
+	}
+
+	// config has priority
+	if cfg.Global.AuthURL != "http://auth.url" {
+		t.Errorf("incorrect IdentityEndpoint: %s", cfg.Global.AuthURL)
+	}
+
+	if cfg.Global.UserID != "user" {
+		t.Errorf("incorrect user-id: %s", cfg.Global.UserID)
+	}
+
+	if cfg.Global.Username != "admin" {
+		t.Errorf("incorrect user-name: %s", cfg.Global.Username)
+	}
+
+	if cfg.Global.Password != "mypass" {
+		t.Errorf("incorrect password: %s", cfg.Global.Password)
+	}
+
+	if cfg.Global.Region != "RegionOne" {
+		t.Errorf("incorrect region: %s", cfg.Global.Region)
+	}
+
+	if cfg.Global.TenantName != "demo" {
+		t.Errorf("incorrect tenant name: %s", cfg.Global.TenantName)
+	}
+
+	if cfg.Global.TrustID != "mytrust" {
+		t.Errorf("incorrect tenant name: %s", cfg.Global.TrustID)
+	}
+
+	// Make non-global sections dont get overwritten
+	if cfg.BlockStorage.TrustDevicePath != true {
+		t.Errorf("incorrect bs.trustdevicepath: %v", cfg.BlockStorage.TrustDevicePath)
+	}
+	if cfg.BlockStorage.BSVersion != "auto" {
+		t.Errorf("incorrect bs.bs-version: %v", cfg.BlockStorage.BSVersion)
+	}
+	if !cfg.LoadBalancer.CreateMonitor {
+		t.Errorf("incorrect lb.createmonitor: %t", cfg.LoadBalancer.CreateMonitor)
+	}
+}
+
 func TestToAuthOptions(t *testing.T) {
 	cfg := Config{}
 	cfg.Global.Username = "user"
 	cfg.Global.Password = "pass"
-	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 	cfg.Global.DomainName = "local"
 	cfg.Global.AuthURL = "http://auth.url"
 	cfg.Global.UserID = "user"
 
-	ao := cfg.toAuthOptions()
+	ao := cfg.Global.ToAuthOptions()
 
 	if !ao.AllowReauth {
 		t.Errorf("Will need to be able to reauthenticate")
@@ -187,20 +321,26 @@ func TestToAuthOptions(t *testing.T) {
 	if ao.Password != cfg.Global.Password {
 		t.Errorf("Password %s != %s", ao.Password, cfg.Global.Password)
 	}
-	if ao.DomainID != cfg.Global.DomainID {
-		t.Errorf("DomainID %s != %s", ao.DomainID, cfg.Global.DomainID)
-	}
 	if ao.IdentityEndpoint != cfg.Global.AuthURL {
 		t.Errorf("IdentityEndpoint %s != %s", ao.IdentityEndpoint, cfg.Global.AuthURL)
 	}
 	if ao.UserID != cfg.Global.UserID {
 		t.Errorf("UserID %s != %s", ao.UserID, cfg.Global.UserID)
 	}
-	if ao.DomainName != cfg.Global.DomainName {
-		t.Errorf("DomainName %s != %s", ao.DomainName, cfg.Global.DomainName)
+	if ao.Scope.DomainName != cfg.Global.DomainName {
+		t.Errorf("DomainName %s != %s", ao.Scope.DomainName, cfg.Global.DomainName)
 	}
 	if ao.TenantID != cfg.Global.TenantID {
 		t.Errorf("TenantID %s != %s", ao.TenantID, cfg.Global.TenantID)
+	}
+
+	// test setting of the DomainID
+	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
+
+	ao = cfg.Global.ToAuthOptions()
+
+	if ao.Scope.DomainID != cfg.Global.DomainID {
+		t.Errorf("DomainID %s != %s", ao.Scope.DomainID, cfg.Global.DomainID)
 	}
 }
 
@@ -229,7 +369,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: nil,
@@ -249,7 +389,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: nil,
@@ -269,7 +409,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: fmt.Errorf("monitor-delay not set in cloud provider config"),
@@ -303,7 +443,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 				},
 			},
 			expectedError: fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
-				"Supported elements include %q and %q", "value1", configDriveID, metadataID),
+				"Supported elements include %q and %q", "value1", metadata.ConfigDriveID, metadata.MetadataID),
 		},
 		{
 			name: "test7",
@@ -320,7 +460,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: fmt.Errorf("monitor-max-retries not set in cloud provider config"),
@@ -340,7 +480,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 					ManageSecurityGroups: true,
 				},
 				metadataOpts: MetadataOpts{
-					SearchOrder: configDriveID,
+					SearchOrder: metadata.ConfigDriveID,
 				},
 			},
 			expectedError: fmt.Errorf("monitor-timeout not set in cloud provider config"),
@@ -401,13 +541,6 @@ func TestCaller(t *testing.T) {
 	}
 }
 
-// An arbitrary sort.Interface, just for easier comparison
-type AddressSlice []v1.NodeAddress
-
-func (a AddressSlice) Len() int           { return len(a) }
-func (a AddressSlice) Less(i, j int) bool { return a[i].Address < a[j].Address }
-func (a AddressSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
 func TestNodeAddresses(t *testing.T) {
 	srv := servers.Server{
 		Status:     "ACTIVE",
@@ -459,22 +592,21 @@ func TestNodeAddresses(t *testing.T) {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
 
-	sort.Sort(AddressSlice(addrs))
-	t.Logf("addresses is %v", addrs)
+	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 		{Type: v1.NodeHostName, Address: "a1-yinvcez57-0-bvynoyawrhcg-kube-minion-fg5i4jwcc2yy.novalocal"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
-		t.Errorf("nodeAddresses returned incorrect value %v", addrs)
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
 	}
 }
 
@@ -525,21 +657,20 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
 
-	sort.Sort(AddressSlice(addrs))
-	t.Logf("addresses is %v", addrs)
+	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
-		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
-		t.Errorf("nodeAddresses returned incorrect value %v", addrs)
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
 	}
 }
 
@@ -591,27 +722,24 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
 
-	sort.Sort(AddressSlice(addrs))
-	t.Logf("addresses is %v", addrs)
+	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
-		t.Errorf("nodeAddresses returned incorrect value %v", addrs)
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
 	}
 }
 
 func TestNewOpenStack(t *testing.T) {
-	cfg, ok := configFromEnv()
-	if !ok {
-		t.Skip("No config found in environment")
-	}
+	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	_, err := NewOpenStack(cfg)
 	if err != nil {
@@ -620,10 +748,8 @@ func TestNewOpenStack(t *testing.T) {
 }
 
 func TestLoadBalancer(t *testing.T) {
-	cfg, ok := configFromEnv()
-	if !ok {
-		t.Skip("No config found in environment")
-	}
+	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	versions := []string{"v2"}
 
@@ -651,9 +777,15 @@ func TestLoadBalancer(t *testing.T) {
 	}
 }
 
+var FakeMetadata = metadata.Metadata{
+	UUID:             "83679162-1378-4288-a2d4-70e13ec132aa",
+	Name:             "test",
+	AvailabilityZone: "nova",
+}
+
 func TestZones(t *testing.T) {
-	SetMetadataFixture(&FakeMetadata)
-	defer ClearMetadata()
+	metadata.Set(&FakeMetadata)
+	defer metadata.Clear()
 
 	os := OpenStack{
 		provider: &gophercloud.ProviderClient{
@@ -684,10 +816,8 @@ func TestZones(t *testing.T) {
 var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
 
 func TestVolumes(t *testing.T) {
-	cfg, ok := configFromEnv()
-	if !ok {
-		t.Skip("No config found in environment")
-	}
+	cfg := ConfigFromEnv()
+	testConfigFromEnv(t, &cfg)
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {
@@ -767,6 +897,12 @@ func TestInstanceIDFromProviderID(t *testing.T) {
 			fail:       false,
 		},
 		{
+			// https://github.com/kubernetes/kubernetes/issues/85731
+			providerID: "/7b9cf879-7146-417c-abfd-cb4272f0c935",
+			instanceID: "7b9cf879-7146-417c-abfd-cb4272f0c935",
+			fail:       false,
+		},
+		{
 			providerID: "openstack://7b9cf879-7146-417c-abfd-cb4272f0c935",
 			instanceID: "",
 			fail:       true,
@@ -786,7 +922,7 @@ func TestInstanceIDFromProviderID(t *testing.T) {
 	for _, test := range testCases {
 		instanceID, err := instanceIDFromProviderID(test.providerID)
 		if (err != nil) != test.fail {
-			t.Errorf("%s yielded `err != nil` as %t. expected %t", test.providerID, (err != nil), test.fail)
+			t.Errorf("expected err: %t, got err: %v", test.fail, err)
 		}
 
 		if test.fail {
@@ -794,7 +930,7 @@ func TestInstanceIDFromProviderID(t *testing.T) {
 		}
 
 		if instanceID != test.instanceID {
-			t.Errorf("%s yielded %s. expected %s", test.providerID, instanceID, test.instanceID)
+			t.Errorf("%s yielded %s. expected %q", test.providerID, instanceID, test.instanceID)
 		}
 	}
 }
@@ -807,8 +943,10 @@ func TestToAuth3Options(t *testing.T) {
 	cfg.Global.DomainName = "local"
 	cfg.Global.AuthURL = "http://auth.url"
 	cfg.Global.UserID = "user"
+	cfg.Global.TenantName = "demo"
+	cfg.Global.TenantDomainName = "Default"
 
-	ao := cfg.toAuth3Options()
+	ao := cfg.Global.ToAuth3Options()
 
 	if !ao.AllowReauth {
 		t.Errorf("Will need to be able to reauthenticate")
@@ -831,6 +969,121 @@ func TestToAuth3Options(t *testing.T) {
 	if ao.DomainName != cfg.Global.DomainName {
 		t.Errorf("DomainName %s != %s", ao.DomainName, cfg.Global.DomainName)
 	}
+	if ao.Scope.ProjectName != cfg.Global.TenantName {
+		t.Errorf("TenantName %s != %s", ao.Scope.ProjectName, cfg.Global.TenantName)
+	}
+	if ao.Scope.DomainName != cfg.Global.TenantDomainName {
+		t.Errorf("TenantDomainName %s != %s", ao.Scope.DomainName, cfg.Global.TenantDomainName)
+	}
+}
+
+func TestToAuth3OptionsScope(t *testing.T) {
+	// Use Domain Name/ID if Tenant Domain Name/ID is not set
+	cfg := Config{}
+	cfg.Global.Username = "user"
+	cfg.Global.Password = "pass"
+	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
+	cfg.Global.DomainName = "local"
+	cfg.Global.AuthURL = "http://auth.url"
+	cfg.Global.UserID = "user"
+	cfg.Global.TenantName = "demo"
+
+	ao := cfg.Global.ToAuth3Options()
+
+	if ao.Scope.ProjectName != cfg.Global.TenantName {
+		t.Errorf("TenantName %s != %s", ao.Scope.ProjectName, cfg.Global.TenantName)
+	}
+	if ao.Scope.DomainName != cfg.Global.DomainName {
+		t.Errorf("DomainName %s != %s", ao.Scope.DomainName, cfg.Global.DomainName)
+	}
+	if ao.Scope.DomainID != cfg.Global.DomainID {
+		t.Errorf("DomainID %s != %s", ao.Scope.DomainID, cfg.Global.DomainID)
+	}
+
+	// Use Tenant Domain Name/ID if set
+	cfg = Config{}
+	cfg.Global.Username = "user"
+	cfg.Global.Password = "pass"
+	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
+	cfg.Global.DomainName = "local"
+	cfg.Global.AuthURL = "http://auth.url"
+	cfg.Global.UserID = "user"
+	cfg.Global.TenantName = "demo"
+	cfg.Global.TenantDomainName = "Default"
+	cfg.Global.TenantDomainID = "default"
+
+	ao = cfg.Global.ToAuth3Options()
+
+	if ao.Scope.ProjectName != cfg.Global.TenantName {
+		t.Errorf("TenantName %s != %s", ao.Scope.ProjectName, cfg.Global.TenantName)
+	}
+	if ao.Scope.DomainName != cfg.Global.TenantDomainName {
+		t.Errorf("TenantDomainName %s != %s", ao.Scope.DomainName, cfg.Global.TenantDomainName)
+	}
+	if ao.Scope.DomainID != cfg.Global.TenantDomainID {
+		t.Errorf("TenantDomainID %s != %s", ao.Scope.DomainName, cfg.Global.TenantDomainID)
+	}
+
+	// Do not use neither Domain Name nor ID, if Tenant ID was provided
+	cfg = Config{}
+	cfg.Global.Username = "user"
+	cfg.Global.Password = "pass"
+	cfg.Global.DomainID = "2a73b8f597c04551a0fdc8e95544be8a"
+	cfg.Global.DomainName = "local"
+	cfg.Global.AuthURL = "http://auth.url"
+	cfg.Global.UserID = "user"
+	cfg.Global.TenantID = "7808db451cfc43eaa9acda7d67da8cf1"
+	cfg.Global.TenantDomainName = "Default"
+	cfg.Global.TenantDomainID = "default"
+
+	ao = cfg.Global.ToAuth3Options()
+
+	if ao.Scope.ProjectName != "" {
+		t.Errorf("TenantName in the scope  is not empty")
+	}
+	if ao.Scope.DomainName != "" {
+		t.Errorf("DomainName in the scope is not empty")
+	}
+	if ao.Scope.DomainID != "" {
+		t.Errorf("DomainID in the scope is not empty")
+	}
+}
+
+func TestUserAgentFlag(t *testing.T) {
+	tests := []struct {
+		name        string
+		shouldParse bool
+		flags       []string
+		expected    []string
+	}{
+		{"no_flag", true, []string{}, nil},
+		{"one_flag", true, []string{"--user-agent=cluster/abc-123"}, []string{"cluster/abc-123"}},
+		{"multiple_flags", true, []string{"--user-agent=a/b", "--user-agent=c/d"}, []string{"a/b", "c/d"}},
+		{"flag_with_space", true, []string{"--user-agent=a b"}, []string{"a b"}},
+		{"flag_split_with_space", true, []string{"--user-agent=a", "b"}, []string{"a"}},
+		{"empty_flag", false, []string{"--user-agent"}, nil},
+	}
+
+	for _, testCase := range tests {
+		userAgentData = []string{}
+
+		t.Run(testCase.name, func(t *testing.T) {
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			AddExtraFlags(fs)
+
+			err := fs.Parse(testCase.flags)
+
+			if testCase.shouldParse && err != nil {
+				t.Errorf("Flags failed to parse")
+			} else if !testCase.shouldParse && err == nil {
+				t.Errorf("Flags should not have parsed")
+			} else if testCase.shouldParse {
+				if !reflect.DeepEqual(userAgentData, testCase.expected) {
+					t.Errorf("userAgentData %#v did not match expected value %#v", userAgentData, testCase.expected)
+				}
+			}
+		})
+	}
 }
 
 func clearEnviron(t *testing.T) []string {
@@ -851,5 +1104,11 @@ func resetEnviron(t *testing.T, items []string) {
 				t.Errorf("Setenv(%q, %q) failed during reset: %v", pair[:i-1], pair[i:], err)
 			}
 		}
+	}
+}
+
+func testConfigFromEnv(t *testing.T, cfg *Config) {
+	if cfg.Global.AuthURL == "" {
+		t.Skip("No config found in environment")
 	}
 }

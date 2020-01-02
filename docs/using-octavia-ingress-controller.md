@@ -2,6 +2,8 @@
 
 This guide explains how to deploy and config the octavia-ingress-controller in Kubernetes cluster on top of OpenStack cloud.
 
+> NOTE: octavia-ingress-controller is still in Beta, support for the overall feature will not be dropped, though details may change.
+
 ## What is an Ingress Controller?
 In Kubernetes, Ingress allows external users and client applications access to HTTP services. Ingress consists of two components.
 
@@ -17,280 +19,231 @@ After creating a Kubernetes cluster in Magnum, the most common way to expose the
 
 - The cost of Kubernetes Service is a little bit high if it's one-to-one mapping from the service to Octavia load balancer, the customers have to pay for a load balancer per exposed service, which can get expensive.
 - There is no filtering, no routing, etc. for the service. This means you can send almost any kind of traffic to it, like HTTP, TCP, UDP, Websockets, gRPC, or whatever.
-- The traditional ingress controllers such as NGINX ingress controller,  HAProxy ingress controller, Træfik, etc. don't make much sense in the cloud environment because the user still needs to expose service for the ingress controller itself which may increase the network delay and decrease the performance of the application.
+- The traditional ingress controllers(such as NGINX ingress controller,  HAProxy ingress controller, Traefik ingress controller, etc.) don't make much sense in the cloud environment because they still rely on the cloud load balancing service to expose themselves behind a Service of LoadBalancer type, not to mention the overhead of managing the extra softwares.
 
-The octavia-ingress-controller could solve all the above problems in the OpenStack environment by creating a single load balancer for multiple [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) type services in an Ingress. In order to use the octavia-ingress-controller in Kubernetes cluster, use the value `openstack` for the annotation `kubernetes.io/ingress.class` in the metadata section of the Ingress Resource as shown below:
+The octavia-ingress-controller could solve all the above problems in the OpenStack environment by creating a single load balancer for multiple [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) type services in an Ingress. In order to use the octavia-ingress-controller in Kubernetes cluster, set the annotation `kubernetes.io/ingress.class` in the `metadata` section of the Ingress resource as shown below:
 
-```bash
-annotations: kubernetes.io/ingress.class: openstack
+```yaml
+annotations:
+ kubernetes.io/ingress.class: "openstack"
 ```
 
-## How to deploy octavia-ingress-controller
+## Requirements
 
-### Prepare kubeconfig file
-Kubeconfig file is used to configure access to Kubernetes clusters. This is a generic way of referring to configuration files in Kubernetes. The following commands are performed in a Kubernetes cluster created using kubeadm.
+octavia-ingress-controller implementation relies on load balancer management by OpenStack Octavia service, so:
 
-- Install cfssl tools, which are used for generating TLS certs
-```bash
-wget https://pkg.cfssl.org/R1.2/cfssl_linux-amd64 && chmod +x cfssl_linux-amd64 && mv cfssl_linux-amd64 /usr/local/bin/cfssl
-wget https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64 && chmod +x cfssljson_linux-amd64 && mv cfssljson_linux-amd64 /usr/local/bin/cfssljson
-wget https://pkg.cfssl.org/R1.2/cfssl-certinfo_linux-amd64 && chmod +x cfssl-certinfo_linux-amd64 && mv cfssl-certinfo_linux-amd64 /usr/local/bin/cfssl-certinfo
+- Communication between octavia-ingress-controller and Octavia is needed.
+- Octavia stable/queens or higher version is required because of some needed features such as bulk pool members operation.
+
+## Caveats
+
+- TLS Ingress is not supported for now, although it's possible to integrate with OpenStack Barbican for the implementation.
+
+## Deploy octavia-ingress-controller in the Kubernetes cluster
+
+In the guide, we will deploy octavia-ingress-controller as a StatefulSet(with only one pod) in the kube-system namespace in the cluster. Alternatively, you can also deploy the controller as a static pod by providing a manifest file in the `/etc/kubernetes/manifests` folder in a typical Kubernetes cluster installed by kubeadm. All the manifest files in this guide are saved in `/etc/kubernetes/octavia-ingress-controller` folder, so create the folder first.
+
+```shell
+mkdir -p /etc/kubernetes/octavia-ingress-controller
 ```
 
-- Re-use the CA cert and key in the existing cluster
-```bash
-pushd /etc/kubernetes/pki
-cat > ca-config.json <<EOF
-{
-  "signing": {
-    "default": {
-      "expiry": "87600h"
-    },
-    "profiles": {
-      "kubernetes": {
-        "usages": [
-            "signing",
-            "key encipherment",
-            "server auth",
-            "client auth"
-        ],
-        "expiry": "87600h"
-      }
-    }
-  }
-}
-EOF
-cat > ingress-openstack-csr.json <<EOF
-{
-  "CN": "octavia-ingress-controller",
-  "hosts": [],
-  "key": {
-    "algo": "rsa",
-    "size": 2048
-  },
-  "names": [
-    {
-      "C": "NZ",
-      "ST": "Wellington",
-      "L": "Wellington",
-      "O": "Catalyst",
-      "OU": "Lingxian"
-    }
-  ]
-}
-EOF
-cfssl gencert -ca=ca.crt -ca-key=ca.key -config=ca-config.json -profile=kubernetes ingress-openstack-csr.json | cfssljson -bare ingress-openstack
-# You can take a look at the files generated by cfssl
-ls -l | grep ingress-openstack
-```
+### Create service account and grant permissions
 
-- Create kubeconfig file for octavia-ingress-controller
-```bash
-ca_data=$(cat ca.crt | base64 | tr -d '\n')
-client_cert_data=$(cat ingress-openstack.pem | base64 | tr -d '\n')
-client_key_data=$(cat ingress-openstack-key.pem | base64 | tr -d '\n')
-cat <<EOF > /etc/kubernetes/ingress-openstack.conf
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    certificate-authority-data: ${ca_data}
-    server: https://${k8s_master_ip}:6443
-  name: kubernetes
-preferences: {}
-users:
-- name: octavia-ingress-controller
-  user:
-    client-certificate-data: ${client_cert_data}
-    client-key-data: ${client_key_data}
-contexts:
-- context:
-    cluster: kubernetes
-    user: octavia-ingress-controller
-  name: octavia-ingress-controller@kubernetes
-current-context: octavia-ingress-controller@kubernetes
-EOF
-popd
-```
+For testing purpose, we grant the cluster admin role to the serviceaccount created.
 
-### Config RBAC for octavia-ingress-controller user
-For testing purpose, grant `cluster-admin` role for `octavia-ingress-controller` user so that the user has full access to the Kubernetes cluster.
-```bash
-cat <<EOF | kc create -f -
+```shell
+cat <<EOF > /etc/kubernetes/octavia-ingress-controller/serviceaccount.yaml
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
-metadata:
-  name: octavia-ingress-controller
-subjects:
-  - kind: User
-    name: octavia-ingress-controller
-roleRef:
-  kind: ClusterRole
-  name: cluster-admin
-  apiGroup: rbac.authorization.k8s.io
-EOF
-```
-
-### Prepare octavia-ingress-controller service configuration
-We need credentials of admin user and a normal user(e.g. demo) in OpenStack.
-
-```bash
-source openrc_admin
-project_id=$(openstack project show demo -c id -f value)
-auth_url=$(export | grep OS_AUTH_URL | awk -F'"' '{print $2}')
-subnet_id=$(openstack subnet show private-subnet -c id -f value)
-public_net_id=$(openstack network show public -c id -f value)
-cat <<EOF > /etc/kubernetes/ingress-openstack.yaml
-kubernetes:
-    kubeconfig: /etc/kubernetes/ingress-openstack.conf
-openstack:
-    username: demo
-    password: password
-    project_id: ${project_id}
-    auth_url: ${auth_url}/v3
-    region: RegionOne
-octavia:
-    subnet_id: ${subnet_id}
-    fip_network: ${public_net_id}
-EOF
-```
-
-### Setting up octavia-ingress-controller service
-
-```bash
-cat <<EOF > /etc/kubernetes/manifests/octavia-ingress-controller.yaml
----
+kind: ServiceAccount
 apiVersion: v1
-kind: Pod
 metadata:
-  annotations:
-    scheduler.alpha.kubernetes.io/critical-pod: ""
-  labels:
-    component: octavia-ingress-controller
-    tier: control-plane
   name: octavia-ingress-controller
   namespace: kube-system
-spec:
-  containers:
-    - name: octavia-ingress-controller
-      image: lingxiankong/openstack-ingress-controller:0.0.2
-      imagePullPolicy: Always
-      args:
-        - /bin/octavia-ingress-controller
-        - --config=/etc/kubernetes/ingress-openstack.yaml
-      volumeMounts:
-      - mountPath: /etc/kubernetes/ingress-openstack.yaml
-        name: ingressconfig
-        readOnly: true
-      - mountPath: /etc/kubernetes/ingress-openstack.conf
-        name: kubeconfig
-        readOnly: true
-      resources:
-        requests:
-          cpu: 200m
-  hostNetwork: true
-  volumes:
-  - hostPath:
-      path: /etc/kubernetes/ingress-openstack.yaml
-      type: FileOrCreate
-    name: ingressconfig
-  - hostPath:
-      path: /etc/kubernetes/ingress-openstack.conf
-      type: FileOrCreate
-    name: kubeconfig
-status: {}
-EOF
-```
-
-Wait until the `octavia-ingress-controller` static pod is up and running.
-
-```bash
-$ kubectl get pod --all-namespaces | grep octavia-ingress-controller
-kube-system   octavia-ingress-controller-lingxian-k8s-master   1/1       Running   0          1m
-```
-
-## Setting up HTTP Load Balancing with Ingress
-
-### Create a backend service
-Create a simple service(echo hostname) that listens on a HTTP server on port 8080.
-
-```bash
-$ cat <<EOF | kc create -f -
 ---
-apiVersion: apps/v1
-kind: Deployment
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: hostname-echo-deployment
+  name: octavia-ingress-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: octavia-ingress-controller
+    namespace: kube-system
+EOF
+kubectl apply -f /etc/kubernetes/octavia-ingress-controller/serviceaccount.yaml
+```
+
+### Prepare octavia-ingress-controller configuration
+
+The octavia-ingress-controller needs to communicate with OpenStack cloud to create resources corresponding to the Kubernetes Ingress resource, so the credentials of an OpenStack user(doesn't need to be the admin user) need to be provided in `openstack` section. Additionally, in order to differentiate the Ingresses between kubernetes clusters, `cluster-name` needs to be unique.
+
+```shell
+cat <<EOF > /etc/kubernetes/octavia-ingress-controller/config.yaml
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: octavia-ingress-controller-config
+  namespace: kube-system
+data:
+  config: |
+    cluster-name: ${cluster_name}
+    openstack:
+      auth-url: ${auth_url}
+      domain-name: ${domain-name}
+      username: ${user_id}
+      password: ${password}
+      project-id: ${project_id}
+      region: ${region}
+    octavia:
+      subnet-id: ${subnet_id}
+      floating-network-id: ${public_net_id}
+EOF
+kubectl apply -f /etc/kubernetes/octavia-ingress-controller/config.yaml
+```
+
+Here are several other config options are not included in the example configuration above:
+
+- Options for connecting to the kubernetes cluster. The configuration above will leverage the service account credential which is going to be injected into the pod automatically(see more details [here](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#accessing-the-api-from-a-pod)). However, there may be some reasons to specify the configuration explicitly.  
+
+    ```yaml
+    kubernetes:
+      api-host: https://127.0.0.1:6443
+      kubeconfig: /home/ubuntu/.kube/config
+    ```
+
+- Options for security group management. The octavia-ingress-controller creates an Octavia load balancer per Ingress and adds the worker nodes as members of the load balancer. In order for the Octavia amphorae talking to the Service NodePort, either the kubernetes cluster administrator manually manages the security group for the worker nodes or leave it to octavia-ingress-controller. For the latter case, you should config:
+
+    ```yaml
+    octavia:
+      manage-security-groups: true
+    ```
+
+    Notes for the security group:
+
+    - The security group name is in the format: `k8s_ing_<cluster-name>_<ingress-namespace>_<ingress-name>`
+    - The security group description is in the format: `Security group created for Ingress <ingress-namespace>/<ingress-name> from cluster <cluster-name>`
+    - The security group has tags: `["octavia.ingress.kubernetes.io", "<ingress-namespace>_<ingress-name>"]`
+    - The security group is associated with all the Neutron ports of the Kubernetes worker nodes. 
+
+### Deploy octavia-ingress-controller
+
+```shell
+image="docker.io/k8scloudprovider/octavia-ingress-controller:latest"
+
+cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: octavia-ingress-controller
+  namespace: kube-system
+  labels:
+    k8s-app: octavia-ingress-controller
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hostname-echo
+      k8s-app: octavia-ingress-controller
+  serviceName: octavia-ingress-controller
   template:
     metadata:
       labels:
-        app: hostname-echo
+        k8s-app: octavia-ingress-controller
     spec:
+      serviceAccountName: octavia-ingress-controller
+      tolerations:
+        - effect: NoSchedule # Make sure the pod can be scheduled on master kubelet.
+          operator: Exists
+        - key: CriticalAddonsOnly # Mark the pod as a critical add-on for rescheduling.
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
       containers:
-        - image: "lingxiankong/alpine-test"
-          imagePullPolicy: Always
-          name: hostname-echo-container
-          ports:
-            - containerPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hostname-echo-svc
-spec:
-  ports:
-     -  port: 8080
-        protocol: TCP
-        targetPort: 8080
-  selector:
-    app: hostname-echo
-  type: NodePort
+        - name: octavia-ingress-controller
+          image: ${image}
+          imagePullPolicy: IfNotPresent
+          args:
+            - /bin/octavia-ingress-controller
+            - --config=/etc/config/octavia-ingress-controller-config.yaml
+          volumeMounts:
+            - mountPath: /etc/kubernetes
+              name: kubernetes-config
+              readOnly: true
+            - name: ingress-config
+              mountPath: /etc/config
+      hostNetwork: true
+      volumes:
+        - name: kubernetes-config
+          hostPath:
+            path: /etc/kubernetes
+            type: Directory
+        - name: ingress-config
+          configMap:
+            name: octavia-ingress-controller-config
+            items:
+              - key: config
+                path: octavia-ingress-controller-config.yaml
 EOF
+kubectl apply -f /etc/kubernetes/octavia-ingress-controller/deployment.yaml
+```
+
+Wait until the StatefulSet is up and running.
+
+## Setting up HTTP Load Balancing with Ingress
+
+### Create a backend service
+Create a simple service(echo hostname) that is listening on a HTTP server on port 8080.
+
+```bash
+$ kubectl run hostname-server --image=lingxiankong/alpine-test --port=8080
+$ kubectl expose deployment hostname-server --type=NodePort --target-port=8080
 $ kubectl get svc
 NAME                TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
-hostname-echo-svc   NodePort    10.106.36.88   <none>        8080:32066/TCP   33s
+hostname-server     NodePort    10.106.36.88   <none>        8080:32066/TCP   33s
 ```
 
 When you create a Service of type NodePort, Kubernetes makes your Service available on a randomly- selected high port number (e.g. 32066) on all the nodes in your cluster. Generally the Kubernetes nodes are not externally accessible by default, creating this Service does not make your application accessible from the Internet. However, we could verify the service using its `CLUSTER-IP` on Kubernetes master node:
 
 ```bash
 $ curl http://10.106.36.88:8080
-hostname-echo-deployment-698fd44fc8-jptl2
+hostname-server-698fd44fc8-jptl2
 ```
 
-To make your HTTP web server application publicly accessible, you need to create an Ingress resource.
+Next, we create an Ingress resource to make your HTTP web server application publicly accessible.
 
 ### Create an Ingress resource
-The following command defines an Ingress resource that directs traffic that requests `http://api.sample.com/hostname` to the `hostname-echo` Service:
+
+The following command defines an Ingress resource that forwards traffic that requests `http://api.sample.com/ping` to the `hostname-server` Service:
 ```bash
-cat <<EOF | kc create -f -
-apiVersion: extensions/v1beta1
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
   name: test-octavia-ingress
   annotations:
     kubernetes.io/ingress.class: "openstack"
+    octavia.ingress.kubernetes.io/internal: "false"
 spec:
   rules:
   - host: api.sample.com
     http:
       paths:
-      - path: /hostname
+      - path: /ping
         backend:
-          serviceName: hostname-echo-svc
+          serviceName: hostname-server
           servicePort: 8080
 EOF
 ```
 
-Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running in your cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `hostname-echo` NodePort Service you exposed.
+Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running inside the cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `hostname-server` NodePort Service you exposed.
 
-Verify that Ingress Resource has been created. Please note that the IP address for the Ingress Resource will not be defined right away (wait a few moments for the ADDRESS field to get populated):
+> If you don't want your Ingress to be accessible from the public internet, you could change the annotation `octavia.ingress.kubernetes.io/internal` to true.
+
+Verify that Ingress Resource has been created. Please note that the IP address for the Ingress Resource will not be defined right away (wait for the ADDRESS field to get populated):
 
 ```bash
 $ kubectl get ing
@@ -302,14 +255,10 @@ NAME                   HOSTS            ADDRESS      PORTS     AGE
 test-octavia-ingress   api.sample.com   172.24.4.9   80        9m
 ```
 
-For testing purpose, you can log into a host that has network connection with the OpenStack cloud, you need to update `/etc/hosts` file in the host to resolve `api.sample.com` to the Ingress IP address, then you should be able to access the backend service by sending HTTP request to the domain name specified in the Ingress Resource:
+For testing purpose, you can log into a host that could connect to the floating IP, you should be able to access the backend service by sending HTTP request to the domain name specified in the Ingress resource:
 
-```bash
-$ echo "172.24.4.9 api.sample.com" >> /etc/hosts
-$ curl http://api.sample.com/hostname
-hostname-echo-deployment-698fd44fc8-jptl2
+```shell
+$ IPADDRESS=172.24.4.9
+$ curl -H "Host: api.sample.com" http://$IPADDRESS/ping
+hostname-server-698fd44fc8-jptl2
 ```
-
-## Live demo
-
-You can find a live demo [here](https://youtu.be/ASSUMDvH_aE).

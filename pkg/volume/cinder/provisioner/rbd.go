@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 const rbdType = "rbd"
@@ -35,7 +35,7 @@ type rbdMapper struct {
 
 func getMonitors(conn volumeservice.VolumeConnection) []string {
 	if len(conn.Data.Hosts) != len(conn.Data.Ports) {
-		glog.Errorf("Error parsing rbd connection info: 'hosts' and 'ports' have different lengths")
+		klog.Errorf("Error parsing rbd connection info: 'hosts' and 'ports' have different lengths")
 		return nil
 	}
 	mons := make([]string, len(conn.Data.Hosts))
@@ -49,7 +49,7 @@ func getRbdSecretName(pvc *v1.PersistentVolumeClaim) string {
 	return fmt.Sprintf("%s-cephx-secret", *pvc.Spec.StorageClassName)
 }
 
-func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.VolumeOptions) (*v1.PersistentVolumeSource, error) {
+func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options controller.ProvisionOptions) (*v1.PersistentVolumeSource, error) {
 	mons := getMonitors(conn)
 	if mons == nil {
 		return nil, errors.New("No monitors could be parsed from connection info")
@@ -71,7 +71,7 @@ func (m *rbdMapper) BuildPVSource(conn volumeservice.VolumeConnection, options c
 	}, nil
 }
 
-func (m *rbdMapper) AuthSetup(p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection) error {
+func (m *rbdMapper) AuthSetup(p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection) error {
 	return nil
 }
 

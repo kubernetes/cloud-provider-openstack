@@ -19,97 +19,62 @@ package shareoptions
 import (
 	"fmt"
 
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"github.com/pborman/uuid"
-	"k8s.io/api/core/v1"
-	clientset "k8s.io/client-go/kubernetes"
-	volumeutil "k8s.io/kubernetes/pkg/volume/util"
+	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
+	"k8s.io/cloud-provider/volume/helpers"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 // ShareOptions contains options for provisioning and attaching a share
 type ShareOptions struct {
-	ShareName string // Used in CreateOpts when creating a new share
+	// Common options
 
-	// If applicable, to be used when creating a k8s Secret in GrantAccess.
-	// The same SecretReference will be retrieved for RevokeAccess.
-	ShareSecretRef v1.SecretReference
+	Zones    string `name:"zones" value:"default:nova"`
+	Type     string `name:"type" value:"default:default"`
+	Protocol string `name:"protocol" matches:"^(?i)CEPHFS|NFS$"`
+	Backend  string `name:"backend" matches:"^cephfs|csi-cephfs|nfs$"`
 
-	CommonOptions    // Required common options
-	ProtocolOptions  // Protocol specific options
-	BackendOptions   // Backend specific options
-	OpenStackOptions // OpenStack credentials
+	OSSecretName         string `name:"osSecretName"`
+	OSSecretNamespace    string `name:"osSecretNamespace" value:"default:default"`
+	ShareSecretNamespace string `name:"shareSecretNamespace" value:"default:default"`
+
+	OSShareNetworkID string `name:"osShareNetworkID" value:"optional"`
+
+	OSShareID       string `name:"osShareID" value:"optional" dependsOn:"osShareAccessID"`
+	OSShareName     string `name:"osShareName" value:"optional" dependsOn:"osShareAccessID"`
+	OSShareAccessID string `name:"osShareAccessID" value:"optional" dependsOn:"osShareID|osShareName"`
+
+	AppendShareMetadata string `name:"appendShareMetadata" value:"optional"`
+
+	// Backend options
+
+	CSICEPHFSdriver  string `name:"csi-driver" value:"requiredIf:backend=^csi-cephfs$"`
+	CSICEPHFSmounter string `name:"mounter" value:"default:fuse" matches:"^kernel|fuse$"`
+
+	NFSShareClient string `name:"nfs-share-client" value:"default:0.0.0.0"`
 }
 
-func init() {
-	processStruct(&CommonOptions{})
-	processStruct(&ProtocolOptions{})
-	processStruct(&BackendOptions{})
-	processStruct(&OpenStackOptions{})
-}
+var (
+	shareOptionsValidator = validator.New(&ShareOptions{})
+)
 
-// NewShareOptions creates new share options
-func NewShareOptions(volOptions *controller.VolumeOptions, c clientset.Interface) (*ShareOptions, error) {
-	params := volOptions.Parameters
+// NewShareOptions creates a new instance of ShareOptions
+func NewShareOptions(volOptions *controller.ProvisionOptions) (*ShareOptions, error) {
 	opts := &ShareOptions{}
-	nParams := len(params)
 
-	opts.ShareName = "pvc-" + string(volOptions.PVC.GetUID())
-
-	var (
-		n   int
-		err error
-	)
-
-	// Required common options
-	n, err = extractParams(&optionConstraints{}, params, &opts.CommonOptions)
-	if err != nil {
+	if err := shareOptionsValidator.Populate(volOptions.StorageClass.Parameters, opts); err != nil {
 		return nil, err
 	}
-	nParams -= n
 
-	constraints := optionConstraints{protocol: opts.Protocol, backend: opts.Backend}
-
-	// Protocol specific options
-	n, err = extractParams(&constraints, params, &opts.ProtocolOptions)
-	if err != nil {
-		return nil, err
-	}
-	nParams -= n
-
-	// Backend specific options
-	n, err = extractParams(&constraints, params, &opts.BackendOptions)
-	if err != nil {
-		return nil, err
-	}
-	nParams -= n
-
-	if nParams > 0 {
-		return nil, fmt.Errorf("parameters contain invalid field(s): %d", nParams)
-	}
-
-	setOfZones, err := volumeutil.ZonesToSet(opts.Zones)
+	setOfZones, err := helpers.ZonesToSet(opts.Zones)
 	if err != nil {
 		return nil, err
 	}
 
-	opts.Zones = volumeutil.ChooseZoneForVolume(setOfZones, volOptions.PVC.GetName())
-
-	// Retrieve and parse secrets
-
-	sec, err := readSecrets(c, &v1.SecretReference{
-		Name:      opts.OSSecretName,
-		Namespace: opts.OSSecretNamespace,
-	})
-	if err != nil {
-		return nil, err
+	zones := helpers.ChooseZonesForVolume(setOfZones, volOptions.PVC.GetName(), 1)
+	if zones.Len() == 0 {
+		return nil, fmt.Errorf("could not find a zone")
 	}
-
-	if err = buildOpenStackOptionsTo(&opts.OpenStackOptions, sec); err != nil {
-		return nil, err
-	}
-
-	// Share secret name and namespace
-	opts.ShareSecretRef = v1.SecretReference{Name: "manila-" + uuid.NewUUID().String(), Namespace: opts.ShareSecretNamespace}
+	opts.Zones = zones.List()[0]
 
 	return opts, nil
 }

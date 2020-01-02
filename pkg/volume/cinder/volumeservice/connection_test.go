@@ -17,10 +17,12 @@ limitations under the License.
 package volumeservice
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 )
 
 var fakeUserName = "user"
@@ -30,33 +32,41 @@ var fakeTenantID = "c869168a828847f39f7f06edd7305637"
 var fakeDomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 var fakeRegion = "RegionOne"
 
-// Test GetConfigFromEnv
-func TestGetConfigFromEnv(t *testing.T) {
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
+func TestUserAgentFlag(t *testing.T) {
+	tests := []struct {
+		name        string
+		shouldParse bool
+		flags       []string
+		expected    []string
+	}{
+		{"no_flag", true, []string{}, nil},
+		{"one_flag", true, []string{"--user-agent=cluster/abc-123"}, []string{"cluster/abc-123"}},
+		{"multiple_flags", true, []string{"--user-agent=a/b", "--user-agent=c/d"}, []string{"a/b", "c/d"}},
+		{"flag_with_space", true, []string{"--user-agent=a b"}, []string{"a b"}},
+		{"flag_split_with_space", true, []string{"--user-agent=a", "b"}, []string{"a"}},
+		{"empty_flag", false, []string{"--user-agent"}, nil},
+	}
 
-	// init env
-	os.Setenv("OS_AUTH_URL", fakeAuthUrl)
-	os.Setenv("OS_USERNAME", fakeUserName)
-	os.Setenv("OS_PASSWORD", fakePassword)
-	os.Setenv("OS_TENANT_ID", fakeTenantID)
-	os.Setenv("OS_DOMAIN_ID", fakeDomainID)
-	os.Setenv("OS_REGION_NAME", fakeRegion)
+	for _, testCase := range tests {
+		userAgentData = []string{}
 
-	// Init assert
-	assert := assert.New(t)
+		t.Run(testCase.name, func(t *testing.T) {
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			AddExtraFlags(fs)
 
-	// Invoke GetConfigFromEnv
-	cfg, err := getConfig("")
-	assert.Nil(err)
+			err := fs.Parse(testCase.flags)
 
-	// Assert
-	assert.Equal(cfg.Global.AuthURL, fakeAuthUrl)
-	assert.Equal(cfg.Global.Username, fakeUserName)
-	assert.Equal(cfg.Global.Password, fakePassword)
-	assert.Equal(cfg.Global.TenantID, fakeTenantID)
-	assert.Equal(cfg.Global.DomainID, fakeDomainID)
-	assert.Equal(cfg.Global.Region, fakeRegion)
+			if testCase.shouldParse && err != nil {
+				t.Errorf("Flags failed to parse")
+			} else if !testCase.shouldParse && err == nil {
+				t.Errorf("Flags should not have parsed")
+			} else if testCase.shouldParse {
+				if !reflect.DeepEqual(userAgentData, testCase.expected) {
+					t.Errorf("userAgentData %#v did not match expected value %#v", userAgentData, testCase.expected)
+				}
+			}
+		})
+	}
 }
 
 func clearEnviron(t *testing.T) []string {

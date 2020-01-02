@@ -15,17 +15,36 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 
-	kflag "k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/apiserver/pkg/util/logs"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	kflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/logs"
 )
 
 func main() {
+	// Glog requires this otherwise it complains.
+	flag.CommandLine.Parse(nil)
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	keystone.AddExtraFlags(pflag.CommandLine)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
+
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
@@ -34,13 +53,13 @@ func main() {
 	kflag.InitFlags()
 
 	if err := config.ValidateFlags(); err != nil {
-		glog.Errorf("%v", err)
+		klog.Errorf("%v", err)
 		os.Exit(1)
 	}
 
 	keystoneAuth, err := keystone.NewKeystoneAuth(config)
 	if err != nil {
-		glog.Errorf("%v", err)
+		klog.Errorf("%v", err)
 		os.Exit(1)
 	}
 	keystoneAuth.Run()

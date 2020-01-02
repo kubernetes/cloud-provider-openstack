@@ -19,13 +19,14 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
-	extv1beta1 "k8s.io/api/extensions/v1beta1"
+	nwv1beta1 "k8s.io/api/networking/v1beta1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -35,13 +36,16 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	extlisters "k8s.io/client-go/listers/extensions/v1beta1"
+	extlisters "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
+
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/ingress/utils"
 )
 
 const (
@@ -65,6 +69,15 @@ const (
 	// LabelNodeRoleMaster specifies that a node is a master
 	// It's copied over to kubeadm until it's merged in core: https://github.com/kubernetes/kubernetes/pull/39112
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+
+	// IngressAnnotationInternal is the annotation used on the Ingress
+	// to indicate that we want an internal loadbalancer service so that octavia-ingress-controller won't associate
+	// floating ip to the load balancer VIP.
+	// Default to true.
+	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
+
+	// IngressControllerTag is added to the related resources.
+	IngressControllerTag = "octavia.ingress.kubernetes.io"
 )
 
 // EventType type of event associated with an informer
@@ -101,12 +114,13 @@ type Controller struct {
 	osClient            *openstack.OpenStack
 	kubeClient          kubernetes.Interface
 	config              config.Config
+	subnetCIDR          string
 }
 
 // IsValid returns true if the given Ingress either doesn't specify
 // the ingress.class annotation, or it's set to the configured in the
 // ingress controller.
-func IsValid(ing *extv1beta1.Ingress) bool {
+func IsValid(ing *nwv1beta1.Ingress) bool {
 	ingress, ok := ing.GetAnnotations()[IngressKey]
 	if !ok {
 		log.WithFields(log.Fields{
@@ -146,34 +160,32 @@ func createApiserverClient(apiserverHost string, kubeConfig string) (*kubernetes
 	return client, nil
 }
 
-func getNodeConditionPredicate() corelisters.NodeConditionPredicate {
-	return func(node *apiv1.Node) bool {
-		// We add the master to the node list, but its unschedulable.  So we use this to filter
-		// the master.
-		if node.Spec.Unschedulable {
-			return false
-		}
-
-		// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
-		// Recognize nodes labeled as master, and filter them also, as we were doing previously.
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
-			return false
-		}
-
-		// If we have no info, don't accept
-		if len(node.Status.Conditions) == 0 {
-			return false
-		}
-		for _, cond := range node.Status.Conditions {
-			// We consider the node for load balancing only when its NodeReady condition status
-			// is ConditionTrue
-			if cond.Type == apiv1.NodeReady && cond.Status != apiv1.ConditionTrue {
-				log.WithFields(log.Fields{"name": node.Name, "status": cond.Status}).Info("ignoring node")
-				return false
-			}
-		}
-		return true
+func readyWorkerNodePredicate(node *apiv1.Node) bool {
+	// We add the master to the node list, but its unschedulable.  So we use this to filter
+	// the master.
+	if node.Spec.Unschedulable {
+		return false
 	}
+
+	// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
+	// Recognize nodes labeled as master, and filter them also, as we were doing previously.
+	if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		return false
+	}
+
+	// If we have no info, don't accept
+	if len(node.Status.Conditions) == 0 {
+		return false
+	}
+	for _, cond := range node.Status.Conditions {
+		// We consider the node for load balancing only when its NodeReady condition status
+		// is ConditionTrue
+		if cond.Type == apiv1.NodeReady && cond.Status != apiv1.ConditionTrue {
+			log.WithFields(log.Fields{"name": node.Name, "status": cond.Status}).Info("ignoring node")
+			return false
+		}
+	}
+	return true
 }
 
 // NewController creates a new OpenStack Ingress controller.
@@ -203,7 +215,7 @@ func NewController(conf config.Config) *Controller {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
 		Interface: kubeClient.CoreV1().Events(""),
 	})
@@ -224,10 +236,10 @@ func NewController(conf config.Config) *Controller {
 		kubeClient:          kubeClient,
 	}
 
-	ingInformer := kubeInformerFactory.Extensions().V1beta1().Ingresses()
+	ingInformer := kubeInformerFactory.Networking().V1beta1().Ingresses()
 	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			addIng := obj.(*extv1beta1.Ingress)
+			addIng := obj.(*nwv1beta1.Ingress)
 			key := fmt.Sprintf("%s/%s", addIng.Namespace, addIng.Name)
 
 			if !IsValid(addIng) {
@@ -239,8 +251,8 @@ func NewController(conf config.Config) *Controller {
 			controller.queue.AddRateLimited(Event{Obj: addIng, Type: CreateEvent})
 		},
 		UpdateFunc: func(old, new interface{}) {
-			newIng := new.(*extv1beta1.Ingress)
-			oldIng := old.(*extv1beta1.Ingress)
+			newIng := new.(*nwv1beta1.Ingress)
+			oldIng := old.(*nwv1beta1.Ingress)
 			if newIng.ResourceVersion == oldIng.ResourceVersion {
 				// Periodic resync will send update events for all known Ingresses.
 				// Two different versions of the same Ingress will always have different RVs.
@@ -264,7 +276,7 @@ func NewController(conf config.Config) *Controller {
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			delIng, ok := obj.(*extv1beta1.Ingress)
+			delIng, ok := obj.(*nwv1beta1.Ingress)
 			if !ok {
 				// If we reached here it means the ingress was deleted but its final state is unrecorded.
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -272,7 +284,7 @@ func NewController(conf config.Config) *Controller {
 					log.Errorf("couldn't get object from tombstone %#v", obj)
 					return
 				}
-				delIng, ok = tombstone.Obj.(*extv1beta1.Ingress)
+				delIng, ok = tombstone.Obj.(*nwv1beta1.Ingress)
 				if !ok {
 					log.Errorf("Tombstone contained object that is not an Ingress: %#v", obj)
 					return
@@ -312,12 +324,20 @@ func (c *Controller) Start() {
 	}
 	log.Info("ingress controller synced and ready")
 
-	newNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
 	}
-	c.knownNodes = newNodes
+	c.knownNodes = readyWorkerNodes
+
+	// Get subnet CIDR. The subnet CIDR will be used as source IP range for related security group rules.
+	subnet, err := c.osClient.GetSubnet(c.config.Octavia.SubnetID)
+	if err != nil {
+		log.Errorf("Failed to retrieve the subnet %s: %v", c.config.Octavia.SubnetID, err)
+		return
+	}
+	c.subnetCIDR = subnet.CIDR
 
 	go wait.Until(c.runWorker, time.Second, c.stopCh)
 	go wait.Until(c.nodeSyncLoop, 60*time.Second, c.stopCh)
@@ -325,35 +345,31 @@ func (c *Controller) Start() {
 	<-c.stopCh
 }
 
-// obj could be an *v1.Ingress, or a DeletionFinalStateUnknown marker item.
-func (c *Controller) enqueueIng(obj interface{}) {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err != nil {
-		log.WithFields(log.Fields{"error": err, "object": obj}).Error("Couldn't get key for object")
-		return
-	}
-
-	c.queue.Add(key)
-}
-
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
 func (c *Controller) nodeSyncLoop() {
-	newNodes, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
 	}
-	if nodeSlicesEqualForLB(newNodes, c.knownNodes) {
+	if utils.NodeSlicesEqual(readyWorkerNodes, c.knownNodes) {
 		return
 	}
 
-	log.Infof("Detected change in list of current cluster nodes. New node set: %v", nodeNames(newNodes))
+	log.Infof("Detected change in list of current cluster nodes. New node set: %v", utils.NodeNames(readyWorkerNodes))
 
-	ings := new(extv1beta1.IngressList)
+	// if no new nodes, then avoid update member
+	if len(readyWorkerNodes) == 0 {
+		c.knownNodes = readyWorkerNodes
+		log.Info("Finished to handle node change, it's [] now")
+		return
+	}
+
+	ings := new(nwv1beta1.IngressList)
 	// TODO: only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
-	if ings, err = c.kubeClient.ExtensionsV1beta1().Ingresses("").List(opts); err != nil {
+	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
 	}
@@ -366,7 +382,7 @@ func (c *Controller) nodeSyncLoop() {
 
 		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Debug("Starting to handle ingress")
 
-		lbName := getResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
+		lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 		loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 		if err != nil {
 			if err != openstack.ErrNotFound {
@@ -377,7 +393,7 @@ func (c *Controller) nodeSyncLoop() {
 			continue
 		}
 
-		if err = c.osClient.UpdateLoadbalancerMembers(loadbalancer.ID, newNodes); err != nil {
+		if err = c.osClient.UpdateLoadbalancerMembers(loadbalancer.ID, readyWorkerNodes); err != nil {
 			log.WithFields(log.Fields{"ingress": ing.Name}).Error("Failed to handle ingress")
 			continue
 		}
@@ -385,7 +401,7 @@ func (c *Controller) nodeSyncLoop() {
 		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Info("Finished to handle ingress")
 	}
 
-	c.knownNodes = newNodes
+	c.knownNodes = readyWorkerNodes
 
 	log.Info("Finished to handle node change")
 }
@@ -422,7 +438,7 @@ func (c *Controller) processNextItem() bool {
 }
 
 func (c *Controller) processItem(event Event) error {
-	ing := event.Obj.(*extv1beta1.Ingress)
+	ing := event.Obj.(*nwv1beta1.Ingress)
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 
 	switch event.Type {
@@ -459,7 +475,8 @@ func (c *Controller) processItem(event Event) error {
 }
 
 func (c *Controller) deleteIngress(namespace, name string) error {
-	lbName := getResourceName(namespace, name, c.config.ClusterName)
+	key := fmt.Sprintf("%s/%s", namespace, name)
+	lbName := utils.GetResourceName(namespace, name, c.config.ClusterName)
 	loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
 	if err != nil {
 		if err != openstack.ErrNotFound {
@@ -469,25 +486,76 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 		return nil
 	}
 
-	if err = c.osClient.DeleteFloatingIP(loadbalancer.VipPortID); err != nil {
-		return err
+	// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
+	// any floating IPs associated with the load balancer VIP port.
+	log.WithFields(log.Fields{"ingress": key}).Info("deleting floating IP")
+	if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", ""); err != nil {
+		return fmt.Errorf("failed to delete floating IP: %v", err)
+	}
+	log.WithFields(log.Fields{"ingress": key}).Info("floating IP deleted")
+
+	// Delete security group managed for the Ingress backend service
+	if c.config.Octavia.ManageSecurityGroups {
+		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", namespace, name)}
+		tagString := strings.Join(sgTags, ",")
+		opts := groups.ListOpts{Tags: tagString}
+		sgs, err := c.osClient.GetSecurityGroups(opts)
+		if err != nil {
+			return fmt.Errorf("failed to get security groups for ingress %s: %v", key, err)
+		}
+
+		nodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
+		if err != nil {
+			return fmt.Errorf("failed to get nodes: %v", err)
+		}
+
+		for _, sg := range sgs {
+			if err = c.osClient.EnsurePortSecurityGroup(true, sg.ID, nodes); err != nil {
+				return fmt.Errorf("failed to operate on the port security groups for ingress %s: %v", key, err)
+			}
+			if _, err = c.osClient.EnsureSecurityGroup(true, "", "", sgTags); err != nil {
+				return fmt.Errorf("failed to delete the security groups for ingress %s: %v", key, err)
+			}
+		}
+
+		log.WithFields(log.Fields{"ingress": key}).Info("security group deleted")
 	}
 
 	return c.osClient.DeleteLoadbalancer(loadbalancer.ID)
 }
 
-func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
-	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
-	name := getResourceName(ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, c.config.ClusterName)
+func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
+	ingName := ing.ObjectMeta.Name
+	ingNamespace := ing.ObjectMeta.Namespace
+	clusterName := c.config.ClusterName
 
-	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID)
+	key := fmt.Sprintf("%s/%s", ingNamespace, ingName)
+	name := utils.GetResourceName(ingNamespace, ingName, clusterName)
+
+	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName)
 	if err != nil {
 		return err
 	}
 
 	if strings.Contains(lb.Description, ing.ResourceVersion) {
-		log.WithFields(log.Fields{"ingress": ing.Name}).Info("ingress not change")
+		log.WithFields(log.Fields{"ingress": key}).Info("ingress not changed")
 		return nil
+	}
+
+	var nodePorts []int
+	var sgID string
+
+	if c.config.Octavia.ManageSecurityGroups {
+		log.WithFields(log.Fields{"ingress": key}).Info("ensuring security group")
+
+		sgDescription := fmt.Sprintf("Security group created for Ingress %s from cluster %s", key, clusterName)
+		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ingNamespace, ingName)}
+		sgID, err = c.osClient.EnsureSecurityGroup(false, name, sgDescription, sgTags)
+		if err != nil {
+			return fmt.Errorf("failed to prepare the security group for the ingress %s: %v", key, err)
+		}
+
+		log.WithFields(log.Fields{"sgID": sgID, "ingress": key}).Info("ensured security group")
 	}
 
 	listener, err := c.osClient.EnsureListener(name, lb.ID)
@@ -496,18 +564,20 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	}
 
 	// get nodes information
-	nodeObjs, err := c.nodeLister.ListWithPredicate(getNodeConditionPredicate())
+	nodeObjs, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
 	if err != nil {
 		return err
 	}
 
 	// Add default pool for the listener if 'backend' is defined
 	if ing.Spec.Backend != nil {
-		serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, ing.Spec.Backend.ServiceName)
+		serviceName := fmt.Sprintf("%s/%s", ingNamespace, ing.Spec.Backend.ServiceName)
 		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
 		if err != nil {
 			return err
 		}
+
+		nodePorts = append(nodePorts, nodePort)
 
 		if _, err = c.osClient.EnsurePoolMembers(false, name, lb.ID, listener.ID, &nodePort, nodeObjs); err != nil {
 			return err
@@ -525,7 +595,10 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		return err
 	}
 	for _, p := range existingPolicies {
-		c.osClient.DeleteL7policy(p.ID, lb.ID)
+		err = c.osClient.DeleteL7policy(p.ID, lb.ID)
+		if err != nil {
+			log.WithFields(log.Fields{"policyID": p.ID, "lbID": lb.ID}).Errorf("could not delete L7 policy: %v", err)
+		}
 	}
 
 	// Delete all existing shared pools
@@ -534,7 +607,10 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		return err
 	}
 	for _, sp := range existingSharedPools {
-		c.osClient.DeletePool(sp.ID, lb.ID)
+		err = c.osClient.DeletePool(sp.ID, lb.ID)
+		if err != nil {
+			log.WithFields(log.Fields{"poolID": sp.ID, "lbID": lb.ID}).Errorf("could not delete shared pool: %v", err)
+		}
 	}
 
 	// Add l7 load balancing rules. Each host and path combination is mapped to a l7 policy in octavia,
@@ -544,13 +620,15 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 
 		for _, path := range rule.HTTP.Paths {
 			// make the pool name unique in the load balancer
-			poolName := hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
+			poolName := utils.Hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
 
-			serviceName := fmt.Sprintf("%s/%s", ing.ObjectMeta.Namespace, path.Backend.ServiceName)
+			serviceName := fmt.Sprintf("%s/%s", ingNamespace, path.Backend.ServiceName)
 			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort)
 			if err != nil {
 				return err
 			}
+
+			nodePorts = append(nodePorts, nodePort)
 
 			poolID, err := c.osClient.EnsurePoolMembers(false, poolName, lb.ID, "", &nodePort, nodeObjs)
 			if err != nil {
@@ -563,13 +641,38 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 		}
 	}
 
-	var address string
-	address = lb.VipAddress
-	if c.config.Octavia.FloatingIPNetwork != "" {
-		// Allocate floating ip for loadbalancer vip.
-		if address, err = c.osClient.EnsureFloatingIP(lb.VipPortID, c.config.Octavia.FloatingIPNetwork); err != nil {
-			return err
+	if c.config.Octavia.ManageSecurityGroups {
+		log.WithFields(log.Fields{"ingress": key, "sgID": sgID}).Info("ensuring security group rules")
+
+		if err := c.osClient.EnsureSecurityGroupRules(sgID, c.subnetCIDR, nodePorts); err != nil {
+			return fmt.Errorf("failed to ensure security group rules for Ingress %s: %v", ingName, err)
 		}
+
+		if err := c.osClient.EnsurePortSecurityGroup(false, sgID, nodeObjs); err != nil {
+			return fmt.Errorf("failed to operate port security group for Ingress %s: %v", ingName, err)
+		}
+
+		log.WithFields(log.Fields{"ingress": key, "sgID": sgID}).Info("ensured security group rules")
+	}
+
+	internalSetting := getStringFromIngressAnnotation(ing, IngressAnnotationInternal, "true")
+	isInternal, err := strconv.ParseBool(internalSetting)
+	if err != nil {
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationInternal, err)
+	}
+
+	address := lb.VipAddress
+	// Allocate floating ip for loadbalancer vip if the external network is configured and the Ingress is not internal.
+	if !isInternal && c.config.Octavia.FloatingIPNetwork != "" {
+		log.WithFields(log.Fields{"ingress": key}).Info("creating floating IP")
+
+		description := fmt.Sprintf("Floating IP for Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName)
+		address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, c.config.Octavia.FloatingIPNetwork, description)
+		if err != nil {
+			return fmt.Errorf("failed to create floating IP: %v", err)
+		}
+
+		log.WithFields(log.Fields{"ingress": key, "fip": address}).Info("floating IP created")
 	}
 
 	// Update ingress status
@@ -580,23 +683,23 @@ func (c *Controller) ensureIngress(ing *extv1beta1.Ingress) error {
 	c.recorder.Event(ing, apiv1.EventTypeNormal, "Updated", fmt.Sprintf("Successfully associated IP address %s to ingress %s", address, key))
 
 	// Add ingress resource version to the load balancer description
-	newDes := fmt.Sprintf("Created by Kubernetes ingress %s, version: %s", newIng.Name, newIng.ResourceVersion)
+	newDes := fmt.Sprintf("Kubernetes Ingress %s in namespace %s from cluster %s, version: %s", ingName, ingNamespace, clusterName, newIng.ResourceVersion)
 	if err = c.osClient.UpdateLoadBalancerDescription(lb.ID, newDes); err != nil {
 		return err
 	}
 
-	log.WithFields(log.Fields{"ingress": newIng.Name, "lbID": lb.ID}).Info("openstack resources for ingress created")
+	log.WithFields(log.Fields{"ingress": key, "lbID": lb.ID}).Info("openstack resources for ingress created")
 
 	return nil
 }
 
-func (c *Controller) updateIngressStatus(ing *extv1beta1.Ingress, vip string) (*extv1beta1.Ingress, error) {
+func (c *Controller) updateIngressStatus(ing *nwv1beta1.Ingress, vip string) (*nwv1beta1.Ingress, error) {
 	newState := new(apiv1.LoadBalancerStatus)
 	newState.Ingress = []apiv1.LoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	newObj, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
+	newObj, err := c.kubeClient.NetworkingV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
 	if err != nil {
 		return nil, err
 	}
@@ -642,4 +745,14 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 	}
 
 	return nodePort, nil
+}
+
+// getStringFromIngressAnnotation searches a given Ingress for a specific annotationKey and either returns the
+// annotation's value or a specified defaultSetting
+func getStringFromIngressAnnotation(ingress *nwv1beta1.Ingress, annotationKey string, defaultValue string) string {
+	if annotationValue, ok := ingress.Annotations[annotationKey]; ok {
+		return annotationValue
+	}
+
+	return defaultValue
 }

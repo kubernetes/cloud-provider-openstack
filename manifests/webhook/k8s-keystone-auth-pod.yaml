@@ -9,6 +9,7 @@ metadata:
   name: k8s-keystone-auth
   namespace: kube-system
 spec:
+  serviceAccountName: k8s-keystone
   containers:
     - name: k8s-keystone-auth
       image: docker.io/k8scloudprovider/k8s-keystone-auth:latest
@@ -19,8 +20,8 @@ spec:
         - /etc/kubernetes/pki/apiserver.crt
         - --tls-private-key-file
         - /etc/kubernetes/pki/apiserver.key
-        - --keystone-policy-file
-        - /etc/kubernetes/webhook/policy.json
+        - --policy-configmap-name
+        - k8s-auth-policy
         - --keystone-url=http://ctl:5000/v3
       volumeMounts:
         - mountPath: /etc/kubernetes/pki

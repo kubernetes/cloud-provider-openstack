@@ -18,11 +18,12 @@ package openstack
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	log "github.com/sirupsen/logrus"
+
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 )
 
@@ -34,28 +35,10 @@ type OpenStack struct {
 	config  config.Config
 }
 
-func isNotFound(err error) bool {
-	if _, ok := err.(gophercloud.ErrDefault404); ok {
-		return true
-	}
-
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusNotFound {
-			return true
-		}
-	}
-
-	return false
-}
-
 // NewOpenStack gets openstack struct
 func NewOpenStack(cfg config.Config) (*OpenStack, error) {
-	provider, err := openstack.NewClient(cfg.OpenStack.AuthURL)
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.OpenStack, "octavia-ingress-controller")
 	if err != nil {
-		return nil, err
-	}
-
-	if err = openstack.Authenticate(provider, cfg.ToAuthOptions()); err != nil {
 		return nil, err
 	}
 

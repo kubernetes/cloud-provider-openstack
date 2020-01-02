@@ -17,23 +17,81 @@ limitations under the License.
 package keystone
 
 import (
+	"crypto/tls"
 	"fmt"
-
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"io/ioutil"
+	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/cloud-provider-openstack/pkg/version"
+	"net/http"
 )
 
+type Options struct {
+	AuthOptions    gophercloud.AuthOptions
+	ClientCertPath string
+	ClientKeyPath  string
+	ClientCAPath   string
+}
+
 // GetToken creates a token by authenticate with keystone.
-func GetToken(options gophercloud.AuthOptions) (*tokens3.Token, error) {
+func GetToken(options Options) (*tokens3.Token, error) {
 	var token *tokens3.Token
+	var setTransport bool
 
 	// Create new identity client
-	client, err := openstack.NewClient(options.IdentityEndpoint)
+	client, err := openstack.NewClient(options.AuthOptions.IdentityEndpoint)
 	if err != nil {
 		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
 		return token, msg
 	}
+	tlsConfig := &tls.Config{}
+	setTransport = false
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("client-keystone-auth/%s", version.Version))
+	client.UserAgent = userAgent
+
+	if options.ClientCertPath != "" && options.ClientKeyPath != "" {
+		clientCert, err := ioutil.ReadFile(options.ClientCertPath)
+		if err != nil {
+			msg := fmt.Errorf("failed: Cannot read cert file: %v", err)
+			return token, msg
+		}
+
+		clientKey, err := ioutil.ReadFile(options.ClientKeyPath)
+		if err != nil {
+			msg := fmt.Errorf("failed: Cannot read key file: %v", err)
+			return token, msg
+		}
+
+		cert, err := tls.X509KeyPair([]byte(clientCert), []byte(clientKey))
+		if err != nil {
+			msg := fmt.Errorf("failed: Cannot create keypair:: %v", err)
+			return token, msg
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+		tlsConfig.BuildNameToCertificate()
+		setTransport = true
+	}
+
+	if options.ClientCAPath != "" {
+		roots, err := certutil.NewPool(options.ClientCAPath)
+		if err != nil {
+			msg := fmt.Errorf("failed: Cannot read CA file: %v", err)
+			return token, msg
+		}
+
+		tlsConfig.RootCAs = roots
+		setTransport = true
+	}
+
+	if setTransport {
+		transport := &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsConfig}
+		client.HTTPClient.Transport = transport
+	}
+
 	v3Client, err := openstack.NewIdentityV3(client, gophercloud.EndpointOpts{})
 	if err != nil {
 		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
@@ -41,7 +99,7 @@ func GetToken(options gophercloud.AuthOptions) (*tokens3.Token, error) {
 	}
 
 	// Issue new unscoped token
-	result := tokens3.Create(v3Client, &options)
+	result := tokens3.Create(v3Client, &options.AuthOptions)
 	if result.Err != nil {
 		return token, result.Err
 	}

@@ -30,6 +30,8 @@ func TestSyncConfigFromFile(t *testing.T) {
 	th.AssertEquals(t, "prefix-%d-%n-%i-suffix", sc.NamespaceFormat)
 	th.AssertEquals(t, "id1", sc.ProjectBlackList[0])
 	th.AssertEquals(t, "id2", sc.ProjectBlackList[1])
+	th.AssertEquals(t, "name1", sc.ProjectNameBlackList[0])
+	th.AssertEquals(t, "name2", sc.ProjectNameBlackList[1])
 }
 
 func TestSyncConfigValidation(t *testing.T) {

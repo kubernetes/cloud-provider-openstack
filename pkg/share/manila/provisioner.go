@@ -19,13 +19,14 @@ package manila
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"k8s.io/api/core/v1"
+	"github.com/pborman/uuid"
+	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
+	"k8s.io/klog"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 // Provisioner struct, implements controller.Provisioner interface
@@ -41,16 +42,26 @@ func NewProvisioner(c clientset.Interface) *Provisioner {
 }
 
 // Provision a share in Manila service
-func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.PersistentVolume, error) {
+func (p *Provisioner) Provision(volOptions controller.ProvisionOptions) (*v1.PersistentVolume, error) {
 	if volOptions.PVC.Spec.Selector != nil {
 		return nil, fmt.Errorf("claim Selector is not supported")
 	}
 
 	// Initialization
 
-	shareOptions, err := shareoptions.NewShareOptions(&volOptions, p.clientset)
+	shareOptions, err := shareoptions.NewShareOptions(&volOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create share options: %v", err)
+	}
+
+	volumeHandle := "pvc-" + string(volOptions.PVC.GetUID())
+	osSecretRef := v1.SecretReference{Name: shareOptions.OSSecretName, Namespace: shareOptions.OSSecretNamespace}
+	shareSecretRef := v1.SecretReference{Name: "manila-" + uuid.NewUUID().String(), Namespace: shareOptions.ShareSecretNamespace}
+
+	osOptions, err := shareoptions.NewOpenStackOptionsFromSecret(p.clientset, &osSecretRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve secrets %s:%s: %v",
+			shareOptions.OSSecretNamespace, shareOptions.OSSecretName, err)
 	}
 
 	shareBackend, err := getShareBackend(shareOptions.Backend)
@@ -58,7 +69,7 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 		return nil, fmt.Errorf("failed to get share backend: %v", err)
 	}
 
-	client, err := NewManilaV2Client(&shareOptions.OpenStackOptions)
+	client, err := NewManilaV2Client(osOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
 	}
@@ -70,7 +81,7 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 	if shareOptions.OSShareAccessID == "" {
 		// Dynamic provision - we're creating a new share
 
-		share, err = createShare(&volOptions, shareOptions, client)
+		share, err = createShare(volumeHandle, &volOptions, shareOptions, client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create a share: %v", err)
 		}
@@ -78,8 +89,8 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 		defer func() {
 			// Delete the share if any of its setup operations fail
 			if err != nil {
-				if delErr := deleteShare(share.ID, manilaProvisionTypeDynamic, &shareOptions.ShareSecretRef, client, p.clientset); delErr != nil {
-					glog.Errorf("failed to delete share %s in a rollback procedure: %v", share.ID, delErr)
+				if delErr := deleteShare(share.ID, manilaProvisionTypeDynamic, &osSecretRef, client, p.clientset); delErr != nil {
+					klog.Errorf("failed to delete share %s in a rollback procedure: %v", share.ID, delErr)
 				}
 			}
 		}()
@@ -109,10 +120,11 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 	}
 
 	accessRight, err := shareBackend.GrantAccess(&sharebackends.GrantAccessArgs{
-		Share:     share,
-		Options:   shareOptions,
-		Clientset: p.clientset,
-		Client:    client,
+		Share:          share,
+		Options:        shareOptions,
+		ShareSecretRef: &shareSecretRef,
+		Clientset:      p.clientset,
+		Client:         client,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to grant access for share %s: %v", share.ID, err)
@@ -122,19 +134,21 @@ func (p *Provisioner) Provision(volOptions controller.VolumeOptions) (*v1.Persis
 	registerBackendForShare(shareOptions.Backend, share.ID)
 
 	volSource, err := shareBackend.BuildSource(&sharebackends.BuildSourceArgs{
-		Share:       share,
-		Options:     shareOptions,
-		Location:    &chosenExportLocation,
-		Clientset:   p.clientset,
-		AccessRight: accessRight,
+		VolumeHandle:   volumeHandle,
+		Share:          share,
+		Options:        shareOptions,
+		ShareSecretRef: &shareSecretRef,
+		Location:       &chosenExportLocation,
+		Clientset:      p.clientset,
+		AccessRight:    accessRight,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("backend %s failed to create volume source for share %s: %v", shareBackend.Name(), share.ID, err)
 	}
 
-	glog.Infof("successfully provisioned share %s (%s/%s)", share.ID, shareOptions.Protocol, shareOptions.Backend)
+	klog.Infof("successfully provisioned share %s (%s/%s)", share.ID, shareOptions.Protocol, shareOptions.Backend)
 
-	return buildPersistentVolume(share, accessRight, volSource, &volOptions, shareOptions), nil
+	return buildPersistentVolume(share, accessRight, volSource, &volOptions, &shareSecretRef, shareOptions), nil
 }
 
 // Delete a share from Manila service
@@ -177,7 +191,7 @@ func (p *Provisioner) Delete(pv *v1.PersistentVolume) error {
 		return fmt.Errorf("failed to delete share %s: %v", shareID, err)
 	}
 
-	glog.Infof("successfully deleted share %s", shareID)
+	klog.Infof("successfully deleted share %s", shareID)
 
 	return nil
 }

@@ -25,10 +25,11 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	th "github.com/gophercloud/gophercloud/testhelper"
 	fakeclient "github.com/gophercloud/gophercloud/testhelper/client"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 func TestChooseExportLocation(t *testing.T) {
@@ -136,16 +137,18 @@ func TestCreateShare(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
 
-	volOptions := controller.VolumeOptions{PVC: &v1.PersistentVolumeClaim{}}
+	volOptions := controller.ProvisionOptions{PVC: &v1.PersistentVolumeClaim{}}
 	volOptions.PVC.Name = "pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264"
 	volOptions.PVC.Namespace = "default"
 	volOptions.PVC.Spec.Resources.Requests = make(v1.ResourceList)
 	volOptions.PVC.Spec.Resources.Requests[v1.ResourceStorage] = *resource.NewQuantity(1, resource.BinarySI)
+	volOptions.PVC.SetUID(types.UID("011d21e2-fbc3-4e4a-9993-9ea223f73264"))
 
-	shareOptions := shareoptions.ShareOptions{ShareName: volOptions.PVC.Name}
-	shareOptions.Protocol = "NFS"
-	shareOptions.Backend = "nfs"
-	shareOptions.Type = "default"
+	shareOptions := shareoptions.ShareOptions{
+		Protocol: "NFS",
+		Backend:  "nfs",
+		Type:     "default",
+	}
 
 	var createRequest = `{
 		"share": {
@@ -212,7 +215,7 @@ func TestCreateShare(t *testing.T) {
 		fmt.Fprintf(w, createResponse)
 	})
 
-	share, err := createShare(&volOptions, &shareOptions, fakeclient.ServiceClient())
+	share, err := createShare("pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264", &volOptions, &shareOptions, fakeclient.ServiceClient())
 
 	if err != nil {
 		t.Fatalf("failed to create share: %v", err)

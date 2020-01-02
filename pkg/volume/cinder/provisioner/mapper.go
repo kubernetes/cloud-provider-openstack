@@ -20,20 +20,20 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/volume/cinder/volumeservice"
+	"k8s.io/klog"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 type volumeMapper interface {
 	// BuildPVSource should build a PersistentVolumeSource from cinder connection
 	// information and context from the cluster such as the PVC.
-	BuildPVSource(conn volumeservice.VolumeConnection, options controller.VolumeOptions) (*v1.PersistentVolumeSource, error)
+	BuildPVSource(conn volumeservice.VolumeConnection, options controller.ProvisionOptions) (*v1.PersistentVolumeSource, error)
 	// AuthSetup should perform any authentication setup such as secret creation
 	// that would be required before a host can connect to the volume.
-	AuthSetup(p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection) error
+	AuthSetup(p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection) error
 	// AuthTeardown should perform any necessary cleanup related to authentication
 	// as the volume is being deleted.
 	AuthTeardown(p *cinderProvisioner, pv *v1.PersistentVolume) error
@@ -61,10 +61,10 @@ func newVolumeMapperFromPV(pv *v1.PersistentVolume) (volumeMapper, error) {
 	}
 }
 
-func buildPV(m volumeMapper, p *cinderProvisioner, options controller.VolumeOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
+func buildPV(m volumeMapper, p *cinderProvisioner, options controller.ProvisionOptions, conn volumeservice.VolumeConnection, volumeID string) (*v1.PersistentVolume, error) {
 	pvSource, err := m.BuildPVSource(conn, options)
 	if err != nil {
-		glog.Errorf("Failed to build PV Source element: %v", err)
+		klog.Errorf("Failed to build PV Source element: %v", err)
 		return nil, err
 	}
 
@@ -78,7 +78,7 @@ func buildPV(m volumeMapper, p *cinderProvisioner, options controller.VolumeOpti
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
-			PersistentVolumeReclaimPolicy: options.PersistentVolumeReclaimPolicy,
+			PersistentVolumeReclaimPolicy: *options.StorageClass.ReclaimPolicy,
 			AccessModes:                   options.PVC.Spec.AccessModes,
 			Capacity: v1.ResourceList{
 				v1.ResourceName(v1.ResourceStorage): options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)],

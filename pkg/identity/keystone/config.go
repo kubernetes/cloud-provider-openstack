@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/spf13/pflag"
+	"k8s.io/klog"
 )
 
 // Config configures a keystone webhook server
@@ -60,17 +60,17 @@ func (c *Config) ValidateFlags() error {
 
 	if c.KeystoneURL == "" {
 		errorsFound = true
-		glog.Errorf("please specify --keystone-url or set the OS_AUTH_URL environment variable.")
+		klog.Errorf("please specify --keystone-url or set the OS_AUTH_URL environment variable.")
 	}
 	if c.CertFile == "" || c.KeyFile == "" {
 		errorsFound = true
-		glog.Errorf("Please specify --tls-cert-file and --tls-private-key-file arguments.")
+		klog.Errorf("Please specify --tls-cert-file and --tls-private-key-file arguments.")
 	}
 	if c.PolicyFile == "" && c.PolicyConfigMapName == "" {
-		glog.Warning("Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.")
+		klog.Warning("Argument --keystone-policy-file or --policy-configmap-name missing. Only keystone authentication will work. Use RBAC for authorization.")
 	}
 	if c.SyncConfigFile == "" && c.SyncConfigMapName == "" {
-		glog.Warning("Argument --sync-config-file or --sync-configmap-name missing. Data synchronization between Keystone and Kubernetes is disabled.")
+		klog.Warning("Argument --sync-config-file or --sync-configmap-name missing. Data synchronization between Keystone and Kubernetes is disabled.")
 	}
 
 	if errorsFound {
@@ -89,6 +89,6 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.PolicyFile, "keystone-policy-file", c.PolicyFile, "File containing the policy, if provided, it takes precedence over the policy configmap.")
 	fs.StringVar(&c.PolicyConfigMapName, "policy-configmap-name", c.PolicyConfigMapName, "ConfigMap in kube-system namespace containing the policy configuration, the ConfigMap data must contain the key 'policies'")
 	fs.StringVar(&c.SyncConfigFile, "sync-config-file", c.SyncConfigFile, "File containing config values for data synchronization beetween Keystone and Kubernetes.")
-	fs.StringVar(&c.SyncConfigFile, "sync-configmap-name", "", "ConfigMap in kube-system namespace containing config values for data synchronization beetween Keystone and Kubernetes.")
+	fs.StringVar(&c.SyncConfigMapName, "sync-configmap-name", "", "ConfigMap in kube-system namespace containing config values for data synchronization beetween Keystone and Kubernetes.")
 	fs.StringVar(&c.Kubeconfig, "kubeconfig", c.Kubeconfig, "Kubeconfig file used to connect to Kubernetes API to get policy configmap. If the service is running inside the pod, this option is not necessary, will use in-cluster config instead.")
 }

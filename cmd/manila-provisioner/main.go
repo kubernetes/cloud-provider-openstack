@@ -17,15 +17,16 @@ limitations under the License.
 package main
 
 import (
-	"flag"
+	goflag "flag"
 
-	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	flag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila"
+	"k8s.io/klog"
+	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
 
 var (
@@ -34,26 +35,43 @@ var (
 )
 
 func main() {
-	flag.Parse()
 	flag.Set("logtostderr", "true")
+
+	manila.AddExtraFlags(flag.CommandLine)
+
+	// Glog requires this otherwise it complains.
+	flag.Parse()
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := goflag.NewFlagSet("klog", goflag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
 
 	// Create an InClusterConfig and use it to create a client for the controller
 	// to use to communicate with Kubernetes
 	config, err := buildConfig(*kubeconfig)
 	if err != nil {
-		glog.Fatalf("Failed to create config: %v", err)
+		klog.Fatalf("Failed to create config: %v", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		glog.Fatalf("Failed to create client: %v", err)
+		klog.Fatalf("Failed to create client: %v", err)
 	}
 
 	// The controller needs to know what the server version is because out-of-tree
 	// provisioners aren't officially supported until 1.5
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	if err != nil {
-		glog.Fatalf("Error getting server version: %v", err)
+		klog.Fatalf("Error getting server version: %v", err)
 	}
 
 	// Start the provision controller which will dynamically provision Manila PVs

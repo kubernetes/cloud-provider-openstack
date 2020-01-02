@@ -33,11 +33,10 @@ func NewFlexManager(cinderConfigFile string) (*FlexManager, error) {
 	cinderClient, err := newCinderClient(cinderConfigFile)
 	if err != nil {
 		return nil, fmt.Errorf("Init cinder client failed: %v", err)
-	} else {
-		result.cinderBaremetalUtil = &CinderBaremetalUtil{
-			client:   cinderClient,
-			hostname: utilnode.GetHostname(""),
-		}
+	}
+	result.cinderBaremetalUtil = &CinderBaremetalUtil{
+		client:   cinderClient,
+		hostname: utilnode.GetHostname(""),
 	}
 
 	return result, nil

@@ -1,0 +1,18 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "openstack-manila-csi.controllerplugin.fullname" . }}
+  labels:
+    app: {{ include "openstack-manila-csi.name" . }}
+    chart: {{ include "openstack-manila-csi.chart" . }}
+    component: {{ .Values.controllerplugin.name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  selector:
+    app: {{ include "openstack-manila-csi.name" . }}
+    component: {{ .Values.controllerplugin.name }}
+    release: {{ .Release.Name }}
+  ports:
+    - name: dummy
+      port: 12345

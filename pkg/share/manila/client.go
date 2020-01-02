@@ -17,10 +17,7 @@ limitations under the License.
 package manila
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,8 +25,8 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions"
-	gophercloudutils "github.com/gophercloud/gophercloud/openstack/utils"
-	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
+	"github.com/spf13/pflag"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 const (
@@ -38,7 +35,14 @@ const (
 
 var (
 	microversionRegexp = regexp.MustCompile("^\\d+\\.\\d+$")
+
+	userAgentData []string
 )
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
 
 func splitMicroversion(microversion string) (major, minor int) {
 	if err := validateMicroversion(microversion); err != nil {
@@ -67,76 +71,6 @@ func compareVersionsLessThan(a, b string) bool {
 	return aMaj < bMaj || (aMaj == bMaj && aMin < bMin)
 }
 
-func createHTTPclient(o *shareoptions.OpenStackOptions) (http.Client, error) {
-	if o.OSCertAuthority == "" {
-		return http.Client{}, nil
-	}
-
-	if o.OSTLSInsecure == "" {
-		o.OSTLSInsecure = "false"
-	}
-
-	allowInsecure, err := strconv.ParseBool(o.OSTLSInsecure)
-	if err != nil {
-		return http.Client{}, fmt.Errorf("failed to parse parameter os-insecureTLS: %v", err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM([]byte(o.OSCertAuthority))
-
-	tlsConfig := &tls.Config{
-		RootCAs:            caCertPool,
-		InsecureSkipVerify: allowInsecure,
-	}
-
-	tlsConfig.BuildNameToCertificate()
-
-	return http.Client{
-		Transport: &http.Transport{TLSClientConfig: tlsConfig},
-	}, nil
-}
-
-func authenticateClient(o *shareoptions.OpenStackOptions) (*gophercloud.ProviderClient, error) {
-	provider, err := openstack.NewClient(o.OSAuthURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Keystone client: %v", err)
-	}
-
-	provider.HTTPClient, err = createHTTPclient(o)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
-	}
-
-	const (
-		v2 = "v2.0"
-		v3 = "v3"
-	)
-
-	chosenVersion, _, err := gophercloudutils.ChooseVersion(provider, []*gophercloudutils.Version{
-		{ID: v2, Priority: 20, Suffix: "/v2.0/"},
-		{ID: v3, Priority: 30, Suffix: "/v3/"},
-	})
-
-	switch chosenVersion.ID {
-	case v2:
-		if o.OSTrustID != "" {
-			return nil, fmt.Errorf("Keystone %s does not support trustee authentication", v2)
-		}
-
-		err = openstack.AuthenticateV2(provider, *o.ToAuthOptions(), gophercloud.EndpointOpts{})
-	case v3:
-		err = openstack.AuthenticateV3(provider, *o.ToAuthOptionsExt(), gophercloud.EndpointOpts{})
-	default:
-		return nil, fmt.Errorf("unrecognized Keystone version: %s", chosenVersion.ID)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate with Keystone: %v", err)
-	}
-
-	return provider, nil
-}
-
 func validateManilaClient(c *gophercloud.ServiceClient) error {
 	serverVersion, err := apiversions.Get(c, "v2").Extract()
 	if err != nil {
@@ -163,16 +97,15 @@ func validateManilaClient(c *gophercloud.ServiceClient) error {
 }
 
 // NewManilaV2Client Creates Manila v2 client
-// Authenticates to the Manila service with credentials passed in shareoptions.OpenStackOptions
-func NewManilaV2Client(o *shareoptions.OpenStackOptions) (*gophercloud.ServiceClient, error) {
+// Authenticates to the Manila service with credentials passed in openstack_provider.AuthOpts
+func NewManilaV2Client(o *openstack_provider.AuthOpts) (*gophercloud.ServiceClient, error) {
 	// Authenticate and create Manila v2 client
-
-	provider, err := authenticateClient(o)
+	provider, err := openstack_provider.NewOpenStackClient(o, "manila-provisioner", userAgentData...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
-	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{Region: o.OSRegionName})
+	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{Region: o.Region})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
 	}

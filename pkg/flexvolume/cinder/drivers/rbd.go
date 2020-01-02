@@ -22,19 +22,19 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 const (
-	// The driver name used in cinder-flexvolume
+	// DriverName used in cinder-flexvolume
 	DriverName = "rbd"
 )
 
-// The driver of cinder-flexvolume
+// RBDDriver is the driver of cinder-flexvolume
 type RBDDriver struct {
 }
 
-// The RBD volume used by Cinder
+// RBDVolume used by Cinder
 type RBDVolume struct {
 	Keyring     string   `json:"keyring"`
 	AuthEnabled bool     `json:"auth_enabled"`
@@ -83,7 +83,7 @@ func (d *RBDDriver) Format(volumeData map[string]interface{}, fsType string) err
 		return err
 	}
 
-	glog.V(4).Infof("Format cinder rbd %v to %s", volume, fsType)
+	klog.V(4).Infof("Format cinder rbd %v to %s", volume, fsType)
 
 	rbdPath, err := exec.LookPath("rbd")
 	if err != nil {

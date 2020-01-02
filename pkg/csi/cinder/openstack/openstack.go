@@ -19,150 +19,149 @@ package openstack
 import (
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"gopkg.in/gcfg.v1"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/spf13/pflag"
+	gcfg "gopkg.in/gcfg.v1"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/klog"
 )
 
+// userAgentData is used to add extra information to the gophercloud user-agent
+var userAgentData []string
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
+
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, tags *map[string]string) (string, string, int, error)
+	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
-	ListVolumes() ([]Volume, error)
+	ListVolumes() ([]volumes.Volume, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
-	GetVolumesByName(name string) ([]Volume, error)
+	GetVolume(volumeID string) (*volumes.Volume, error)
+	GetVolumesByName(name string) ([]volumes.Volume, error)
 	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
+	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)
+	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
+	WaitSnapshotReady(snapshotID string) error
+	GetInstanceByID(instanceID string) (*servers.Server, error)
+	ExpandVolume(volumeID string, size int) error
+	GetMaxVolLimit() int64
 }
 
 type OpenStack struct {
 	compute      *gophercloud.ServiceClient
 	blockstorage *gophercloud.ServiceClient
+	bsOpts       BlockStorageOpts
+	epOpts       gophercloud.EndpointOpts
+}
+
+type BlockStorageOpts struct {
+	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
 }
 
 type Config struct {
-	Global struct {
-		AuthUrl    string `gcfg:"auth-url"`
-		Username   string
-		UserId     string `gcfg:"user-id"`
-		Password   string
-		TenantId   string `gcfg:"tenant-id"`
-		TenantName string `gcfg:"tenant-name"`
-		DomainId   string `gcfg:"domain-id"`
-		DomainName string `gcfg:"domain-name"`
-		Region     string
-	}
+	openstack_provider.Config
+	BlockStorage BlockStorageOpts
 }
 
-func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthUrl,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserId,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantId,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainId,
-		DomainName:       cfg.Global.DomainName,
-
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
-	}
+func logcfg(cfg Config) {
+	openstack_provider.LogCfg(cfg.Config)
+	klog.Infof("Block storage opts: %v", cfg.BlockStorage)
 }
 
-func GetConfigFromFile(configFilePath string) (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
-	// Get config from file
-	var authOpts gophercloud.AuthOptions
-	var epOpts gophercloud.EndpointOpts
+// GetConfigFromFile retrieves config options from file
+func GetConfigFromFile(configFilePath string) (Config, error) {
+	var cfg Config
 	config, err := os.Open(configFilePath)
 	if err != nil {
-		glog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
-		return authOpts, epOpts, err
+		klog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
+		return cfg, err
 	}
 	defer config.Close()
 
-	// Read configuration
-	var cfg Config
 	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
-		glog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
-		return authOpts, epOpts, err
+		klog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
+		return cfg, err
 	}
 
-	authOpts = cfg.toAuthOptions()
-	epOpts = gophercloud.EndpointOpts{
+	return cfg, nil
+}
+
+const defaultMaxVolAttachLimit int64 = 256
+
+var OsInstance IOpenStack = nil
+var configFile = "/etc/cloud.conf"
+var cfg Config
+
+func InitOpenStackProvider(cfgFile string) {
+	configFile = cfgFile
+	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
+}
+
+// CreateOpenStackProvider creates Openstack Instance
+func CreateOpenStackProvider() (IOpenStack, error) {
+	// Get config from file
+	cfg, err := GetConfigFromFile(configFile)
+	if err != nil {
+		klog.Errorf("GetConfigFromFile %s failed with error: %v", configFile, err)
+		return nil, err
+	}
+	logcfg(cfg)
+
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.Config.Global, "cinder-csi-plugin", userAgentData...)
+	if err != nil {
+		return nil, err
+	}
+
+	epOpts := gophercloud.EndpointOpts{
 		Region: cfg.Global.Region,
 	}
 
-	return authOpts, epOpts, nil
-}
-
-func GetConfigFromEnv() (gophercloud.AuthOptions, gophercloud.EndpointOpts, error) {
-	// Get config from env
-	authOpts, err := openstack.AuthOptionsFromEnv()
-	var epOpts gophercloud.EndpointOpts
+	// Init Nova ServiceClient
+	computeclient, err := openstack.NewComputeV2(provider, epOpts)
 	if err != nil {
-		glog.V(3).Infof("Failed to read OpenStack configuration from env: %v", err)
-		return authOpts, epOpts, err
+		return nil, err
 	}
 
-	epOpts = gophercloud.EndpointOpts{
-		Region: os.Getenv("OS_REGION_NAME"),
+	// Init Cinder ServiceClient
+	blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
+	if err != nil {
+		return nil, err
 	}
 
-	return authOpts, epOpts, nil
+	// Init OpenStack
+	OsInstance = &OpenStack{
+		compute:      computeclient,
+		blockstorage: blockstorageclient,
+		bsOpts:       cfg.BlockStorage,
+		epOpts:       epOpts,
+	}
+
+	return OsInstance, nil
 }
 
-var OsInstance IOpenStack = nil
-var configFile string = "/etc/cloud.conf"
-
-func InitOpenStackProvider(cfg string) {
-	configFile = cfg
-	glog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
-}
-
+// GetOpenStackProvider returns Openstack Instance
 func GetOpenStackProvider() (IOpenStack, error) {
-
-	if OsInstance == nil {
-		// Get config from file
-		authOpts, epOpts, err := GetConfigFromFile(configFile)
-		if err != nil {
-			// Get config from env
-			authOpts, epOpts, err = GetConfigFromEnv()
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// Authenticate Client
-		provider, err := openstack.AuthenticatedClient(authOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		// Init Nova ServiceClient
-		computeclient, err := openstack.NewComputeV2(provider, epOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		// Init Cinder ServiceClient
-		blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		// Init OpenStack
-		OsInstance = &OpenStack{
-			compute:      computeclient,
-			blockstorage: blockstorageclient,
-		}
+	if OsInstance != nil {
+		return OsInstance, nil
+	}
+	var err error
+	OsInstance, err = CreateOpenStackProvider()
+	if err != nil {
+		return nil, err
 	}
 
 	return OsInstance, nil

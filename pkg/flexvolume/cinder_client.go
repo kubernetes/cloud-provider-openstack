@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	gcfg "gopkg.in/gcfg.v1"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/klog"
 )
 
 type cinderClient struct {
@@ -38,22 +38,6 @@ type openStackConfig struct {
 	openstack_provider.Config
 	RBD struct {
 		Keyring string `gcfg:"keyring"`
-	}
-}
-
-func (cfg openStackConfig) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantID,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
 	}
 }
 
@@ -81,7 +65,7 @@ func newCinderClient(configFile string) (*cinderClient, error) {
 		return nil, err
 	}
 
-	provider, err := openstack.AuthenticatedClient(cfg.toAuthOptions())
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.Config.Global, "cinder-flex-volume-driver")
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +116,7 @@ func (client *cinderClient) attach(id string, opts volumeactions.AttachOpts) err
 func (client *cinderClient) terminateConnection(id string, copts *volumeactions.TerminateConnectionOpts) error {
 	terminateResult := volumeactions.TerminateConnection(client.cinder, id, copts)
 	if terminateResult.Err != nil && terminateResult.Err.Error() != "EOF" {
-		glog.Warningf("Terminate cinder volume %s failed: %v", id, terminateResult.Err)
+		klog.Warningf("Terminate cinder volume %s failed: %v", id, terminateResult.Err)
 	}
 
 	return nil
@@ -142,7 +126,7 @@ func (client *cinderClient) detach(id string) error {
 	detachOpts := volumeactions.DetachOpts{}
 	detachResult := volumeactions.Detach(client.cinder, id, detachOpts)
 	if detachResult.Err != nil && detachResult.Err.Error() != "EOF" {
-		glog.Warningf("Detach cinder volume %s failed: %v", id, detachResult.Err)
+		klog.Warningf("Detach cinder volume %s failed: %v", id, detachResult.Err)
 		return detachResult.Err
 	}
 

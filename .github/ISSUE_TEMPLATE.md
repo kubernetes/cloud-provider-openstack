@@ -7,19 +7,31 @@
 > /kind bug
 > /kind feature
 
+**The binaries affected**:
+
+- [ ] openstack-cloud-controller-manager
+- [ ] cinder-csi-plugin
+- [ ] k8s-keystone-auth
+- [ ] client-keystone-auth
+- [ ] octavia-ingress-controller
+- [ ] manila-csi-plugin
+- [ ] manila-provisioner
+- [ ] magnum-auto-healer
+- [ ] barbican-kms-plugin
 
 **What happened**:
 
+
 **What you expected to happen**:
 
-**How to reproduce it (as minimally and precisely as possible)**:
+
+**How to reproduce it**:
 
 
 **Anything else we need to know?**:
 
+
 **Environment**:
 - openstack-cloud-controller-manager version:
-- OS (e.g. from /etc/os-release):
-- Kernel (e.g. `uname -a`):
-- Install tools:
+- OpenStack version:
 - Others:

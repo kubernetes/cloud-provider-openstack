@@ -14,7 +14,8 @@ enabled.
  * [Development](#development)
    + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
    + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
-   + [Running the Cloud Provider in MiniKube](#running-the-cloud-provider-in-minikube)
+   + [Running the Cloud Provider](#running-the-cloud-provider)
+ * [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
@@ -119,7 +120,7 @@ sudo yum install -y -q git gcc etcd
 You will also need a recent version of Go and set your environment variables.
 
 ```
-GO_VERSION=1.10
+GO_VERSION=1.13
 GO_ARCH=linux-amd64
 curl -o go.tgz https://dl.google.com/go/go${GO_VERSION}.${GO_ARCH}.tar.gz
 sudo tar -C /usr/local/ -xvzf go.tgz
@@ -145,10 +146,9 @@ and versioning information.
 
 ### Getting and Building Cloud Provider OpenStack
 
-Following the [GitHub Workflow](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md)
-guidelines for Kubernetes development, set up your environment and get the latest development repository. Begin
-by forking both the Kubernetes and Cloud-Provider-OpenStack projects into your GitHub into your local
-workspace (or bringing your current fork up to date with the current state of both repositories).
+Following the [GitHub Workflow](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md) guidelines for Kubernetes development, set up your environment and get the latest development repository. Begin by forking both the Kubernetes and Cloud-Provider-OpenStack projects into your GitHub into your local workspace (or bringing your current fork up to date with the current state of both repositories).
+
+`make` will build, test, and package this project. This project uses [go dep](https://golang.github.io/dep/) for dependency management.
 
 Set up some environment variables to help download the repositories
 
@@ -172,7 +172,7 @@ cd cloud-provider-openstack
 If you want to build the provider:
 
 ```
-make
+make build
 ```
 
 If you want to run unit tests:
@@ -180,6 +180,21 @@ If you want to run unit tests:
 ```
 make test
 ```
+
+#### Building inside container
+
+If you don't have a Go Environment setup, we also offer the ability to run make
+in a Docker Container.  The only requirement for this is that you have Docker
+installed and configured (of course).  You don't need to have a Golang
+environment setup, and you don't need to follow rules in terms of directory
+structure for the code checkout.
+
+To use this method, just call the `hack/make.sh` script with the desired argument:
+    `hack/make.sh build`  for example will run `make build` in a container.
+
+> NOTE: You MUST run the script from the root source directory as shown above,
+attempting to do something like `cd hack && make.sh build` will not work
+because we won't bind mount the source files into the container.
 
 ### Getting and Building Kubernetes
 
@@ -193,7 +208,7 @@ cd kubernetes
 make cross
 ```
 
-### Running the Cloud Provider in MiniKube
+### Running the Cloud Provider
 
 To run the OpenStack provider, integrated with your cloud, be sure to have sourced the
 environment variables. You will also need to create an `/etc/kubernetes/cloud-config` file
@@ -238,3 +253,7 @@ otherwise the cloud-controller-manager is not able to access k8s API.
 ```
 
 Have a good time with OpenStack and Kubernetes!
+
+## Troubleshooting
+
+You can increase a log level verbosity (`-v` parameter) to know better what is happening during the OpenStack Cloud Controller Manager runtime. Setting the log level to **6** allows you to see OpenStack API JSON requests and responses. It is recommended to set a `--concurrent-service-syncs` parameter to **1** for a better output tracking.

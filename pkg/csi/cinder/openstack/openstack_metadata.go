@@ -8,12 +8,31 @@ import (
 )
 
 const (
-	defaultMetadataVersion = "2012-08-10"
+	defaultMetadataVersion = "latest"
 	metadataURLTemplate    = "http://169.254.169.254/openstack/%s/meta_data.json"
 )
 
+// IMetadata implements GetInstanceID & GetAvailabilityZone
+type IMetadata interface {
+	GetInstanceID() (string, error)
+	GetAvailabilityZone() (string, error)
+}
+
 type metadata struct {
-	UUID string
+	UUID             string
+	AvailabilityZone string "json:\"availability_zone\""
+}
+
+// MetadataService instance of IMetadata
+var MetadataService IMetadata
+
+// GetMetadataProvider retrieves instance of IMetadata
+func GetMetadataProvider() (IMetadata, error) {
+
+	if MetadataService == nil {
+		MetadataService = &metadata{}
+	}
+	return MetadataService, nil
 }
 
 func getMetadata(metadataURL string) ([]byte, error) {
@@ -33,18 +52,36 @@ func getMetadata(metadataURL string) ([]byte, error) {
 	return md, nil
 }
 
-// GetInstanceID from metadata service
-func GetInstanceID() (string, error) {
+// getMetaDataInfo retrieves from metadata service and returns
+// info in metadata struct
+func getMetaDataInfo() (metadata, error) {
 	metadataURL := fmt.Sprintf(metadataURLTemplate, defaultMetadataVersion)
+	var m metadata
 	md, err := getMetadata(metadataURL)
 	if err != nil {
-		return "", err
+		return m, err
 	}
-	var m metadata
 	err = json.Unmarshal(md, &m)
+	if err != nil {
+		return m, err
+	}
+	return m, nil
+}
+
+// GetInstanceID from metadata service
+func (m *metadata) GetInstanceID() (string, error) {
+	md, err := getMetaDataInfo()
 	if err != nil {
 		return "", err
 	}
+	return md.UUID, nil
+}
 
-	return m.UUID, nil
+// GetAvailabilityZone returns zone from metadata service
+func (m *metadata) GetAvailabilityZone() (string, error) {
+	md, err := getMetaDataInfo()
+	if err != nil {
+		return "", err
+	}
+	return md.AvailabilityZone, nil
 }

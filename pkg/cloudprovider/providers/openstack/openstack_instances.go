@@ -20,14 +20,17 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"k8s.io/klog"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 // Instances encapsulates an implementation of Instances for OpenStack.
@@ -43,15 +46,15 @@ const (
 
 // Instances returns an implementation of Instances for OpenStack.
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
-	glog.V(4).Info("openstack.Instances() called")
+	klog.V(4).Info("openstack.Instances() called")
 
 	compute, err := os.NewComputeV2()
 	if err != nil {
-		glog.Errorf("unable to access compute v2 API : %v", err)
+		klog.Errorf("unable to access compute v2 API : %v", err)
 		return nil, false
 	}
 
-	glog.V(4).Info("Claiming to support Instances")
+	klog.V(4).Info("Claiming to support Instances")
 
 	return &Instances{
 		compute:        compute,
@@ -63,7 +66,7 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 // CurrentNodeName implements Instances.CurrentNodeName
 // Note this is *not* necessarily the same as hostname.
 func (i *Instances) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {
-	md, err := getMetadata(i.opts.SearchOrder)
+	md, err := metadata.Get(i.opts.SearchOrder)
 	if err != nil {
 		return "", err
 	}
@@ -77,14 +80,14 @@ func (i *Instances) AddSSHKeyToAllInstances(ctx context.Context, user string, ke
 
 // NodeAddresses implements Instances.NodeAddresses
 func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
-	glog.V(4).Infof("NodeAddresses(%v) called", name)
+	klog.V(4).Infof("NodeAddresses(%v) called", name)
 
 	addrs, err := getAddressesByName(i.compute, name, i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	glog.V(4).Infof("NodeAddresses(%v) => %v", name, addrs)
+	klog.V(4).Infof("NodeAddresses(%v) => %v", name, addrs)
 	return addrs, nil
 }
 
@@ -112,18 +115,6 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 	return addresses, nil
 }
 
-// ExternalID returns the cloud provider ID of the specified instance (deprecated).
-func (i *Instances) ExternalID(ctx context.Context, name types.NodeName) (string, error) {
-	srv, err := getServerByName(i.compute, name)
-	if err != nil {
-		if err == ErrNotFound {
-			return "", cloudprovider.InstanceNotFound
-		}
-		return "", err
-	}
-	return srv.ID, nil
-}
-
 // InstanceExistsByProviderID returns true if the instance with the given provider id still exist.
 // If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
 func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
@@ -134,7 +125,7 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 
 	_, err = servers.Get(i.compute, instanceID).Extract()
 	if err != nil {
-		if isNotFound(err) {
+		if errors.IsNotFound(err) {
 			return false, nil
 		}
 		return false, err
@@ -215,7 +206,7 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 		return "", err
 	}
 
-	return srvInstanceType(srv)
+	return srvInstanceType(&srv.Server)
 }
 
 func srvInstanceType(srv *servers.Server) (string, error) {
@@ -232,12 +223,18 @@ func srvInstanceType(srv *servers.Server) (string, error) {
 	return "", fmt.Errorf("flavor name/id not found")
 }
 
+// If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
+var providerIDRegexp = regexp.MustCompile(`^` + ProviderName + `:///([^/]+)$`)
+
 // instanceIDFromProviderID splits a provider's id and return instanceID.
 // A providerID is build out of '${ProviderName}:///${instance-id}'which contains ':///'.
 // See cloudprovider.GetInstanceProviderID and Instances.InstanceID.
 func instanceIDFromProviderID(providerID string) (instanceID string, err error) {
-	// If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
-	var providerIDRegexp = regexp.MustCompile(`^` + ProviderName + `:///([^/]+)$`)
+
+	// https://github.com/kubernetes/kubernetes/issues/85731
+	if providerID != "" && !strings.Contains(providerID, "://") {
+		providerID = ProviderName + "://" + providerID
+	}
 
 	matches := providerIDRegexp.FindStringSubmatch(providerID)
 	if len(matches) != 2 {
