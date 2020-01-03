@@ -1,0 +1,24 @@
+apiVersion: v1 
+kind: Pod 
+metadata: 
+ name: barbican-kms
+spec: 
+  containers: 
+    - name: barbican-kms 
+      image: docker.io/k8scloudprovider/barbican-kms-plugin:latest
+      args:
+        - "--socketpath=/kms/kms.sock"
+        - "--cloud-config=/etc/kubernetes/cloud-config"
+      volumeMounts:
+        - name: cloud-config
+          mountPath: /etc/kubernetes/
+        - name: socket-dir
+          mountPath: /kms/
+  volumes:
+  - name: config
+    hostPath:
+      path: /etc/kubernetes
+  - name: socket-dir
+    hostPath:
+      path: /var/lib/kms/
+      type: DirectoryOrCreate

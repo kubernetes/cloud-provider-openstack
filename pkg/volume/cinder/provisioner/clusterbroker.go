@@ -19,10 +19,10 @@ package provisioner
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 )
 
 // clusterBroker provides a mechanism for tests to override calls kubernetes with mocks.
@@ -40,20 +40,20 @@ type k8sClusterBroker struct {
 func (*k8sClusterBroker) createSecret(p *cinderProvisioner, ns string, secret *v1.Secret) error {
 	_, err := p.Client.CoreV1().Secrets(ns).Create(secret)
 	if err != nil {
-		glog.Errorf("Failed to create chap secret in namespace %s: %v", ns, err)
+		klog.Errorf("Failed to create chap secret in namespace %s: %v", ns, err)
 		return err
 	}
-	glog.V(3).Infof("Secret %s created", secret.ObjectMeta.Name)
+	klog.V(3).Infof("Secret %s created", secret.ObjectMeta.Name)
 	return nil
 }
 
 func (*k8sClusterBroker) deleteSecret(p *cinderProvisioner, ns string, secretName string) error {
 	err := p.Client.CoreV1().Secrets(ns).Delete(secretName, nil)
 	if err != nil {
-		glog.Errorf("Failed to remove secret %s from namespace %s: %v", secretName, ns, err)
+		klog.Errorf("Failed to remove secret %s from namespace %s: %v", secretName, ns, err)
 		return err
 	}
-	glog.V(3).Infof("Successfully deleted secret %s", secretName)
+	klog.V(3).Infof("Successfully deleted secret %s", secretName)
 	return nil
 }
 
@@ -77,7 +77,7 @@ func (*k8sClusterBroker) annotatePVC(p *cinderProvisioner, ns string, name strin
 		return updateErr
 	})
 	if retryErr != nil {
-		glog.Errorf("Update failed: %v", retryErr)
+		klog.Errorf("Update failed: %v", retryErr)
 		return retryErr
 	}
 	return nil

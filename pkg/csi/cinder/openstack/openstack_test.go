@@ -18,10 +18,11 @@ package openstack
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/gophercloud/gophercloud"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +33,7 @@ var fakeAuthUrl = "https://169.254.169.254/identity/v3"
 var fakeTenantID = "c869168a828847f39f7f06edd7305637"
 var fakeDomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 var fakeRegion = "RegionOne"
+var fakeCAfile = "fake-ca.crt"
 
 // Test GetConfigFromFile
 func TestGetConfigFromFile(t *testing.T) {
@@ -43,6 +45,7 @@ password=` + fakePassword + `
 auth-url=` + fakeAuthUrl + `
 tenant-id=` + fakeTenantID + `
 domain-id=` + fakeDomainID + `
+ca-file=` + fakeCAfile + `
 region=` + fakeRegion + `
 `
 
@@ -60,66 +63,60 @@ region=` + fakeRegion + `
 
 	// Init assert
 	assert := assert.New(t)
-
-	expectedAuthOpts := gophercloud.AuthOptions{
-		IdentityEndpoint: fakeAuthUrl,
-		Username:         fakeUserName,
-		Password:         fakePassword,
-		TenantID:         fakeTenantID,
-		DomainID:         fakeDomainID,
-		AllowReauth:      true,
-	}
-	expectedEpOpts := gophercloud.EndpointOpts{
-		Region: fakeRegion,
-	}
+	expectedOpts := Config{}
+	expectedOpts.Global.Username = fakeUserName
+	expectedOpts.Global.Password = fakePassword
+	expectedOpts.Global.DomainID = fakeDomainID
+	expectedOpts.Global.AuthURL = fakeAuthUrl
+	expectedOpts.Global.CAFile = fakeCAfile
+	expectedOpts.Global.TenantID = fakeTenantID
+	expectedOpts.Global.Region = fakeRegion
 
 	// Invoke GetConfigFromFile
-	actualAuthOpts, actualEpOpts, err := GetConfigFromFile(fakeFileName)
+	actualAuthOpts, err := GetConfigFromFile(fakeFileName)
 	if err != nil {
 		t.Errorf("failed to GetConfigFromFile: %v", err)
 	}
 
 	// Assert
-	assert.Equal(expectedAuthOpts, actualAuthOpts)
-	assert.Equal(expectedEpOpts, actualEpOpts)
+	assert.Equal(expectedOpts, actualAuthOpts)
 }
 
-// Test GetConfigFromEnv
-func TestGetConfigFromEnv(t *testing.T) {
-	env := clearEnviron(t)
-	defer resetEnviron(t, env)
-
-	// init env
-	os.Setenv("OS_AUTH_URL", fakeAuthUrl)
-	os.Setenv("OS_USERNAME", fakeUserName)
-	os.Setenv("OS_PASSWORD", fakePassword)
-	os.Setenv("OS_TENANT_ID", fakeTenantID)
-	os.Setenv("OS_DOMAIN_ID", fakeDomainID)
-	os.Setenv("OS_REGION_NAME", fakeRegion)
-
-	// Init assert
-	assert := assert.New(t)
-
-	expectedAuthOpts := gophercloud.AuthOptions{
-		IdentityEndpoint: fakeAuthUrl,
-		Username:         fakeUserName,
-		Password:         fakePassword,
-		TenantID:         fakeTenantID,
-		DomainID:         fakeDomainID,
-	}
-	expectedEpOpts := gophercloud.EndpointOpts{
-		Region: fakeRegion,
+func TestUserAgentFlag(t *testing.T) {
+	tests := []struct {
+		name        string
+		shouldParse bool
+		flags       []string
+		expected    []string
+	}{
+		{"no_flag", true, []string{}, nil},
+		{"one_flag", true, []string{"--user-agent=cluster/abc-123"}, []string{"cluster/abc-123"}},
+		{"multiple_flags", true, []string{"--user-agent=a/b", "--user-agent=c/d"}, []string{"a/b", "c/d"}},
+		{"flag_with_space", true, []string{"--user-agent=a b"}, []string{"a b"}},
+		{"flag_split_with_space", true, []string{"--user-agent=a", "b"}, []string{"a"}},
+		{"empty_flag", false, []string{"--user-agent"}, nil},
 	}
 
-	// Invoke GetConfigFromEnv
-	actualAuthOpts, actualEpOpts, err := GetConfigFromEnv()
-	if err != nil {
-		t.Errorf("failed to GetConfigFromEnv: %v", err)
-	}
+	for _, testCase := range tests {
+		userAgentData = []string{}
 
-	// Assert
-	assert.Equal(expectedAuthOpts, actualAuthOpts)
-	assert.Equal(expectedEpOpts, actualEpOpts)
+		t.Run(testCase.name, func(t *testing.T) {
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			AddExtraFlags(fs)
+
+			err := fs.Parse(testCase.flags)
+
+			if testCase.shouldParse && err != nil {
+				t.Errorf("Flags failed to parse")
+			} else if !testCase.shouldParse && err == nil {
+				t.Errorf("Flags should not have parsed")
+			} else if testCase.shouldParse {
+				if !reflect.DeepEqual(userAgentData, testCase.expected) {
+					t.Errorf("userAgentData %#v did not match expected value %#v", userAgentData, testCase.expected)
+				}
+			}
+		})
+	}
 }
 
 func clearEnviron(t *testing.T) []string {

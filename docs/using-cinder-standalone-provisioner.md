@@ -1,3 +1,6 @@
+# [DEPRECATED] 
+Standalone Cinder Driver is deprecated will be removed in future releases. Please use [Cinder CSI Plugin](/docs/using-cinder-csi-plugin.md/)
+
 ## Standalone-cinder external provisioner
 The standalone-cinder external provisioner fulfills persistent
 volume claims by creating cinder volumes and mapping them

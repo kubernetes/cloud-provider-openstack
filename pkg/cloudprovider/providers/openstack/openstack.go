@@ -19,6 +19,7 @@ package openstack
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -28,26 +29,34 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/utils/client"
+	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/gcfg.v1"
+	"github.com/spf13/pflag"
+	gcfg "gopkg.in/gcfg.v1"
 
-	"github.com/golang/glog"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
 	v1helper "k8s.io/cloud-provider-openstack/pkg/apis/core/v1/helper"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	"k8s.io/cloud-provider-openstack/pkg/version"
+	"k8s.io/klog"
 )
 
 const (
@@ -72,6 +81,14 @@ var ErrNoAddressFound = errors.New("no address found for host")
 // ErrIPv6SupportDisabled is used when one tries to use IPv6 Addresses when
 // IPv6 support is disabled by config
 var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
+
+// userAgentData is used to add extra information to the gophercloud user-agent
+var userAgentData []string
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
 
 // MyDuration is the encoding.TextUnmarshaler interface for time.Duration
 type MyDuration struct {
@@ -98,18 +115,30 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	LBVersion            string     `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
-	UseOctavia           bool       `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
-	SubnetID             string     `gcfg:"subnet-id"`           // overrides autodetection.
-	FloatingNetworkID    string     `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	LBMethod             string     `gcfg:"lb-method"`           // default to ROUND_ROBIN.
-	LBProvider           string     `gcfg:"lb-provider"`
-	CreateMonitor        bool       `gcfg:"create-monitor"`
-	MonitorDelay         MyDuration `gcfg:"monitor-delay"`
-	MonitorTimeout       MyDuration `gcfg:"monitor-timeout"`
-	MonitorMaxRetries    uint       `gcfg:"monitor-max-retries"`
-	ManageSecurityGroups bool       `gcfg:"manage-security-groups"`
-	NodeSecurityGroupIDs []string   // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	LBVersion            string              `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
+	UseOctavia           bool                `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
+	SubnetID             string              `gcfg:"subnet-id"`           // overrides autodetection.
+	NetworkID            string              `gcfg:"network-id"`          // If specified, will create virtual ip from a subnet in network which has available IP addresses
+	FloatingNetworkID    string              `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`  // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	LBClasses            map[string]*LBClass // Predefined named Floating networks and subnets
+	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
+	LBProvider           string              `gcfg:"lb-provider"`
+	CreateMonitor        bool                `gcfg:"create-monitor"`
+	MonitorDelay         MyDuration          `gcfg:"monitor-delay"`
+	MonitorTimeout       MyDuration          `gcfg:"monitor-timeout"`
+	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
+	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
+	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	InternalLB           bool                `gcfg:"internal-lb"` // default false
+}
+
+// LBClass defines the corresponding floating network, floating subnet or internal subnet ID
+type LBClass struct {
+	FloatingNetworkID string `gcfg:"floating-network-id,omitempty"`
+	FloatingSubnetID  string `gcfg:"floating-subnet-id,omitempty"`
+	SubnetID          string `gcfg:"subnet-id,omitempty"`
+	NetworkID         string `gcfg:"network-id,omitempty"`
 }
 
 // BlockStorageOpts is used to talk to Cinder service
@@ -123,6 +152,7 @@ type BlockStorageOpts struct {
 type NetworkingOpts struct {
 	IPv6SupportDisabled bool   `gcfg:"ipv6-support-disabled"`
 	PublicNetworkName   string `gcfg:"public-network-name"`
+	InternalNetworkName string `gcfg:"internal-network-name"`
 }
 
 // RouterOpts is used for Neutron routes
@@ -134,6 +164,11 @@ type RouterOpts struct {
 type MetadataOpts struct {
 	SearchOrder    string     `gcfg:"search-order"`
 	RequestTimeout MyDuration `gcfg:"request-timeout"`
+}
+
+type ServerAttributesExt struct {
+	servers.Server
+	availabilityzones.ServerAvailabilityZoneExt
 }
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -149,26 +184,101 @@ type OpenStack struct {
 	localInstanceID string
 }
 
+type AuthOpts struct {
+	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID"`
+	UserID           string `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
+	Username         string `name:"os-userName" value:"optional" dependsOn:"os-password"`
+	Password         string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
+	TenantID         string `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password"`
+	TenantName       string `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password"`
+	TrustID          string `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
+	DomainID         string `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password"`
+	DomainName       string `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password"`
+	TenantDomainID   string `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
+	TenantDomainName string `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
+	UserDomainID     string `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
+	UserDomainName   string `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
+	Region           string `name:"os-region"`
+	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
+
+	// Manila only options
+	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
+	// backward compatibility with the manila-csi-plugin
+	CAFileContents  string `name:"os-certAuthority" value:"optional"`
+	TrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
+	TrusteePassword string `name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
+
+	UseClouds  bool   `gcfg:"use-clouds" mapstructure:"use-clouds" name:"os-useClouds" value:"optional"`
+	CloudsFile string `gcfg:"clouds-file,omitempty" mapstructure:"clouds-file,omitempty" name:"os-cloudsFile" value:"optional"`
+	Cloud      string `gcfg:"cloud,omitempty" mapstructure:"cloud,omitempty" name:"os-cloud" value:"optional"`
+
+	ApplicationCredentialID     string `gcfg:"application-credential-id" mapstructure:"application-credential-id" name:"os-applicationCredentialID" value:"optional"`
+	ApplicationCredentialName   string `gcfg:"application-credential-name" mapstructure:"application-credential-name" name:"os-applicationCredentialName" value:"optional"`
+	ApplicationCredentialSecret string `gcfg:"application-credential-secret" mapstructure:"application-credential-secret" name:"os-applicationCredentialSecret" value:"optional"`
+}
+
 // Config is used to read and store information from the cloud configuration file
 type Config struct {
-	Global struct {
-		AuthURL    string `gcfg:"auth-url"`
-		Username   string
-		UserID     string `gcfg:"user-id"`
-		Password   string
-		TenantID   string `gcfg:"tenant-id"`
-		TenantName string `gcfg:"tenant-name"`
-		TrustID    string `gcfg:"trust-id"`
-		DomainID   string `gcfg:"domain-id"`
-		DomainName string `gcfg:"domain-name"`
-		Region     string
-		CAFile     string `gcfg:"ca-file"`
+	Global            AuthOpts
+	LoadBalancer      LoadBalancerOpts
+	LoadBalancerClass map[string]*LBClass
+	BlockStorage      BlockStorageOpts
+	Route             RouterOpts
+	Metadata          MetadataOpts
+	Networking        NetworkingOpts
+}
+
+func LogCfg(cfg Config) {
+	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthURL)
+	klog.V(5).Infof("UserID: %s", cfg.Global.UserID)
+	klog.V(5).Infof("Username: %s", cfg.Global.Username)
+	klog.V(5).Infof("TenantID: %s", cfg.Global.TenantID)
+	klog.V(5).Infof("TenantName: %s", cfg.Global.TenantName)
+	klog.V(5).Infof("TrustID: %s", cfg.Global.TrustID)
+	klog.V(5).Infof("DomainID: %s", cfg.Global.DomainID)
+	klog.V(5).Infof("DomainName: %s", cfg.Global.DomainName)
+	klog.V(5).Infof("TenantDomainID: %s", cfg.Global.TenantDomainID)
+	klog.V(5).Infof("TenantDomainName: %s", cfg.Global.TenantDomainName)
+	klog.V(5).Infof("UserDomainID: %s", cfg.Global.UserDomainID)
+	klog.V(5).Infof("UserDomainName: %s", cfg.Global.UserDomainName)
+	klog.V(5).Infof("Region: %s", cfg.Global.Region)
+	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.V(5).Infof("UseClouds: %t", cfg.Global.UseClouds)
+	klog.V(5).Infof("CloudsFile: %s", cfg.Global.CloudsFile)
+	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
+	klog.V(5).Infof("ApplicationCredentialID: %s", cfg.Global.ApplicationCredentialID)
+	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
+}
+
+type logger struct{}
+
+func (l logger) Printf(format string, args ...interface{}) {
+	debugger := klog.V(6)
+
+	// extra check in case, when verbosity has been changed dynamically
+	if debugger {
+		var skip int
+		var found bool
+		var gc = "/github.com/gophercloud/gophercloud"
+
+		// detect the depth of the actual function, which calls gophercloud code
+		// 10 is the common depth from the logger to "github.com/gophercloud/gophercloud"
+		for i := 10; i <= 20; i++ {
+			if _, file, _, ok := runtime.Caller(i); ok && !found && strings.Contains(file, gc) {
+				found = true
+				continue
+			} else if ok && found && !strings.Contains(file, gc) {
+				skip = i
+				break
+			} else if !ok {
+				break
+			}
+		}
+
+		for _, v := range strings.Split(fmt.Sprintf(format, args...), "\n") {
+			klog.InfoDepth(skip, v)
+		}
 	}
-	LoadBalancer LoadBalancerOpts
-	BlockStorage BlockStorageOpts
-	Route        RouterOpts
-	Metadata     MetadataOpts
-	Networking   NetworkingOpts
 }
 
 func init() {
@@ -179,99 +289,144 @@ func init() {
 		if err != nil {
 			return nil, err
 		}
-		return NewOpenStack(cfg)
+		cloud, err := NewOpenStack(cfg)
+		if err != nil {
+			klog.V(1).Infof("New openstack client created failed with config")
+		}
+		return cloud, err
 	})
 }
 
-func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantID,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
+func (cfg AuthOpts) ToAuthOptions() gophercloud.AuthOptions {
+	opts := clientconfig.ClientOpts{
+		// this is needed to disable the clientconfig.AuthOptions func env detection
+		EnvPrefix: "_",
+		Cloud:     cfg.Cloud,
+		AuthInfo: &clientconfig.AuthInfo{
+			AuthURL:                     cfg.AuthURL,
+			UserID:                      cfg.UserID,
+			Username:                    cfg.Username,
+			Password:                    cfg.Password,
+			ProjectID:                   cfg.TenantID,
+			ProjectName:                 cfg.TenantName,
+			DomainID:                    cfg.DomainID,
+			DomainName:                  cfg.DomainName,
+			ProjectDomainID:             cfg.TenantDomainID,
+			ProjectDomainName:           cfg.TenantDomainName,
+			UserDomainID:                cfg.UserDomainID,
+			UserDomainName:              cfg.UserDomainName,
+			ApplicationCredentialID:     cfg.ApplicationCredentialID,
+			ApplicationCredentialName:   cfg.ApplicationCredentialName,
+			ApplicationCredentialSecret: cfg.ApplicationCredentialSecret,
+		},
 	}
+
+	ao, err := clientconfig.AuthOptions(&opts)
+	if err != nil {
+		klog.V(1).Infof("Error parsing auth: %s", err)
+		return gophercloud.AuthOptions{}
+	}
+
+	// Persistent service, so we need to be able to renew tokens.
+	ao.AllowReauth = true
+
+	return *ao
 }
 
-func (cfg Config) toAuth3Options() tokens3.AuthOptions {
+func (cfg AuthOpts) ToAuth3Options() tokens3.AuthOptions {
+	ao := cfg.ToAuthOptions()
+
+	var scope tokens3.Scope
+	if ao.Scope != nil {
+		scope.ProjectID = ao.Scope.ProjectID
+		scope.ProjectName = ao.Scope.ProjectName
+		scope.DomainID = ao.Scope.DomainID
+		scope.DomainName = ao.Scope.DomainName
+	}
+
 	return tokens3.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-		AllowReauth:      true,
+		IdentityEndpoint:            ao.IdentityEndpoint,
+		UserID:                      ao.UserID,
+		Username:                    ao.Username,
+		Password:                    ao.Password,
+		DomainID:                    ao.DomainID,
+		DomainName:                  ao.DomainName,
+		ApplicationCredentialID:     ao.ApplicationCredentialID,
+		ApplicationCredentialName:   ao.ApplicationCredentialName,
+		ApplicationCredentialSecret: ao.ApplicationCredentialSecret,
+		Scope:                       scope,
+		AllowReauth:                 ao.AllowReauth,
 	}
 }
 
-// configFromEnv allows setting up credentials etc using the
-// standard OS_* OpenStack client environment variables.
-func configFromEnv() (cfg Config, ok bool) {
-	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
-	cfg.Global.Username = os.Getenv("OS_USERNAME")
-	cfg.Global.Password = os.Getenv("OS_PASSWORD")
-	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
-	cfg.Global.UserID = os.Getenv("OS_USER_ID")
-	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
-
-	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
-	if cfg.Global.TenantID == "" {
-		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
-	}
-	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
-	if cfg.Global.TenantName == "" {
-		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
-	}
-
-	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
-	if cfg.Global.DomainID == "" {
-		cfg.Global.DomainID = os.Getenv("OS_USER_DOMAIN_ID")
-	}
-	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
-	if cfg.Global.DomainName == "" {
-		cfg.Global.DomainName = os.Getenv("OS_USER_DOMAIN_NAME")
-	}
-
-	ok = cfg.Global.AuthURL != "" &&
-		cfg.Global.Username != "" &&
-		cfg.Global.Password != "" &&
-		(cfg.Global.TenantID != "" || cfg.Global.TenantName != "" ||
-			cfg.Global.DomainID != "" || cfg.Global.DomainName != "" ||
-			cfg.Global.Region != "" || cfg.Global.UserID != "" ||
-			cfg.Global.TrustID != "")
-
-	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
-	cfg.BlockStorage.BSVersion = "auto"
-	cfg.Networking.IPv6SupportDisabled = false
-	cfg.Networking.PublicNetworkName = "public"
-
-	return
-}
-
+// ReadConfig reads values from the cloud.conf
 func ReadConfig(config io.Reader) (Config, error) {
 	if config == nil {
 		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
 	}
-
-	cfg, _ := configFromEnv()
-
-	// Set default values for config params
-	cfg.BlockStorage.BSVersion = "auto"
-	cfg.BlockStorage.TrustDevicePath = false
-	cfg.BlockStorage.IgnoreVolumeAZ = false
-	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", configDriveID, metadataID)
-	cfg.Networking.IPv6SupportDisabled = false
-	cfg.Networking.PublicNetworkName = "public"
-
+	var cfg Config
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
+
+	klog.V(5).Infof("Config, loaded from the config file:")
+	LogCfg(cfg)
+
+	if cfg.Global.UseClouds {
+		if cfg.Global.CloudsFile != "" {
+			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
+		}
+		err = ReadClouds(&cfg)
+		if err != nil {
+			return Config{}, err
+		}
+		klog.V(5).Infof("Config, loaded from the %s:", cfg.Global.CloudsFile)
+		LogCfg(cfg)
+	}
+	// Set the default values for search order if not set
+	if cfg.Metadata.SearchOrder == "" {
+		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
+	}
 	return cfg, err
+}
+
+// replaceEmpty is a helper function to replace empty fields with another field
+func replaceEmpty(a string, b string) string {
+	if a == "" {
+		return b
+	}
+	return a
+}
+
+// ReadClouds reads Reads clouds.yaml to generate a Config
+// Allows the cloud-config to have priority
+func ReadClouds(cfg *Config) error {
+	co := new(clientconfig.ClientOpts)
+	if cfg.Global.Cloud != "" {
+		co.Cloud = cfg.Global.Cloud
+	}
+	cloud, err := clientconfig.GetCloudFromYAML(co)
+	if err != nil && err.Error() != "unable to load clouds.yaml: no clouds.yaml file found" {
+		return err
+	}
+
+	cfg.Global.AuthURL = replaceEmpty(cfg.Global.AuthURL, cloud.AuthInfo.AuthURL)
+	cfg.Global.UserID = replaceEmpty(cfg.Global.UserID, cloud.AuthInfo.UserID)
+	cfg.Global.Username = replaceEmpty(cfg.Global.Username, cloud.AuthInfo.Username)
+	cfg.Global.Password = replaceEmpty(cfg.Global.Password, cloud.AuthInfo.Password)
+	cfg.Global.TenantID = replaceEmpty(cfg.Global.TenantID, cloud.AuthInfo.ProjectID)
+	cfg.Global.TenantName = replaceEmpty(cfg.Global.TenantName, cloud.AuthInfo.ProjectName)
+	cfg.Global.DomainID = replaceEmpty(cfg.Global.DomainID, cloud.AuthInfo.DomainID)
+	cfg.Global.DomainName = replaceEmpty(cfg.Global.DomainName, cloud.AuthInfo.DomainName)
+	cfg.Global.TenantDomainID = replaceEmpty(cfg.Global.TenantDomainID, cloud.AuthInfo.ProjectDomainID)
+	cfg.Global.TenantDomainName = replaceEmpty(cfg.Global.TenantDomainName, cloud.AuthInfo.ProjectDomainName)
+	cfg.Global.UserDomainID = replaceEmpty(cfg.Global.UserDomainID, cloud.AuthInfo.UserDomainID)
+	cfg.Global.UserDomainName = replaceEmpty(cfg.Global.UserDomainName, cloud.AuthInfo.UserDomainName)
+	cfg.Global.Region = replaceEmpty(cfg.Global.Region, cloud.RegionName)
+	cfg.Global.CAFile = replaceEmpty(cfg.Global.CAFile, cloud.CACertFile)
+	cfg.Global.ApplicationCredentialID = replaceEmpty(cfg.Global.ApplicationCredentialID, cloud.AuthInfo.ApplicationCredentialID)
+	cfg.Global.ApplicationCredentialName = replaceEmpty(cfg.Global.ApplicationCredentialName, cloud.AuthInfo.ApplicationCredentialName)
+	cfg.Global.ApplicationCredentialSecret = replaceEmpty(cfg.Global.ApplicationCredentialSecret, cloud.AuthInfo.ApplicationCredentialSecret)
+
+	return nil
 }
 
 // caller is a tiny helper for conditional unwind logic
@@ -287,25 +442,26 @@ func (c *caller) call(f func()) {
 }
 
 func readInstanceID(searchOrder string) (string, error) {
+	// First, try to get data from metadata service because local
+	// data might be changed by accident
+	md, err := metadata.Get(searchOrder)
+	if err == nil {
+		return md.UUID, nil
+	}
+
 	// Try to find instance ID on the local filesystem (created by cloud-init)
 	const instanceIDFile = "/var/lib/cloud/data/instance-id"
 	idBytes, err := ioutil.ReadFile(instanceIDFile)
 	if err == nil {
 		instanceID := string(idBytes)
 		instanceID = strings.TrimSpace(instanceID)
-		glog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
+		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
 		if instanceID != "" && instanceID != "iid-datasource-none" {
 			return instanceID, nil
 		}
-		// Fall through to metadata server lookup
 	}
 
-	md, err := getMetadata(searchOrder)
-	if err != nil {
-		return "", err
-	}
-
-	return md.UUID, nil
+	return "", err
 }
 
 // check opts for OpenStack
@@ -314,12 +470,11 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 
 	// if need to create health monitor for Neutron LB,
 	// monitor-delay, monitor-timeout and monitor-max-retries should be set.
-	emptyDuration := MyDuration{}
 	if lbOpts.CreateMonitor {
-		if lbOpts.MonitorDelay == emptyDuration {
+		if lbOpts.MonitorDelay == (MyDuration{}) {
 			return fmt.Errorf("monitor-delay not set in cloud provider config")
 		}
-		if lbOpts.MonitorTimeout == emptyDuration {
+		if lbOpts.MonitorTimeout == (MyDuration{}) {
 			return fmt.Errorf("monitor-timeout not set in cloud provider config")
 		}
 		if lbOpts.MonitorMaxRetries == uint(0) {
@@ -329,38 +484,83 @@ func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
-func NewOpenStack(cfg Config) (*OpenStack, error) {
-	provider, err := openstack.NewClient(cfg.Global.AuthURL)
+// NewOpenStackClient creates a new instance of the openstack client
+func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...string) (*gophercloud.ProviderClient, error) {
+	provider, err := openstack.NewClient(cfg.AuthURL)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Global.CAFile != "" {
-		roots, err := certutil.NewPool(cfg.Global.CAFile)
-		if err != nil {
-			return nil, err
-		}
-		config := &tls.Config{}
-		config.RootCAs = roots
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 
+	ua := gophercloud.UserAgent{}
+	ua.Prepend(fmt.Sprintf("%s/%s", userAgent, version.Version))
+	for _, data := range extraUserAgent {
+		ua.Prepend(data)
 	}
-	if cfg.Global.TrustID != "" {
-		opts := cfg.toAuth3Options()
+	provider.UserAgent = ua
+	klog.V(4).Infof("Using user-agent %s", ua.Join())
+
+	var caPool *x509.CertPool
+	if cfg.CAFile != "" {
+		// read and parse CA certificate from file
+		caPool, err = certutil.NewPool(cfg.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read and parse %s certificate: %s", cfg.CAFile, err)
+		}
+	} else if cfg.CAFileContents != "" {
+		// parse CA certificate from the contents
+		caPool = x509.NewCertPool()
+		if ok := caPool.AppendCertsFromPEM([]byte(cfg.CAFileContents)); !ok {
+			return nil, fmt.Errorf("failed to parse os-certAuthority certificate")
+		}
+	}
+
+	config := &tls.Config{}
+	config.InsecureSkipVerify = cfg.TLSInsecure == "true"
+
+	if caPool != nil {
+		config.RootCAs = caPool
+	}
+
+	provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
+
+	if klog.V(6) {
+		provider.HTTPClient.Transport = &client.RoundTripper{
+			Rt:     provider.HTTPClient.Transport,
+			Logger: &logger{},
+		}
+	}
+
+	if cfg.TrustID != "" {
+		opts := cfg.ToAuth3Options()
+
+		// support for the legacy manila auth
+		// if TrusteeID and TrusteePassword were defined, then use them
+		opts.UserID = replaceEmpty(cfg.TrusteeID, opts.UserID)
+		opts.Password = replaceEmpty(cfg.TrusteePassword, opts.Password)
+
 		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.Global.TrustID,
+			TrustID:            cfg.TrustID,
 			AuthOptionsBuilder: &opts,
 		}
 		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
-	} else {
-		err = openstack.Authenticate(provider, cfg.toAuthOptions())
+
+		return provider, err
 	}
 
+	opts := cfg.ToAuthOptions()
+	err = openstack.Authenticate(provider, opts)
+
+	return provider, err
+}
+
+// NewOpenStack creates a new new instance of the openstack struct from a config struct
+func NewOpenStack(cfg Config) (*OpenStack, error) {
+	provider, err := NewOpenStackClient(&cfg.Global, "openstack-cloud-controller-manager", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
 
-	emptyDuration := MyDuration{}
-	if cfg.Metadata.RequestTimeout == emptyDuration {
+	if cfg.Metadata.RequestTimeout == (MyDuration{}) {
 		cfg.Metadata.RequestTimeout.Duration = time.Duration(defaultTimeOut)
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
@@ -374,6 +574,10 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
 	}
+
+	// ini file doesn't support maps so we are reusing top level sub sections
+	// and copy the resulting map to corresponding loadbalancer section
+	os.lbOpts.LBClasses = cfg.LoadBalancerClass
 
 	err = checkOpenStackOpts(&os)
 	if err != nil {
@@ -436,18 +640,18 @@ func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuild
 	return err
 }
 
-func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*servers.Server, error) {
+func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
 	opts := servers.ListOpts{
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
 	}
 
 	pager := servers.List(client, opts)
 
-	serverList := make([]servers.Server, 0, 1)
+	var s []ServerAttributesExt
+	serverList := make([]ServerAttributesExt, 0, 1)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		s, err := servers.ExtractServers(page)
-		if err != nil {
+		if err := servers.ExtractServersInto(page, &s); err != nil {
 			return false, err
 		}
 		serverList = append(serverList, s...)
@@ -481,13 +685,24 @@ func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.Nod
 		return nil, err
 	}
 
-	for network, addrList := range addresses {
-		for _, props := range addrList {
+	var networks []string
+	for k := range addresses {
+		networks = append(networks, k)
+	}
+	sort.Strings(networks)
+
+	for _, network := range networks {
+		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
 			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
 				addressType = v1.NodeExternalIP
 			} else {
-				addressType = v1.NodeInternalIP
+				if networkingOpts.InternalNetworkName == "" || network == networkingOpts.InternalNetworkName {
+					addressType = v1.NodeInternalIP
+				} else {
+					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
+					continue
+				}
 			}
 
 			isIPv6 := net.ParseIP(props.Addr).To4() == nil
@@ -539,7 +754,7 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 		return nil, err
 	}
 
-	return nodeAddresses(srv, networkingOpts)
+	return nodeAddresses(&srv.Server, networkingOpts)
 }
 
 func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
@@ -613,10 +828,10 @@ func (os *OpenStack) HasClusterID() bool {
 
 // LoadBalancer initializes a LbaasV2 object
 func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	glog.V(4).Info("openstack.LoadBalancer() called")
+	klog.V(4).Info("openstack.LoadBalancer() called")
 
 	if reflect.DeepEqual(os.lbOpts, LoadBalancerOpts{}) {
-		glog.V(4).Info("LoadBalancer section is empty/not defined in cloud-config")
+		klog.V(4).Info("LoadBalancer section is empty/not defined in cloud-config")
 		return nil, false
 	}
 
@@ -639,38 +854,24 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	// Currently kubernetes OpenStack cloud provider just support LBaaS v2.
 	lbVersion := os.lbOpts.LBVersion
 	if lbVersion != "" && lbVersion != "v2" {
-		glog.Warningf("Config error: currently only support LBaaS v2, unrecognised lb-version \"%v\"", lbVersion)
+		klog.Warningf("Config error: currently only support LBaaS v2, unrecognised lb-version \"%v\"", lbVersion)
 		return nil, false
 	}
 
-	glog.V(1).Info("Claiming to support LoadBalancer")
+	klog.V(1).Info("Claiming to support LoadBalancer")
 
 	return &LbaasV2{LoadBalancer{network, compute, lb, os.lbOpts}}, true
 }
 
-func isNotFound(err error) bool {
-	if _, ok := err.(gophercloud.ErrDefault404); ok {
-		return true
-	}
-
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusNotFound {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Zones indicates that we support zones
 func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
-	glog.V(1).Info("Claiming to support Zones")
+	klog.V(1).Info("Claiming to support Zones")
 	return os, true
 }
 
 // GetZone returns the current zone
 func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	md, err := getMetadata(os.metadataOpts.SearchOrder)
+	md, err := metadata.Get(os.metadataOpts.SearchOrder)
 	if err != nil {
 		return cloudprovider.Zone{}, err
 	}
@@ -679,7 +880,7 @@ func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 		FailureDomain: md.AvailabilityZone,
 		Region:        os.region,
 	}
-	glog.V(4).Infof("Current zone is %v", zone)
+	klog.V(4).Infof("Current zone is %v", zone)
 	return zone, nil
 }
 
@@ -697,16 +898,16 @@ func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string)
 		return cloudprovider.Zone{}, err
 	}
 
-	srv, err := servers.Get(compute, instanceID).Extract()
-	if err != nil {
+	var serverWithAttributesExt ServerAttributesExt
+	if err := servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt); err != nil {
 		return cloudprovider.Zone{}, err
 	}
 
 	zone := cloudprovider.Zone{
-		FailureDomain: srv.Metadata[availabilityZone],
+		FailureDomain: serverWithAttributesExt.AvailabilityZone,
 		Region:        os.region,
 	}
-	glog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)
+	klog.V(4).Infof("The instance %s in zone %v", serverWithAttributesExt.Name, zone)
 	return zone, nil
 }
 
@@ -728,16 +929,16 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 	}
 
 	zone := cloudprovider.Zone{
-		FailureDomain: srv.Metadata[availabilityZone],
+		FailureDomain: srv.AvailabilityZone,
 		Region:        os.region,
 	}
-	glog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)
+	klog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)
 	return zone, nil
 }
 
 // Routes initializes routes support
 func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
-	glog.V(4).Info("openstack.Routes() called")
+	klog.V(4).Info("openstack.Routes() called")
 
 	network, err := os.NewNetworkV2()
 	if err != nil {
@@ -746,12 +947,12 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	netExts, err := networkExtensions(network)
 	if err != nil {
-		glog.Warningf("Failed to list neutron extensions: %v", err)
+		klog.Warningf("Failed to list neutron extensions: %v", err)
 		return nil, false
 	}
 
 	if !netExts["extraroute"] {
-		glog.V(3).Info("Neutron extraroute extension not found, required for Routes support")
+		klog.V(3).Info("Neutron extraroute extension not found, required for Routes support")
 		return nil, false
 	}
 
@@ -762,11 +963,11 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	r, err := NewRoutes(compute, network, os.routeOpts, os.networkingOpts)
 	if err != nil {
-		glog.Warningf("Error initialising Routes support: %v", err)
+		klog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false
 	}
 
-	glog.V(1).Info("Claiming to support Routes")
+	klog.V(1).Info("Claiming to support Routes")
 	return r, true
 }
 
@@ -779,26 +980,19 @@ func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
 	}
 
 	switch bsVersion {
-	case "v1":
-		sClient, err := os.NewBlockStorageV1()
-		if err != nil {
-			return nil, err
-		}
-		glog.V(3).Info("Using Blockstorage API V1")
-		return &VolumesV1{sClient, os.bsOpts}, nil
 	case "v2":
 		sClient, err := os.NewBlockStorageV2()
 		if err != nil {
 			return nil, err
 		}
-		glog.V(3).Info("Using Blockstorage API V2")
+		klog.V(3).Info("Using Blockstorage API V2")
 		return &VolumesV2{sClient, os.bsOpts}, nil
 	case "v3":
 		sClient, err := os.NewBlockStorageV3()
 		if err != nil {
 			return nil, err
 		}
-		glog.V(3).Info("Using Blockstorage API V3")
+		klog.V(3).Info("Using Blockstorage API V3")
 		return &VolumesV3{sClient, os.bsOpts}, nil
 	case "auto":
 		// Currently kubernetes support Cinder v1 / Cinder v2 / Cinder v3.
@@ -806,18 +1000,13 @@ func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
 		// If kubernetes can't initialize cinder v2 client, try to initialize cinder v1 client.
 		// Return appropriate message when kubernetes can't initialize them.
 		if sClient, err := os.NewBlockStorageV3(); err == nil {
-			glog.V(3).Info("Using Blockstorage API V3")
+			klog.V(3).Info("Using Blockstorage API V3")
 			return &VolumesV3{sClient, os.bsOpts}, nil
 		}
 
 		if sClient, err := os.NewBlockStorageV2(); err == nil {
-			glog.V(3).Info("Using Blockstorage API V2")
+			klog.V(3).Info("Using Blockstorage API V2")
 			return &VolumesV2{sClient, os.bsOpts}, nil
-		}
-
-		if sClient, err := os.NewBlockStorageV1(); err == nil {
-			glog.V(3).Info("Using Blockstorage API V1")
-			return &VolumesV1{sClient, os.bsOpts}, nil
 		}
 
 		errTxt := "BlockStorage API version autodetection failed. " +
@@ -842,11 +1031,11 @@ func checkMetadataSearchOrder(order string) error {
 	for _, id := range elements {
 		id = strings.TrimSpace(id)
 		switch id {
-		case configDriveID:
-		case metadataID:
+		case metadata.ConfigDriveID:
+		case metadata.MetadataID:
 		default:
 			return fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
-				"Supported elements include %q and %q", id, configDriveID, metadataID)
+				"Supported elements include %q and %q", id, metadata.ConfigDriveID, metadata.MetadataID)
 		}
 	}
 

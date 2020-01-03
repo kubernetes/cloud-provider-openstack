@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -36,13 +36,13 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
-	volumes_v1 "github.com/gophercloud/gophercloud/openstack/blockstorage/v1/volumes"
 	volumes_v2 "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	volumes_v3 "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/golang/glog"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	"k8s.io/klog"
 )
 
 const (
@@ -58,13 +58,7 @@ type volumeService interface {
 	createVolume(opts volumeCreateOpts) (string, string, error)
 	getVolume(volumeID string) (Volume, error)
 	deleteVolume(volumeName string) error
-	expandVolume(volumeID string, newSize int) error
-}
-
-// VolumesV1 is a Volumes implementation for cinder v1
-type VolumesV1 struct {
-	blockstorage *gophercloud.ServiceClient
-	opts         BlockStorageOpts
+	expandVolume(volumeID string, newSize int, volumeStatus string) error
 }
 
 // VolumesV2 is a Volumes implementation for cinder v2
@@ -120,26 +114,6 @@ const (
 	newtonMetadataVersion = "2016-06-30"
 )
 
-func (volumes *VolumesV1) createVolume(opts volumeCreateOpts) (string, string, error) {
-	startTime := time.Now()
-
-	createOpts := volumes_v1.CreateOpts{
-		Name:             opts.Name,
-		Size:             opts.Size,
-		VolumeType:       opts.VolumeType,
-		AvailabilityZone: opts.Availability,
-		Metadata:         opts.Metadata,
-	}
-
-	vol, err := volumes_v1.Create(volumes.blockstorage, createOpts).Extract()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("create_v1_volume", timeTaken, err)
-	if err != nil {
-		return "", "", err
-	}
-	return vol.ID, vol.AvailabilityZone, nil
-}
-
 func (volumes *VolumesV2) createVolume(opts volumeCreateOpts) (string, string, error) {
 	startTime := time.Now()
 
@@ -178,31 +152,6 @@ func (volumes *VolumesV3) createVolume(opts volumeCreateOpts) (string, string, e
 		return "", "", err
 	}
 	return vol.ID, vol.AvailabilityZone, nil
-}
-
-func (volumes *VolumesV1) getVolume(volumeID string) (Volume, error) {
-	startTime := time.Now()
-	volumeV1, err := volumes_v1.Get(volumes.blockstorage, volumeID).Extract()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("get_v1_volume", timeTaken, err)
-	if err != nil {
-		return Volume{}, fmt.Errorf("error occurred getting volume by ID: %s, err: %v", volumeID, err)
-	}
-
-	volume := Volume{
-		AvailabilityZone: volumeV1.AvailabilityZone,
-		ID:               volumeV1.ID,
-		Name:             volumeV1.Name,
-		Status:           volumeV1.Status,
-		Size:             volumeV1.Size,
-	}
-
-	if len(volumeV1.Attachments) > 0 && volumeV1.Attachments[0]["server_id"] != nil {
-		volume.AttachedServerID = volumeV1.Attachments[0]["server_id"].(string)
-		volume.AttachedDevice = volumeV1.Attachments[0]["device"].(string)
-	}
-
-	return volume, nil
 }
 
 func (volumes *VolumesV2) getVolume(volumeID string) (Volume, error) {
@@ -255,14 +204,6 @@ func (volumes *VolumesV3) getVolume(volumeID string) (Volume, error) {
 	return volume, nil
 }
 
-func (volumes *VolumesV1) deleteVolume(volumeID string) error {
-	startTime := time.Now()
-	err := volumes_v1.Delete(volumes.blockstorage, volumeID).ExtractErr()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("delete_v1_volume", timeTaken, err)
-	return err
-}
-
 func (volumes *VolumesV2) deleteVolume(volumeID string) error {
 	startTime := time.Now()
 	err := volumes_v2.Delete(volumes.blockstorage, volumeID, nil).ExtractErr()
@@ -279,7 +220,12 @@ func (volumes *VolumesV3) deleteVolume(volumeID string) error {
 	return err
 }
 
-func (volumes *VolumesV1) expandVolume(volumeID string, newSize int) error {
+func (volumes *VolumesV2) expandVolume(volumeID string, newSize int, volumeStatus string) error {
+	if volumeStatus != volumeAvailableStatus {
+		// cinder volume can not be expanded if cinder API is v2
+		return fmt.Errorf("volume status is not 'available'")
+	}
+
 	startTime := time.Now()
 	createOpts := volumeexpand.ExtendSizeOpts{
 		NewSize: newSize,
@@ -290,23 +236,27 @@ func (volumes *VolumesV1) expandVolume(volumeID string, newSize int) error {
 	return err
 }
 
-func (volumes *VolumesV2) expandVolume(volumeID string, newSize int) error {
-	startTime := time.Now()
-	createOpts := volumeexpand.ExtendSizeOpts{
-		NewSize: newSize,
+func (volumes *VolumesV3) expandVolume(volumeID string, newSize int, volumeStatus string) error {
+	switch volumeStatus {
+	case volumeAvailableStatus:
+	case volumeInUseStatus:
+		// cinder online resize is available since 3.42 microversion
+		// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
+		// this operation is thread-safe, since a dedicated client is initialized before the
+		// "expandVolume" method call
+		volumes.blockstorage.Microversion = "3.42"
+	default:
+		// cinder volume can not be expanded when volume status is not volumeInUseStatus or not volumeAvailableStatus
+		return fmt.Errorf("volume cannot be resized, when status is %s", volumeStatus)
 	}
-	err := volumeexpand.ExtendSize(volumes.blockstorage, volumeID, createOpts).ExtractErr()
-	timeTaken := time.Since(startTime).Seconds()
-	recordOpenstackOperationMetric("expand_volume", timeTaken, err)
-	return err
-}
 
-func (volumes *VolumesV3) expandVolume(volumeID string, newSize int) error {
 	startTime := time.Now()
 	createOpts := volumeexpand.ExtendSizeOpts{
 		NewSize: newSize,
 	}
+
 	err := volumeexpand.ExtendSize(volumes.blockstorage, volumeID, createOpts).ExtractErr()
+
 	timeTaken := time.Since(startTime).Seconds()
 	recordOpenstackOperationMetric("expand_volume", timeTaken, err)
 	return err
@@ -343,19 +293,19 @@ func (os *OpenStack) AttachDisk(instanceID, volumeID string) (string, error) {
 
 	if volume.AttachedServerID != "" {
 		if instanceID == volume.AttachedServerID {
-			glog.V(4).Infof("Disk %s is already attached to instance %s", volumeID, instanceID)
+			klog.V(4).Infof("Disk %s is already attached to instance %s", volumeID, instanceID)
 			return volume.ID, nil
 		}
 		nodeName, err := os.GetNodeNameByID(volume.AttachedServerID)
 		attachErr := fmt.Sprintf("disk %s path %s is attached to a different instance (%s)", volumeID, volume.AttachedDevice, volume.AttachedServerID)
 		if err != nil {
-			glog.Error(attachErr)
+			klog.Error(attachErr)
 			return "", errors.New(attachErr)
 		}
 		// using volume.AttachedDevice may cause problems because cinder does not report device path correctly see issue #33128
 		devicePath := volume.AttachedDevice
 		danglingErr := volumeutil.NewDanglingError(attachErr, nodeName, devicePath)
-		glog.V(2).Infof("Found dangling volume %s attached to node %s", volumeID, nodeName)
+		klog.V(2).Infof("Found dangling volume %s attached to node %s", volumeID, nodeName)
 		return "", danglingErr
 	}
 
@@ -369,7 +319,7 @@ func (os *OpenStack) AttachDisk(instanceID, volumeID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
-	glog.V(2).Infof("Successfully attached %s volume to %s compute", volumeID, instanceID)
+	klog.V(2).Infof("Successfully attached %s volume to %s compute", volumeID, instanceID)
 	return volume.ID, nil
 }
 
@@ -381,7 +331,7 @@ func (os *OpenStack) DetachDisk(instanceID, volumeID string) error {
 	}
 	if volume.Status == volumeAvailableStatus {
 		// "available" is fine since that means the volume is detached from instance already.
-		glog.V(2).Infof("volume: %s has been detached from compute: %s ", volume.ID, instanceID)
+		klog.V(2).Infof("volume: %s has been detached from compute: %s ", volume.ID, instanceID)
 		return nil
 	}
 
@@ -405,7 +355,7 @@ func (os *OpenStack) DetachDisk(instanceID, volumeID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to delete volume %s from compute %s attached %v", volume.ID, instanceID, err)
 	}
-	glog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
+	klog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
 
 	return nil
 }
@@ -415,10 +365,6 @@ func (os *OpenStack) ExpandVolume(volumeID string, oldSize resource.Quantity, ne
 	volume, err := os.getVolume(volumeID)
 	if err != nil {
 		return oldSize, err
-	}
-	if volume.Status != volumeAvailableStatus {
-		// cinder volume can not be expanded if its status is not available
-		return oldSize, fmt.Errorf("volume status is not available")
 	}
 
 	// Cinder works with gigabytes, convert to GiB with rounding up
@@ -433,12 +379,13 @@ func (os *OpenStack) ExpandVolume(volumeID string, oldSize resource.Quantity, ne
 		return newSizeQuant, nil
 	}
 
+	// Init a local thread safe copy of the Cinder ServiceClient
 	volumes, err := os.volumeService("")
 	if err != nil {
 		return oldSize, err
 	}
 
-	err = volumes.expandVolume(volumeID, volSizeGiB)
+	err = volumes.expandVolume(volumeID, volSizeGiB, volume.Status)
 	if err != nil {
 		return oldSize, err
 	}
@@ -477,7 +424,7 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		return "", "", "", os.bsOpts.IgnoreVolumeAZ, fmt.Errorf("failed to create a %d GB volume: %v", size, err)
 	}
 
-	glog.Infof("Created volume %v in Availability Zone: %v Region: %v Ignore volume AZ: %v", volumeID, volumeAZ, os.region, os.bsOpts.IgnoreVolumeAZ)
+	klog.Infof("Created volume %v in Availability Zone: %v Region: %v Ignore volume AZ: %v", volumeID, volumeAZ, os.region, os.bsOpts.IgnoreVolumeAZ)
 	return volumeID, volumeAZ, os.region, os.bsOpts.IgnoreVolumeAZ, nil
 }
 
@@ -488,8 +435,12 @@ func (os *OpenStack) GetDevicePathBySerialID(volumeID string) string {
 	candidateDeviceNodes := []string{
 		// KVM
 		fmt.Sprintf("virtio-%s", volumeID[:20]),
+		// KVM #852
+		fmt.Sprintf("virtio-%s", volumeID),
 		// KVM virtio-scsi
 		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID[:20]),
+		// KVM virtio-scsi #852
+		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID),
 		// ESXi
 		fmt.Sprintf("wwn-0x%s", strings.Replace(volumeID, "-", "", -1)),
 	}
@@ -499,13 +450,13 @@ func (os *OpenStack) GetDevicePathBySerialID(volumeID string) string {
 	for _, f := range files {
 		for _, c := range candidateDeviceNodes {
 			if c == f.Name() {
-				glog.V(4).Infof("Found disk attached as %q; full devicepath: %s\n", f.Name(), path.Join("/dev/disk/by-id/", f.Name()))
+				klog.V(4).Infof("Found disk attached as %q; full devicepath: %s\n", f.Name(), path.Join("/dev/disk/by-id/", f.Name()))
 				return path.Join("/dev/disk/by-id/", f.Name())
 			}
 		}
 	}
 
-	glog.V(4).Infof("Failed to find device for the volumeID: %q by serial ID", volumeID)
+	klog.V(4).Infof("Failed to find device for the volumeID: %q by serial ID", volumeID)
 	return ""
 }
 
@@ -516,18 +467,18 @@ func (os *OpenStack) getDevicePathFromInstanceMetadata(volumeID string) string {
 	//
 	// We're avoiding using cached metadata (or the configdrive),
 	// relying on the metadata service.
-	instanceMetadata, err := getMetadataFromMetadataService(
+	instanceMetadata, err := metadata.GetFromMetadataService(
 		newtonMetadataVersion)
 
 	if err != nil {
-		glog.V(4).Infof(
+		klog.V(4).Infof(
 			"Could not retrieve instance metadata. Error: %v", err)
 		return ""
 	}
 
 	for _, device := range instanceMetadata.Devices {
 		if device.Type == "disk" && device.Serial == volumeID {
-			glog.V(4).Infof(
+			klog.V(4).Infof(
 				"Found disk metadata for volumeID %q. Bus: %q, Address: %q",
 				volumeID, device.Bus, device.Address)
 
@@ -536,7 +487,7 @@ func (os *OpenStack) getDevicePathFromInstanceMetadata(volumeID string) string {
 				device.Bus, device.Address)
 			diskPaths, err := filepath.Glob(diskPattern)
 			if err != nil {
-				glog.Errorf(
+				klog.Errorf(
 					"could not retrieve disk path for volumeID: %q. Error filepath.Glob(%q): %v",
 					volumeID, diskPattern, err)
 				return ""
@@ -546,14 +497,14 @@ func (os *OpenStack) getDevicePathFromInstanceMetadata(volumeID string) string {
 				return diskPaths[0]
 			}
 
-			glog.Errorf(
+			klog.Errorf(
 				"expecting to find one disk path for volumeID %q, found %d: %v",
 				volumeID, len(diskPaths), diskPaths)
 			return ""
 		}
 	}
 
-	glog.V(4).Infof(
+	klog.V(4).Infof(
 		"Could not retrieve device metadata for volumeID: %q", volumeID)
 	return ""
 }
@@ -633,7 +584,7 @@ func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string,
 // DiskIsAttached queries if a volume is attached to a compute instance
 func (os *OpenStack) DiskIsAttached(instanceID, volumeID string) (bool, error) {
 	if instanceID == "" {
-		glog.Warningf("calling DiskIsAttached with empty instanceid: %s %s", instanceID, volumeID)
+		klog.Warningf("calling DiskIsAttached with empty instanceid: %s %s", instanceID, volumeID)
 	}
 	volume, err := os.getVolume(volumeID)
 	if err != nil {
@@ -740,7 +691,7 @@ func (os *OpenStack) GetLabelsForVolume(ctx context.Context, pv *v1.PersistentVo
 	labels := make(map[string]string)
 	labels[LabelZoneFailureDomain] = volume.AvailabilityZone
 	labels[LabelZoneRegion] = os.region
-	glog.V(4).Infof("The Volume %s has labels %v", pv.Spec.Cinder.VolumeID, labels)
+	klog.V(4).Infof("The Volume %s has labels %v", pv.Spec.Cinder.VolumeID, labels)
 
 	return labels, nil
 }

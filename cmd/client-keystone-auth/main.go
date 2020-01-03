@@ -17,19 +17,21 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/spf13/pflag"
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	kflag "k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	kflag "k8s.io/component-base/cli/flag"
+	"k8s.io/klog"
 )
 
 const errRespTemplate string = `{
@@ -64,7 +66,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 
 // prompt pulls keystone auth url, domain, project, username and password from stdin,
 // if they are not specified initially (i.e. equal "").
-func prompt(url string, domain string, user string, project string, password string, application_credential_id string, application_credential_name string, application_credential_secret string) (gophercloud.AuthOptions, error) {
+func prompt(url string, domain string, user string, project string, password string, applicationCredentialID string, applicationCredentialName string, applicationCredentialSecret string) (gophercloud.AuthOptions, error) {
 	var err error
 	var options gophercloud.AuthOptions
 
@@ -89,14 +91,14 @@ func prompt(url string, domain string, user string, project string, password str
 		}
 	}
 
-	if project == "" && application_credential_id == "" && application_credential_name == "" {
+	if project == "" && applicationCredentialID == "" && applicationCredentialName == "" {
 		project, err = promptForString("project name", os.Stdin, true)
 		if err != nil {
 			return options, err
 		}
 	}
 
-	if password == "" && application_credential_id == "" && application_credential_name == "" {
+	if password == "" && applicationCredentialID == "" && applicationCredentialName == "" {
 		password, err = promptForString("password", nil, false)
 		if err != nil {
 			return options, err
@@ -109,21 +111,56 @@ func prompt(url string, domain string, user string, project string, password str
 		TenantName:                  project,
 		Password:                    password,
 		DomainName:                  domain,
-		ApplicationCredentialID:     application_credential_id,
-		ApplicationCredentialName:   application_credential_name,
-		ApplicationCredentialSecret: application_credential_secret,
+		ApplicationCredentialID:     applicationCredentialID,
+		ApplicationCredentialName:   applicationCredentialName,
+		ApplicationCredentialSecret: applicationCredentialSecret,
 	}
 
 	return options, nil
 }
 
+func argumentsAreSet(url, user, project, password, domain, applicationCredentialID, applicationCredentialName, applicationCredentialSecret string) bool {
+	if url == "" {
+		return false
+	}
+
+	if user != "" && project != "" && domain != "" && password != "" {
+		return true
+	}
+
+	if applicationCredentialID != "" && applicationCredentialName != "" && applicationCredentialSecret != "" {
+		return true
+	}
+
+	return false
+}
+
 func main() {
+	// Glog requires this otherwise it complains.
+	flag.CommandLine.Parse(nil)
+	// This is a temporary hack to enable proper logging until upstream dependencies
+	// are migrated to fully utilize klog instead of glog.
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	// Sync the glog and klog flags.
+	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
+		f2 := klogFlags.Lookup(f1.Name)
+		if f2 != nil {
+			value := f1.Value.String()
+			f2.Value.Set(value)
+		}
+	})
+
 	var url string
 	var domain string
 	var user string
 	var project string
 	var password string
-	var options gophercloud.AuthOptions
+	var clientCertPath string
+	var clientKeyPath string
+	var clientCAPath string
+	var options keystone.Options
 	var err error
 	var applicationCredentialID string
 	var applicationCredentialName string
@@ -134,6 +171,9 @@ func main() {
 	pflag.StringVar(&user, "user-name", os.Getenv("OS_USERNAME"), "User name")
 	pflag.StringVar(&project, "project-name", os.Getenv("OS_PROJECT_NAME"), "Keystone project name")
 	pflag.StringVar(&password, "password", os.Getenv("OS_PASSWORD"), "Password")
+	pflag.StringVar(&clientCertPath, "cert", os.Getenv("OS_CERT"), "Client certificate bundle file")
+	pflag.StringVar(&clientKeyPath, "key", os.Getenv("OS_KEY"), "Client certificate key file")
+	pflag.StringVar(&clientCAPath, "cacert", os.Getenv("OS_CACERT"), "Certificate authority file")
 	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
 	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
 	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
@@ -142,18 +182,38 @@ func main() {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
-		options, err = openstack.AuthOptionsFromEnv()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s", err)
-			os.Exit(1)
+		// If all requiered arguments are set use them
+		if argumentsAreSet(url, user, project, password, domain, applicationCredentialID, applicationCredentialName, applicationCredentialSecret) {
+			options.AuthOptions = gophercloud.AuthOptions{
+				IdentityEndpoint:            url,
+				Username:                    user,
+				TenantName:                  project,
+				Password:                    password,
+				DomainName:                  domain,
+				ApplicationCredentialID:     applicationCredentialID,
+				ApplicationCredentialName:   applicationCredentialName,
+				ApplicationCredentialSecret: applicationCredentialSecret,
+			}
+		} else {
+			// Use environment variables if arguments are missing
+			authOpts, err := clientconfig.AuthOptions(nil)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to read openstack env vars: %s\n", err)
+				os.Exit(1)
+			}
+			options.AuthOptions = *authOpts
 		}
 	} else {
-		options, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
+		options.AuthOptions, err = prompt(url, domain, user, project, password, applicationCredentialID, applicationCredentialName, applicationCredentialSecret)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s", err)
+			fmt.Fprintf(os.Stderr, "Failed to read data from console: %s\n", err)
 			os.Exit(1)
 		}
 	}
+
+	options.ClientCertPath = clientCertPath
+	options.ClientKeyPath = clientKeyPath
+	options.ClientCAPath = clientCAPath
 
 	token, err := keystone.GetToken(options)
 	if err != nil {

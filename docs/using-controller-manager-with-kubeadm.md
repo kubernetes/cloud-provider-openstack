@@ -1,63 +1,56 @@
 # Using with kubeadm
 
-Step 1: Edit your /etc/systemd/system/kubelet.service.d/10-kubeadm.conf to add `--cloud-provider=external` to the kubelet arguments
-```
-Environment="KUBELET_KUBECONFIG_ARGS=--cloud-provider=external --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
-```
+Tested on Ubuntu 18.04.
 
-Step 2: Use the `kubeadm.conf` in manifests directory, edit it as appropriate and use the kubeadm.conf like so.
-```
-kubeadm init --config kubeadm.conf
-```
+## Prerequisites
 
-Then follow the usual steps to bootstrap the other nodes using `kubeadm join`
+- kubeadm, kubelet and kubectl has been installed.
 
-Step 3: build the container image using the following (`make bootstrap` will download go SDK and dep if needed)
-```
-GOOS=linux make images
-```
+## Steps
 
-Save the image using:
-```
-docker save openstack/openstack-cloud-controller-manager:v0.1.0 | gzip > openstack-cloud-controller-manager.tgz
-```
+- Create the kubeadm config file. You can find an example at [`manifests/controller-manager/kubeadm.conf`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/kubeadm.conf)
 
-Copy the tgz over to the nodes and load them up:
-```
-gzip -d openstack-cloud-controller-manager.tgz
-docker load < openstack-cloud-controller-manager.tar
-```
+- Create the cloud config file `/etc/kubernetes/cloud-config` on each node. You can find an example file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config).
 
-Step 4: Create a configmap with the openstack cloud configuration (see `manifests/controller-manager/cloud-config`)
-```
-kubectl create configmap cloud-config --from-file=/etc/kubernetes/cloud-config -n kube-system
-```
+    > `/etc/kubernetes/cloud-config` is the default cloud config file path used by controller-manager and kubelet.
 
-Step 5: Deploy controller manager
+- Bootstrap the cluster on the master node.
 
-Option #1 - Using a single pod with the definition in `manifests/controller-manager/openstack-cloud-controller-manager-pod.yaml`
-```
-kubectl create -f manifests/controller-manager/openstack-cloud-controller-manager-pod.yaml
-```
-Option #2 - Using a daemonset
-```
-kubectl create -f manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
-```
+    ```
+    kubeadm init --config kubeadm.conf
+    ```
 
-Step 6: Monitor using kubectl, for example:
+- Boostrap any additional master nodes and worker nodes. You will need to add `KUBELET_EXTRA_ARGS="--cloud-provider=external"` to `/etc/default/kubelet` (`/etc/sysconfig/kubelet` for RPMs) before running `kubeadm join`.
 
-for Option #1:
-```
-kubectl get pods -n kube-system
-kubectl get pods -n kube-system openstack-cloud-controller-manager -o json
-kubectl describe pod/openstack-cloud-controller-manager -n kube-system
-```
+- Create a secret containing the cloud configuration for cloud-controller-manager.
 
-for Option #2:
-```
-kubectl get ds -n kube-system
-kubectl get ds -n kube-system openstack-cloud-controller-manager -o json
-kubectl describe ds/openstack-cloud-controller-manager -n kube-system
-```
+    ```shell
+    cp /etc/kubernetes/cloud-config cloud.conf
+    kubectl create secret generic -n kube-system cloud-config --from-file=cloud.conf
+    ```
 
-Step 7: TBD - test features
+- Create RBAC resources and cloud-controller-manager deamonset.
+
+    ```shell
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+    ```
+
+- Install a CNI
+    This example uses weavenet. _Note: The example kubeadm configuration is set to use CIDR range of 10.244.0.0/16. So we're specifying env.IPALLOC_RANGE here in addition to the version for weavenet._
+    ```
+    kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=10.244.0.0/16"
+    ```
+
+- After the cloud-controller-manager deamonset and CNI are up and running, the node taint above will be removed. You can also see some more information in the node label.
+
+
+# Where to go from here 
+Create Persistent Volume Claims using using [Cinder Container Storage Interface](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-cinder-csi-plugin.md)
+
+Encrypt Secrets at rest using the [Barbican KMS plugin](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-barbican-kms-plugin.md)
+
+Expose appliactions using service type [Load Balancer](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/expose-applications-using-loadbalancer-type-service.md)
+
+Route applications at layer 7 using [Octavia Ingress Controller](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-octavia-ingress-controller.md)

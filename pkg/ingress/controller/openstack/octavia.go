@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 const (
@@ -113,7 +114,7 @@ func (os *OpenStack) GetLoadbalancerByName(name string) (*loadbalancers.LoadBala
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -146,7 +147,7 @@ func (os *OpenStack) getListenerByName(name string, lbID string) (*listeners.Lis
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -177,7 +178,7 @@ func (os *OpenStack) getPoolByName(name string, lbID string) (*pools.Pool, error
 		return true, nil
 	})
 	if err != nil {
-		if isNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -275,38 +276,6 @@ func (os *OpenStack) GetL7policies(listenerID string) ([]l7policies.L7Policy, er
 	return policies, nil
 }
 
-func (os *OpenStack) getL7policy(name string, listenerID, poolID string) (*l7policies.L7Policy, error) {
-	policies := make([]l7policies.L7Policy, 0, 1)
-	opts := l7policies.ListOpts{
-		Name:           name,
-		ListenerID:     listenerID,
-		RedirectPoolID: poolID,
-	}
-	err := l7policies.List(os.octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
-		v, err := l7policies.ExtractL7Policies(page)
-		if err != nil {
-			return false, err
-		}
-		policies = append(policies, v...)
-		if len(policies) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if isNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(policies) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &policies[0], nil
-}
-
 // DeleteL7policy deletes a l7 policy
 func (os *OpenStack) DeleteL7policy(policyID string, lbID string) error {
 	if err := l7policies.Delete(os.octavia, policyID).ExtractErr(); err != nil {
@@ -324,7 +293,7 @@ func (os *OpenStack) DeleteL7policy(policyID string, lbID string) error {
 // DeleteLoadbalancer deletes a loadbalancer with all its child objects.
 func (os *OpenStack) DeleteLoadbalancer(lbID string) error {
 	err := loadbalancers.Delete(os.octavia, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
-	if err != nil && !isNotFound(err) {
+	if err != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
 	}
 
@@ -334,7 +303,7 @@ func (os *OpenStack) DeleteLoadbalancer(lbID string) error {
 }
 
 // EnsureLoadBalancer creates a loadbalancer in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
-func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbalancers.LoadBalancer, error) {
+func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespace string, ingName string, clusterName string) (*loadbalancers.LoadBalancer, error) {
 	loadbalancer, err := os.GetLoadbalancerByName(name)
 	if err != nil {
 		if err != ErrNotFound {
@@ -343,11 +312,18 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbala
 
 		log.WithFields(log.Fields{"name": name}).Debug("creating loadbalancer")
 
+		var provider string
+		if os.config.Octavia.Provider == "" {
+			provider = "octavia"
+		} else {
+			provider = os.config.Octavia.Provider
+		}
+
 		createOpts := loadbalancers.CreateOpts{
 			Name:        name,
-			Description: "Created by Kubernetes",
+			Description: fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
 			VipSubnetID: subnetID,
-			Provider:    "octavia",
+			Provider:    provider,
 		}
 		loadbalancer, err = loadbalancers.Create(os.octavia, createOpts).Extract()
 		if err != nil {
@@ -370,7 +346,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string) (*loadbala
 // UpdateLoadBalancerDescription updates the load balancer description field.
 func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription string) error {
 	_, err := loadbalancers.Update(os.octavia, lbID, loadbalancers.UpdateOpts{
-		Description: newDescription,
+		Description: &newDescription,
 	}).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to update loadbalancer description: %v", err)
@@ -392,7 +368,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 
 		listener, err = listeners.Create(os.octavia, listeners.CreateOpts{
 			Name:           name,
-			Protocol:       "TCP",
+			Protocol:       "HTTP",
 			ProtocolPort:   80, // Ingress Controller only supports http/https for now
 			LoadbalancerID: lbID,
 		}).Extract()
@@ -424,7 +400,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 
 		// Delete the existing pool, members are deleted automatically
 		err = pools.Delete(os.octavia, pool.ID).ExtractErr()
-		if err != nil && !isNotFound(err) {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error deleting pool %s: %v", pool.ID, err)
 		}
 
@@ -440,35 +416,36 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 	if err != nil {
 		if err != ErrNotFound {
 			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
-		} else {
-			log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName}).Debug("creating pool")
-
-			// Create new pool
-			var opts pools.CreateOptsBuilder
-			if listenerID != "" {
-				opts = pools.CreateOpts{
-					Name:        poolName,
-					Protocol:    "TCP",
-					LBMethod:    pools.LBMethodRoundRobin,
-					ListenerID:  listenerID,
-					Persistence: nil,
-				}
-			} else {
-				opts = pools.CreateOpts{
-					Name:           poolName,
-					Protocol:       "TCP",
-					LBMethod:       pools.LBMethodRoundRobin,
-					LoadbalancerID: lbID,
-					Persistence:    nil,
-				}
-			}
-			pool, err = pools.Create(os.octavia, opts).Extract()
-			if err != nil {
-				return nil, fmt.Errorf("error creating pool: %v", err)
-			}
-
-			log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
 		}
+
+		log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName}).Debug("creating pool")
+
+		// Create new pool
+		var opts pools.CreateOptsBuilder
+		if listenerID != "" {
+			opts = pools.CreateOpts{
+				Name:        poolName,
+				Protocol:    "HTTP",
+				LBMethod:    pools.LBMethodRoundRobin,
+				ListenerID:  listenerID,
+				Persistence: nil,
+			}
+		} else {
+			opts = pools.CreateOpts{
+				Name:           poolName,
+				Protocol:       "HTTP",
+				LBMethod:       pools.LBMethodRoundRobin,
+				LoadbalancerID: lbID,
+				Persistence:    nil,
+			}
+		}
+		pool, err = pools.Create(os.octavia, opts).Extract()
+		if err != nil {
+			return nil, fmt.Errorf("error creating pool: %v", err)
+		}
+
+		log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool created")
+
 	}
 
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
@@ -505,14 +482,14 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 	}
 
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool members updated")
+	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "poolName": poolName, "pooID": pool.ID}).Info("pool members updated")
 
 	return &pool.ID, nil
 }
 
 // CreatePolicyRules creates l7 policy and its rules for the listener
 func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path string) error {
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID}).Debug("creating policy")
+	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID}).Debug("creating policy")
 
 	policy, err := l7policies.Create(os.octavia, l7policies.CreateOpts{
 		ListenerID:     listenerID,
@@ -529,10 +506,10 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 		return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 	}
 
-	log.WithFields(log.Fields{"lb": lbID, "listenserID": listenerID, "policyID": policy.ID}).Info("policy created")
+	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID, "policyID": policy.ID}).Info("policy created")
 
 	if host != "" {
-		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenserID": listenerID}).Debug("creating policy rule")
+		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
 		// Create HOST_NAME type rule
 		_, err = l7policies.CreateRule(os.octavia, policy.ID, l7policies.CreateRuleOpts{
@@ -549,11 +526,11 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 			return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 		}
 
-		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenserID": listenerID}).Info("policy rule created")
+		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenerID": listenerID}).Info("policy rule created")
 	}
 
 	if path != "" {
-		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenserID": listenerID}).Debug("creating policy rule")
+		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
 		// Create PATH type rule
 		_, err = l7policies.CreateRule(os.octavia, policy.ID, l7policies.CreateRuleOpts{
@@ -570,7 +547,7 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 			return fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 		}
 
-		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenserID": listenerID}).Info("policy rule created")
+		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenerID": listenerID}).Info("policy rule created")
 	}
 
 	return nil

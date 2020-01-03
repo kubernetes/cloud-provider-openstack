@@ -3,8 +3,16 @@ items:
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole
   metadata:
-    name: cloud-controller-manager
+    name: system:cloud-controller-manager
   rules:
+  - apiGroups:
+    - coordination.k8s.io
+    resources:
+    - leases
+    verbs:
+    - get
+    - create
+    - update
   - apiGroups:
     - ""
     resources:
@@ -40,15 +48,13 @@ items:
     - serviceaccounts
     verbs:
     - create
+    - get
   - apiGroups:
     - ""
     resources:
     - persistentvolumes
     verbs:
-    - get
-    - list
-    - update
-    - watch
+    - '*'
   - apiGroups:
     - ""
     resources:
@@ -59,6 +65,22 @@ items:
     - list
     - watch
     - update
+  - apiGroups:
+    - ""
+    resources:
+    - configmaps
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - secrets
+    verbs:
+    - list
+    - get
+    - watch
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole
   metadata:
@@ -69,11 +91,7 @@ items:
     resources:
     - nodes
     verbs:
-    - delete
-    - get
-    - patch
-    - update
-    - list
+    - '*'
   - apiGroups:
     - ""
     resources:
@@ -98,9 +116,7 @@ items:
     resources:
     - persistentvolumes
     verbs:
-    - get
-    - list
-    - watch
+    - '*'
   - apiGroups:
     - ""
     resources:

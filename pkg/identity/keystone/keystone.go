@@ -23,11 +23,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
 	"github.com/gorilla/mux"
+	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -44,12 +44,26 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/cloud-provider-openstack/pkg/version"
+	"k8s.io/klog"
 )
 
 const (
 	maxRetries  = 5
 	cmNamespace = "kube-system"
+	Roles       = "alpha.kubernetes.io/identity/roles"
+	ProjectID   = "alpha.kubernetes.io/identity/project/id"
+	ProjectName = "alpha.kubernetes.io/identity/project/name"
+	DomainID    = "alpha.kubernetes.io/identity/user/domain/id"
+	DomainName  = "alpha.kubernetes.io/identity/user/domain/name"
 )
+
+var userAgentData []string
+
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
 
 type userInfo struct {
 	Username string              `json:"username"`
@@ -90,7 +104,7 @@ func (k *KeystoneAuth) Run() {
 			runtimeutil.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
 			return
 		}
-		glog.Info("ConfigMaps synced and ready")
+		klog.Info("ConfigMaps synced and ready")
 
 		go wait.Until(k.runWorker, time.Second, k.stopCh)
 	}
@@ -98,20 +112,20 @@ func (k *KeystoneAuth) Run() {
 	r := mux.NewRouter()
 	r.HandleFunc("/webhook", k.Handler)
 
-	glog.Infof("Starting webhook server...")
-	glog.Fatal(http.ListenAndServeTLS(k.config.Address, k.config.CertFile, k.config.KeyFile, r))
+	klog.Infof("Starting webhook server...")
+	klog.Fatal(http.ListenAndServeTLS(k.config.Address, k.config.CertFile, k.config.KeyFile, r))
 }
 
 func (k *KeystoneAuth) enqueueConfigMap(obj interface{}) {
 	// obj could be an *v1.ConfigMap, or a DeletionFinalStateUnknown marker item.
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		glog.Errorf("Failed to get key for object: %v", err)
+		klog.Errorf("Failed to get key for object: %v", err)
 		return
 	}
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		glog.Errorf("Failed to get namespace and name for the key %s: %v", key, err)
+		klog.Errorf("Failed to get namespace and name for the key %s: %v", key, err)
 		return
 	}
 
@@ -139,11 +153,11 @@ func (k *KeystoneAuth) processNextItem() bool {
 		// No error, reset the ratelimit counters
 		k.queue.Forget(key)
 	} else if k.queue.NumRequeues(key) < maxRetries {
-		glog.Errorf("Failed to process key %s (will retry): %v", key, err)
+		klog.Errorf("Failed to process key %s (will retry): %v", key, err)
 		k.queue.AddRateLimited(key)
 	} else {
 		// err != nil and too many retries
-		glog.Errorf("Failed to process key %s (giving up): %v", key, err)
+		klog.Errorf("Failed to process key %s (giving up): %v", key, err)
 		k.queue.Forget(key)
 		runtimeutil.HandleError(err)
 	}
@@ -152,7 +166,7 @@ func (k *KeystoneAuth) processNextItem() bool {
 }
 
 func (k *KeystoneAuth) updatePolicies(cm *apiv1.ConfigMap, key string) {
-	glog.Info("ConfigMap created or updated, will update the authorization policy.")
+	klog.Info("ConfigMap created or updated, will update the authorization policy.")
 
 	var policy policyList
 	if err := json.Unmarshal([]byte(cm.Data["policies"]), &policy); err != nil {
@@ -168,14 +182,16 @@ func (k *KeystoneAuth) updatePolicies(cm *apiv1.ConfigMap, key string) {
 	k.authz.pl = policy
 	k.authz.mu.Unlock()
 
-	glog.Infof("Authorization policy updated.")
+	klog.Infof("Authorization policy updated.")
 }
 
 func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
-	glog.Info("ConfigMap created or updated, will update the sync configuration.")
+	klog.Info("ConfigMap created or updated, will update the sync configuration.")
 
 	var sc *syncConfig
-	if err := json.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
+	newConfig := newSyncConfig()
+	sc = &newConfig
+	if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
 		runtimeutil.HandleError(fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", key, err))
 	}
 
@@ -183,7 +199,7 @@ func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
 	k.syncer.syncConfig = sc
 	k.syncer.mu.Unlock()
 
-	glog.Infof("Sync configuration updated.")
+	klog.Infof("Sync configuration updated.")
 }
 
 func (k *KeystoneAuth) processItem(key string) error {
@@ -196,13 +212,13 @@ func (k *KeystoneAuth) processItem(key string) error {
 	switch {
 	case errors.IsNotFound(err):
 		if name == k.config.PolicyConfigMapName {
-			glog.Infof("PolicyConfigmap %v has been deleted.", k.config.PolicyConfigMapName)
+			klog.Infof("PolicyConfigmap %v has been deleted.", k.config.PolicyConfigMapName)
 			k.authz.mu.Lock()
 			k.authz.pl = make([]*policy, 0)
 			k.authz.mu.Unlock()
 		}
 		if name == k.config.SyncConfigMapName {
-			glog.Infof("SyncConfigmap %v has been deleted.", k.config.SyncConfigMapName)
+			klog.Infof("SyncConfigmap %v has been deleted.", k.config.SyncConfigMapName)
 			k.syncer.mu.Lock()
 			sc := newSyncConfig()
 			k.syncer.syncConfig = &sc
@@ -250,7 +266,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 		if k.syncer.syncConfig != nil && userInfo != nil && len(userInfo.Extra["alpha.kubernetes.io/identity/project/id"]) != 0 {
 			err = k.syncer.syncData(userInfo)
 			if err != nil {
-				glog.Errorf("an error occurred during data synchronization: %v", err)
+				klog.Errorf("an error occurred during data synchronization: %v", err)
 			}
 		}
 	} else if kind == "SubjectAccessReview" {
@@ -262,7 +278,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 
 func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
 	user, authenticated, err := k.authn.AuthenticateToken(token)
-	glog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
+	klog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
 
 	if !authenticated {
 		var response status
@@ -306,7 +322,7 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 
 func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
 	output, err := json.MarshalIndent(data, "", "  ")
-	glog.V(4).Infof("authorizeToken data : %s\n", string(output))
+	klog.V(4).Infof("authorizeToken data : %s\n", string(output))
 
 	spec := data["spec"].(map[string]interface{})
 
@@ -339,6 +355,7 @@ func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, da
 		attrs.APIGroup = getField(v, "group")
 		attrs.APIVersion = getField(v, "version")
 		attrs.Resource = getField(v, "resource")
+		attrs.Subresource = getField(v, "subresource")
 		attrs.Name = getField(v, "name")
 	} else if nonResourceAttributes, ok := spec["nonResourceAttributes"]; ok {
 		v := nonResourceAttributes.(map[string]interface{})
@@ -355,7 +372,7 @@ func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, da
 	if len(k.authz.pl) > 0 {
 		var reason string
 		allowed, reason, err = k.authz.Authorize(attrs)
-		glog.V(4).Infof("<<<< authorizeToken: %v, %v, %v\n", allowed, reason, err)
+		klog.V(4).Infof("<<<< authorizeToken: %v, %v, %v\n", allowed, reason, err)
 		if err != nil {
 			http.Error(w, reason, http.StatusInternalServerError)
 			return
@@ -418,7 +435,7 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	if len(policy) > 0 {
 		output, err := json.MarshalIndent(policy, "", "  ")
 		if err == nil {
-			glog.V(4).Infof("Policy %s", string(output))
+			klog.V(4).Infof("Policy %s", string(output))
 		} else {
 			return nil, err
 		}
@@ -431,12 +448,14 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	if c.SyncConfigMapName != "" {
 		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(c.SyncConfigMapName, metav1.GetOptions{})
 		if err != nil {
-			glog.Errorf("configmap get err   #%v ", err)
+			klog.Errorf("configmap get err   #%v ", err)
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.SyncConfigMapName, err)
 		}
 
+		newConfig := newSyncConfig()
+		sc = &newConfig
 		if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
-			glog.Errorf("Unmarshal: %v", err)
+			klog.Errorf("Unmarshal: %v", err)
 			return nil, fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", c.SyncConfigMapName, err)
 		}
 	}
@@ -524,7 +543,7 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 }
 
 func createKubernetesClient(kubeConfig string) (*kubernetes.Clientset, error) {
-	glog.Info("Creating kubernetes API client.")
+	klog.Info("Creating kubernetes API client.")
 
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeConfig)
 	if err != nil {
@@ -541,7 +560,7 @@ func createKubernetesClient(kubeConfig string) (*kubernetes.Clientset, error) {
 		return nil, err
 	}
 
-	glog.Infof("Kubernetes API client created, server version %s", fmt.Sprintf("v%v.%v", v.Major, v.Minor))
+	klog.Infof("Kubernetes API client created, server version %s", fmt.Sprintf("v%v.%v", v.Major, v.Minor))
 	return client, nil
 }
 
@@ -569,10 +588,18 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 		return nil, err
 	}
 
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("k8s-keystone-auth/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
+	klog.V(4).Infof("Using user-agent %s", userAgent.Join())
+
 	// We should use the V3 API
 	client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{})
 	if err != nil {
-		glog.Warningf("Failed: Unable to use keystone v3 identity service: %v", err)
+		klog.Warningf("Failed: Unable to use keystone v3 identity service: %v", err)
 		return nil, fmt.Errorf("failed to authenticate")
 	}
 

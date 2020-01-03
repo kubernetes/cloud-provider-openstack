@@ -20,14 +20,14 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/util/mount"
-	kstrings "k8s.io/kubernetes/pkg/util/strings"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/volumepathhandler"
+	"k8s.io/utils/mount"
+	kstrings "k8s.io/utils/strings"
 )
 
 var _ volume.VolumePlugin = &cinderPlugin{}
@@ -44,7 +44,7 @@ func (plugin *cinderPlugin) ConstructBlockVolumeSpec(podUID types.UID, volumeNam
 	if err != nil {
 		return nil, err
 	}
-	glog.V(5).Infof("globalMapPathUUID: %v, err: %v", globalMapPathUUID, err)
+	klog.V(5).Infof("globalMapPathUUID: %v, err: %v", globalMapPathUUID, err)
 
 	globalMapPath := filepath.Dir(globalMapPathUUID)
 	if len(globalMapPath) <= 1 {
@@ -145,7 +145,7 @@ func (b *cinderVolumeMapper) SetUpDevice() (string, error) {
 }
 
 func (b *cinderVolumeMapper) MapDevice(devicePath, globalMapPath, volumeMapPath, volumeMapName string, podUID types.UID) error {
-	return util.MapBlockVolume(devicePath, globalMapPath, volumeMapPath, volumeMapName, podUID)
+	return util.MapBlockVolume(volumepathhandler.NewBlockVolumePathHandler(), devicePath, globalMapPath, volumeMapPath, volumeMapName, podUID)
 }
 
 // GetGlobalMapPath returns global map path and error
@@ -163,5 +163,5 @@ func (cd *cinderVolume) GetGlobalMapPath(spec *volume.Spec) (string, error) {
 // path: pods/{podUid}/volumeDevices/kubernetes.io~cinder
 func (cd *cinderVolume) GetPodDeviceMapPath() (string, string) {
 	name := cinderVolumePluginName
-	return cd.plugin.host.GetPodVolumeDeviceDir(cd.podUID, kstrings.EscapeQualifiedNameForDisk(name)), cd.volName
+	return cd.plugin.host.GetPodVolumeDeviceDir(cd.podUID, kstrings.EscapeQualifiedName(name)), cd.volName
 }

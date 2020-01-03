@@ -20,4 +20,4 @@
 # GOPATH and handle all of the Go ENV stuff for you.  All you need is Docker
 docker run -it -v "$PWD":/go/src/k8s.io/cloud-provider-openstack:z \
 	-w /go/src/k8s.io/cloud-provider-openstack \
-	golang:1.10 make $1
+	golang:1.12 make $1

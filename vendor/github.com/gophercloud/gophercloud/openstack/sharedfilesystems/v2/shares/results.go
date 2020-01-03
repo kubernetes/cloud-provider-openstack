@@ -71,6 +71,8 @@ type Share struct {
 	SourceCgsnapshotMemberID string `json:"source_cgsnapshot_member_id"`
 	// Timestamp when the share was created
 	CreatedAt time.Time `json:"-"`
+	// Timestamp when the share was updated
+	UpdatedAt time.Time `json:"-"`
 }
 
 func (r *Share) UnmarshalJSON(b []byte) error {
@@ -78,6 +80,7 @@ func (r *Share) UnmarshalJSON(b []byte) error {
 	var s struct {
 		tmp
 		CreatedAt gophercloud.JSONRFC3339MilliNoZ `json:"created_at"`
+		UpdatedAt gophercloud.JSONRFC3339MilliNoZ `json:"updated_at"`
 	}
 	err := json.Unmarshal(b, &s)
 	if err != nil {
@@ -86,6 +89,7 @@ func (r *Share) UnmarshalJSON(b []byte) error {
 	*r = Share(s.tmp)
 
 	r.CreatedAt = time.Time(s.CreatedAt)
+	r.UpdatedAt = time.Time(s.UpdatedAt)
 
 	return nil
 }
@@ -195,6 +199,11 @@ type DeleteResult struct {
 
 // GetResult contains the response body and error from a Get request.
 type GetResult struct {
+	commonResult
+}
+
+// UpdateResult contains the response body and error from an Update request.
+type UpdateResult struct {
 	commonResult
 }
 
@@ -313,5 +322,38 @@ type ExtendResult struct {
 
 // ShrinkResult contains the response body and error from a Shrink request.
 type ShrinkResult struct {
+	gophercloud.ErrResult
+}
+
+// GetMetadatumResult contains the response body and error from a GetMetadatum request.
+type GetMetadatumResult struct {
+	gophercloud.Result
+}
+
+// Extract will get the string-string map from GetMetadatumResult
+func (r GetMetadatumResult) Extract() (map[string]string, error) {
+	var s struct {
+		Meta map[string]string `json:"meta"`
+	}
+	err := r.ExtractInto(&s)
+	return s.Meta, err
+}
+
+// MetadataResult contains the response body and error from GetMetadata, SetMetadata or UpdateMetadata requests.
+type MetadataResult struct {
+	gophercloud.Result
+}
+
+// Extract will get the string-string map from MetadataResult
+func (r MetadataResult) Extract() (map[string]string, error) {
+	var s struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+	err := r.ExtractInto(&s)
+	return s.Metadata, err
+}
+
+// DeleteMetadatumResult contains the response body and error from a DeleteMetadatum request.
+type DeleteMetadatumResult struct {
 	gophercloud.ErrResult
 }

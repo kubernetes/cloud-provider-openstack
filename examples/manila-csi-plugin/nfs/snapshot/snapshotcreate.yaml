@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1alpha1
+kind: VolumeSnapshot
+metadata:
+  name: new-nfs-share-snap
+spec:
+  snapshotClassName: csi-manila-nfs
+  source:
+    name: new-nfs-share-pvc
+    kind: PersistentVolumeClaim

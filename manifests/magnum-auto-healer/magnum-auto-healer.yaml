@@ -1,0 +1,104 @@
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: magnum-auto-healer
+  namespace: kube-system
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: magnum-auto-healer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: magnum-auto-healer
+    namespace: kube-system
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: magnum-auto-healer-config
+  namespace: kube-system
+data:
+  config.yaml: |
+    cluster-name: ${magnum_cluster_uuid}
+    dry-run: false
+    monitor-interval: 15s
+    check-delay-after-add: 20m
+    leader-elect: true
+    healthcheck:
+      master:
+        - type: Endpoint
+          params:
+            unhealthy-duration: 30s
+            protocol: HTTPS
+            port: 6443
+            endpoints: ["/healthz"]
+            ok-codes: [200]
+        - type: NodeCondition
+          params:
+            unhealthy-duration: 1m
+            types: ["Ready"]
+            ok-values: ["True"]
+      worker:
+        - type: NodeCondition
+          params:
+            unhealthy-duration: 1m
+            types: ["Ready"]
+            ok-values: ["True"]
+    openstack:
+      auth-url: ${keystone_auth_url}
+      user-id: ${user_id}
+      project-id: ${user_project_id}
+      password: ${password}
+      region: ${region}
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: magnum-auto-healer
+  namespace: kube-system
+  labels:
+    k8s-app: magnum-auto-healer
+spec:
+  selector:
+    matchLabels:
+      k8s-app: magnum-auto-healer
+  template:
+    metadata:
+      labels:
+        k8s-app: magnum-auto-healer
+    spec:
+      serviceAccountName: magnum-auto-healer
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      containers:
+        - name: magnum-auto-healer
+          image: docker.io/k8scloudprovider/magnum-auto-healer:latest
+          imagePullPolicy: Always
+          args:
+            - /bin/magnum-auto-healer
+            - --config=/etc/magnum-auto-healer/config.yaml
+            - --v
+            - "2"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/magnum-auto-healer
+      volumes:
+        - name: config
+          configMap:
+            name: magnum-auto-healer-config

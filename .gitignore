@@ -144,6 +144,9 @@ zz_generated.openapi.go
 /octavia-ingress-controller
 /client-keystone-auth
 /manila-provisioner
+/barbican-kms-plugin
+/magnum-auto-healer
+/manila-csi-plugin
 
 # snap temp files
 /parts

@@ -35,9 +35,15 @@ It is not recommended to use synchronization of role assignments with disabled p
 
 Default: ["projects", "role_assignments"]
 
-### ``project_black_list``
+### ``projects_black_list``
 
 Contains a list of Keystone project ids, that should be excluded from synchronization.
+
+Default: []
+
+### ``projects_name_black_list``
+
+Contains a list of Keystone project names, that should be excluded from synchronization.
 
 Default: []
 

@@ -4,11 +4,31 @@
 3. Follow the instructions for writing a release note: https://git.k8s.io/community/contributors/devel/pull-requests.md#write-release-notes-if-needed
 -->
 
+**The binaries affected**:
+
+IMPORTANT: Please also add the binary name in the title, e.g.
+`[openstack-cloud-controller-manager]: Add UDP protocol support`
+unless the PR affects multiple binaries.
+
+- [ ] openstack-cloud-controller-manager
+- [ ] cinder-csi-plugin
+- [ ] k8s-keystone-auth
+- [ ] client-keystone-auth
+- [ ] octavia-ingress-controller
+- [ ] manila-csi-plugin
+- [ ] manila-provisioner
+- [ ] magnum-auto-healer
+- [ ] barbican-kms-plugin
+
 **What this PR does / why we need it**:
 
-**Which issue this PR fixes** *(optional, in `fixes #<issue number>(, fixes #<issue_number>, ...)` format, will close that issue when PR gets merged)*: fixes #
 
-**Special notes for your reviewer**:
+**Which issue this PR fixes**:
+fixes #
+
+**Special notes for reviewers**:
+
+<!-- e.g. How to test this PR -->
 
 **Release note**:
 <!--  Steps to write your release note:
@@ -16,4 +36,5 @@
 2. Enter your extended release note in the below block; leaving it blank means using the PR title as the release note. If no release note is required, just write `NONE`.
 -->
 ```release-note
+NONE
 ```

@@ -17,13 +17,12 @@ limitations under the License.
 package cmd
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -65,9 +64,6 @@ func Execute() {
 }
 
 func init() {
-	// the following line exists to make glog happy, for more information, see: https://github.com/kubernetes/kubernetes/issues/17162
-	flag.CommandLine.Parse([]string{})
-
 	log.SetOutput(os.Stdout)
 
 	cobra.OnInitialize(initConfig)

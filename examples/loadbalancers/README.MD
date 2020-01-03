@@ -12,15 +12,15 @@ The example below will create a nginx deployment and expose it via an OpenStack 
 
 ```yaml
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: external-http-nginx-deployment
-  annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
-    loadbalancer.openstack.org/floating-network-id: "9be23551-38e2-4d27-b5ea-ea2ea1321bd6"
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:
@@ -36,6 +36,9 @@ kind: Service
 apiVersion: v1
 metadata:
   name: external-http-nginx-service
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
+    loadbalancer.openstack.org/floating-network-id: "9be23551-38e2-4d27-b5ea-ea2ea1321bd6"  
 spec:
   selector:
     app: nginx
@@ -83,14 +86,15 @@ The example below will create a nginx deployment and expose it via an OpenStack 
 
 ```yaml
 ---
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: internal-http-nginx-deployment
-  annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:
@@ -106,6 +110,8 @@ kind: Service
 apiVersion: v1
 metadata:
   name: internal-http-nginx-service
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"  
 spec:
   selector:
     app: nginx

@@ -20,29 +20,39 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 	"time"
 
-	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/volume/util"
-	utilexec "k8s.io/utils/exec"
-
-	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/volume/util/hostutil"
+	"k8s.io/utils/exec"
+	"k8s.io/utils/mount"
 )
 
 const (
-	probeVolumeDuration = 1 * time.Second
-	probeVolumeTimeout  = 60 * time.Second
-	instanceIDFile      = "/var/lib/cloud/data/instance-id"
+	probeVolumeDuration      = 1 * time.Second
+	probeVolumeTimeout       = 60 * time.Second
+	operationFinishInitDelay = 1 * time.Second
+	operationFinishFactor    = 1.1
+	operationFinishSteps     = 15
+	instanceIDFile           = "/var/lib/cloud/data/instance-id"
 )
 
 type IMount interface {
+	GetHostUtil() hostutil.HostUtils
+	GetBaseMounter() *mount.SafeFormatAndMount
 	ScanForAttach(devicePath string) error
+	GetDevicePath(volumeID string) (string, error)
 	IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	FormatAndMount(source string, target string, fstype string, options []string) error
 	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
+	Mount(source string, target string, fstype string, options []string) error
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
+	MakeFile(pathname string) error
+	MakeDir(pathname string) error
 }
 
 type Mount struct {
@@ -58,28 +68,106 @@ func GetMountProvider() (IMount, error) {
 	return MInstance, nil
 }
 
+// GetBaseMounter returns instance of SafeFormatAndMount
+func (m *Mount) GetBaseMounter() *mount.SafeFormatAndMount {
+	nMounter := mount.New("")
+	nExec := exec.New()
+	return &mount.SafeFormatAndMount{
+		Interface: nMounter,
+		Exec:      nExec,
+	}
+
+}
+
+func (m *Mount) GetHostUtil() hostutil.HostUtils {
+	hostutil := hostutil.NewHostUtil()
+	return hostutil
+}
+
 // probeVolume probes volume in compute
 func probeVolume() error {
 	// rescan scsi bus
-	scsi_path := "/sys/class/scsi_host/"
-	if dirs, err := ioutil.ReadDir(scsi_path); err == nil {
+	scsiPath := "/sys/class/scsi_host/"
+	if dirs, err := ioutil.ReadDir(scsiPath); err == nil {
 		for _, f := range dirs {
-			name := scsi_path + f.Name() + "/scan"
+			name := scsiPath + f.Name() + "/scan"
 			data := []byte("- - -")
 			ioutil.WriteFile(name, data, 0666)
 		}
 	}
 
-	executor := utilexec.New()
+	executor := exec.New()
 	args := []string{"trigger"}
 	cmd := executor.Command("udevadm", args...)
 	_, err := cmd.CombinedOutput()
 	if err != nil {
-		glog.V(3).Infof("error running udevadm trigger %v\n", err)
+		klog.V(3).Infof("error running udevadm trigger %v\n", err)
 		return err
 	}
-	glog.V(4).Info("Successfully probed all attachments")
 	return nil
+}
+
+// GetDevicePath returns the path of an attached block storage volume, specified by its id.
+func (m *Mount) GetDevicePath(volumeID string) (string, error) {
+	backoff := wait.Backoff{
+		Duration: operationFinishInitDelay,
+		Factor:   operationFinishFactor,
+		Steps:    operationFinishSteps,
+	}
+
+	var devicePath string
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		devicePath = m.getDevicePathBySerialID(volumeID)
+		if devicePath != "" {
+			return true, nil
+		}
+		// see issue https://github.com/kubernetes/cloud-provider-openstack/issues/705
+		probeVolume()
+		return false, nil
+	})
+
+	if err == wait.ErrWaitTimeout {
+		return "", fmt.Errorf("Failed to find device for the volumeID: %q within the alloted time", volumeID)
+	} else if devicePath == "" {
+		return "", fmt.Errorf("Device path was empty for volumeID: %q", volumeID)
+	}
+	return devicePath, nil
+}
+
+// GetDevicePathBySerialID returns the path of an attached block storage volume, specified by its id.
+func (m *Mount) getDevicePathBySerialID(volumeID string) string {
+	// Build a list of candidate device paths.
+	// Certain Nova drivers will set the disk serial ID, including the Cinder volume id.
+	candidateDeviceNodes := []string{
+		// KVM
+		fmt.Sprintf("virtio-%s", volumeID[:20]),
+		// KVM #852
+		fmt.Sprintf("virtio-%s", volumeID),
+		// KVM virtio-scsi
+		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID[:20]),
+		// KVM virtio-scsi #852
+		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID),
+		// ESXi
+		fmt.Sprintf("wwn-0x%s", strings.Replace(volumeID, "-", "", -1)),
+	}
+
+	files, err := ioutil.ReadDir("/dev/disk/by-id/")
+	if err != nil {
+		klog.V(4).Infof("ReadDir failed with error %v", err)
+	}
+
+	for _, f := range files {
+		for _, c := range candidateDeviceNodes {
+			if c == f.Name() {
+				klog.V(4).Infof("Found disk attached as %q; full devicepath: %s\n",
+					f.Name(), path.Join("/dev/disk/by-id/", f.Name()))
+				return path.Join("/dev/disk/by-id/", f.Name())
+			}
+		}
+	}
+
+	klog.V(4).Infof("Failed to find device for the volumeID: %q by serial ID", volumeID)
+	return ""
 }
 
 // ScanForAttach
@@ -92,15 +180,14 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 	for {
 		select {
 		case <-ticker.C:
-			glog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
+			klog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
 			probeVolume()
 
-			exists, err := util.PathExists(devicePath)
+			exists, err := mount.PathExists(devicePath)
 			if exists && err == nil {
 				return nil
-			} else {
-				glog.V(3).Infof("Could not find attached Cinder disk %s", devicePath)
 			}
+			klog.V(3).Infof("Could not find attached Cinder disk %s", devicePath)
 		case <-timer.C:
 			return fmt.Errorf("Could not find attached Cinder disk %s. Timeout waiting for mount paths to be created.", devicePath)
 		}
@@ -109,8 +196,13 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 
 // FormatAndMount
 func (m *Mount) FormatAndMount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
 	return diskMounter.FormatAndMount(source, target, fstype, options)
+}
+
+func (m *Mount) Mount(source string, target string, fstype string, options []string) error {
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
+	return diskMounter.Mount(source, target, fstype, options)
 }
 
 // IsLikelyNotMountPointAttach
@@ -133,16 +225,15 @@ func (m *Mount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return notMnt, fmt.Errorf("targetpath not found")
-		} else {
-			return notMnt, err
 		}
+		return notMnt, err
 	}
 	return notMnt, nil
 }
 
 // UnmountPath
 func (m *Mount) UnmountPath(mountPath string) error {
-	return util.UnmountPath(mountPath, mount.New(""))
+	return mount.CleanupMountPoint(mountPath, mount.New(""), false /* extensiveMountPointCheck */)
 }
 
 // GetInstanceID from file
@@ -152,10 +243,37 @@ func (m *Mount) GetInstanceID() (string, error) {
 	if err == nil {
 		instanceID := string(idBytes)
 		instanceID = strings.TrimSpace(instanceID)
-		glog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
+		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
 		if instanceID != "" {
 			return instanceID, nil
 		}
 	}
 	return "", err
+}
+
+// MakeDir creates dir
+func (m *Mount) MakeDir(pathname string) error {
+	err := os.MkdirAll(pathname, os.FileMode(0755))
+	if err != nil {
+		if !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// MakeFile creates an empty file
+func (m *Mount) MakeFile(pathname string) error {
+	f, err := os.OpenFile(pathname, os.O_CREATE, os.FileMode(0644))
+	defer f.Close()
+	if err != nil {
+		if !os.IsExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func IsCorruptedMnt(err error) bool {
+	return mount.IsCorruptedMnt(err)
 }

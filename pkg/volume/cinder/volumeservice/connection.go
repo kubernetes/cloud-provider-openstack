@@ -17,25 +17,20 @@ limitations under the License.
 package volumeservice
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"net/http"
 	"os"
 	"reflect"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/noauth"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"github.com/spf13/pflag"
 	"gopkg.in/gcfg.v1"
 
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 
-	"github.com/golang/glog"
-	netutil "k8s.io/apimachinery/pkg/util/net"
-	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/klog"
 )
 
 type cinderConfig struct {
@@ -45,73 +40,31 @@ type cinderConfig struct {
 	}
 }
 
-func (cfg cinderConfig) toAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		TenantID:         cfg.Global.TenantID,
-		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
+// userAgentData is used to add extra information to the gophercloud user-agent
+var userAgentData []string
 
-		// Persistent service, so we need to be able to renew tokens.
-		AllowReauth: true,
-	}
+// AddExtraFlags is called by the main package to add component specific command line flags
+func AddExtraFlags(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 }
 
-func (cfg cinderConfig) toAuth3Options() tokens3.AuthOptions {
-	return tokens3.AuthOptions{
-		IdentityEndpoint: cfg.Global.AuthURL,
-		Username:         cfg.Global.Username,
-		UserID:           cfg.Global.UserID,
-		Password:         cfg.Global.Password,
-		DomainID:         cfg.Global.DomainID,
-		DomainName:       cfg.Global.DomainName,
-		AllowReauth:      true,
-	}
-}
+// getConfigFromEnv() is no longer supported
+// func getConfigFromEnv() cinderConfig {
+// 	cfg := cinderConfig{Config: openstack_provider.ConfigFromEnv()}
 
-func getConfigFromEnv() cinderConfig {
-	var cfg cinderConfig
-
-	cfg.Global.AuthURL = os.Getenv("OS_AUTH_URL")
-	cfg.Global.Username = os.Getenv("OS_USERNAME")
-	cfg.Global.Password = os.Getenv("OS_PASSWORD")
-	cfg.Global.Region = os.Getenv("OS_REGION_NAME")
-	cfg.Global.UserID = os.Getenv("OS_USER_ID")
-	cfg.Global.TrustID = os.Getenv("OS_TRUST_ID")
-
-	cfg.Global.TenantID = os.Getenv("OS_TENANT_ID")
-	if cfg.Global.TenantID == "" {
-		cfg.Global.TenantID = os.Getenv("OS_PROJECT_ID")
-	}
-	cfg.Global.TenantName = os.Getenv("OS_TENANT_NAME")
-	if cfg.Global.TenantName == "" {
-		cfg.Global.TenantName = os.Getenv("OS_PROJECT_NAME")
-	}
-
-	cfg.Global.DomainID = os.Getenv("OS_DOMAIN_ID")
-	if cfg.Global.DomainID == "" {
-		cfg.Global.DomainID = os.Getenv("OS_USER_DOMAIN_ID")
-	}
-	cfg.Global.DomainName = os.Getenv("OS_DOMAIN_NAME")
-	if cfg.Global.DomainName == "" {
-		cfg.Global.DomainName = os.Getenv("OS_USER_DOMAIN_NAME")
-	}
-
-	cfg.Cinder.Endpoint = os.Getenv("OS_CINDER_ENDPOINT")
-	return cfg
-}
+// 	cfg.Cinder.Endpoint = os.Getenv("OS_CINDER_ENDPOINT")
+// 	return cfg
+// }
 
 func getConfig(configFilePath string) (cinderConfig, error) {
-	config := getConfigFromEnv()
+	// Support from loading from Env is no longer supported. kubernetes/kubernetes#81117
+	// config := getConfigFromEnv()
+	var config cinderConfig
 	if configFilePath != "" {
 		var configFile *os.File
 		configFile, err := os.Open(configFilePath)
 		if err != nil {
-			glog.Fatalf("Couldn't open configuration %s: %#v",
+			klog.Fatalf("Couldn't open configuration %s: %#v",
 				configFilePath, err)
 			return cinderConfig{}, err
 		}
@@ -120,45 +73,20 @@ func getConfig(configFilePath string) (cinderConfig, error) {
 
 		err = gcfg.FatalOnly(gcfg.ReadInto(&config, configFile))
 		if err != nil {
-			glog.Fatalf("Couldn't read configuration: %#v", err)
+			klog.Fatalf("Couldn't read configuration: %#v", err)
 			return cinderConfig{}, err
 		}
 		return config, nil
 	}
 	if reflect.DeepEqual(config, cinderConfig{}) {
-		glog.Fatal("Configuration missing: no config file specified and " +
+		klog.Fatal("Configuration missing: no config file specified and " +
 			"environment variables are not set.")
 	}
 	return config, nil
 }
 
 func getKeystoneVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, error) {
-	provider, err := openstack.NewClient(cfg.Global.AuthURL)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.Global.CAFile != "" {
-		var roots *x509.CertPool
-		roots, err = certutil.NewPool(cfg.Global.CAFile)
-		if err != nil {
-			return nil, err
-		}
-		config := &tls.Config{}
-		config.RootCAs = roots
-		provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
-
-	}
-	if cfg.Global.TrustID != "" {
-		opts := cfg.toAuth3Options()
-		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.Global.TrustID,
-			AuthOptionsBuilder: &opts,
-		}
-		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
-	} else {
-		err = openstack.Authenticate(provider, cfg.toAuthOptions())
-	}
-
+	provider, err := openstack_provider.NewOpenStackClient(&cfg.Config.Global, "cinder-provisioner", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +109,13 @@ func getNoAuthVolumeService(cfg cinderConfig) (*gophercloud.ServiceClient, error
 	if err != nil {
 		return nil, err
 	}
+
+	userAgent := gophercloud.UserAgent{}
+	userAgent.Prepend(fmt.Sprintf("cinder-provisioner/%s", version.Version))
+	for _, data := range userAgentData {
+		userAgent.Prepend(data)
+	}
+	provider.UserAgent = userAgent
 
 	client, err := noauth.NewBlockStorageNoAuth(provider, noauth.EndpointOpts{
 		CinderEndpoint: cfg.Cinder.Endpoint,

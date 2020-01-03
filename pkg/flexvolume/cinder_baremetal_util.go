@@ -21,8 +21,8 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/golang/glog"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
+	"k8s.io/klog"
 
 	"k8s.io/cloud-provider-openstack/pkg/flexvolume/cinder/drivers"
 )
@@ -35,10 +35,10 @@ type CinderBaremetalUtil struct {
 
 // AttachDiskBaremetal mounts the device and detaches the disk from the kubelet's host machine.
 func (cb *CinderBaremetalUtil) AttachDiskBaremetal(b *FlexVolumeDriver, targetMountDir string) error {
-	glog.V(4).Infof("Begin to attach volume %v", b.volId)
+	klog.V(4).Infof("Begin to attach volume %v", b.volId)
 	volume, err := cb.client.getVolume(b.volId)
 	if err != nil {
-		glog.Errorf("Get volume %s error: %v", b.volId, err)
+		klog.Errorf("Get volume %s error: %v", b.volId, err)
 		return err
 	}
 
@@ -46,7 +46,7 @@ func (cb *CinderBaremetalUtil) AttachDiskBaremetal(b *FlexVolumeDriver, targetMo
 	if len(volume.Attachments) > 0 || volume.Status != "available" {
 		for _, att := range volume.Attachments {
 			if att.HostName == cb.hostname && att.Device == targetMountDir {
-				glog.V(5).Infof("Volume %s is already attached", b.volId)
+				klog.V(5).Infof("Volume %s is already attached", b.volId)
 				attached = true
 				break
 			}
@@ -94,14 +94,14 @@ func (cb *CinderBaremetalUtil) AttachDiskBaremetal(b *FlexVolumeDriver, targetMo
 
 	rbdDriver, err := drivers.NewRBDDriver()
 	if err != nil {
-		glog.Warningf("Get cinder driver RBD failed: %v", err)
+		klog.Warningf("Get cinder driver RBD failed: %v", err)
 		cb.client.detach(volume.ID)
 		return err
 	}
 
 	err = rbdDriver.Format(data, b.fsType)
 	if err != nil {
-		glog.Warningf("Format cinder volume %s failed: %v", b.volId, err)
+		klog.Warningf("Format cinder volume %s failed: %v", b.volId, err)
 		cb.client.detach(volume.ID)
 		return err
 	}

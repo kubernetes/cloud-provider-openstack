@@ -17,13 +17,14 @@ limitations under the License.
 package lifecycle
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -73,7 +74,7 @@ var _ = initializer.WantsExternalKubeInformerFactory(&Lifecycle{})
 var _ = initializer.WantsExternalKubeClientSet(&Lifecycle{})
 
 // Admit makes an admission decision based on the request attributes
-func (l *Lifecycle) Admit(a admission.Attributes) error {
+func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) error {
 	// prevent deletion of immortal namespaces
 	if a.GetOperation() == admission.Delete && a.GetKind().GroupKind() == v1.SchemeGroupVersion.WithKind("Namespace").GroupKind() && l.immortalNamespaces.Has(a.GetName()) {
 		return errors.NewForbidden(a.GetResource().GroupResource(), a.GetName(), fmt.Errorf("this namespace may not be deleted"))
@@ -139,7 +140,7 @@ func (l *Lifecycle) Admit(a admission.Attributes) error {
 			exists = true
 		}
 		if exists {
-			glog.V(4).Infof("found %s in cache after waiting", a.GetNamespace())
+			klog.V(4).Infof("found %s in cache after waiting", a.GetNamespace())
 		}
 	}
 
@@ -160,7 +161,7 @@ func (l *Lifecycle) Admit(a admission.Attributes) error {
 		case err != nil:
 			return errors.NewInternalError(err)
 		}
-		glog.V(4).Infof("found %s via storage lookup", a.GetNamespace())
+		klog.V(4).Infof("found %s via storage lookup", a.GetNamespace())
 	}
 
 	// ensure that we're not trying to create objects in terminating namespaces
@@ -169,8 +170,15 @@ func (l *Lifecycle) Admit(a admission.Attributes) error {
 			return nil
 		}
 
-		// TODO: This should probably not be a 403
-		return admission.NewForbidden(a, fmt.Errorf("unable to create new content in namespace %s because it is being terminated", a.GetNamespace()))
+		err := admission.NewForbidden(a, fmt.Errorf("unable to create new content in namespace %s because it is being terminated", a.GetNamespace()))
+		if apierr, ok := err.(*errors.StatusError); ok {
+			apierr.ErrStatus.Details.Causes = append(apierr.ErrStatus.Details.Causes, metav1.StatusCause{
+				Type:    v1.NamespaceTerminatingCause,
+				Message: fmt.Sprintf("namespace %s is being terminated", a.GetNamespace()),
+				Field:   "metadata.namespace",
+			})
+		}
+		return err
 	}
 
 	return nil

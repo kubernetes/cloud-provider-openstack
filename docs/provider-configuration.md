@@ -5,22 +5,26 @@ to the OpenStack Cloud Provider.
 
 ## Contents
 
-* [Supported Services](#supported-services)
-* [Cloud Configuration File](#cloud-configuration-file)
-  * [Sample Configuration](#sample-configuration)
-  * [Configuration Options](#configuration-options)
-    * [Global](#global)
-      * [Global Required Parameters](#global-required-parameters)
-      * [Global Optional Parameters](#global-optional-parameters)
-    * [Block Storage](#block-storage)
-      * [Block Storage Optional Parameters](#block-storage-optional-parameters)
-      * [Block Storage Notes](#block-storage-notes)
-    * [Load Balancer](#load-balancer)
-      * [Load Balancer Optional Parameters](#load-balancer-optional-parameters)
-    * [Metadata](#metadata)
-      * [Metadata Optional Parameters](#metadata-optional-parameters)
-    * [Router](#router)
-      * [Router Optional Parameters](#router-optional-parameters)
+- [OpenStack Cloud Provider Configuration Options](#openstack-cloud-provider-configuration-options)
+  - [Contents](#contents)
+  - [Supported Services](#supported-services)
+  - [Cloud Configuration File](#cloud-configuration-file)
+    - [Sample configuration](#sample-configuration)
+    - [Configuration Options](#configuration-options)
+      - [Global](#global)
+        - [Global Required Parameters](#global-required-parameters)
+        - [Global Optional Parameters](#global-optional-parameters)
+      - [Networking](#networking)
+        - [Networking](#networking-optional-parameters)
+      - [Load Balancer](#load-balancer)
+        - [Load Balancer Optional Parameters](#load-balancer-optional-parameters)
+      - [Block Storage](#block-storage)
+        - [Block Storage Optional Parameters](#block-storage-optional-parameters)
+        - [Block Storage Notes](#block-storage-notes)
+      - [Metadata](#metadata)
+        - [Metadata Optional Parameters](#metadata-optional-parameters)
+      - [Router](#router)
+        - [Router Optional Parameters](#router-optional-parameters)
 
 ## Supported Services
 
@@ -30,7 +34,7 @@ The provider supports several OpenStack services:
 |--------------------------|----------------|----------|
 | Identity (Keystone)      | v2, v3 †       | Yes      |
 | Compute (Nova)           | v2             | No       |
-| Block Storage (Cinder)   | v1, v2, v3‡    | No       |
+| Block Storage (Cinder)   | v2, v3‡        | No       |
 | Load Balancing (Neutron) | v1§, v2        | No       |
 | Load Balancing (Octavia) | v2             | No       |
 
@@ -39,8 +43,9 @@ The provider supports several OpenStack services:
 a future release. As of the "Queens" release, OpenStack no longer exposes the
 Identity v2 API.
 
-‡ Block Storage v1 API support is deprecated, Block Storage v3 API support was
-added in Kubernetes 1.9.
+‡ Block Storage v3 API support was added in Kubernetes 1.9.
+
+  *NOTE*: Cinder CSI Supports Block Storage V3 API only.
 
 § Load Balancing v1 API support was removed in Kubernetes 1.9.
 
@@ -52,10 +57,10 @@ support for impacted features. Certain features are also enabled or disabled
 based on the list of extensions published by Neutron in the underlying cloud.
 
 ## Cloud Configuration File
-Kubernetes knows how to interact with OpenStack via the file `cloud.conf`. It is
-a standard INI file that provides Kubernetes with an OpenStack cloud endpoint,
-user authentication credentials, and additional configuration specific to the
-host cloud.
+Kubernetes knows how to interact with OpenStack via configuration file
+specified in `CLOUD_CONFIG` environment variable. It is a standard INI file
+that provides Kubernetes with an OpenStack cloud endpoint, user authentication
+credentials, and additional configuration specific to the host cloud.
 
 ### Sample configuration
 This is an example of a typical configuration that touches the values that most
@@ -86,10 +91,11 @@ service it supports. The currently available configuration sections include:
 * [Metadata](#metadata)
 * [Router](#router)
 
+
 #### Global
 
 These configuration options for the OpenStack provider pertain to its global
-configuration and should appear in the `[Global]` section of the `cloud.conf`
+configuration and should appear in the `[Global]` section of the `$CLOUD_CONFIG`
 file.
 
 ##### Global Required Parameters
@@ -98,11 +104,10 @@ file.
   OpenStack control panels, this can be found at Access and Security > API
   Access > Credentials.
 * `password`: Refers to the password of a valid user set in keystone.
-* `tenant-id`: Used to specify the ID of the project where you want
-  to create your resources. When using Keystone V3 - which changed the 
-  identifier `tenant` to `project` - the `tenant-id` value is automatically
-  mapped to the project construct in the API.
 * `username`: Refers to the username of a valid user set in keystone.
+
+It is also required to provide either `tenant-id` only or `tenant-name` together
+with information about domain: `domain-id` or `domain-name`.
 
 ##### Global Optional Parameters
 * `ca-file`: Used to specify the path to your custom CA file. 
@@ -116,18 +121,62 @@ file.
   connotation, a deployment can use a geographical name for a region identifier
   such as `us-east`. Available regions are found under the `/v3/regions`
   endpoint of the Keystone API.
+* `tenant-id`: Used to specify the ID of the project where you want
+  to create your resources. When using Keystone V3 - which changed the
+  identifier `tenant` to `project` - the `tenant-id` value is automatically
+  mapped to the project construct in the API.
 * `tenant-name`: Used to specify the name of the project where you
   want to create your resources.
+* `tenant-domain-id`: Used to specify the ID of the domain your project belongs
+  to.
+* `tenant-domain-name`: Used to specify the name of the domain your project
+  belongs to.
+* `user-domain-id`: Used to specify the ID of the domain your user belongs to.
+* `user-domain-name`: Used to specify the name of the domain your user belongs
+  to.
 * `trust-id`: Used to specify the identifier of the trust to use for
   authorization. A trust represents a user's (the trustor) authorization to
   delegate roles to another user (the trustee), and optionally allow the trustee
   to impersonate the trustor. Available trusts are found under the
   `/v3/OS-TRUST/trusts` endpoint of the Keystone API.
+* `use-clouds`: Set this flag to `true` to get authorization credentials from a clouds.yaml file. Options manually set in the `[Global]` section of $CLOUD_CONFIG file will be prioritized over values read from clouds.yaml. The recommended usage is to set the option `CloudsFile` with the path to your clouds.yaml file. However, by default a clouds.yaml file will be looked for in the following locations, in order, if it is not set:
+    1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
+    2. The directory `pkg/cloudprovider/providers/openstack/`
+    3. The directory `~/.config/openstack`
+    4. The directory `/etc/openstack`
+* `clouds-file`: Used to specify the path to a clouds.yaml file that you want read authorization data from
+* `cloud`: Used to specify which named cloud in the clouds.yaml file that you want to use
+* `application-credential-id`: The ID of an application credential to
+  authenticate with. An `application-credential-secret` has to bet set along
+  with this parameter.
+* `application-credential-name`: The name of an application credential to
+  authenticate with.
+* `application-credential-secret`: The secret of an application credential to
+  authenticate with.
 
+####  Networking
+
+These configuration options for the OpenStack provider pertain to the network
+configuration and should appear in the `[Networking]` section of the `$CLOUD_CONFIG`
+file.
+
+##### Networking Optional Parameters
+
+* `ipv6-support-disabled`: Indicates whether or not to use ipv6 addresses.
+  The default is `false`. When `true` is specified then will ignore any
+  ipv6 addresses assigned to the node.
+* `public-network-name`: Used to specify external network.
+  The default is `public`. Must be a network name, not id.
+* `internal-network-name`: Used to override internal network selection.
+  Where no value is provided automatic detection will select random node interface
+  as internal. This option makes sense and recommended to specify only
+  when you have more than one interface attached to kubernetes nodes.
+  Must be a network name, not id.
 
 ####  Load Balancer
+
 These configuration options for the OpenStack provider pertain to the load
-balancer and should appear in the `[LoadBalancer]` section of the `cloud.conf`
+balancer and should appear in the `[LoadBalancer]` section of the `$CLOUD_CONFIG`
 file.
 
 ##### Load Balancer Optional Parameters
@@ -152,10 +201,21 @@ file.
 * `subnet-id`: Used to specify the ID of the subnet you want to
   create your loadbalancer on. Can be found at Network > Networks. Click on the
   respective network to get its subnets.
+* `network-id`: Used to specify the ID of the network you want to create your
+  loadbalancer on. A subnet with available IP addresses will be selected to
+  create loadbalancer's virtual IP. In case of Octavia, preference will be given
+  to IPv4 over IPv6 subnets.
 * `manage-security-groups`: Determines whether or not the load
   balancer should automatically manage the security group rules. Valid values
   are `true` and `false`. The default is `false`. When `true` is specified
   `node-security-group` must also be supplied.
+
+  *NOTE*: When using Octavia, the worker nodes and the Octavia amphorae are
+  usually in the same subnet, so it's sufficient to config the port security
+  group rules manually for worker nodes, to allow the traffic coming from the
+  the subnet IP range to the node port range(usually it is 30000-32767). As a
+  result, `manage-security-groups` is not needed when using Octavia.
+
 * `monitor-delay`: The time, in seconds, between sending probes to
   members of the load balancer.
 * `monitor-max-retries`: Number of permissible ping failures before
@@ -170,16 +230,18 @@ file.
   Where `true` is specified and an Octavia LBaaS V2 entry can not be found, the
   provider will fall back and attempt to find a Neutron LBaaS V2 endpoint
   instead. The default value is `false`.
+* `internal-lb`: Determines whether or not to create an internal load balancer
+  (no floating IP) by default. The default value is `false`.
 
 #### Block Storage
 
 These configuration options for the OpenStack provider pertain to block storage
-and should appear in the `[BlockStorage]` section of the `cloud.conf` file.
+and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
 
 ##### Block Storage Optional Parameters
 
 * `bs-version`: Used to override automatic version detection. Valid
-  values are `v1`, `v2`, `v3` and `auto`. When `auto` is specified automatic
+  values are `v2`, `v3` and `auto`. When `auto` is specified automatic
   detection will select the highest supported version exposed by the underlying
   OpenStack cloud. The default value if none is provided is `auto`.
 * `ignore-volume-az`: Used to influence availability zone use when
@@ -194,6 +256,11 @@ and should appear in the `[BlockStorage]` section of the `cloud.conf` file.
   provided by Cinder. The default value of `false` results in the discovery of
   the device path based on its serial number and `/dev/disk/by-id` mapping and is
   the recommended approach.
+
+##### Block Storage (CSI)
+
+* `node-volume-attach-limit`: Maximum volumes that can be attached to the node. Its
+  default value is 256.
 
 ##### Block Storage Notes
 
@@ -217,7 +284,7 @@ bs-version=v2
 #### Metadata
 
 These configuration options for the OpenStack provider pertain to metadata and
-should appear in the `[Metadata]` section of the `cloud.conf` file.
+should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.
 
 ##### Metadata Optional Parameters
 
@@ -243,7 +310,7 @@ should appear in the `[Metadata]` section of the `cloud.conf` file.
 
 These configuration options for the OpenStack provider pertain to the [kubenet]
 Kubernetes network plugin and should appear in the `[Router]` section of the
-`cloud.conf` file.
+`$CLOUD_CONFIG` file.
 
 ##### Router Optional Parameters
 

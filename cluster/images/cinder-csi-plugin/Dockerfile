@@ -1,10 +1,9 @@
-# Based on centos
-FROM centos:7.4.1708
+FROM k8s.gcr.io/debian-base-amd64:1.0.0
 LABEL maintainers="Kubernetes Authors"
 LABEL description="Cinder CSI Plugin"
 
 # Install e4fsprogs for format
-RUN yum -y install e4fsprogs
+RUN clean-install ca-certificates e2fsprogs mount xfsprogs udev
 
 ADD cinder-csi-plugin /bin/
 

@@ -24,13 +24,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang/glog"
 	"gopkg.in/yaml.v2"
 	core_v1 "k8s.io/api/core/v1"
 	rbac_v1 "k8s.io/api/rbac/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog"
 )
 
 // By now only project syncing is supported
@@ -53,6 +53,9 @@ type syncConfig struct {
 
 	// List of project ids to exclude from syncing.
 	ProjectBlackList []string `yaml:"projects_black_list"`
+
+	// List of project names to exclude from syncing.
+	ProjectNameBlackList []string `yaml:"projects_name_black_list"`
 }
 
 func (sc *syncConfig) validate() error {
@@ -100,7 +103,7 @@ func (sc *syncConfig) formatNamespaceName(id string, name string, domain string)
 	res = strings.Replace(res, "%d", domain, -1)
 
 	if len(res) > 63 {
-		glog.Warningf("Generated namespace name '%v' exceeds the maximum possible length of 63 characters. Just Keystone project id '%v' will be used as the namespace name.", res, id)
+		klog.Warningf("Generated namespace name '%v' exceeds the maximum possible length of 63 characters. Just Keystone project id '%v' will be used as the namespace name.", res, id)
 		return id
 	}
 
@@ -123,12 +126,12 @@ func newSyncConfigFromFile(path string) (*syncConfig, error) {
 
 	yamlFile, err := ioutil.ReadFile(path)
 	if err != nil {
-		glog.Errorf("yamlFile get err   #%v ", err)
+		klog.Errorf("yamlFile get err   #%v ", err)
 		return nil, err
 	}
 	err = yaml.Unmarshal(yamlFile, &sc)
 	if err != nil {
-		glog.Errorf("Unmarshal: %v", err)
+		klog.Errorf("Unmarshal: %v", err)
 		return nil, err
 	}
 
@@ -147,8 +150,15 @@ func (s *Syncer) syncData(u *userInfo) error {
 	defer s.mu.Unlock()
 
 	for _, p := range s.syncConfig.ProjectBlackList {
-		if u.Extra["alpha.kubernetes.io/identity/project/id"][0] == p {
-			glog.Infof("Project %v is in black list. Skipping.", p)
+		if u.Extra[ProjectID][0] == p {
+			klog.Infof("Project %v is in black list. Skipping.", p)
+			return nil
+		}
+	}
+
+	for _, p := range s.syncConfig.ProjectNameBlackList {
+		if u.Extra[ProjectName][0] == p {
+			klog.Infof("Project %v is in black list. Skipping.", p)
 			return nil
 		}
 	}
@@ -158,9 +168,9 @@ func (s *Syncer) syncData(u *userInfo) error {
 	}
 
 	namespaceName := s.syncConfig.formatNamespaceName(
-		u.Extra["alpha.kubernetes.io/identity/project/id"][0],
-		u.Extra["alpha.kubernetes.io/identity/project/name"][0],
-		u.Extra["alpha.kubernetes.io/identity/user/domain/id"][0],
+		u.Extra[ProjectID][0],
+		u.Extra[ProjectName][0],
+		u.Extra[DomainID][0],
 	)
 
 	// sync project data first
@@ -197,12 +207,12 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 		}
 		namespace, err = s.k8sClient.CoreV1().Namespaces().Create(namespace)
 		if err != nil {
-			glog.Warningf("Cannot create a namespace for the user: %v", err)
+			klog.Warningf("Cannot create a namespace for the user: %v", err)
 			return errors.New("Internal server error")
 		}
 	} else if err != nil {
 		// Some other error.
-		glog.Warningf("Cannot get a response from the server: %v", err)
+		klog.Warningf("Cannot get a response from the server: %v", err)
 		return errors.New("Internal server error")
 	}
 
@@ -211,9 +221,9 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 
 func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) error {
 	// TODO(mfedosin): add a field separator to filter out unnecessary roles bindings at an early stage
-	roleBindings, err := s.k8sClient.Rbac().RoleBindings(namespaceName).List(metav1.ListOptions{})
+	roleBindings, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).List(metav1.ListOptions{})
 	if err != nil {
-		glog.Warningf("Cannot get a list of role bindings from the server: %v", err)
+		klog.Warningf("Cannot get a list of role bindings from the server: %v", err)
 		return errors.New("Internal server error")
 	}
 
@@ -227,16 +237,16 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 		}
 
 		var keepRoleBinding bool
-		for _, roleName := range u.Extra["alpha.kubernetes.io/identity/roles"] {
+		for _, roleName := range u.Extra[Roles] {
 			roleBindingName := u.UID + "_" + roleName
 			if roleBinding.Name == roleBindingName {
 				keepRoleBinding = true
 			}
 		}
 		if !keepRoleBinding {
-			err = s.k8sClient.Rbac().RoleBindings(namespaceName).Delete(roleBinding.Name, &metav1.DeleteOptions{})
+			err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Delete(roleBinding.Name, &metav1.DeleteOptions{})
 			if err != nil {
-				glog.Warningf("Cannot delete a role binding from the server: %v", err)
+				klog.Warningf("Cannot delete a role binding from the server: %v", err)
 				return errors.New("Internal server error")
 			}
 		}
@@ -244,7 +254,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 	}
 
 	// create new role bindings
-	for _, roleName := range u.Extra["alpha.kubernetes.io/identity/roles"] {
+	for _, roleName := range u.Extra[Roles] {
 		roleBindingName := u.UID + "_" + roleName
 
 		// check that role binding doesn't exist
@@ -276,9 +286,9 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 				Name:     roleName,
 			},
 		}
-		roleBinding, err = s.k8sClient.Rbac().RoleBindings(namespaceName).Create(roleBinding)
+		roleBinding, err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(roleBinding)
 		if err != nil {
-			glog.Warningf("Cannot create a role binding for the user: %v", err)
+			klog.Warningf("Cannot create a role binding for the user: %v", err)
 			return errors.New("Internal server error")
 		}
 	}

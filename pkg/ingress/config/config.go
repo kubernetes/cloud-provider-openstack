@@ -17,53 +17,40 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gophercloud/gophercloud"
+	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	ClusterName string
-	Kubernetes  kubeConfig    `mapstructure:"kubernetes"`
-	OpenStack   osConfig      `mapstructure:"openstack"`
-	Octavia     octaviaConfig `mapstructure:"octavia"`
+	ClusterName string                      `mapstructure:"cluster-name"`
+	Kubernetes  kubeConfig                  `mapstructure:"kubernetes"`
+	OpenStack   openstack_provider.AuthOpts `mapstructure:"openstack"`
+	Octavia     octaviaConfig               `mapstructure:"octavia"`
 }
 
 // Configuration for connecting to Kubernetes API server, either api_host or kubeconfig should be configured.
 type kubeConfig struct {
 	// (Optional)Kubernetes API server host address.
-	ApiserverHost string `mapstructure:"api_host"`
+	ApiserverHost string `mapstructure:"api-host"`
 
 	// (Optional)Kubeconfig file used to connect to Kubernetes cluster.
 	KubeConfig string `mapstructure:"kubeconfig"`
 }
 
-// OpenStack credentials configuration, the section is required.
-type osConfig struct {
-	Username  string
-	Password  string
-	ProjectID string `mapstructure:"project_id"`
-	AuthURL   string `mapstructure:"auth_url"`
-	Region    string
-}
-
 // Octavia service related configuration
 type octaviaConfig struct {
-	// (Required)Subnet ID to create the load balancer.
-	SubnetID string `mapstructure:"subnet_id"`
+	// (Optional) Provider name for the load balancer. Default: octavia
+	// For more information: https://docs.openstack.org/octavia/latest/admin/providers.html
+	Provider string `mapstructure:"provider"`
 
-	// (Optional)Public network to create floating IP.
+	// (Required) Subnet ID to create the load balancer.
+	SubnetID string `mapstructure:"subnet-id"`
+
+	// (Optional) Public network ID to create floating IP.
 	// If empty, no floating IP will be allocated to the load balancer vip.
-	FloatingIPNetwork string `mapstructure:"fip_network"`
-}
+	FloatingIPNetwork string `mapstructure:"floating-network-id"`
 
-// ToAuthOptions gets openstack auth options
-func (cfg Config) ToAuthOptions() gophercloud.AuthOptions {
-	return gophercloud.AuthOptions{
-		IdentityEndpoint: cfg.OpenStack.AuthURL,
-		Username:         cfg.OpenStack.Username,
-		Password:         cfg.OpenStack.Password,
-		TenantID:         cfg.OpenStack.ProjectID,
-		DomainName:       "default",
-		AllowReauth:      true,
-	}
+	// (Optional) If the ingress controller should manage the security groups attached to the cluster nodes.
+	// Default is false.
+	ManageSecurityGroups bool `mapstructure:"manage-security-groups"`
 }

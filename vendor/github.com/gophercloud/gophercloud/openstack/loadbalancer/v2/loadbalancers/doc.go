@@ -29,8 +29,9 @@ Example to Create a Load Balancer
 		AdminStateUp: gophercloud.Enabled,
 		VipSubnetID:  "9cedb85d-0759-4898-8a4b-fa5a5ea10086",
 		VipAddress:   "10.30.176.48",
-		Flavor:       "medium",
+		FlavorID:     "60df399a-ee85-11e9-81b4-2a2ae2dbcce4",
 		Provider:     "haproxy",
+		Tags:         []string{"test", "stage"},
 	}
 
 	lb, err := loadbalancers.Create(networkClient, createOpts).Extract()
@@ -41,12 +42,10 @@ Example to Create a Load Balancer
 Example to Update a Load Balancer
 
 	lbID := "d67d56a6-4a86-4688-a282-f46444705c64"
-
-	i1001 := 1001
+	name := "new-name"
 	updateOpts := loadbalancers.UpdateOpts{
-		Name: "new-name",
+		Name: &name,
 	}
-
 	lb, err := loadbalancers.Update(networkClient, lbID, updateOpts).Extract()
 	if err != nil {
 		panic(err)

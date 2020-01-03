@@ -22,13 +22,19 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/component-base/logs"
+	"k8s.io/klog"
 )
 
 var (
 	endpoint    string
 	nodeID      string
 	cloudconfig string
+	cluster     string
 )
 
 func init() {
@@ -42,6 +48,24 @@ func main() {
 	cmd := &cobra.Command{
 		Use:   "Cinder",
 		Short: "CSI based Cinder driver",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Glog requires this otherwise it complains.
+			flag.CommandLine.Parse(nil)
+
+			// This is a temporary hack to enable proper logging until upstream dependencies
+			// are migrated to fully utilize klog instead of glog.
+			klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+			klog.InitFlags(klogFlags)
+
+			// Sync the glog and klog flags.
+			cmd.Flags().VisitAll(func(f1 *pflag.Flag) {
+				f2 := klogFlags.Lookup(f1.Name)
+				if f2 != nil {
+					value := f1.Value.String()
+					f2.Value.Set(value)
+				}
+			})
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
@@ -58,6 +82,13 @@ func main() {
 	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "CSI driver cloud config")
 	cmd.MarkPersistentFlagRequired("cloud-config")
 
+	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
+
+	openstack.AddExtraFlags(pflag.CommandLine)
+
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
@@ -67,6 +98,30 @@ func main() {
 }
 
 func handle() {
-	d := cinder.NewDriver(nodeID, endpoint, cloudconfig)
+
+	d := cinder.NewDriver(nodeID, endpoint, cluster)
+
+	//Intiliaze mount
+	mount, err := mount.GetMountProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
+	}
+
+	//Intiliaze Metadatda
+	metadatda, err := openstack.GetMetadataProvider()
+	if err != nil {
+		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
+	}
+
+	// Initiliaze cloud
+	openstack.InitOpenStackProvider(cloudconfig)
+	cloud, err := openstack.GetOpenStackProvider()
+
+	if err != nil {
+		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
+		return
+	}
+
+	d.SetupDriver(cloud, mount, metadatda)
 	d.Run()
 }

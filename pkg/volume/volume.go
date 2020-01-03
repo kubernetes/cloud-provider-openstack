@@ -17,7 +17,7 @@ limitations under the License.
 package volume
 
 const (
-	// Name of a volume in external cloud that is being provisioned and thus
+	// ProvisionedVolumeName is a name of a volume in external cloud that is being provisioned and thus
 	// should be ignored by rest of Kubernetes.
 	ProvisionedVolumeName = "placeholder-for-provisioning"
 )

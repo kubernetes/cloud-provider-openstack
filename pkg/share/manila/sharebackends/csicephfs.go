@@ -40,14 +40,14 @@ func (CSICephFS) BuildSource(args *BuildSourceArgs) (*v1.PersistentVolumeSource,
 		CSI: &v1.CSIPersistentVolumeSource{
 			Driver:       args.Options.CSICEPHFSdriver,
 			ReadOnly:     false,
-			VolumeHandle: args.Options.ShareName,
+			VolumeHandle: args.VolumeHandle,
 			VolumeAttributes: map[string]string{
 				"monitors":        monitors,
 				"rootPath":        rootPath,
-				"mounter":         "fuse",
+				"mounter":         args.Options.CSICEPHFSmounter,
 				"provisionVolume": "false",
 			},
-			NodeStageSecretRef: &args.Options.ShareSecretRef,
+			NodeStageSecretRef: args.ShareSecretRef,
 		},
 	}, nil
 }
@@ -59,7 +59,7 @@ func (CSICephFS) GrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error)
 		return nil, err
 	}
 
-	err = createSecret(&args.Options.ShareSecretRef, args.Clientset, map[string][]byte{
+	err = createSecret(args.ShareSecretRef, args.Clientset, map[string][]byte{
 		"userID":  []byte(accessRight.AccessTo),
 		"userKey": []byte(accessRight.AccessKey),
 	})
