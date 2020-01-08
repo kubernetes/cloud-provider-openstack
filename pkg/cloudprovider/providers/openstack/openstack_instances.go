@@ -19,6 +19,7 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"regexp"
 	"strings"
 
@@ -29,12 +30,12 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
+	os             *OpenStack
 	compute        *gophercloud.ServiceClient
 	opts           MetadataOpts
 	networkingOpts NetworkingOpts
@@ -48,7 +49,7 @@ const (
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 	klog.V(4).Info("openstack.Instances() called")
 
-	compute, err := os.NewComputeV2()
+	compute, err := os.NewComputeV2("")
 	if err != nil {
 		klog.Errorf("unable to access compute v2 API : %v", err)
 		return nil, false
@@ -57,6 +58,7 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 	klog.V(4).Info("Claiming to support Instances")
 
 	return &Instances{
+		os:             os,
 		compute:        compute,
 		opts:           os.metadataOpts,
 		networkingOpts: os.networkingOpts,
@@ -123,12 +125,26 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 		return false, err
 	}
 
-	_, err = servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return false, nil
+	for _, region := range regions {
+		klog.V(5).Infof("Try To Find Instance %s In Region %s", instanceID, region)
+
+		compute, err := i.os.NewComputeV2(region)
+		if err != nil {
+			klog.Errorf("unable to access compute v2 API : %v", err)
+			return false, err
 		}
-		return false, err
+
+		_, err = servers.Get(compute, instanceID).Extract()
+		if err != nil {
+			if errors.IsNotFound(err) {
+				klog.V(5).Infof("Instance %s Not Found In Region %s", instanceID, region)
+				continue
+			}
+			return false, err
+		} else {
+			klog.V(5).Infof("Instance %s Found In Region %s", instanceID, region)
+			return true, nil
+		}
 	}
 
 	return true, nil
@@ -160,6 +176,7 @@ func (os *OpenStack) InstanceID() (string, error) {
 		if err != nil {
 			return "", err
 		}
+		klog.V(4).Info(os)
 		os.localInstanceID = id
 	}
 	return os.localInstanceID, nil

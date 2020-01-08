@@ -281,18 +281,26 @@ func (l logger) Printf(format string, args ...interface{}) {
 	}
 }
 
+var regions = make([]string, 0)
+var gCloud *OpenStack
+
 func init() {
 	RegisterMetrics()
+
+	regions = append(regions, "GRA5")
+	regions = append(regions, "GRA7")
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
 		if err != nil {
 			return nil, err
 		}
+
 		cloud, err := NewOpenStack(cfg)
 		if err != nil {
 			klog.V(1).Infof("New openstack client created failed with config")
 		}
+		gCloud = cloud
 		return cloud, err
 	})
 }
@@ -445,6 +453,9 @@ func readInstanceID(searchOrder string) (string, error) {
 	// First, try to get data from metadata service because local
 	// data might be changed by accident
 	md, err := metadata.Get(searchOrder)
+
+	klog.V(5).Infoln(md)
+
 	if err == nil {
 		return md.UUID, nil
 	}
@@ -599,7 +610,7 @@ func mapNodeNameToServerName(nodeName types.NodeName) string {
 
 // GetNodeNameByID maps instanceid to types.NodeName
 func (os *OpenStack) GetNodeNameByID(instanceID string) (types.NodeName, error) {
-	client, err := os.NewComputeV2()
+	client, err := os.NewComputeV2("")
 	var nodeName types.NodeName
 	if err != nil {
 		return nodeName, err
@@ -645,23 +656,33 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
 	}
 
-	pager := servers.List(client, opts)
-
 	var s []ServerAttributesExt
 	serverList := make([]ServerAttributesExt, 0, 1)
 
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		if err := servers.ExtractServersInto(page, &s); err != nil {
-			return false, err
+	for _, region := range regions {
+		klog.V(5).Infof("Try To Find Instance %s In Region %s", opts.Name, region)
+
+		compute, err := gCloud.NewComputeV2(region)
+		if err != nil {
+			klog.Errorf("unable to access compute v2 API : %v", err)
+			continue
 		}
-		serverList = append(serverList, s...)
-		if len(serverList) > 1 {
-			return false, ErrMultipleResults
+
+		pager := servers.List(compute, opts)
+
+		err = pager.EachPage(func(page pagination.Page) (bool, error) {
+			if err := servers.ExtractServersInto(page, &s); err != nil {
+				return false, err
+			}
+			serverList = append(serverList, s...)
+			if len(serverList) > 1 {
+				return false, ErrMultipleResults
+			}
+			return true, nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		return true, nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	if len(serverList) == 0 {
@@ -840,7 +861,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 		return nil, false
 	}
 
-	compute, err := os.NewComputeV2()
+	compute, err := os.NewComputeV2("")
 	if err != nil {
 		return nil, false
 	}
@@ -893,29 +914,36 @@ func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string)
 		return cloudprovider.Zone{}, err
 	}
 
-	compute, err := os.NewComputeV2()
-	if err != nil {
-		return cloudprovider.Zone{}, err
+	for _, region := range regions {
+		klog.V(5).Infof("Try To Find Zone Instance %s In Region %s", instanceID, region)
+
+		compute, err := os.NewComputeV2(region)
+		if err != nil {
+			return cloudprovider.Zone{}, err
+		}
+
+		var serverWithAttributesExt ServerAttributesExt
+		if err := servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt); err != nil {
+			continue
+		}
+
+		zone := cloudprovider.Zone{
+			FailureDomain: serverWithAttributesExt.AvailabilityZone,
+			Region:        region,
+		}
+
+		klog.V(4).Infof("The instance %s in zone %v", serverWithAttributesExt.Name, zone)
+		return zone, nil
 	}
 
-	var serverWithAttributesExt ServerAttributesExt
-	if err := servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt); err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: serverWithAttributesExt.AvailabilityZone,
-		Region:        os.region,
-	}
-	klog.V(4).Infof("The instance %s in zone %v", serverWithAttributesExt.Name, zone)
-	return zone, nil
+	return cloudprovider.Zone{}, nil
 }
 
 // GetZoneByNodeName implements Zones.GetZoneByNodeName
 // This is particularly useful in external cloud providers where the kubelet
 // does not initialize node data.
 func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeName) (cloudprovider.Zone, error) {
-	compute, err := os.NewComputeV2()
+	compute, err := os.NewComputeV2("")
 	if err != nil {
 		return cloudprovider.Zone{}, err
 	}
@@ -956,7 +984,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	compute, err := os.NewComputeV2()
+	compute, err := os.NewComputeV2("")
 	if err != nil {
 		return nil, false
 	}

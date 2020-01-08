@@ -84,7 +84,7 @@ func TestRoutes(t *testing.T) {
 }
 
 func getServers(os *OpenStack) []servers.Server {
-	c, err := os.NewComputeV2()
+	c, err := os.NewComputeV2("")
 	opts := servers.ListOpts{
 		Status: "ACTIVE",
 	}

@@ -286,7 +286,7 @@ func (os *OpenStack) AttachDisk(instanceID, volumeID string) (string, error) {
 		return "", err
 	}
 
-	cClient, err := os.NewComputeV2()
+	cClient, err := os.NewComputeV2("")
 	if err != nil {
 		return "", err
 	}
@@ -338,7 +338,7 @@ func (os *OpenStack) DetachDisk(instanceID, volumeID string) error {
 	if volume.Status != volumeInUseStatus {
 		return fmt.Errorf("can not detach volume %s, its status is %s", volume.Name, volume.Status)
 	}
-	cClient, err := os.NewComputeV2()
+	cClient, err := os.NewComputeV2("")
 	if err != nil {
 		return err
 	}
@@ -596,7 +596,7 @@ func (os *OpenStack) DiskIsAttached(instanceID, volumeID string) (bool, error) {
 
 // DiskIsAttachedByName queries if a volume is attached to a compute instance by name
 func (os *OpenStack) DiskIsAttachedByName(nodeName types.NodeName, volumeID string) (bool, string, error) {
-	cClient, err := os.NewComputeV2()
+	cClient, err := os.NewComputeV2("")
 	if err != nil {
 		return false, "", err
 	}
@@ -633,7 +633,7 @@ func (os *OpenStack) DisksAreAttached(instanceID string, volumeIDs []string) (ma
 // DisksAreAttachedByName queries if a list of volumes are attached to a compute instance by name
 func (os *OpenStack) DisksAreAttachedByName(nodeName types.NodeName, volumeIDs []string) (map[string]bool, error) {
 	attached := make(map[string]bool)
-	cClient, err := os.NewComputeV2()
+	cClient, err := os.NewComputeV2("")
 	if err != nil {
 		return attached, err
 	}

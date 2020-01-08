@@ -18,7 +18,6 @@ package openstack
 
 import (
 	"fmt"
-
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 )
@@ -35,12 +34,21 @@ func (os *OpenStack) NewNetworkV2() (*gophercloud.ServiceClient, error) {
 }
 
 // NewComputeV2 creates a ServiceClient that may be used with the nova v2 API
-func (os *OpenStack) NewComputeV2() (*gophercloud.ServiceClient, error) {
+func (os *OpenStack) NewComputeV2(region string) (*gophercloud.ServiceClient, error) {
+	lregion := ""
+
+	if region == "" {
+		lregion = os.region
+	} else {
+		lregion = region
+	}
+
 	compute, err := openstack.NewComputeV2(os.provider, gophercloud.EndpointOpts{
-		Region: os.region,
+		Region: lregion,
 	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to find compute v2 endpoint for region %s: %v", os.region, err)
+		return nil, fmt.Errorf("failed to find compute v2 endpoint for region %s: %v", lregion, err)
 	}
 	return compute, nil
 }
