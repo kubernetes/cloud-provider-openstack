@@ -590,6 +590,7 @@ func TestNodeAddresses(t *testing.T) {
 
 	interfaces := []attachinterfaces.Interface{
 		{
+			PortState: "ACTIVE",
 			FixedIPs: []attachinterfaces.FixedIP{
 				{
 					IPAddress: "10.0.0.32",
@@ -668,6 +669,7 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 
 	interfaces := []attachinterfaces.Interface{
 		{
+			PortState: "ACTIVE",
 			FixedIPs: []attachinterfaces.FixedIP{
 				{
 					IPAddress: "10.0.0.32",
@@ -746,6 +748,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 
 	interfaces := []attachinterfaces.Interface{
 		{
+			PortState: "ACTIVE",
 			FixedIPs: []attachinterfaces.FixedIP{
 				{
 					IPAddress: "10.0.0.32",

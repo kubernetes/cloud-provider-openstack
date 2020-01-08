@@ -675,21 +675,23 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 // * interfaces private IPs
 // * access IPs
 // * metadata hostname
-// * server object Addresses
+// * server object Addresses (floating type)
 func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	addrs := []v1.NodeAddress{}
 
 	// parse private IP addresses first in an ordered manner
 	for _, iface := range interfaces {
 		for _, fixedIP := range iface.FixedIPs {
-			isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
-			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-				v1helper.AddToNodeAddresses(&addrs,
-					v1.NodeAddress{
-						Type:    v1.NodeInternalIP,
-						Address: fixedIP.IPAddress,
-					},
-				)
+			if iface.PortState == "ACTIVE" {
+				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
+				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+					v1helper.AddToNodeAddresses(&addrs,
+						v1.NodeAddress{
+							Type:    v1.NodeInternalIP,
+							Address: fixedIP.IPAddress,
+						},
+					)
+				}
 			}
 		}
 	}
