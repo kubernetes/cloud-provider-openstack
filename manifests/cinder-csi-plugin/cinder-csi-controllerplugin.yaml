@@ -33,6 +33,8 @@ spec:
         app: csi-cinder-controllerplugin
     spec:
       serviceAccount: csi-cinder-controller-sa
+      imagePullSecrets:
+        - name: temp
       containers:
         - name: csi-attacher
           image: quay.io/k8scsi/csi-attacher:v2.0.0
@@ -51,6 +53,7 @@ spec:
           image: quay.io/k8scsi/csi-provisioner:v1.4.0
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--feature-gates=Topology=true"
             - "--timeout=3m"
           env:
             - name: ADDRESS
@@ -83,13 +86,14 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: cinder-csi-plugin
-          image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
+          image: gitlab.rd.alphanetworks.tv/ajbe/openstack-temp/cinder-csi-plugin:45
           args :
             - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            - "--v=5"
           env:
             - name: NODE_ID
               valueFrom:

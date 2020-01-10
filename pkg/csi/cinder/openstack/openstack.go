@@ -39,7 +39,7 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 }
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error)
+	CreateVolume(name string, size int, vtype, availability string, region string, snapshotID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
 	ListVolumes() ([]volumes.Volume, error)
@@ -61,6 +61,7 @@ type IOpenStack interface {
 }
 
 type OpenStack struct {
+	provider     *gophercloud.ProviderClient
 	compute      *gophercloud.ServiceClient
 	blockstorage *gophercloud.ServiceClient
 	bsOpts       BlockStorageOpts
@@ -105,8 +106,11 @@ const defaultMaxVolAttachLimit int64 = 256
 var OsInstance IOpenStack = nil
 var configFile = "/etc/cloud.conf"
 var cfg Config
+var regions = make([]string, 0)
 
 func InitOpenStackProvider(cfgFile string) {
+	regions = append(regions, "GRA5")
+	regions = append(regions, "GRA7")
 	configFile = cfgFile
 	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
 }
@@ -144,6 +148,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 
 	// Init OpenStack
 	OsInstance = &OpenStack{
+		provider:     provider,
 		compute:      computeclient,
 		blockstorage: blockstorageclient,
 		bsOpts:       cfg.BlockStorage,

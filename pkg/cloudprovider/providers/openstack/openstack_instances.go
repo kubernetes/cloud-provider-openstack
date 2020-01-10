@@ -157,9 +157,13 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 		return false, err
 	}
 
-	server, err := servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
-		return false, err
+	var server *servers.Server
+	for _, region := range regions {
+		compute, err := i.os.NewComputeV2(region)
+		server, err = servers.Get(compute, instanceID).Extract()
+		if err != nil {
+			continue
+		}
 	}
 
 	// SHUTOFF is the only state where we can detach volumes immediately

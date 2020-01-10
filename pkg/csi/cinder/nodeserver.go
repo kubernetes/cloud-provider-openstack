@@ -136,7 +136,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	}
 
 	// TODO: About AZ and Volume type
-	evol, err := ns.Cloud.CreateVolume(volName, size, "", "", "", &properties)
+	evol, err := ns.Cloud.CreateVolume(volName, size, "", "", "", "", &properties)
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)
@@ -446,8 +446,11 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeGetInfo failed with error %v", err))
 	}
 
+	// Get Node
+	server, err := ns.Cloud.GetInstanceByID(nodeID)
+
 	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
-	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
+	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone, topologyRegionKey: server.Metadata["region"]}}
 
 	maxVolume := ns.Cloud.GetMaxVolLimit()
 

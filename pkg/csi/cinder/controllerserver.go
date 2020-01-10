@@ -63,9 +63,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := req.GetParameters()["type"]
 
+	// Volume Topology
 	var volAvailability string
+	var volRegion string
 	if req.GetAccessibilityRequirements() != nil {
 		volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
+		volRegion = getRegionFromTopology(req.GetAccessibilityRequirements())
 	}
 
 	if len(volAvailability) == 0 {
@@ -103,14 +106,14 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		snapshotID = content.GetSnapshot().GetSnapshotId()
 	}
 
-	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, &properties)
+	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, volRegion, snapshotID, &properties)
 	if err != nil {
 		klog.V(3).Infof("Failed to CreateVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume failed with error %v", err))
 
 	}
 
-	klog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
+	klog.V(4).Infof("Create volume %s in Availability Zone: %s in Region: %s of size %d GiB", vol.ID, vol.AvailabilityZone, volRegion, vol.Size)
 
 	return getCreateVolumeResponse(vol), nil
 }
@@ -515,6 +518,23 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		CapacityBytes:         volSizeBytes,
 		NodeExpansionRequired: true,
 	}, nil
+}
+
+func getRegionFromTopology(requirement *csi.TopologyRequirement) string {
+	for _, topology := range requirement.GetPreferred() {
+		zone, exists := topology.GetSegments()[topologyRegionKey]
+		if exists {
+			return zone
+		}
+	}
+
+	for _, topology := range requirement.GetRequisite() {
+		zone, exists := topology.GetSegments()[topologyRegionKey]
+		if exists {
+			return zone
+		}
+	}
+	return ""
 }
 
 func getAZFromTopology(requirement *csi.TopologyRequirement) string {

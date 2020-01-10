@@ -17,7 +17,9 @@ limitations under the License.
 package openstack
 
 import (
+	"errors"
 	"fmt"
+	"github.com/gophercloud/gophercloud"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack"
@@ -48,7 +50,7 @@ const (
 )
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
+func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, region string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
 	opts := &volumes.CreateOpts{
 		Name:             name,
 		Size:             size,
@@ -61,7 +63,11 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		opts.Metadata = *tags
 	}
 
-	vol, err := volumes.Create(os.blockstorage, opts).Extract()
+	blockstorage, err := openstack.NewBlockStorageV3(os.provider, gophercloud.EndpointOpts{
+		Region: region,
+	})
+
+	vol, err := volumes.Create(blockstorage, opts).Extract()
 	if err != nil {
 		return nil, err
 	}
@@ -112,16 +118,45 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 		return fmt.Errorf("Cannot delete the volume %q, it's still attached to a node", volumeID)
 	}
 
-	err = volumes.Delete(os.blockstorage, volumeID, nil).ExtractErr()
+	volume, err := os.GetVolume(volumeID)
+	if err != nil {
+		return errors.New("failed to find volume")
+	}
+
+	blockstorage, err := openstack.NewBlockStorageV3(os.provider, gophercloud.EndpointOpts{
+		Region: volume.Metadata["region"],
+	})
+
+	err = volumes.Delete(blockstorage, volumeID, nil).ExtractErr()
 	return err
 }
 
 // GetVolume retrieves Volume by its ID.
 func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
+	var vol *volumes.Volume = nil
 
-	vol, err := volumes.Get(os.blockstorage, volumeID).Extract()
-	if err != nil {
-		return nil, err
+	for _, region := range regions {
+		var err error
+		var blockstorage *gophercloud.ServiceClient
+
+		blockstorage, err = openstack.NewBlockStorageV3(os.provider, gophercloud.EndpointOpts{
+			Region: region,
+		})
+
+		klog.V(5).Infof("Trying To Find Volume %s in Region %s", volumeID, region)
+		vol, err = volumes.Get(blockstorage, volumeID).Extract()
+		if err != nil {
+			continue
+		}
+
+		vol.Metadata["region"] = region
+		klog.V(5).Infof("Volume %s Found in Region %s", volumeID, region)
+		break
+	}
+
+	if vol == nil {
+		klog.V(5).Infof("Volume %s Not Found", volumeID)
+		return nil, errors.New("failed to find volume")
 	}
 
 	return vol, nil
@@ -142,10 +177,13 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 		return "", fmt.Errorf("disk %s is attached to a different instance (%s)", volumeID, volume.Attachments[0].ServerID)
 	}
 
-	_, err = volumeattach.Create(os.compute, instanceID, &volumeattach.CreateOpts{
+	compute, err := openstack.NewComputeV2(os.provider, gophercloud.EndpointOpts{
+		Region: volume.Metadata["region"],
+	})
+
+	_, err = volumeattach.Create(compute, instanceID, &volumeattach.CreateOpts{
 		VolumeID: volume.ID,
 	}).Extract()
-
 	if err != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
@@ -197,7 +235,12 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 		if volume.Attachments[0].ServerID != instanceID {
 			return fmt.Errorf("disk: %s is not attached to compute: %s", volume.Name, instanceID)
 		}
-		err = volumeattach.Delete(os.compute, instanceID, volume.ID).ExtractErr()
+
+		compute, err := openstack.NewComputeV2(os.provider, gophercloud.EndpointOpts{
+			Region: volume.Metadata["region"],
+		})
+
+		err = volumeattach.Delete(compute, instanceID, volume.ID).ExtractErr()
 		if err != nil {
 			return fmt.Errorf("failed to delete volume %s from compute %s attached %v", volume.ID, instanceID, err)
 		}
