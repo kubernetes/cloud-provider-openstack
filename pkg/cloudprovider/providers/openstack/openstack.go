@@ -295,7 +295,6 @@ func init() {
 		if err != nil {
 			return nil, err
 		}
-
 		cloud, err := NewOpenStack(cfg)
 		if err != nil {
 			klog.V(1).Infof("New openstack client created failed with config")
@@ -453,9 +452,6 @@ func readInstanceID(searchOrder string) (string, error) {
 	// First, try to get data from metadata service because local
 	// data might be changed by accident
 	md, err := metadata.Get(searchOrder)
-
-	klog.V(5).Infoln(md)
-
 	if err == nil {
 		return md.UUID, nil
 	}
