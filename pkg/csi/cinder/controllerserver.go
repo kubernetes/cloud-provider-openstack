@@ -90,7 +90,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 
 		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", volumes[0].ID, volumes[0].AvailabilityZone, volumes[0].Size)
-		return getCreateVolumeResponse(&volumes[0]), nil
+		return getCreateVolumeResponse(&volumes[0], volRegion), nil
 	} else if len(volumes) > 1 {
 		klog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, status.Error(codes.Internal, "Multiple volumes reported by Cinder with same name")
@@ -115,7 +115,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	klog.V(4).Infof("Create volume %s in Availability Zone: %s in Region: %s of size %d GiB", vol.ID, vol.AvailabilityZone, volRegion, vol.Size)
 
-	return getCreateVolumeResponse(vol), nil
+	return getCreateVolumeResponse(vol, volRegion), nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -554,7 +554,7 @@ func getAZFromTopology(requirement *csi.TopologyRequirement) string {
 	return ""
 }
 
-func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
+func getCreateVolumeResponse(vol *volumes.Volume, region string) *csi.CreateVolumeResponse {
 
 	var volsrc *csi.VolumeContentSource
 
@@ -574,7 +574,7 @@ func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
 			CapacityBytes: int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: []*csi.Topology{
 				{
-					Segments: map[string]string{topologyKey: vol.AvailabilityZone},
+					Segments: map[string]string{topologyKey: vol.AvailabilityZone, topologyRegionKey: region},
 				},
 			},
 			ContentSource: volsrc,
