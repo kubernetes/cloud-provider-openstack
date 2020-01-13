@@ -17,8 +17,6 @@ spec:
     spec:
       serviceAccount: csi-cinder-node-sa
       hostNetwork: true
-      imagePullSecrets:
-        - name: temp
       containers:
         - name: node-driver-registrar
           image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
@@ -50,13 +48,12 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: gitlab.rd.alphanetworks.tv/ajbe/openstack-temp/cinder-csi-plugin:45
+          image: gdocker.io/k8scloudprovider/cinder-csi-plugin:latest
           args :
             - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
-            - "--v=5"
           env:
             - name: NODE_ID
               valueFrom:
