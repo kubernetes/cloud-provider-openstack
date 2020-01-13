@@ -19,7 +19,7 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"k8s.io/cloud-provider-openstack/pkg/util/errors"
+
 	"regexp"
 	"strings"
 
@@ -30,6 +30,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -180,7 +181,6 @@ func (os *OpenStack) InstanceID() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		klog.V(4).Info(os)
 		os.localInstanceID = id
 	}
 	return os.localInstanceID, nil
