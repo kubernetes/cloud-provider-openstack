@@ -34,8 +34,8 @@ spec:
     - containerPort: 80
       protocol: TCP
     volumeMounts:
-    - mountPath: /var/lib/www/html
-      name: csi-data-cinderplugin
+      - mountPath: /var/lib/www/html
+        name: csi-data-cinderplugin
   volumes:
   - name: csi-data-cinderplugin
     persistentVolumeClaim:
