@@ -14,7 +14,7 @@ metadata:
   name: csi-pvc-cinderplugin
 spec:
   accessModes:
-    - ReadWriteOnce
+  - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
@@ -27,17 +27,17 @@ metadata:
   name: nginx
 spec:
   containers:
-    - image: nginx
-      imagePullPolicy: IfNotPresent
-      name: nginx
-      ports:
-        - containerPort: 80
-          protocol: TCP
-      volumeMounts:
-        - mountPath: /var/lib/www/html
-          name: csi-data-cinderplugin
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: nginx
+    ports:
+      - containerPort: 80
+        protocol: TCP
+    volumeMounts:
+      - mountPath: /var/lib/www/html
+        name: csi-data-cinderplugin
   volumes:
-    - name: csi-data-cinderplugin
-      persistentVolumeClaim:
-        claimName: csi-pvc-cinderplugin
-        readOnly: false
+  - name: csi-data-cinderplugin
+    persistentVolumeClaim:
+      claimName: csi-pvc-cinderplugin
+      readOnly: false
