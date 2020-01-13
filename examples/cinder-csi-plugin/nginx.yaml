@@ -6,41 +6,38 @@ kind: StorageClass
 metadata:
   name: csi-sc-cinderplugin
 provisioner: cinder.csi.openstack.org
-volumeBindingMode: WaitForFirstConsumer
+
 ---
-apiVersion: apps/v1
-kind: StatefulSet
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-pvc-cinderplugin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-sc-cinderplugin
+
+---
+apiVersion: v1
+kind: Pod
 metadata:
   name: nginx
-  labels:
-    app: nginx
 spec:
-  serviceName: nginx
-  replicas: 4
-  template:
-    metadata:
+  containers:
+    - image: nginx
+      imagePullPolicy: IfNotPresent
       name: nginx
-      labels:
-        app: nginx
-    spec:
-      containers:
-        - name: nginx
-          image: nginx
-          imagePullPolicy: IfNotPresent
-          volumeMounts:
-            - mountPath: /var/lib/www/html
-              name: csi-data-cinderplugin
-      restartPolicy: Always
-  selector:
-    matchLabels:
-      app: nginx
-  volumeClaimTemplates:
-    - metadata:
-        name: csi-data-cinderplugin
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 1Gi
-        storageClassName: csi-sc-cinderplugin
+      ports:
+        - containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - mountPath: /var/lib/www/html
+          name: csi-data-cinderplugin
+  volumes:
+    - name: csi-data-cinderplugin
+      persistentVolumeClaim:
+        claimName: csi-pvc-cinderplugin
+        readOnly: false
