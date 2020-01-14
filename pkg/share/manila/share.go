@@ -135,12 +135,13 @@ func buildCreateRequest(
 	}
 
 	return &shares.CreateOpts{
-		ShareProto:     shareOptions.Protocol,
-		ShareNetworkID: shareOptions.OSShareNetworkID,
-		Size:           storageSize,
-		Name:           shareName,
-		ShareType:      shareOptions.Type,
-		Metadata:       metadata,
+		ShareProto:       shareOptions.Protocol,
+		ShareNetworkID:   shareOptions.OSShareNetworkID,
+		Size:             storageSize,
+		Name:             shareName,
+		ShareType:        shareOptions.Type,
+		Metadata:         metadata,
+		AvailabilityZone: shareOptions.Zones,
 	}, nil
 }
 
