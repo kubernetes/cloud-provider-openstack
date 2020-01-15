@@ -17,10 +17,10 @@ limitations under the License.
 package sharebackends
 
 import (
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 )
 
@@ -41,7 +41,7 @@ type GrantAccessArgs struct {
 	Options        *shareoptions.ShareOptions
 	ShareSecretRef *v1.SecretReference
 	Clientset      clientset.Interface
-	Client         *gophercloud.ServiceClient
+	Client         manilaclient.Interface
 }
 
 // RevokeAccessArgs contains arguments for ShareBackend.RevokeAccess()
@@ -49,5 +49,5 @@ type RevokeAccessArgs struct {
 	ShareID        string
 	ShareSecretRef *v1.SecretReference
 	Clientset      clientset.Interface
-	Client         *gophercloud.ServiceClient
+	Client         manilaclient.Interface
 }

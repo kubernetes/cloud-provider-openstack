@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"sigs.k8s.io/sig-storage-lib-external-provisioner/controller"
 )
@@ -215,7 +216,7 @@ func TestCreateShare(t *testing.T) {
 		fmt.Fprintf(w, createResponse)
 	})
 
-	share, err := createShare("pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264", &volOptions, &shareOptions, fakeclient.ServiceClient())
+	share, err := createShare("pvc-011d21e2-fbc3-4e4a-9993-9ea223f73264", &volOptions, &shareOptions, manilaclient.NewFromServiceClient(fakeclient.ServiceClient()))
 
 	if err != nil {
 		t.Fatalf("failed to create share: %v", err)
