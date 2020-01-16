@@ -27,24 +27,24 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-k8s-cinder:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-k8s-cinder:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-k8s-cinder:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-k8s-cinder:
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
     # Disable Standalone Cinder Driver Job as it is deprecated
     # cloud-provider-openstack-acceptance-test-standalone-cinder:
     #  jobs:
@@ -55,99 +55,94 @@
     #          - ^OWNERS$
     #          - ^SECURITY_CONTACTS$
     #          - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-csi-cinder:
+    #cloud-provider-openstack-acceptance-test-csi-cinder:
+    #  jobs:
+    #    - cloud-provider-openstack-acceptance-test-csi-cinder:
+    #        irrelevant-files:
+    #          - ^docs/.*$
+    #          - ^.*\.md$
+    #          - ^OWNERS$
+    #          - ^SECURITY_CONTACTS$
+    #          - ^.gitignore$
+    cloud-provider-openstack-multinode-csi-migration-test:
       jobs:
-        - cloud-provider-openstack-acceptance-test-csi-cinder:
+        - cloud-provider-openstack-multinode-csi-migration-test:
             irrelevant-files:
               - ^docs/.*$
-              - ^.*\.md$
               - ^OWNERS$
-              - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-e2e-test-csi-cinder:
-      jobs:
-        - cloud-provider-openstack-e2e-test-csi-cinder:
-            files:
-              - ^pkg/csi/cinder/.*
-              - ^pkg/util/.*
-              - ^go.mod$
-              - ^go.sum$
-    cloud-provider-openstack-acceptance-test-flexvolume-cinder:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-csi-manila:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-csi-manila:
-            files:
-              - ^cmd/manila-csi-plugin/.*
-              - ^examples/manila-csi-plugin/.*
-              - ^pkg/csi/manila/.*
-              - ^pkg/util/errors/.*
-              - ^pkg/cloudprovider/providers/openstack/.*
-              - ^pkg/share/manila/shareoptions/validator/.*
-              - ^go.mod$
-              - ^go.sum$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance:
-            files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
-            files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
-            files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
-            files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
+    #cloud-provider-openstack-e2e-test-csi-cinder:
+    #      jobs:
+    #        - cloud-provider-openstack-e2e-test-csi-cinder:
+    #            files:
+    #              - ^pkg/csi/cinder/.*
+    #              - ^pkg/util/.*
+    #              - ^go.mod$
+    #              - ^go.sum$
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-e2e-conformance:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-e2e-conformance:
+    #            files:
+    #              - ^pkg/cloudprovider/.*
+    #              - ^go.mod$
+    #              - ^go.sum$
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
+    #            files:
+    #              - ^pkg/cloudprovider/.*
+    #              - ^go.mod$
+    #              - ^go.sum$
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+    #            files:
+    #              - ^pkg/cloudprovider/.*
+    #              - ^go.mod$
+    #              - ^go.sum$
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
+    #    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
+    #      jobs:
+    #        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
+    #            files:
+    #              - ^pkg/cloudprovider/.*
+    #              - ^go.mod$
+    #              - ^go.sum$
+    #            irrelevant-files:
+    #              - ^docs/.*$
+    #              - ^.*\.md$
+    #              - ^OWNERS$
+    #              - ^SECURITY_CONTACTS$
+    #              - ^.gitignore$
