@@ -84,6 +84,15 @@
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:
+            files:
+              - ^cmd/manila-csi-plugin/.*
+              - ^examples/manila-csi-plugin/.*
+              - ^pkg/csi/manila/.*
+              - ^pkg/util/errors/.*
+              - ^pkg/cloudprovider/providers/openstack/.*
+              - ^pkg/share/manila/shareoptions/validator/.*
+              - ^go.mod$
+              - ^go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
