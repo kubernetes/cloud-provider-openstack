@@ -134,7 +134,15 @@ func (c fakeManilaClient) GetExtraSpecs(shareTypeID string) (sharetypes.ExtraSpe
 }
 
 func (c fakeManilaClient) GetShareTypes() ([]sharetypes.ShareType, error) {
-	return nil, nil
+	return []sharetypes.ShareType{
+		{
+			ID:                 "914dbaad-7242-4c34-a9ee-aa3831189972",
+			Name:               "default",
+			IsPublic:           true,
+			RequiredExtraSpecs: map[string]interface{}{"driver_handles_share_servers": "True"},
+			ExtraSpecs:         map[string]interface{}{"driver_handles_share_servers": "True", "snapshot_support": "True", "create_share_from_snapshot_support": "True"},
+		},
+	}, nil
 }
 
 func (c fakeManilaClient) GetShareTypeIDFromName(shareTypeName string) (string, error) {
