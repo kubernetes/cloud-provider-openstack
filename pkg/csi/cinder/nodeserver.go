@@ -281,6 +281,11 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		}
 	}
 
+	if blk := volumeCapability.GetBlock(); blk != nil {
+		// If block volume, do nothing
+		return &csi.NodeUnpublishVolumeResponse{}, nil
+	}
+
 	m := ns.Mount
 	notMnt, err := m.IsLikelyNotMountPointDetach(targetPath)
 	if err != nil && !mount.IsCorruptedMnt(err) {
@@ -423,6 +428,11 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 			return nil, status.Error(codes.NotFound, "Volume not found")
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
+	}
+
+	if blk := volumeCapability.GetBlock(); blk != nil {
+		// If block volume, do nothing
+		return &csi.NodeUnstageVolumeResponse{}, nil
 	}
 
 	m := ns.Mount
