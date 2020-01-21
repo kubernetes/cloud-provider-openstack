@@ -1,0 +1,11 @@
+ARG ALPINE_ARCH=amd64
+FROM ${ALPINE_ARCH}/alpine:3.11
+
+LABEL maintainers="Kubernetes Authors"
+LABEL description="Manila CSI Plugin"
+
+ARG ARCH=amd64
+
+ADD manila-csi-plugin-${ARCH} /bin/manila-csi-plugin
+
+ENTRYPOINT ["/bin/manila-csi-plugin"]

@@ -10,10 +10,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:3.11
+ARG ALPINE_ARCH=amd64
+FROM ${ALPINE_ARCH}/alpine:3.11
+
+ARG ARCH=amd64
 
 RUN apk add --no-cache ca-certificates
 
-ADD manila-provisioner /bin/
+ADD k8s-keystone-auth-${ARCH} /bin/k8s-keystone-auth
 
-ENTRYPOINT ["/bin/manila-provisioner"]
+EXPOSE 8443
+
+CMD ["/bin/k8s-keystone-auth"]
