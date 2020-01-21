@@ -18,13 +18,12 @@ package blockdevice
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-	"unsafe"
 
-	"golang.org/x/sys/unix"
 	"k8s.io/klog"
 )
 
@@ -51,13 +50,11 @@ func getBlockDeviceSize(path string) (int64, error) {
 		return 0, err
 	}
 	defer fd.Close()
-
-	var devSize uint64
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd.Fd()), unix.BLKGETSIZE64, uintptr(unsafe.Pointer(&devSize))); errno != 0 {
-		return 0, fmt.Errorf("failed to detect the %q block device size: %v", path, errno)
+	pos, err := fd.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, fmt.Errorf("error seeking to end of %s: %s", path, err)
 	}
-
-	return int64(devSize), nil
+	return pos, nil
 }
 
 func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) (error, bool) {
