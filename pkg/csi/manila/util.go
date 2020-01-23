@@ -31,7 +31,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/compatibility"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/responsebroker"
 	"k8s.io/klog"
 )
 
@@ -112,32 +111,6 @@ func parseGRPCEndpoint(endpoint string) (proto, addr string, err error) {
 	}
 
 	return "", "", errors.New("endpoint uses unsupported scheme")
-}
-
-// Blocks until the response from previous request is available and reads it.
-// If that request has finished successfully, release the handle because we're done.
-func readResponse(handle responsebroker.ResponseHandle) interface{} {
-	if resp, err := handle.Read(); err == nil {
-		handle.Release()
-		return resp
-	}
-
-	return nil
-}
-
-type requestResult struct {
-	dataPtr interface{}
-	err     error
-}
-
-// Writes the response.
-// If this request has finished successfully, wait for others to readResponse() and dispose of the lock.
-func writeResponse(handle responsebroker.ResponseHandle, rb *responsebroker.ResponseBroker, identifier string, res *requestResult) {
-	handle.Write(res.dataPtr, res.err)
-
-	if res.err == nil {
-		rb.Done(identifier)
-	}
 }
 
 func endpointAddress(proto, addr string) string {
