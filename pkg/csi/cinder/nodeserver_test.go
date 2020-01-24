@@ -129,7 +129,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
-	omock.On("CreateVolume", fvolName, 2, "", "", "", &properties).Return(&FakeVol, nil)
+	omock.On("CreateVolume", fvolName, 2, "", "", "", "", &properties).Return(&FakeVol, nil)
 
 	omock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)

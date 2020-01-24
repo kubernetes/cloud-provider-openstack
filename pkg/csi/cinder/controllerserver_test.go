@@ -46,7 +46,7 @@ func TestCreateVolume(t *testing.T) {
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", &properties).Return(&FakeVol, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", &properties).Return(&FakeVol, nil)
 
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 	// Init assert
@@ -90,7 +90,7 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, &properties).Return(&FakeVolFromSnapshot, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, "", &properties).Return(&FakeVolFromSnapshot, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 
 	// Init assert
@@ -131,6 +131,54 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 
 	assert.Equal(FakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
+
+}
+
+func TestCreateVolumeFromSourceVolume(t *testing.T) {
+
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, &properties).Return(&FakeVolFromSourceVolume, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+
+	// Init assert
+	assert := assert.New(t)
+
+	volsrc := &csi.VolumeContentSource{
+		Type: &csi.VolumeContentSource_Volume{
+			Volume: &csi.VolumeContentSource_VolumeSource{
+				VolumeId: FakeVolID,
+			},
+		},
+	}
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessType: &csi.VolumeCapability_Mount{
+					Mount: &csi.VolumeCapability_MountVolume{},
+				},
+			},
+		},
+		VolumeContentSource: volsrc,
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert
+	assert.NotNil(actualRes.Volume)
+
+	assert.NotNil(actualRes.Volume.CapacityBytes)
+
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
+
+	assert.Equal(FakeVolID, actualRes.Volume.ContentSource.GetVolume().VolumeId)
 
 }
 

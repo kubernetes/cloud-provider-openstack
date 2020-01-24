@@ -26,7 +26,7 @@ func getfakecloud() *cloud {
 }
 
 // Fake Cloud
-func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
+func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
 
 	vol := &volumes.Volume{
 		ID:               randString(10),
@@ -36,6 +36,7 @@ func (cloud *cloud) CreateVolume(name string, size int, vtype, availability stri
 		VolumeType:       vtype,
 		AvailabilityZone: availability,
 		SnapshotID:       snapshotID,
+		SourceVolID:      sourceVolID,
 	}
 
 	cloud.volumes[vol.ID] = vol
