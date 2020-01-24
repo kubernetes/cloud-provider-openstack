@@ -76,19 +76,19 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
-	ret := _m.Called(name, size, vtype, availability, snapshotID, tags)
+func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
+	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, tags)
 
 	var r0 *volumes.Volume
-	if rf, ok := ret.Get(0).(func(string, int, string, string, string, *map[string]string) *volumes.Volume); ok {
-		r0 = rf(name, size, vtype, availability, snapshotID, tags)
+	if rf, ok := ret.Get(0).(func(string, int, string, string, string, string, *map[string]string) *volumes.Volume); ok {
+		r0 = rf(name, size, vtype, availability, snapshotID, sourceVolID, tags)
 	} else {
 		r0 = ret.Get(0).(*volumes.Volume)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, int, string, string, string, *map[string]string) error); ok {
-		r1 = rf(name, size, vtype, availability, snapshotID, tags)
+	if rf, ok := ret.Get(1).(func(string, int, string, string, string, string, *map[string]string) error); ok {
+		r1 = rf(name, size, vtype, availability, snapshotID, sourceVolID, tags)
 	} else {
 		r1 = ret.Error(1)
 	}
