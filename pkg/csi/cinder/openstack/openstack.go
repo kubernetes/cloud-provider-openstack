@@ -49,7 +49,7 @@ type IOpenStack interface {
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
 	GetVolume(volumeID string) (*volumes.Volume, error)
 	GetVolumesByName(name string) ([]volumes.Volume, error)
-	CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error)
+	CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
 	DeleteSnapshot(snapID string) error
 	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)

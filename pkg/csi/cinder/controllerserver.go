@@ -268,8 +268,6 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	name := req.Name
 	volumeId := req.SourceVolumeId
-	// No description from csi.CreateSnapshotRequest now
-	description := ""
 
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
@@ -301,7 +299,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	} else {
 		// TODO: Delegate the check to openstack itself and ignore the conflict
-		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
+		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, &req.Parameters)
 		if err != nil {
 			klog.V(3).Infof("Failed to Create snapshot: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
