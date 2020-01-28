@@ -128,15 +128,14 @@ func notFoundError() error {
 	return gophercloud.ErrDefault404{}
 }
 
-func (cloud *cloud) CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (cloud *cloud) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
 
 	snap := &snapshots.Snapshot{
-		ID:          randString(10),
-		Name:        name,
-		Status:      "Available",
-		VolumeID:    volID,
-		Description: description,
-		CreatedAt:   time.Now(),
+		ID:        randString(10),
+		Name:      name,
+		Status:    "Available",
+		VolumeID:  volID,
+		CreatedAt: time.Now(),
 	}
 
 	cloud.snapshots[snap.ID] = snap
