@@ -41,7 +41,8 @@ type Instances struct {
 }
 
 const (
-	instanceShutoff = "SHUTOFF"
+	instanceShutoff       = "SHUTOFF"
+	instanceTypeFlavorKey = "original_name"
 )
 
 // Instances returns an implementation of Instances for OpenStack.
@@ -53,6 +54,11 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 		klog.Errorf("unable to access compute v2 API : %v", err)
 		return nil, false
 	}
+
+	// Server flavor details (flavor.original_name) requires
+	// micro-version 2.47. Prior to this, only flavor.id is
+	// returned, which is less useful as a node label.
+	compute.Microversion = "2.47"
 
 	klog.V(4).Info("Claiming to support Instances")
 
@@ -215,17 +221,14 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 }
 
 func srvInstanceType(srv *servers.Server) (string, error) {
-	keys := []string{"name", "id", "original_name"}
-	for _, key := range keys {
-		val, found := srv.Flavor[key]
-		if found {
-			flavor, ok := val.(string)
-			if ok {
-				return flavor, nil
-			}
+	val, found := srv.Flavor[instanceTypeFlavorKey]
+	if found {
+		flavor, ok := val.(string)
+		if ok {
+			return flavor, nil
 		}
 	}
-	return "", fmt.Errorf("flavor name/id not found")
+	return "", fmt.Errorf("flavor.%s not found", instanceTypeFlavorKey)
 }
 
 // If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
