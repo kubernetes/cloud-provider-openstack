@@ -50,6 +50,7 @@ spec:
         - name: csi-provisioner
           image: quay.io/k8scsi/csi-provisioner:v1.4.0
           args:
+            - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
           env:
@@ -62,6 +63,7 @@ spec:
         - name: csi-snapshotter
           image: quay.io/k8scsi/csi-snapshotter:v1.2.2
           args:
+            - "--v=5"
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
@@ -90,6 +92,7 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            - "--v=5"
           env:
             - name: NODE_ID
               valueFrom:
