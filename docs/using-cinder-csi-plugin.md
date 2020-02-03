@@ -41,6 +41,12 @@ Encode your ```$CLOUD_CONFIG``` file content using base64.
 Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
 
+> NOTE: In OpenStack, the compute instance uses either config drive or metadata service to retrieve instance-specific data. As the cluster administrator, you are able to config the order in the cloud config file for cinder-csi-plugin, the default configuration is as follows:
+```
+[Metadata]
+search-order = configDrive,metadataService
+```
+
 > NOTE: if your openstack cloud has cert (which means you already has cafile definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
 
 ```
