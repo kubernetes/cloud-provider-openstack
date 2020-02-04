@@ -560,3 +560,4 @@ func getNodeID(mount mount.IMount, metadata openstack.IMetadata) (string, error)
 	}
 	return nodeID, nil
 }
+
