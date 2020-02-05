@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/resizefs"
+	utilpath "k8s.io/utils/path"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -106,7 +107,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			}
 		}
 		// Mount
-		err = m.Mount(source, targetPath, fsType, mountOptions)
+		err = m.GetBaseMounter().Mount(source, targetPath, fsType, mountOptions)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -193,7 +194,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 			options = append(options, mountFlags...)
 		}
 		// Mount
-		err = m.FormatAndMount(devicePath, targetPath, fsType, nil)
+		err = m.GetBaseMounter().FormatAndMount(devicePath, targetPath, fsType, nil)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -218,7 +219,7 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
-	exists, err := m.GetHostUtil().PathExists(podVolumePath)
+	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, podVolumePath)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -394,7 +395,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			options = append(options, mountFlags...)
 		}
 		// Mount
-		err = m.FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = m.GetBaseMounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
