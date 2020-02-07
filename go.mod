@@ -55,6 +55,7 @@ require (
 	k8s.io/kubernetes v1.17.0
 	k8s.io/utils v0.0.0-20191114184206-e782cd3c129f
 	sigs.k8s.io/sig-storage-lib-external-provisioner v0.0.0-20190807214443-c525773885fc
+	software.sslmate.com/src/go-pkcs12 v0.0.0-20190209200317-47dd539968c4
 )
 
 replace (

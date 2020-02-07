@@ -17,6 +17,11 @@ limitations under the License.
 package controller
 
 import (
+	"crypto"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -42,10 +47,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/utils"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 const (
@@ -57,6 +64,13 @@ const (
 	defaultBurst = 1e6
 
 	maxRetries = 5
+
+	// CreateEvent event associated with new objects in an informer
+	CreateEvent EventType = "CREATE"
+	// UpdateEvent event associated with an object update in an informer
+	UpdateEvent EventType = "UPDATE"
+	// DeleteEvent event associated when an object is removed from an informer
+	DeleteEvent EventType = "DELETE"
 
 	// IngressKey picks a specific "class" for the Ingress.
 	// The controller only processes Ingresses with this annotation either
@@ -78,19 +92,18 @@ const (
 
 	// IngressControllerTag is added to the related resources.
 	IngressControllerTag = "octavia.ingress.kubernetes.io"
+
+	// IngressSecretCertName is certificate key name defined in the secret data.
+	IngressSecretCertName = "tls.crt"
+	// IngressSecretKeyName is private key name defined in the secret data.
+	IngressSecretKeyName = "tls.key"
+
+	// BarbianSecretNameTemplate is the name format string to create Barbican secret.
+	BarbianSecretNameTemplate = "kube_ingress_%s_%s_%s_%s"
 )
 
 // EventType type of event associated with an informer
 type EventType string
-
-const (
-	// CreateEvent event associated with new objects in an informer
-	CreateEvent EventType = "CREATE"
-	// UpdateEvent event associated with an object update in an informer
-	UpdateEvent EventType = "UPDATE"
-	// DeleteEvent event associated when an object is removed from an informer
-	DeleteEvent EventType = "DELETE"
-)
 
 // Event holds the context of an event
 type Event struct {
@@ -367,7 +380,7 @@ func (c *Controller) nodeSyncLoop() {
 	}
 
 	ings := new(nwv1beta1.IngressList)
-	// TODO: only take ingresses without ip address into consideration
+	// NOTE(lingxiankong): only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
 	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
@@ -383,9 +396,9 @@ func (c *Controller) nodeSyncLoop() {
 		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Debug("Starting to handle ingress")
 
 		lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
-		loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
+		loadbalancer, err := openstackutil.GetLoadbalancerByName(c.osClient.Octavia, lbName)
 		if err != nil {
-			if err != openstack.ErrNotFound {
+			if err != openstackutil.ErrNotFound {
 				log.WithFields(log.Fields{"name": lbName}).Errorf("Failed to retrieve loadbalancer from OpenStack: %v", err)
 			}
 
@@ -463,7 +476,7 @@ func (c *Controller) processItem(event Event) error {
 	case DeleteEvent:
 		log.WithFields(log.Fields{"ingress": key}).Info("ingress has been deleted, will delete openstack resources")
 
-		if err := c.deleteIngress(ing.Namespace, ing.Name); err != nil {
+		if err := c.deleteIngress(ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to delete openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to delete openstack resources for ingress %s: %v", key, err))
 		} else {
@@ -474,29 +487,44 @@ func (c *Controller) processItem(event Event) error {
 	return nil
 }
 
-func (c *Controller) deleteIngress(namespace, name string) error {
-	key := fmt.Sprintf("%s/%s", namespace, name)
-	lbName := utils.GetResourceName(namespace, name, c.config.ClusterName)
-	loadbalancer, err := c.osClient.GetLoadbalancerByName(lbName)
-	if err != nil {
-		if err != openstack.ErrNotFound {
-			return fmt.Errorf("error getting loadbalancer %s: %v", name, err)
+func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
+	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
+	lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
+
+	// Delete Barbican secrets
+	if c.osClient.Barbican != nil {
+		nameFilter := fmt.Sprintf("kube_ingress_%s_%s_%s", c.config.ClusterName, ing.Namespace, ing.Name)
+		if err := openstackutil.DeleteSecrets(c.osClient.Barbican, nameFilter); err != nil {
+			return fmt.Errorf("failed to remove Barbican secrets: %v", err)
 		}
-		log.WithFields(log.Fields{"lbName": lbName, "ingressName": name, "namespace": namespace}).Info("loadbalancer for ingress deleted")
+
+		log.WithFields(log.Fields{"ingress": key}).Info("Barbican secrets deleted")
+	}
+
+	// If load balancer doesn't exist, assume it's already deleted.
+	loadbalancer, err := openstackutil.GetLoadbalancerByName(c.osClient.Octavia, lbName)
+	if err != nil {
+		if err != openstackutil.ErrNotFound {
+			return fmt.Errorf("error getting loadbalancer %s: %v", ing.Name, err)
+		}
+
+		log.WithFields(log.Fields{"lbName": lbName, "ingressName": ing.Name, "namespace": ing.Namespace}).Info("loadbalancer for ingress deleted")
 		return nil
 	}
 
 	// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
 	// any floating IPs associated with the load balancer VIP port.
-	log.WithFields(log.Fields{"ingress": key}).Info("deleting floating IP")
+	log.WithFields(log.Fields{"ingress": key}).Debug("deleting floating IP")
+
 	if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", ""); err != nil {
 		return fmt.Errorf("failed to delete floating IP: %v", err)
 	}
+
 	log.WithFields(log.Fields{"ingress": key}).Info("floating IP deleted")
 
 	// Delete security group managed for the Ingress backend service
 	if c.config.Octavia.ManageSecurityGroups {
-		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", namespace, name)}
+		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ing.Namespace, ing.Name)}
 		tagString := strings.Join(sgTags, ",")
 		opts := groups.ListOpts{Tags: tagString}
 		sgs, err := c.osClient.GetSecurityGroups(opts)
@@ -521,7 +549,48 @@ func (c *Controller) deleteIngress(namespace, name string) error {
 		log.WithFields(log.Fields{"ingress": key}).Info("security group deleted")
 	}
 
-	return c.osClient.DeleteLoadbalancer(loadbalancer.ID)
+	err = openstackutil.DeleteLoadbalancer(c.osClient.Octavia, loadbalancer.ID)
+	log.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("loadbalancer deleted")
+
+	return err
+}
+
+func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretName string) (string, error) {
+	secret, err := c.kubeClient.CoreV1().Secrets(namespace).Get(name, apimetav1.GetOptions{})
+	if err != nil {
+		// TODO(lingxiankong): Creating secret on the fly not supported yet.
+		return "", err
+	}
+
+	var pk crypto.PrivateKey
+	if keyBytes, isPresent := secret.Data[IngressSecretKeyName]; isPresent {
+		pk, err = privateKeyFromPEM(keyBytes)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		return "", fmt.Errorf("%s key doesn't exist in the secret %s", IngressSecretKeyName, name)
+	}
+
+	var cb []*x509.Certificate
+	if certBytes, isPresent := secret.Data[IngressSecretCertName]; isPresent {
+		cb, err = parsePEMBundle(certBytes)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		return "", fmt.Errorf("%s key doesn't exist in the secret %s", IngressSecretCertName, name)
+	}
+
+	var caCerts []*x509.Certificate
+	// TODO(lingxiankong): We assume the 'tls.cert' data only contains the end user certificate.
+	pfxData, err := pkcs12.Encode(rand.Reader, pk, cb[0], caCerts, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create PKCS#12 bundle: %v", err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(pfxData)
+
+	return openstackutil.EnsureSecret(c.osClient.Barbican, toSecretName, "application/octet-stream", encoded)
 }
 
 func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
@@ -531,6 +600,10 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 
 	key := fmt.Sprintf("%s/%s", ingNamespace, ingName)
 	name := utils.GetResourceName(ingNamespace, ingName, clusterName)
+
+	if len(ing.Spec.TLS) > 0 && c.osClient.Barbican == nil {
+		return fmt.Errorf("TLS Ingress not supported because of Key Manager service unavailable")
+	}
 
 	lb, err := c.osClient.EnsureLoadBalancer(name, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName)
 	if err != nil {
@@ -558,7 +631,22 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 		log.WithFields(log.Fields{"sgID": sgID, "ingress": key}).Info("ensured security group")
 	}
 
-	listener, err := c.osClient.EnsureListener(name, lb.ID)
+	// Convert kubernetes secrets to barbican ones
+	var secretRefs []string
+	for _, tls := range ing.Spec.TLS {
+		secretName := fmt.Sprintf(BarbianSecretNameTemplate, clusterName, ingNamespace, ingName, tls.SecretName)
+		secretRef, err := c.toBarbicanSecret(tls.SecretName, ingNamespace, secretName)
+		if err != nil {
+			return fmt.Errorf("failed to create Barbican secret: %v", err)
+		}
+
+		log.WithFields(log.Fields{"secretName": secretName, "secretRef": secretRef, "ingress": key}).Info("secret created in Barbican")
+
+		secretRefs = append(secretRefs, secretRef)
+	}
+
+	// Create listener
+	listener, err := c.osClient.EnsureListener(name, lb.ID, secretRefs)
 	if err != nil {
 		return err
 	}
@@ -755,4 +843,52 @@ func getStringFromIngressAnnotation(ingress *nwv1beta1.Ingress, annotationKey st
 	}
 
 	return defaultValue
+}
+
+// privateKeyFromPEM converts a PEM block into a crypto.PrivateKey.
+func privateKeyFromPEM(pemData []byte) (crypto.PrivateKey, error) {
+	var result *pem.Block
+	rest := pemData
+	for {
+		result, rest = pem.Decode(rest)
+		if result == nil {
+			return nil, fmt.Errorf("Cannot decode supplied PEM data")
+		}
+
+		switch result.Type {
+		case "RSA PRIVATE KEY":
+			return x509.ParsePKCS1PrivateKey(result.Bytes)
+		case "EC PRIVATE KEY":
+			return x509.ParseECPrivateKey(result.Bytes)
+		}
+	}
+}
+
+// parsePEMBundle parses a certificate bundle from top to bottom and returns
+// a slice of x509 certificates. This function will error if no certificates are found.
+//
+func parsePEMBundle(bundle []byte) ([]*x509.Certificate, error) {
+	var certificates []*x509.Certificate
+	var certDERBlock *pem.Block
+
+	for {
+		certDERBlock, bundle = pem.Decode(bundle)
+		if certDERBlock == nil {
+			break
+		}
+
+		if certDERBlock.Type == "CERTIFICATE" {
+			cert, err := x509.ParseCertificate(certDERBlock.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			certificates = append(certificates, cert)
+		}
+	}
+
+	if len(certificates) == 0 {
+		return nil, fmt.Errorf("no certificates were found while parsing the bundle")
+	}
+
+	return certificates, nil
 }
