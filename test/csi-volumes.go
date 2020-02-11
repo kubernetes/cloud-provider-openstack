@@ -13,8 +13,9 @@ import (
 
 var CSITestSuites = []func() testsuites.TestSuite{
 	testsuites.InitVolumesTestSuite,
-	testsuites.InitSubPathTestSuite,
 	testsuites.InitProvisioningTestSuite,
+	testsuites.InitVolumeExpandTestSuite,
+	testsuites.InitSubPathTestSuite,
 	//testsuites.InitVolumeIOTestSuite,
 	//testsuites.InitVolumeModeTestSuite,
 	//testsuites.InitSnapshottableTestSuite,
