@@ -209,17 +209,19 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	_, err := cs.Cloud.GetInstanceByID(instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerUnpublishVolume Instance not found")
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because node %s does not exist", volumeID, instanceID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume GetInstanceByID failed with error %v", err))
 	}
 
 	err = cs.Cloud.DetachVolume(instanceID, volumeID)
 	if err != nil {
-		klog.V(3).Infof("Failed to DetachVolume: %v", err)
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerUnpublishVolume Volume not found")
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it does not exist", volumeID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
+		klog.V(3).Infof("Failed to DetachVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume Detach Volume failed with error %v", err))
 	}
 
@@ -227,7 +229,8 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitDiskDetached: %v", err)
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerUnpublishVolume Volume not found")
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it was deleted in the meanwhile", volumeID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume failed with error %v", err))
 	}
