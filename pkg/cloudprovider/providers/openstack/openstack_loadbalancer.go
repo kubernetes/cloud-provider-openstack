@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1839,9 +1840,17 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 			if err != nil {
 				return fmt.Errorf("failed to get floating IP for loadbalancer VIP port %s: %v", portID, err)
 			}
+
+			// Delete the floating IP only if it was created dynamically by the controller manager.
 			if fip != nil {
-				if err := floatingips.Delete(lbaas.network, fip.ID).ExtractErr(); err != nil {
-					return fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
+				matched, err := regexp.Match("Floating IP for Kubernetes external service", []byte(fip.Description))
+				if err != nil {
+					return err
+				}
+				if matched {
+					if err := floatingips.Delete(lbaas.network, fip.ID).ExtractErr(); err != nil {
+						return fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
+					}
 				}
 			}
 		}
