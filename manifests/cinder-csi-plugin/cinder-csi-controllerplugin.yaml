@@ -37,7 +37,6 @@ spec:
         - name: csi-attacher
           image: quay.io/k8scsi/csi-attacher:v2.0.0
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
           env:
@@ -73,7 +72,6 @@ spec:
         - name: csi-resizer
           image: quay.io/k8scsi/csi-resizer:v0.3.0
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS

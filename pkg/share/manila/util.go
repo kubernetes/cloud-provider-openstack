@@ -19,11 +19,13 @@ package manila
 import (
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 )
 
 func getPVAccessMode(PVCAccessMode []v1.PersistentVolumeAccessMode) []v1.PersistentVolumeAccessMode {
@@ -141,13 +143,30 @@ func getShareSecretRefFromPV(pv *v1.PersistentVolume) (*v1.SecretReference, erro
 	return getSecretRefFromPV(manilaAnnotationShareSecretName, manilaAnnotationShareSecretNamespace, pv)
 }
 
-func waitForShareStatus(shareID string, client *gophercloud.ServiceClient, desiredStatus string) error {
-	return gophercloud.WaitFor(shareAvailabilityTimeout, func() (bool, error) {
-		share, err := shares.Get(client, shareID).Extract()
+func waitForShareStatus(shareID string, client manilaclient.Interface, desiredStatus string) error {
+	var (
+		backoff = wait.Backoff{
+			Duration: time.Second * 3,
+			Factor:   1.2,
+			Steps:    10,
+		}
+	)
+
+	return wait.ExponentialBackoff(backoff, func() (done bool, err error) {
+		share, err := client.GetShareByID(shareID)
 		if err != nil {
 			return false, err
 		}
 
-		return share.Status == desiredStatus, nil
+		switch share.Status {
+		case "creating":
+			done = false
+		case "available":
+			done = true
+		default:
+			err = fmt.Errorf("share %s is in an unexpected state: wanted either creating or available, got %s", shareID, share.Status)
+		}
+
+		return done, err
 	})
 }

@@ -26,7 +26,7 @@ func getfakecloud() *cloud {
 }
 
 // Fake Cloud
-func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
+func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
 
 	vol := &volumes.Volume{
 		ID:               randString(10),
@@ -36,6 +36,7 @@ func (cloud *cloud) CreateVolume(name string, size int, vtype, availability stri
 		VolumeType:       vtype,
 		AvailabilityZone: availability,
 		SnapshotID:       snapshotID,
+		SourceVolID:      sourceVolID,
 	}
 
 	cloud.volumes[vol.ID] = vol
@@ -127,15 +128,14 @@ func notFoundError() error {
 	return gophercloud.ErrDefault404{}
 }
 
-func (cloud *cloud) CreateSnapshot(name, volID, description string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (cloud *cloud) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
 
 	snap := &snapshots.Snapshot{
-		ID:          randString(10),
-		Name:        name,
-		Status:      "Available",
-		VolumeID:    volID,
-		Description: description,
-		CreatedAt:   time.Now(),
+		ID:        randString(10),
+		Name:      name,
+		Status:    "Available",
+		VolumeID:  volID,
+		CreatedAt: time.Now(),
 	}
 
 	cloud.snapshots[snap.ID] = snap

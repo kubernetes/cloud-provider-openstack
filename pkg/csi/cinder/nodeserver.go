@@ -136,7 +136,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	}
 
 	// TODO: About AZ and Volume type
-	evol, err := ns.Cloud.CreateVolume(volName, size, "", "", "", &properties)
+	evol, err := ns.Cloud.CreateVolume(volName, size, "", "", "", "", &properties)
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)
@@ -284,10 +284,13 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	m := ns.Mount
 	notMnt, err := m.IsLikelyNotMountPointDetach(targetPath)
 	if err != nil && !mount.IsCorruptedMnt(err) {
+		klog.V(4).Infof("NodeUnpublishVolume: unable to unmount volume: %v", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if notMnt && !mount.IsCorruptedMnt(err) {
-		return nil, status.Error(codes.NotFound, "Volume not mounted")
+		// the volume is not mounted at all. There is no need for retrying to unmount.
+		klog.V(4).Infoln("NodeUnpublishVolume: skipping... not mounted any more")
+		return &csi.NodeUnpublishVolumeResponse{}, nil
 	}
 
 	err = m.UnmountPath(targetPath)
@@ -416,6 +419,7 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	_, err := ns.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
+			klog.V(4).Infof("NodeUnstageVolume: Unable to find volume: %v", err)
 			return nil, status.Error(codes.NotFound, "Volume not found")
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
@@ -425,10 +429,13 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 	notMnt, err := m.IsLikelyNotMountPointDetach(stagingTargetPath)
 	if err != nil && !mount.IsCorruptedMnt(err) {
+		klog.V(4).Infof("NodeUnstageVolume: unable to unmount volume: %v", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if notMnt && !mount.IsCorruptedMnt(err) {
-		return nil, status.Error(codes.NotFound, "Volume not mounted")
+		// the volume is not mounted at all. There is no need for retrying to unmount.
+		klog.V(4).Infoln("NodeUnstageVolume: skipping... not mounted any more")
+		return &csi.NodeUnstageVolumeResponse{}, nil
 	}
 
 	err = m.UnmountPath(stagingTargetPath)

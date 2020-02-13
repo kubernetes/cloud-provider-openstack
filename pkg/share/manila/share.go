@@ -19,12 +19,12 @@ package manila
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/sharebackends"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"k8s.io/kubernetes/pkg/controller/volume/persistentvolume"
@@ -50,17 +50,17 @@ func createShare(
 	volumeHandle string,
 	volOptions *controller.ProvisionOptions,
 	shareOptions *shareoptions.ShareOptions,
-	client *gophercloud.ServiceClient,
+	client manilaclient.Interface,
 ) (*shares.Share, error) {
 	req, err := buildCreateRequest(volOptions, shareOptions, volumeHandle)
 	if err != nil {
 		return nil, err
 	}
 
-	return shares.Create(client, *req).Extract()
+	return client.CreateShare(req)
 }
 
-func deleteShare(shareID, provisionType string, shareSecretRef *v1.SecretReference, client *gophercloud.ServiceClient, c clientset.Interface) error {
+func deleteShare(shareID, provisionType string, shareSecretRef *v1.SecretReference, client manilaclient.Interface, c clientset.Interface) error {
 	if backendName, err := getBackendNameForShare(shareID); err == nil {
 		shareBackend, err := getShareBackend(backendName)
 		if err != nil {
@@ -81,25 +81,19 @@ func deleteShare(shareID, provisionType string, shareSecretRef *v1.SecretReferen
 
 	if provisionType == manilaProvisionTypeDynamic {
 		// manila-provisioner is allowed to delete only those shares which it created
-		r := shares.Delete(client, shareID)
-		if r.Err != nil {
-			return r.Err
+		if err := client.DeleteShare(shareID); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func getShare(shareOptions *shareoptions.ShareOptions, client *gophercloud.ServiceClient) (*shares.Share, error) {
+func getShare(shareOptions *shareoptions.ShareOptions, client manilaclient.Interface) (*shares.Share, error) {
 	if shareOptions.OSShareID != "" {
-		return shares.Get(client, shareOptions.OSShareID).Extract()
+		return client.GetShareByID(shareOptions.OSShareID)
 	} else if shareOptions.OSShareName != "" {
-		shareID, err := shares.IDFromName(client, shareOptions.OSShareName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get share ID from name: %v", err)
-		}
-
-		return shares.Get(client, shareID).Extract()
+		return client.GetShareByName(shareOptions.OSShareName)
 	}
 
 	return nil, fmt.Errorf("both OSShareName and OSShareID are empty")
@@ -135,12 +129,13 @@ func buildCreateRequest(
 	}
 
 	return &shares.CreateOpts{
-		ShareProto:     shareOptions.Protocol,
-		ShareNetworkID: shareOptions.OSShareNetworkID,
-		Size:           storageSize,
-		Name:           shareName,
-		ShareType:      shareOptions.Type,
-		Metadata:       metadata,
+		ShareProto:       shareOptions.Protocol,
+		ShareNetworkID:   shareOptions.OSShareNetworkID,
+		Size:             storageSize,
+		Name:             shareName,
+		ShareType:        shareOptions.Type,
+		Metadata:         metadata,
+		AvailabilityZone: shareOptions.Zones,
 	}, nil
 }
 

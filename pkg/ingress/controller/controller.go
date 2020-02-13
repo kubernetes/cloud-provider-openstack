@@ -63,7 +63,7 @@ const (
 	// unset, or set to either the configured value or the empty string.
 	IngressKey = "kubernetes.io/ingress.class"
 
-	// IngressClass menas accept ingresses with the annotation
+	// IngressClass specifies which Ingress class we accept
 	IngressClass = "openstack"
 
 	// LabelNodeRoleMaster specifies that a node is a master

@@ -76,19 +76,19 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, tags *map[string]string) (*volumes.Volume, error) {
-	ret := _m.Called(name, size, vtype, availability, snapshotID, tags)
+func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
+	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, tags)
 
 	var r0 *volumes.Volume
-	if rf, ok := ret.Get(0).(func(string, int, string, string, string, *map[string]string) *volumes.Volume); ok {
-		r0 = rf(name, size, vtype, availability, snapshotID, tags)
+	if rf, ok := ret.Get(0).(func(string, int, string, string, string, string, *map[string]string) *volumes.Volume); ok {
+		r0 = rf(name, size, vtype, availability, snapshotID, sourceVolID, tags)
 	} else {
 		r0 = ret.Get(0).(*volumes.Volume)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, int, string, string, string, *map[string]string) error); ok {
-		r1 = rf(name, size, vtype, availability, snapshotID, tags)
+	if rf, ok := ret.Get(1).(func(string, int, string, string, string, string, *map[string]string) error); ok {
+		r1 = rf(name, size, vtype, availability, snapshotID, sourceVolID, tags)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -225,13 +225,13 @@ func (_m *OpenStackMock) ListSnapshots(limit int, offset int, filters map[string
 	return r0, r1
 }
 
-// CreateSnapshot provides a mock function with given fields: name, volID, description, tags
-func (_m *OpenStackMock) CreateSnapshot(name string, volID string, description string, tags *map[string]string) (*snapshots.Snapshot, error) {
-	ret := _m.Called(name, volID, description, tags)
+// CreateSnapshot provides a mock function with given fields: name, volID, tags
+func (_m *OpenStackMock) CreateSnapshot(name string, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
+	ret := _m.Called(name, volID, tags)
 
 	var r0 *snapshots.Snapshot
-	if rf, ok := ret.Get(0).(func(string, string, string, *map[string]string) *snapshots.Snapshot); ok {
-		r0 = rf(name, volID, description, tags)
+	if rf, ok := ret.Get(0).(func(string, string, *map[string]string) *snapshots.Snapshot); ok {
+		r0 = rf(name, volID, tags)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*snapshots.Snapshot)
@@ -239,8 +239,8 @@ func (_m *OpenStackMock) CreateSnapshot(name string, volID string, description s
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, string, string, *map[string]string) error); ok {
-		r1 = rf(name, volID, description, tags)
+	if rf, ok := ret.Get(1).(func(string, string, *map[string]string) error); ok {
+		r1 = rf(name, volID, tags)
 	} else {
 		r1 = ret.Error(1)
 	}
