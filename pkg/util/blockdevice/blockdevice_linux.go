@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,9 +74,9 @@ func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int
 	return nil, true
 }
 
-func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
+func RescanBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
 	if newSize == 0 {
-		klog.Error("newSize is empty, skipping the polling")
+		klog.Error("newSize is empty, skipping the block device rescan")
 		return nil
 	}
 
@@ -98,10 +98,10 @@ func PollBlockGeometry(devicePath string, deviceMountPath string, newSize int64)
 	}
 
 	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
-	klog.V(4).Infof("Polling %q block device geometry", devicePath)
+	klog.V(4).Infof("Rescanning %q block device geometry", devicePath)
 	err = ioutil.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
 	if err != nil {
-		klog.Errorf("Error polling new block device geometry: %v", err)
+		klog.Errorf("Error rescanning new block device geometry: %v", err)
 		// no need to run checkBlockDeviceSize second time here, return the saved error
 		return bdSizeErr
 	}

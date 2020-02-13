@@ -37,12 +37,13 @@ var (
 )
 
 type CinderDriver struct {
-	name        string
-	nodeID      string
-	version     string
-	endpoint    string
-	cloudconfig string
-	cluster     string
+	name           string
+	nodeID         string
+	version        string
+	endpoint       string
+	cloudconfig    string
+	cluster        string
+	rescanOnResize bool
 
 	ids *identityServer
 	cs  *controllerServer
@@ -53,7 +54,7 @@ type CinderDriver struct {
 	nscap []*csi.NodeServiceCapability
 }
 
-func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
+func NewDriver(nodeID, endpoint, cluster string, rescanOnResize bool) *CinderDriver {
 	klog.Infof("Driver: %v version: %v", driverName, version)
 
 	d := &CinderDriver{}
@@ -62,6 +63,7 @@ func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
 	d.version = version
 	d.endpoint = endpoint
 	d.cluster = cluster
+	d.rescanOnResize = rescanOnResize
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{

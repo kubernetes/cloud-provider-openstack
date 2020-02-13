@@ -394,6 +394,10 @@ the cluster in which the plugin is running.
 $ sudo cinder-csi-plugin --endpoint tcp://127.0.0.1:10000 --cloud-config /etc/cloud.conf --nodeid CSINodeID --cluster ClusterID
 ```
 
+#### Rescan block device geometry on in-use volume resize
+
+Some hypervizors (like VMware) don't automatically send a new volume size to a Linux kernel, when a volume is in-use. Sending a "1" to `/sys/class/block/XXX/device/rescan` is telling the SCSI block device to refresh it's information about where it's ending boundary is (among other things) to give the kernel information about it's updated size. When a `--rescan-on-resize` flag is set, a CSI node driver will rescan block device and verify its size before expanding the filesystem. CSI driver will raise an error, when expected volume size cannot be detected.
+
 #### Get plugin info
 ```
 $ csc identity plugin-info --endpoint tcp://127.0.0.1:10000

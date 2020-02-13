@@ -31,10 +31,11 @@ import (
 )
 
 var (
-	endpoint    string
-	nodeID      string
-	cloudconfig string
-	cluster     string
+	endpoint       string
+	nodeID         string
+	cloudconfig    string
+	cluster        string
+	rescanOnResize bool
 )
 
 func init() {
@@ -84,6 +85,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
+	cmd.PersistentFlags().BoolVar(&rescanOnResize, "rescan-on-resize", false, "Rescan block device geometry before resizing the filesystem.")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	logs.InitLogs()
@@ -99,7 +102,7 @@ func main() {
 
 func handle() {
 
-	d := cinder.NewDriver(nodeID, endpoint, cluster)
+	d := cinder.NewDriver(nodeID, endpoint, cluster, rescanOnResize)
 
 	//Intiliaze mount
 	mount, err := mount.GetMountProvider()
