@@ -98,12 +98,17 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
 	content := req.GetVolumeContentSource()
 	var snapshotID string
+	var sourcevolID string
 
 	if content != nil && content.GetSnapshot() != nil {
 		snapshotID = content.GetSnapshot().GetSnapshotId()
 	}
 
-	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, &properties)
+	if content != nil && content.GetVolume() != nil {
+		sourcevolID = content.GetVolume().GetVolumeId()
+	}
+
+	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
 	if err != nil {
 		klog.V(3).Infof("Failed to CreateVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume failed with error %v", err))
@@ -209,17 +214,19 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	_, err := cs.Cloud.GetInstanceByID(instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerUnpublishVolume Instance not found")
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because node %s does not exist", volumeID, instanceID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume GetInstanceByID failed with error %v", err))
 	}
 
 	err = cs.Cloud.DetachVolume(instanceID, volumeID)
 	if err != nil {
-		klog.V(3).Infof("Failed to DetachVolume: %v", err)
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerUnpublishVolume Volume not found")
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it does not exist", volumeID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
+		klog.V(3).Infof("Failed to DetachVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume Detach Volume failed with error %v", err))
 	}
 
@@ -227,7 +234,8 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitDiskDetached: %v", err)
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerUnpublishVolume Volume not found")
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it was deleted in the meanwhile", volumeID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume failed with error %v", err))
 	}
@@ -263,8 +271,6 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	name := req.Name
 	volumeId := req.SourceVolumeId
-	// No description from csi.CreateSnapshotRequest now
-	description := ""
 
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
@@ -296,7 +302,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	} else {
 		// TODO: Delegate the check to openstack itself and ignore the conflict
-		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, description, &req.Parameters)
+		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, &req.Parameters)
 		if err != nil {
 			klog.V(3).Infof("Failed to Create snapshot: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
@@ -543,6 +549,16 @@ func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: vol.SnapshotID,
+				},
+			},
+		}
+	}
+
+	if vol.SourceVolID != "" {
+		volsrc = &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Volume{
+				Volume: &csi.VolumeContentSource_VolumeSource{
+					VolumeId: vol.SourceVolID,
 				},
 			},
 		}

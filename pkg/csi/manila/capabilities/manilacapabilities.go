@@ -19,7 +19,6 @@ package capabilities
 import (
 	"fmt"
 	"strconv"
-	"sync"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 )
@@ -33,23 +32,27 @@ const (
 	ManilaCapabilityNone ManilaCapability = iota
 	ManilaCapabilitySnapshot
 	ManilaCapabilityShareFromSnapshot
-)
 
-var (
-	manilaCapabilitiesByShareTypeIDMtx sync.RWMutex
-	manilaCapabilitiesByShareTypeID    = make(map[string]ManilaCapabilities)
+	extraSpecSnapshotSupport                = "snapshot_support"
+	extraSpecCreateShareFromSnapshotSupport = "create_share_from_snapshot_support"
 )
 
 func GetManilaCapabilities(shareType string, manilaClient manilaclient.Interface) (ManilaCapabilities, error) {
-	const (
-		snapshotSupport                = "snapshot_support"
-		createShareFromSnapshotSupport = "create_share_from_snapshot_support"
-	)
+	shareTypes, err := manilaClient.GetShareTypes()
+	if err != nil {
+		return nil, err
+	}
 
-	manilaCapabilitiesByShareTypeIDMtx.RLock()
-	caps, ok := manilaCapabilitiesByShareTypeID[shareType]
-	manilaCapabilitiesByShareTypeIDMtx.RUnlock()
+	for _, t := range shareTypes {
+		if t.Name == shareType || t.ID == shareType {
+			return readManilaCaps(t.ExtraSpecs), nil
+		}
+	}
 
+	return nil, fmt.Errorf("unknown share type %s", shareType)
+}
+
+func readManilaCaps(extraSpecs map[string]interface{}) ManilaCapabilities {
 	strToBool := func(ss interface{}) bool {
 		var b bool
 		if ss != nil {
@@ -60,22 +63,8 @@ func GetManilaCapabilities(shareType string, manilaClient manilaclient.Interface
 		return b
 	}
 
-	if !ok {
-		manilaCapabilitiesByShareTypeIDMtx.Lock()
-		defer manilaCapabilitiesByShareTypeIDMtx.Unlock()
-
-		extraSpecs, err := shareTypeGetExtraSpecs(shareType, manilaClient)
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve extra specs: %v", err)
-		}
-
-		caps = ManilaCapabilities{
-			ManilaCapabilitySnapshot:          strToBool(extraSpecs[snapshotSupport]),
-			ManilaCapabilityShareFromSnapshot: strToBool(extraSpecs[createShareFromSnapshotSupport]),
-		}
-
-		manilaCapabilitiesByShareTypeID[shareType] = caps
+	return ManilaCapabilities{
+		ManilaCapabilitySnapshot:          strToBool(extraSpecs[extraSpecSnapshotSupport]),
+		ManilaCapabilityShareFromSnapshot: strToBool(extraSpecs[extraSpecCreateShareFromSnapshotSupport]),
 	}
-
-	return caps, nil
 }

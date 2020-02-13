@@ -19,6 +19,7 @@ package sharebackends
 import (
 	"fmt"
 	"io/ioutil"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions"
 	"net/http"
 	"reflect"
@@ -176,7 +177,7 @@ func TestCSICephFSGrantAccess(t *testing.T) {
 			ShareSecretNamespace: "default",
 		},
 		Clientset: fakeclientset.NewSimpleClientset(),
-		Client:    fakeclient.ServiceClient(),
+		Client:    manilaclient.NewFromServiceClient(fakeclient.ServiceClient()),
 	}
 
 	b := CSICephFS{}

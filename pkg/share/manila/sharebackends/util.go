@@ -18,6 +18,7 @@ package sharebackends
 
 import (
 	"fmt"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
@@ -57,8 +58,8 @@ func deleteSecret(secretRef *v1.SecretReference, cs clientset.Interface) error {
 	return cs.CoreV1().Secrets(secretRef.Namespace).Delete(secretRef.Name, nil)
 }
 
-func getAccess(shareID string, c *gophercloud.ServiceClient, accessID string) (*shares.AccessRight, error) {
-	accessRights, err := shares.ListAccessRights(c, shareID).Extract()
+func getAccess(shareID string, c manilaclient.Interface, accessID string) (*shares.AccessRight, error) {
+	accessRights, err := c.GetAccessRights(shareID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,14 +83,14 @@ func grantAccessCephx(args *GrantAccessArgs) (*shares.AccessRight, error) {
 		AccessLevel: "rw",
 	}
 
-	if _, err := shares.GrantAccess(args.Client, args.Share.ID, accessOpts).Extract(); err != nil {
+	if _, err := args.Client.GrantAccess(args.Share.ID, accessOpts); err != nil {
 		return nil, err
 	}
 
 	var accessRight shares.AccessRight
 
 	err := gophercloud.WaitFor(120, func() (bool, error) {
-		accessRights, err := shares.ListAccessRights(args.Client, args.Share.ID).Extract()
+		accessRights, err := args.Client.GetAccessRights(args.Share.ID)
 		if err != nil {
 			return false, err
 		}

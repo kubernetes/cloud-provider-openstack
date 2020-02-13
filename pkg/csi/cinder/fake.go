@@ -54,6 +54,14 @@ var FakeVolFromSnapshot = volumes.Volume{
 	SnapshotID:       FakeSnapshotID,
 }
 
+var FakeVolFromSourceVolume = volumes.Volume{
+	ID:               "test-clone-id",
+	Name:             FakeVolName,
+	Size:             FakeCapacityGiB,
+	AvailabilityZone: FakeAvailability,
+	SourceVolID:      FakeVolID,
+}
+
 var FakeVol1 = volumes.Volume{
 	ID:               FakeVolID,
 	Name:             "fake-duplicate",

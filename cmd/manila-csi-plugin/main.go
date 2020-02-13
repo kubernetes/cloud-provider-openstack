@@ -121,7 +121,10 @@ func main() {
 				klog.Fatalf("failed to parse compatibility settings: %v", err)
 			}
 
-			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, &manilaclient.ClientBuilder{UserAgentData: userAgentData}, &csiclient.ClientBuilder{}, compatOpts)
+			manilaClientBuilder := &manilaclient.ClientBuilder{UserAgent: "manila-csi-plugin", ExtraUserAgentData: userAgentData}
+			csiClientBuilder := &csiclient.ClientBuilder{}
+
+			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, manilaClientBuilder, csiClientBuilder, compatOpts)
 			if err != nil {
 				klog.Fatalf("driver initialization failed: %v", err)
 			}

@@ -671,9 +671,60 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 	return &serverList[0], nil
 }
 
-func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
+// IP addresses order:
+// * interfaces private IPs
+// * access IPs
+// * metadata hostname
+// * server object Addresses (floating type)
+func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	addrs := []v1.NodeAddress{}
 
+	// parse private IP addresses first in an ordered manner
+	for _, iface := range interfaces {
+		for _, fixedIP := range iface.FixedIPs {
+			if iface.PortState == "ACTIVE" {
+				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
+				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+					v1helper.AddToNodeAddresses(&addrs,
+						v1.NodeAddress{
+							Type:    v1.NodeInternalIP,
+							Address: fixedIP.IPAddress,
+						},
+					)
+				}
+			}
+		}
+	}
+
+	// process public IP addresses
+	if srv.AccessIPv4 != "" {
+		v1helper.AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeExternalIP,
+				Address: srv.AccessIPv4,
+			},
+		)
+	}
+
+	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
+		v1helper.AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeExternalIP,
+				Address: srv.AccessIPv6,
+			},
+		)
+	}
+
+	if srv.Metadata[TypeHostName] != "" {
+		v1helper.AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeHostName,
+				Address: srv.Metadata[TypeHostName],
+			},
+		)
+	}
+
+	// process the rest
 	type Address struct {
 		IPType string `mapstructure:"OS-EXT-IPS:type"`
 		Addr   string
@@ -717,34 +768,6 @@ func nodeAddresses(srv *servers.Server, networkingOpts NetworkingOpts) ([]v1.Nod
 		}
 	}
 
-	// AccessIPs are usually duplicates of "public" addresses.
-	if srv.AccessIPv4 != "" {
-		v1helper.AddToNodeAddresses(&addrs,
-			v1.NodeAddress{
-				Type:    v1.NodeExternalIP,
-				Address: srv.AccessIPv4,
-			},
-		)
-	}
-
-	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
-		v1helper.AddToNodeAddresses(&addrs,
-			v1.NodeAddress{
-				Type:    v1.NodeExternalIP,
-				Address: srv.AccessIPv6,
-			},
-		)
-	}
-
-	if srv.Metadata[TypeHostName] != "" {
-		v1helper.AddToNodeAddresses(&addrs,
-			v1.NodeAddress{
-				Type:    v1.NodeHostName,
-				Address: srv.Metadata[TypeHostName],
-			},
-		)
-	}
-
 	return addrs, nil
 }
 
@@ -754,7 +777,12 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 		return nil, err
 	}
 
-	return nodeAddresses(&srv.Server, networkingOpts)
+	interfaces, err := getAttachedInterfacesByID(client, srv.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return nodeAddresses(&srv.Server, interfaces, networkingOpts)
 }
 
 func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {

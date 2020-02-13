@@ -270,7 +270,7 @@ brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
 
 ### Volume Expansion
 
-1. As Volume Expansion is an alpha feature. Make sure you have enabled it in Kubernetes API server using `--feature-gates=ExpandCSIVolumes=true` flag.
+1. As of kubernetes v1.16, Volume Expansion is a beta feature and enabled by default.
 2. Make sure to set `allowVolumeExpansion` to `true` in Storage class spec.
 3. Deploy the application.
 
@@ -320,7 +320,8 @@ $ kubectl exec nginx -- df -h /var/lib/www/html
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/vdb        2.0G   27M  1.97G   1% /var/lib/www/html
 ```
-## Inline Volumes
+### Inline Volumes
+
 This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. As of Kubernetes v1.16 this feature is beta so enabled by default. To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes. `podInfoOnMount` must be `true` to use this feature. 
 
 Example:
@@ -349,6 +350,19 @@ Volumes:
     Optional:    false
 
 ```
+
+### Volume Cloning
+
+As of Kubernetes v1.16, volume cloning is beta feature and enabled by default.
+This feature enables support of cloning a volume from existing PVCs.
+
+Following prerequisites needed for volume cloning to work :
+1. The source PVC must be bound and available (not in use).
+2. source and destination PVCs must be in the same namespace.
+3. Cloning is only supported within the same Storage Class. Destination volume must
+   be the same storage class as the source
+
+Sample yamls can be found [here](https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/cinder-csi-plugin/clone)
 
 ## Running Sanity Tests
 
