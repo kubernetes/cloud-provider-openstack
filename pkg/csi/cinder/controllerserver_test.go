@@ -34,7 +34,7 @@ func init() {
 		osmock = new(openstack.OpenStackMock)
 		openstack.OsInstance = osmock
 
-		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster, false)
 
 		fakeCs = NewControllerServer(d, openstack.OsInstance)
 	}
