@@ -29,7 +29,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 const (
@@ -39,14 +41,6 @@ const (
 
 	activeStatus = "ACTIVE"
 	errorStatus  = "ERROR"
-)
-
-var (
-	// ErrNotFound is used to inform that the object is missing
-	ErrNotFound = errors.New("failed to find object")
-
-	// ErrMultipleResults is used when we unexpectedly get back multiple results
-	ErrMultipleResults = errors.New("multiple results where only one expected")
 )
 
 func getNodeAddressForLB(node *apiv1.Node) (string, error) {
@@ -73,7 +67,7 @@ func (os *OpenStack) waitLoadbalancerActiveProvisioningStatus(loadbalancerID str
 
 	var provisioningStatus string
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		loadbalancer, err := loadbalancers.Get(os.octavia, loadbalancerID).Extract()
+		loadbalancer, err := loadbalancers.Get(os.Octavia, loadbalancerID).Extract()
 		if err != nil {
 			return false, err
 		}
@@ -94,105 +88,6 @@ func (os *OpenStack) waitLoadbalancerActiveProvisioningStatus(loadbalancerID str
 	return provisioningStatus, err
 }
 
-// GetLoadbalancerByName retrieves loadbalancer object
-func (os *OpenStack) GetLoadbalancerByName(name string) (*loadbalancers.LoadBalancer, error) {
-	opts := loadbalancers.ListOpts{
-		Name: name,
-	}
-	pager := loadbalancers.List(os.octavia, opts)
-	loadbalancerList := make([]loadbalancers.LoadBalancer, 0, 1)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		v, err := loadbalancers.ExtractLoadBalancers(page)
-		if err != nil {
-			return false, err
-		}
-		loadbalancerList = append(loadbalancerList, v...)
-		if len(loadbalancerList) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(loadbalancerList) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &loadbalancerList[0], nil
-}
-
-func (os *OpenStack) getListenerByName(name string, lbID string) (*listeners.Listener, error) {
-	opts := listeners.ListOpts{
-		Name:           name,
-		LoadbalancerID: lbID,
-	}
-	pager := listeners.List(os.octavia, opts)
-	listenerList := make([]listeners.Listener, 0, 1)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		v, err := listeners.ExtractListeners(page)
-		if err != nil {
-			return false, err
-		}
-		listenerList = append(listenerList, v...)
-		if len(listenerList) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(listenerList) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &listenerList[0], nil
-}
-
-func (os *OpenStack) getPoolByName(name string, lbID string) (*pools.Pool, error) {
-	listenerPools := make([]pools.Pool, 0, 1)
-	opts := pools.ListOpts{
-		Name:           name,
-		LoadbalancerID: lbID,
-	}
-	err := pools.List(os.octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
-		v, err := pools.ExtractPools(page)
-		if err != nil {
-			return false, err
-		}
-		listenerPools = append(listenerPools, v...)
-		if len(listenerPools) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(listenerPools) == 0 {
-		return nil, ErrNotFound
-	} else if len(listenerPools) > 1 {
-		return nil, ErrMultipleResults
-	}
-
-	return &listenerPools[0], nil
-}
-
 // GetPools retrives the pools belong to the loadbalancer. If shared is true, only return the shared pools.
 func (os *OpenStack) GetPools(lbID string, shared bool) ([]pools.Pool, error) {
 	var lbPools []pools.Pool
@@ -200,7 +95,7 @@ func (os *OpenStack) GetPools(lbID string, shared bool) ([]pools.Pool, error) {
 	opts := pools.ListOpts{
 		LoadbalancerID: lbID,
 	}
-	err := pools.List(os.octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
+	err := pools.List(os.Octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
 		v, err := pools.ExtractPools(page)
 		if err != nil {
 			return false, err
@@ -226,7 +121,7 @@ func (os *OpenStack) GetMembers(poolID string) ([]pools.Member, error) {
 	var members []pools.Member
 
 	opts := pools.ListMembersOpts{}
-	err := pools.ListMembers(os.octavia, poolID, opts).EachPage(func(page pagination.Page) (bool, error) {
+	err := pools.ListMembers(os.Octavia, poolID, opts).EachPage(func(page pagination.Page) (bool, error) {
 		v, err := pools.ExtractMembers(page)
 		if err != nil {
 			return false, err
@@ -243,7 +138,7 @@ func (os *OpenStack) GetMembers(poolID string) ([]pools.Member, error) {
 
 // DeletePool deletes a pool
 func (os *OpenStack) DeletePool(poolID string, lbID string) error {
-	if err := pools.Delete(os.octavia, poolID).ExtractErr(); err != nil {
+	if err := pools.Delete(os.Octavia, poolID).ExtractErr(); err != nil {
 		return fmt.Errorf("failed to delete pool %s: %v", poolID, err)
 	}
 
@@ -261,7 +156,7 @@ func (os *OpenStack) GetL7policies(listenerID string) ([]l7policies.L7Policy, er
 	opts := l7policies.ListOpts{
 		ListenerID: listenerID,
 	}
-	err := l7policies.List(os.octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
+	err := l7policies.List(os.Octavia, opts).EachPage(func(page pagination.Page) (bool, error) {
 		v, err := l7policies.ExtractL7Policies(page)
 		if err != nil {
 			return false, err
@@ -278,7 +173,7 @@ func (os *OpenStack) GetL7policies(listenerID string) ([]l7policies.L7Policy, er
 
 // DeleteL7policy deletes a l7 policy
 func (os *OpenStack) DeleteL7policy(policyID string, lbID string) error {
-	if err := l7policies.Delete(os.octavia, policyID).ExtractErr(); err != nil {
+	if err := l7policies.Delete(os.Octavia, policyID).ExtractErr(); err != nil {
 		return fmt.Errorf("failed to delete l7 policy: %v", err)
 	}
 
@@ -290,27 +185,13 @@ func (os *OpenStack) DeleteL7policy(policyID string, lbID string) error {
 	return nil
 }
 
-// DeleteLoadbalancer deletes a loadbalancer with all its child objects.
-func (os *OpenStack) DeleteLoadbalancer(lbID string) error {
-	err := loadbalancers.Delete(os.octavia, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
-	if err != nil && !cpoerrors.IsNotFound(err) {
-		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
-	}
-
-	log.WithFields(log.Fields{"lbID": lbID}).Info("loadbalancer deleted")
-
-	return nil
-}
-
 // EnsureLoadBalancer creates a loadbalancer in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
 func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespace string, ingName string, clusterName string) (*loadbalancers.LoadBalancer, error) {
-	loadbalancer, err := os.GetLoadbalancerByName(name)
+	loadbalancer, err := openstackutil.GetLoadbalancerByName(os.Octavia, name)
 	if err != nil {
-		if err != ErrNotFound {
+		if err != openstackutil.ErrNotFound {
 			return nil, fmt.Errorf("error getting loadbalancer %s: %v", name, err)
 		}
-
-		log.WithFields(log.Fields{"name": name}).Debug("creating loadbalancer")
 
 		var provider string
 		if os.config.Octavia.Provider == "" {
@@ -325,12 +206,12 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 			VipSubnetID: subnetID,
 			Provider:    provider,
 		}
-		loadbalancer, err = loadbalancers.Create(os.octavia, createOpts).Extract()
+		loadbalancer, err = loadbalancers.Create(os.Octavia, createOpts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
 		}
 
-		log.WithFields(log.Fields{"name": name, "ID": loadbalancer.ID}).Info("loadbalancer created")
+		log.WithFields(log.Fields{"name": name, "ID": loadbalancer.ID}).Info("creating loadbalancer")
 	} else {
 		log.WithFields(log.Fields{"name": name}).Debug("loadbalancer exists")
 	}
@@ -345,7 +226,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 
 // UpdateLoadBalancerDescription updates the load balancer description field.
 func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription string) error {
-	_, err := loadbalancers.Update(os.octavia, lbID, loadbalancers.UpdateOpts{
+	_, err := loadbalancers.Update(os.Octavia, lbID, loadbalancers.UpdateOpts{
 		Description: &newDescription,
 	}).Extract()
 	if err != nil {
@@ -357,21 +238,28 @@ func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription s
 }
 
 // EnsureListener creates a loadbalancer listener in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
-func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listener, error) {
-	listener, err := os.getListenerByName(name, lbID)
+func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []string) (*listeners.Listener, error) {
+	listener, err := openstackutil.GetListenerByName(os.Octavia, name, lbID)
 	if err != nil {
-		if err != ErrNotFound {
+		if err != openstackutil.ErrNotFound {
 			return nil, fmt.Errorf("error getting listener %s: %v", name, err)
 		}
 
 		log.WithFields(log.Fields{"lb": lbID, "listenerName": name}).Debug("creating listener")
 
-		listener, err = listeners.Create(os.octavia, listeners.CreateOpts{
+		opts := listeners.CreateOpts{
 			Name:           name,
 			Protocol:       "HTTP",
 			ProtocolPort:   80, // Ingress Controller only supports http/https for now
 			LoadbalancerID: lbID,
-		}).Extract()
+		}
+		if len(secretRefs) > 0 {
+			opts.DefaultTlsContainerRef = secretRefs[0]
+			opts.SniContainerRefs = secretRefs
+			opts.ProtocolPort = 443
+			opts.Protocol = "TERMINATED_HTTPS"
+		}
+		listener, err = listeners.Create(os.Octavia, opts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating listener: %v", err)
 		}
@@ -390,16 +278,16 @@ func (os *OpenStack) EnsureListener(name string, lbID string) (*listeners.Listen
 // EnsurePoolMembers ensure the pool and its members exist if deleted flag is not set, delete the pool and all its members otherwise.
 func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID string, listenerID string, nodePort *int, nodes []*apiv1.Node) (*string, error) {
 	if deleted {
-		pool, err := os.getPoolByName(poolName, lbID)
+		pool, err := openstackutil.GetPoolByName(os.Octavia, poolName, lbID)
 		if err != nil {
-			if err != ErrNotFound {
+			if err != openstackutil.ErrNotFound {
 				return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
 			}
 			return nil, nil
 		}
 
 		// Delete the existing pool, members are deleted automatically
-		err = pools.Delete(os.octavia, pool.ID).ExtractErr()
+		err = pools.Delete(os.Octavia, pool.ID).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error deleting pool %s: %v", pool.ID, err)
 		}
@@ -412,9 +300,9 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		return nil, nil
 	}
 
-	pool, err := os.getPoolByName(poolName, lbID)
+	pool, err := openstackutil.GetPoolByName(os.Octavia, poolName, lbID)
 	if err != nil {
-		if err != ErrNotFound {
+		if err != openstackutil.ErrNotFound {
 			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
 		}
 
@@ -439,7 +327,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 				Persistence:    nil,
 			}
 		}
-		pool, err = pools.Create(os.octavia, opts).Extract()
+		pool, err = pools.Create(os.Octavia, opts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating pool: %v", err)
 		}
@@ -474,7 +362,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		return nil, fmt.Errorf("error because no members in pool: %s", pool.ID)
 	}
 
-	if err := pools.BatchUpdateMembers(os.octavia, pool.ID, members).ExtractErr(); err != nil {
+	if err := pools.BatchUpdateMembers(os.Octavia, pool.ID, members).ExtractErr(); err != nil {
 		return nil, fmt.Errorf("error batch updating members for pool %s: %v", pool.ID, err)
 	}
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
@@ -491,7 +379,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path string) error {
 	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID}).Debug("creating policy")
 
-	policy, err := l7policies.Create(os.octavia, l7policies.CreateOpts{
+	policy, err := l7policies.Create(os.Octavia, l7policies.CreateOpts{
 		ListenerID:     listenerID,
 		Action:         l7policies.ActionRedirectToPool,
 		Description:    "Created by kubernetes ingress",
@@ -512,7 +400,7 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
 		// Create HOST_NAME type rule
-		_, err = l7policies.CreateRule(os.octavia, policy.ID, l7policies.CreateRuleOpts{
+		_, err = l7policies.CreateRule(os.Octavia, policy.ID, l7policies.CreateRuleOpts{
 			RuleType:    l7policies.TypeHostName,
 			CompareType: l7policies.CompareTypeEqual,
 			Value:       host,
@@ -533,7 +421,7 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 		log.WithFields(log.Fields{"type": l7policies.TypePath, "path": path, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
 		// Create PATH type rule
-		_, err = l7policies.CreateRule(os.octavia, policy.ID, l7policies.CreateRuleOpts{
+		_, err = l7policies.CreateRule(os.Octavia, policy.ID, l7policies.CreateRuleOpts{
 			RuleType:    l7policies.TypePath,
 			CompareType: l7policies.CompareTypeStartWith,
 			Value:       path,
