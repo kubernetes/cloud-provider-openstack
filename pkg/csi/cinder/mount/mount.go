@@ -26,7 +26,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/volume/util/hostutil"
 	"k8s.io/utils/exec"
 	"k8s.io/utils/mount"
 )
@@ -41,14 +40,11 @@ const (
 )
 
 type IMount interface {
-	GetHostUtil() hostutil.HostUtils
 	GetBaseMounter() *mount.SafeFormatAndMount
 	ScanForAttach(devicePath string) error
 	GetDevicePath(volumeID string) (string, error)
 	IsLikelyNotMountPointAttach(targetpath string) (bool, error)
-	FormatAndMount(source string, target string, fstype string, options []string) error
 	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
-	Mount(source string, target string, fstype string, options []string) error
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
 	MakeFile(pathname string) error
@@ -77,11 +73,6 @@ func (m *Mount) GetBaseMounter() *mount.SafeFormatAndMount {
 		Exec:      nExec,
 	}
 
-}
-
-func (m *Mount) GetHostUtil() hostutil.HostUtils {
-	hostutil := hostutil.NewHostUtil()
-	return hostutil
 }
 
 // probeVolume probes volume in compute
@@ -192,17 +183,6 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 			return fmt.Errorf("Could not find attached Cinder disk %s. Timeout waiting for mount paths to be created.", devicePath)
 		}
 	}
-}
-
-// FormatAndMount
-func (m *Mount) FormatAndMount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
-	return diskMounter.FormatAndMount(source, target, fstype, options)
-}
-
-func (m *Mount) Mount(source string, target string, fstype string, options []string) error {
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
-	return diskMounter.Mount(source, target, fstype, options)
 }
 
 // IsLikelyNotMountPointAttach

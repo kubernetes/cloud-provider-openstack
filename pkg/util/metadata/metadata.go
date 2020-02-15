@@ -29,7 +29,7 @@ import (
 
 	"k8s.io/klog"
 
-	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/utils/exec"
 )
 
@@ -124,15 +124,18 @@ func GetFromConfigDrive(metadataVersion string) (*Metadata, error) {
 
 	klog.V(4).Infof("Attempting to mount configdrive %s on %s", dev, mntdir)
 
-	mounter := mount.New("" /* default mount path */)
-	err = mounter.Mount(dev, mntdir, "iso9660", []string{"ro"})
+	mounter, err := mount.GetMountProvider()
 	if err != nil {
-		err = mounter.Mount(dev, mntdir, "vfat", []string{"ro"})
+		return nil, fmt.Errorf("Error in GetMountProvider %v", err)
+	}
+	err = mounter.GetBaseMounter().Mount(dev, mntdir, "iso9660", []string{"ro"})
+	if err != nil {
+		err = mounter.GetBaseMounter().Mount(dev, mntdir, "vfat", []string{"ro"})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error mounting configdrive %s: %v", dev, err)
 	}
-	defer mounter.Unmount(mntdir)
+	defer mounter.GetBaseMounter().Unmount(mntdir)
 
 	klog.V(4).Infof("Configdrive mounted on %s", mntdir)
 

@@ -18,7 +18,6 @@ package mount
 
 import (
 	mock "github.com/stretchr/testify/mock"
-	"k8s.io/kubernetes/pkg/volume/util/hostutil"
 	utilsexec "k8s.io/utils/exec"
 	exec "k8s.io/utils/exec/testing"
 	"k8s.io/utils/mount"
@@ -43,34 +42,6 @@ func NewFakeSafeFormatAndMounter() *mount.SafeFormatAndMount {
 		Interface: NewFakeMounter(),
 		Exec:      &exec.FakeExec{DisableScripts: true},
 	}
-}
-
-// FormatAndMount provides a mock function with given fields: source, target, fstype, options
-func (_m *MountMock) FormatAndMount(source string, target string, fstype string, options []string) error {
-	ret := _m.Called(source, target, fstype, options)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string, []string) error); ok {
-		r0 = rf(source, target, fstype, options)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Mount provides a mock function with given fields: source, target, fstype, options
-func (_m *MountMock) Mount(source string, target string, fstype string, options []string) error {
-	ret := _m.Called(source, target, fstype, options)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string, []string) error); ok {
-		r0 = rf(source, target, fstype, options)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
 }
 
 // GetInstanceID provides a mock function with given fields:
@@ -222,10 +193,6 @@ func (_m *MountMock) GetBaseMounter() *mount.SafeFormatAndMount {
 		Interface: NewFakeMounter(),
 		Exec:      fakeexec,
 	}
-}
-
-func (_m *MountMock) GetHostUtil() hostutil.HostUtils {
-	return hostutil.NewHostUtil()
 }
 
 func (_m *MountMock) MakeDir(pathname string) error {
