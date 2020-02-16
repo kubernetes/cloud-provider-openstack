@@ -21,9 +21,10 @@ import (
 )
 
 type ControllerVolumeContext struct {
-	Protocol       string `name:"protocol" matches:"^(?i)CEPHFS|NFS$"`
-	Type           string `name:"type" value:"default:default"`
-	ShareNetworkID string `name:"shareNetworkID" value:"optional"`
+	Protocol         string `name:"protocol" matches:"^(?i)CEPHFS|NFS$"`
+	Type             string `name:"type" value:"default:default"`
+	ShareNetworkID   string `name:"shareNetworkID" value:"optional"`
+	AvailabilityZone string `name:"availability" value:"optional"`
 
 	// Adapter options
 
