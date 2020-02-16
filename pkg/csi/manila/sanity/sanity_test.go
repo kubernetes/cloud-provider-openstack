@@ -38,7 +38,20 @@ func TestDriver(t *testing.T) {
 	endpoint := path.Join(basePath, "csi.sock")
 	fwdEndpoint := "unix:///fake-fwd-endpoint"
 
-	d, err := manila.NewDriver("node", "fake.manila.csi.openstack.org", endpoint, fwdEndpoint, "NFS", &fakeManilaClientBuilder{}, &fakeCSIClientBuilder{}, &options.CompatibilityOptions{})
+	d, err := manila.NewDriver(
+		&manila.DriverOpts{
+			DriverName:          "fake.manila.csi.openstack.org",
+			NodeID:              "node",
+			WithTopology:        true,
+			NodeAZ:              "fake-az",
+			ShareProto:          "NFS",
+			ServerCSIEndpoint:   endpoint,
+			FwdCSIEndpoint:      fwdEndpoint,
+			ManilaClientBuilder: &fakeManilaClientBuilder{},
+			CSIClientBuilder:    &fakeCSIClientBuilder{},
+			CompatOpts:          &options.CompatibilityOptions{},
+		})
+
 	if err != nil {
 		t.Fatalf("failed to initialize CSI Manila driver: %v", err)
 	}
