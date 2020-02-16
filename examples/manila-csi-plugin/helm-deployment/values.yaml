@@ -9,11 +9,17 @@ shareProtocols:
       sockFile: csi.sock
 #  - protocolSelector: CEPHFS
 #    fwdNodePluginEndpoint:
-#      dir: /var/lib/kubelet/plugins/csi-cephfsplugin
+#      dir: /var/lib/kubelet/plugins/cephfs.csi.ceph.com
 #      sockFile: csi.sock
 
-# CSI Manila image spec
+# CSI Manila spec
 csimanila:
+  # Set topologyAwarenessEnabled to true to enable topology-awareness
+  topologyAwarenessEnabled: false
+  # Availability zone for each node. topologyAwarenessEnabled must be set to true for this option to have any effect.
+  # If your Kubernetes cluster runs atop of Nova and want to use Nova AZs as AZs for the nodes of the cluster, uncomment the line below:
+  # nodeAZ: "$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq .availability_zone)"
+  # Image spec
   image:
     repository: manila-csi-plugin
     tag: latest
