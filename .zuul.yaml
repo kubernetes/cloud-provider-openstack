@@ -85,15 +85,16 @@
               - ^pkg/util/.*
               - ^go.mod$
               - ^go.sum$
-    cloud-provider-openstack-acceptance-test-flexvolume-cinder:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
+    # Disable Cinder FlexVolume Driver Job as it is deprecated in cloud-provider-openstack repo.
+    # cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+    #   jobs:
+    #     - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
+    #         irrelevant-files:
+    #           - ^docs/.*$
+    #           - ^.*\.md$
+    #           - ^OWNERS$
+    #           - ^SECURITY_CONTACTS$
+    #           - ^.gitignore$
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:

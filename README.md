@@ -3,7 +3,7 @@
 
 Thank you for visiting the `Cloud Provider OpenStack` repository!
 
-This Repository hosts various plugins relavant to OpenStack and Kubernetes Integration
+This Repository hosts various plugins relevant to OpenStack and Kubernetes Integration
 
 * [OpenStack Cloud Controller Manager](/docs/openstack-cloud-controller-manager.md/)
 * [Octavia Ingress Controller](/docs/using-octavia-ingress-controller.md/)
@@ -14,6 +14,8 @@ This Repository hosts various plugins relavant to OpenStack and Kubernetes Integ
 * [Manila CSI Plugin](/docs/using-manila-csi-plugin.md/)
 * [Manila Provisioner](/docs/using-manila-provisioner.md/)
 * [Barbican KMS Plugin](/docs/using-barbican-kms-plugin.md/)
+* [Magnum Auto Healer](/docs/using-magnum-auto-healer.md/)
+* Cinder FlexVolume Driver**[DEPRECATED]**
 
 ## Developing
 
