@@ -32,10 +32,10 @@ import (
 	"k8s.io/kubernetes/pkg/util/resizefs"
 	utilpath "k8s.io/utils/path"
 
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
 type nodeServer struct {
