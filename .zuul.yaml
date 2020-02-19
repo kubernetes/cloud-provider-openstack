@@ -8,16 +8,23 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    # Disable Octavia Job issue-750
-    # cloud-provider-openstack-acceptance-test-lb-octavia:
-    #   jobs:
-    #     - cloud-provider-openstack-acceptance-test-lb-octavia:
-    #         irrelevant-files:
-    #           - ^docs/.*$
-    #           - ^.*\.md$
-    #           - ^OWNERS$
-    #           - ^SECURITY_CONTACTS$
-    #           - ^.gitignore$
+    cloud-provider-openstack-acceptance-test-lb-octavia:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-lb-octavia:
+            files:
+              - ^cmd/openstack-cloud-controller-manager/.*
+              - ^pkg/cloudprovider/.*
+              - ^pkg/util/.*
+              - ^tests/e2e/cloudprovider/.*
+              - ^go.mod$
+              - ^go.sum$
+              - ^Makefile$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
     cloud-provider-openstack-format:
       jobs:
         - cloud-provider-openstack-format:
@@ -30,6 +37,12 @@
     cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
+            files:
+              - ^cmd/k8s-keystone-auth/.*
+              - ^pkg/identity/.*
+              - ^go.mod$
+              - ^go.sum$
+              - ^Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -106,6 +119,7 @@
               - ^pkg/cloudprovider/.*
               - ^go.mod$
               - ^go.sum$
+              - ^Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
