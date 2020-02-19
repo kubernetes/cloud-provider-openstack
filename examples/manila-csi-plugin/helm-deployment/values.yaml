@@ -14,7 +14,7 @@ shareProtocols:
 
 # CSI Manila spec
 csimanila:
-  # Set topologyAwarenessEnabled to true to enable topology-awareness
+  # Set topologyAwarenessEnabled to true to enable topology awareness
   topologyAwarenessEnabled: false
   # Availability zone for each node. topologyAwarenessEnabled must be set to true for this option to have any effect.
   # If your Kubernetes cluster runs atop of Nova and want to use Nova AZs as AZs for the nodes of the cluster, uncomment the line below:

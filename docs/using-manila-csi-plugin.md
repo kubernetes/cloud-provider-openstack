@@ -13,7 +13,7 @@ The CSI Manila driver is able to create and mount OpenStack Manila shares. Snaps
 * [Deployment](#deployment)
   * [Kubernetes 1.15+](#kubernetes-115)
     * [Verifying the deployment](#verifying-the-deployment)
-    * [Enabling topology-awareness](#enabling-topology-awareness)
+    * [Enabling topology awareness](#enabling-topology-awareness)
 * [Share protocol support matrix](#share-protocol-support-matrix)
 * [For developers](#for-developers)
 
@@ -74,7 +74,7 @@ Optionally, a custom certificate may be sourced via `os-certAuthorityPath` (path
 ### Topology-aware dynamic provisioning
 
 Topology-aware dynamic provisioning makes it possible to reliably provision and use shares that are _not_ equally accessible from all compute nodes due to storage topology constraints.
-With topology-awareness enabled, administrators can specify the mapping between compute and Manila availability zones.
+With topology awareness enabled, administrators can specify the mapping between compute and Manila availability zones.
 Doing so will instruct the CO scheduler to place the workloads+shares only on nodes that are able to reach the underlying storage.
 
 CSI Manila uses `topology.manila.csi.openstack.org/zone` _topology key_ to identify node's affinity to a certain compute availability zone.
@@ -83,7 +83,7 @@ Each node of the cluster then gets labeled with a key/value pair of `topology.ma
 This label may be used as a node selector when defining topology constraints for dynamic provisioning.
 Administrators are also free to pass arbitrary labels, and as long as they are valid node selectors, they will be honored by the scheduler.
 
-[Enabling topology-awareness in Kubernetes](#enabling-topology-awareness)
+[Enabling topology awareness in Kubernetes](#enabling-topology-awareness)
 
 ## Deployment
 
@@ -155,7 +155,7 @@ statefulset.apps/openstack-manila-csi-controllerplugin   1/1     2m8s
 
 To test the deployment further, see `examples/csi-manila-plugin`.
 
-#### Enabling topology-awareness
+#### Enabling topology awareness
 
 If you're deploying CSI Manila with Helm:
 1. Set `csimanila.topologyAwarenessEnabled` to `true`

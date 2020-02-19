@@ -125,9 +125,9 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	klog.Infof("Operating on %s shares", d.shareProto)
 
 	if d.withTopology {
-		klog.Infof("Topology-awareness enabled, node availability zone: %s", d.nodeAZ)
+		klog.Infof("Topology awareness enabled, node availability zone: %s", d.nodeAZ)
 	} else {
-		klog.Info("Topology-awareness disabled")
+		klog.Info("Topology awareness disabled")
 	}
 
 	serverProto, serverAddr, err := parseGRPCEndpoint(o.ServerCSIEndpoint)
