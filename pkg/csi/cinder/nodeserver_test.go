@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -379,4 +382,20 @@ func TestNodeExpandVolume(t *testing.T) {
 	// Assert
 	assert.Equal(expectedRes, actualRes)
 
+}
+
+func TestNodeGetVolumeStats(t *testing.T) {
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.NodeGetVolumeStatsRequest{
+		VolumeId:   FakeVolName,
+		VolumePath: FakeDevicePath,
+	}
+
+	// Invoke NodeGetVolumeStats
+	_, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
+	assert.Equal(status.Error(codes.Internal, "Unable to statfs target /dev/xxx, err: no such file or directory"), err)
 }

@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/resizefs"
+	"k8s.io/kubernetes/pkg/volume/util/fs"
 	utilpath "k8s.io/utils/path"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -478,8 +479,22 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 	}, nil
 }
 
-func (ns *nodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("NodeGetVolumeStats is not yet implemented"))
+func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	klog.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
+
+	volumePath := req.GetVolumePath()
+
+	available, capacity, usage, inodes, inodesFree, inodesUsed, err := fs.FsInfo(volumePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal,
+			"Unable to statfs target %s, err: %s", volumePath, err)
+	}
+	return &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{Total: capacity, Available: available, Used: usage, Unit: 1},
+			{Total: inodes, Available: inodesFree, Used: inodesUsed, Unit: 2},
+		},
+	}, nil
 }
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
