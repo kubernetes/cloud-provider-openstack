@@ -113,7 +113,7 @@ Request Body:
 
 - loadbalancer.openstack.org/x-forwarded-for
 
-  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request.
+  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request. Only applies when using Octavia.
 
 - loadbalancer.openstack.org/timeout-client-data
 
