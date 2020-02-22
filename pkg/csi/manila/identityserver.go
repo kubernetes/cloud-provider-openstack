@@ -18,7 +18,6 @@ package manila
 
 import (
 	"context"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,7 +39,12 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 }
 
 func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
-	return &csi.ProbeResponse{}, nil
+	csiConn, err := ids.d.csiClientBuilder.NewConnectionWithContext(ctx, ids.d.fwdEndpoint)
+	if err != nil {
+		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ids.d.fwdEndpoint, err))
+	}
+
+	return ids.d.csiClientBuilder.NewIdentityServiceClient(csiConn).Probe(ctx, req)
 }
 
 func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
