@@ -22,7 +22,7 @@ import (
 	"k8s.io/klog"
 )
 
-func RescanBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
-	klog.V(1).Info("RescanBlockGeometry is not implemented for this OS")
+func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSize int64) error {
+	klog.V(1).Info("RescanBlockDeviceGeometry is not implemented for this OS")
 	return nil
 }

@@ -503,10 +503,10 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
-	if ns.Driver.rescanOnResize {
+	if ns.Cloud.GetBlockStorageOpts().RescanOnResize {
 		// comparing current volume size with the expected one
 		newSize := req.GetCapacityRange().GetRequiredBytes()
-		if err := blockdevice.RescanBlockGeometry(devicePath, volumePath, newSize); err != nil {
+		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
 		}
 	}

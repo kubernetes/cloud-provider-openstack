@@ -57,36 +57,32 @@ func getBlockDeviceSize(path string) (int64, error) {
 	return pos, nil
 }
 
-func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) (error, bool) {
+func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) error {
 	klog.V(4).Infof("Detecting %q volume size", deviceMountPath)
 	size, err := getBlockDeviceSize(devicePath)
 	if err != nil {
-		return err, false
+		return err
 	}
 
 	klog.V(3).Infof("Detected %q volume size: %d", deviceMountPath, size)
-	// Cmp returns 0 if the quantity is equal to y, -1 if the quantity is less than y,
-	// or 1 if the quantity is greater than y.
+
 	if size < newSize {
-		return fmt.Errorf("current volume size is less than expected one: %d < %d", size, newSize), true
+		return fmt.Errorf("current volume size is less than expected one: %d < %d", size, newSize)
 	}
 
-	return nil, true
+	return nil
 }
 
-func RescanBlockGeometry(devicePath string, deviceMountPath string, newSize int64) error {
+func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSize int64) error {
 	if newSize == 0 {
 		klog.Error("newSize is empty, skipping the block device rescan")
 		return nil
 	}
 
 	// when block device size corresponds expectations, return nil
-	bdSizeErr, ok := checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
+	bdSizeErr := checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
 	if bdSizeErr == nil {
 		return nil
-	} else if !ok {
-		// no access to the blockdevice, or other fatal error
-		return bdSizeErr
 	}
 
 	// don't fail if resolving doesn't work
@@ -106,6 +102,5 @@ func RescanBlockGeometry(devicePath string, deviceMountPath string, newSize int6
 		return bdSizeErr
 	}
 
-	err, _ = checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
-	return err
+	return checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
 }
