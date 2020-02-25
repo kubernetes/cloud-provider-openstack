@@ -27,6 +27,8 @@ func getfakecloud() *cloud {
 	}
 }
 
+var _ cco.IOpenStack = &cloud{}
+
 // Fake Cloud
 func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
 
@@ -51,6 +53,10 @@ func (cloud *cloud) DeleteVolume(volumeID string) error {
 
 	return nil
 
+}
+
+func (cloud *cloud) CheckBlockStorageAPI() error {
+	return nil
 }
 
 func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
