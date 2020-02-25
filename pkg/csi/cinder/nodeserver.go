@@ -480,9 +480,21 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 }
 
 func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	klog.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
+	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", *req)
+
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume Id not provided")
+	}
 
 	volumePath := req.GetVolumePath()
+	if len(volumePath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume path not provided")
+	}
+
+	if err := verifyTargetDir(volumePath); err != nil {
+		return nil, err
+	}
 
 	available, capacity, usage, inodes, inodesFree, inodesUsed, err := fs.FsInfo(volumePath)
 	if err != nil {
@@ -491,8 +503,8 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 	}
 	return &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
-			{Total: capacity, Available: available, Used: usage, Unit: 1},
-			{Total: inodes, Available: inodesFree, Used: inodesUsed, Unit: 2},
+			{Total: capacity, Available: available, Used: usage, Unit: csi.VolumeUsage_BYTES},
+			{Total: inodes, Available: inodesFree, Used: inodesUsed, Unit: csi.VolumeUsage_INODES},
 		},
 	}, nil
 }
@@ -600,4 +612,23 @@ func getNodeID(mount mount.IMount, iMetadata openstack.IMetadata, order string) 
 		return "", err
 	}
 	return nodeID, nil
+}
+
+func verifyTargetDir(target string) error {
+	if target == "" {
+		return status.Error(codes.InvalidArgument,
+			"target path required")
+	}
+
+	_, err := os.Stat(target)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return status.Errorf(codes.NotFound,
+				"target: %s not found", target)
+		}
+		return status.Errorf(codes.Internal,
+			"failed to stat target, err: %s", err.Error())
+	}
+
+	return nil
 }

@@ -397,5 +397,5 @@ func TestNodeGetVolumeStats(t *testing.T) {
 
 	// Invoke NodeGetVolumeStats
 	_, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
-	assert.Equal(status.Error(codes.Internal, "Unable to statfs target /dev/xxx, err: no such file or directory"), err)
+	assert.Equal(status.Error(codes.NotFound, "target: /dev/xxx not found"), err)
 }
