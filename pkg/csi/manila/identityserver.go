@@ -41,7 +41,7 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	csiConn, err := ids.d.csiClientBuilder.NewConnectionWithContext(ctx, ids.d.fwdEndpoint)
 	if err != nil {
-		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ids.d.fwdEndpoint, err))
+		return nil, status.Error(codes.FailedPrecondition, fmtGrpcConnError(ids.d.fwdEndpoint, err))
 	}
 
 	return ids.d.csiClientBuilder.NewIdentityServiceClient(csiConn).Probe(ctx, req)
