@@ -8,6 +8,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 )
 
@@ -215,4 +216,10 @@ func (cloud *cloud) ExpandVolume(volumeID string, size int) error {
 
 func (cloud *cloud) GetMaxVolLimit() int64 {
 	return 256
+}
+
+func (cloud *cloud) GetMetadataOpts() cpo.MetadataOpts {
+	var m cpo.MetadataOpts
+	m.SearchOrder = ""
+	return m
 }
