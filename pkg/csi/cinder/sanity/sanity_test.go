@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 
@@ -29,8 +30,9 @@ func TestDriver(t *testing.T) {
 	c := getfakecloud()
 	fakemnt := &fakemount{}
 	fakemet := &fakemetadata{}
+	duration := time.Duration(0)
 
-	d.SetupDriver(c, fakemnt, fakemet)
+	d.SetupDriver(c, fakemnt, fakemet, duration)
 
 	// TODO: Stop call
 
