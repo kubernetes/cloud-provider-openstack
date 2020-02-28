@@ -21,6 +21,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/stretchr/testify/mock"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 var fakeVol1 = volumes.Volume{
@@ -344,4 +345,10 @@ func (_m *OpenStackMock) ExpandVolume(volumeID string, size int) error {
 	}
 
 	return r0
+}
+
+func (_m *OpenStackMock) GetMetadataOpts() cpo.MetadataOpts {
+	var m cpo.MetadataOpts
+	m.SearchOrder = "configDrive"
+	return m
 }
