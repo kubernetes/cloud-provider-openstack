@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -31,10 +32,11 @@ import (
 )
 
 var (
-	endpoint    string
-	nodeID      string
-	cloudconfig string
-	cluster     string
+	endpoint            string
+	nodeID              string
+	cloudconfig         string
+	cluster             string
+	keystoneProbePeriod string
 )
 
 func init() {
@@ -84,6 +86,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
+	cmd.PersistentFlags().StringVar(&keystoneProbePeriod, "keystone-probe-period", "0s", "The period of keystone authentication probe")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	logs.InitLogs()
@@ -122,6 +126,13 @@ func handle() {
 		return
 	}
 
-	d.SetupDriver(cloud, mount, metadatda)
+	// Initialize keystone probe period
+	period, err := time.ParseDuration(keystoneProbePeriod)
+	if err != nil {
+		klog.Warningf("Failed to parse duration: %v", err)
+		period = time.Duration(0)
+	}
+
+	d.SetupDriver(cloud, mount, metadatda, period)
 	d.Run()
 }

@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -47,6 +48,8 @@ type CinderDriver struct {
 	ids *identityServer
 	cs  *controllerServer
 	ns  *nodeServer
+
+	keystoneProbePeriod time.Duration
 
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
@@ -134,11 +137,12 @@ func (d *CinderDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_
 	return d.vcap
 }
 
-func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata openstack.IMetadata) {
+func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata openstack.IMetadata, keystoneProbePeriod time.Duration) {
 
 	d.ids = NewIdentityServer(d)
 	d.cs = NewControllerServer(d, cloud)
 	d.ns = NewNodeServer(d, mount, metadata, cloud)
+	d.keystoneProbePeriod = keystoneProbePeriod
 
 }
 
