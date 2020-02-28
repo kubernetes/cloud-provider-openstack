@@ -49,6 +49,8 @@ var (
 			return err
 		}),
 	}
+
+	_ Builder = &ClientBuilder{}
 )
 
 func NewNodeSvcClient(conn *grpc.ClientConn) *NodeSvcClient {
