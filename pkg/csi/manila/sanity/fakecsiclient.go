@@ -25,7 +25,17 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 )
 
+var (
+	_ csiclient.Builder  = &fakeCSIClientBuilder{}
+	_ csiclient.Identity = &fakeIdentitySvcClient{}
+	_ csiclient.Node     = &fakeNodeSvcClient{}
+)
+
 type fakeIdentitySvcClient struct{}
+
+func (c fakeIdentitySvcClient) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	return &csi.ProbeResponse{}, nil
+}
 
 func (c fakeIdentitySvcClient) GetPluginInfo(context.Context) (*csi.GetPluginInfoResponse, error) {
 	return &csi.GetPluginInfoResponse{
