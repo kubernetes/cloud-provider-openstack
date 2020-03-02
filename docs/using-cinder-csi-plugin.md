@@ -47,7 +47,7 @@ by using the result of the above command.
 search-order = configDrive,metadataService
 ```
 
-> NOTE: if your openstack cloud has cert (which means you already has cafile definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
+> NOTE: if your openstack cloud has cert (which means you already has [ca-file](provider-configuration.md#global-optional-parameters) definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
 
 ```
 volumes:
