@@ -263,7 +263,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 
 		// Do synchronization
 		// In the case of unscoped tokens, when project id is not defined, we have to skip this part
-		if k.syncer.syncConfig != nil && userInfo != nil && len(userInfo.Extra["alpha.kubernetes.io/identity/project/id"]) != 0 {
+		if k.syncer.syncConfig != nil && len(k.syncer.syncConfig.DataTypesToSync) > 0 && userInfo != nil && len(userInfo.Extra[ProjectID]) != 0 {
 			err = k.syncer.syncData(userInfo)
 			if err != nil {
 				klog.Errorf("an error occurred during data synchronization: %v", err)
@@ -304,7 +304,9 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 
 	var response status
 	response.Authenticated = true
-	response.User = info
+
+	// Modify user info accoding to the sync configuration.
+	response.User = *k.syncer.syncRoles(&info)
 
 	data["status"] = response
 
@@ -471,7 +473,7 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	}
 
 	keystoneAuth := &KeystoneAuth{
-		authn:     &Authenticator{authURL: c.KeystoneURL, client: keystoneClient},
+		authn:     &Authenticator{keystoner: NewKeystoner(keystoneClient)},
 		authz:     &Authorizer{authURL: c.KeystoneURL, client: keystoneClient, pl: policy},
 		syncer:    &Syncer{k8sClient: k8sClient, syncConfig: sc},
 		k8sClient: k8sClient,

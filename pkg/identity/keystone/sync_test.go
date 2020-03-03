@@ -25,13 +25,18 @@ import (
 )
 
 func TestSyncConfigFromFile(t *testing.T) {
-	sc, err := newSyncConfigFromFile("syncconfig.yaml")
+	sc, err := newSyncConfigFromFile("sync_test.yaml")
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, "prefix-%d-%n-%i-suffix", sc.NamespaceFormat)
 	th.AssertEquals(t, "id1", sc.ProjectBlackList[0])
 	th.AssertEquals(t, "id2", sc.ProjectBlackList[1])
 	th.AssertEquals(t, "name1", sc.ProjectNameBlackList[0])
 	th.AssertEquals(t, "name2", sc.ProjectNameBlackList[1])
+	th.AssertEquals(t, 1, len(sc.RoleMaps))
+	th.AssertEquals(t, "_member_", sc.RoleMaps[0].KeystoneRole)
+	th.AssertEquals(t, "myuser", sc.RoleMaps[0].Username)
+	th.AssertEquals(t, 1, len(sc.RoleMaps[0].Groups))
+	th.AssertEquals(t, "mygroup", sc.RoleMaps[0].Groups[0])
 }
 
 func TestSyncConfigValidation(t *testing.T) {
@@ -76,4 +81,76 @@ func TestSyncConfigValidation(t *testing.T) {
 		),
 		err.Error(),
 	)
+}
+
+func TestSyncRoles(t *testing.T) {
+	sc, err := newSyncConfigFromFile("sync_test.yaml")
+	th.AssertNoErr(t, err)
+
+	syncer := Syncer{
+		k8sClient:  nil,
+		syncConfig: sc,
+	}
+
+	fakeName := "fake-user"
+	fakeID := "b4db78f0-4dd7-41cf-8475-203c34230dc0"
+	fakeGroups := []string{"_member_", "kube_viewer"}
+	user1 := &userInfo{
+		Username: fakeName,
+		UID:      fakeID,
+		Groups:   []string{fakeID},
+		Extra:    map[string][]string{Roles: fakeGroups},
+	}
+
+	userModified := syncer.syncRoles(user1)
+
+	th.AssertEquals(t, "myuser", userModified.Username)
+	expectedGroups := []string{fakeID, "mygroup"}
+	th.AssertDeepEquals(t, expectedGroups, userModified.Groups)
+}
+
+func TestSyncRolesSkipNilConfig(t *testing.T) {
+	syncer := Syncer{
+		k8sClient:  nil,
+		syncConfig: nil,
+	}
+
+	fakeName := "fake-user"
+	fakeID := "b4db78f0-4dd7-41cf-8475-203c34230dc0"
+	fakeGroups := []string{"_member_", "kube_viewer"}
+	user1 := &userInfo{
+		Username: fakeName,
+		UID:      fakeID,
+		Groups:   []string{fakeID},
+		Extra:    map[string][]string{Roles: fakeGroups},
+	}
+
+	userModified := syncer.syncRoles(user1)
+
+	th.AssertEquals(t, userModified, user1)
+}
+
+func TestSyncRolesSkipm(t *testing.T) {
+	sc, err := newSyncConfigFromFile("sync_test.yaml")
+	th.AssertNoErr(t, err)
+
+	sc.RoleMaps = []*roleMap{}
+	syncer := Syncer{
+		k8sClient:  nil,
+		syncConfig: sc,
+	}
+
+	fakeName := "fake-user"
+	fakeID := "b4db78f0-4dd7-41cf-8475-203c34230dc0"
+	fakeGroups := []string{"_member_", "kube_viewer"}
+	user1 := &userInfo{
+		Username: fakeName,
+		UID:      fakeID,
+		Groups:   []string{fakeID},
+		Extra:    map[string][]string{Roles: fakeGroups},
+	}
+
+	userModified := syncer.syncRoles(user1)
+
+	th.AssertEquals(t, userModified, user1)
 }
