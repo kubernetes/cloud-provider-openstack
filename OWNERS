@@ -1,16 +1,9 @@
 approvers:
 - adisky
-- anguslees
 - chrigl
 - dims
-- dixudx
-- FengyunPan2
-- flaper87
-- hogepodge
 - lingxiankong
-- NickrenREN
 - ramineni
-- rootfs
 - zetaab
 reviewers:
 - adisky
@@ -28,4 +21,5 @@ reviewers:
 - NickrenREN
 - ramineni
 - ricolin
+- rootfs
 - zetaab
