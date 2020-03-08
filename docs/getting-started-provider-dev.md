@@ -6,16 +6,15 @@ enabled.
 
 ## Contents
 
-* [Contents](#contents)
- * [Prerequisites](#prerequisites)
-   + [OpenStack Cloud](#openstack-cloud)
-   + [Docker](#docker)
-   + [Development tools](#development-tools)
- * [Development](#development)
-   + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
-   + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
-   + [Running the Cloud Provider](#running-the-cloud-provider)
- * [Troubleshooting](#troubleshooting)
+* [Prerequisites](#prerequisites)
+  + [OpenStack Cloud](#openstack-cloud)
+  + [Docker](#docker)
+  + [Development tools](#development-tools)
+* [Development](#development)
+  + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
+  + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
+  + [Running the Cloud Provider](#running-the-cloud-provider)
+* [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 

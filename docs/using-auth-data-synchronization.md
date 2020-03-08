@@ -1,5 +1,10 @@
 # Authentication synchronization between Keystone and Kubernetes
 
+- [Overview](#overview)
+- [Configuration](#configuration)
+- [Example of sync config file](#example-of-sync-config-file)
+- [Full example using Keystone for Authentication and Kubernetes RBAC for Authorization](#full-example-using-keystone-for-authentication-and-kubernetes-rbac-for-authorization)
+
 ## Overview
 
 Authentication synchronization is an experimental feature allowing to create Kubernetes auth related entities during user authentication.
