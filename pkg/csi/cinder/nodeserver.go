@@ -455,6 +455,9 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	}
 
 	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
+	}
 	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
 
 	maxVolume := ns.Cloud.GetMaxVolLimit()
