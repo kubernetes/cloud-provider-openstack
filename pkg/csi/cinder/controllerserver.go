@@ -247,9 +247,18 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 
-	vlist, err := cs.Cloud.ListVolumes()
+	if req.MaxEntries < 0 {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf(
+			"[ListVolumes] Invalid max entries request %v, must not be negative ", req.MaxEntries))
+	}
+	maxEntries := int(req.MaxEntries)
+
+	vlist, nextPageToken, err := cs.Cloud.ListVolumes(maxEntries, req.StartingToken)
 	if err != nil {
 		klog.V(3).Infof("Failed to ListVolumes: %v", err)
+		if cpoerrors.IsInvalidError(err) {
+			return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: %v", err)
+		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ListVolumes failed with error %v", err))
 	}
 
@@ -264,7 +273,8 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		ventries = append(ventries, &ventry)
 	}
 	return &csi.ListVolumesResponse{
-		Entries: ventries,
+		Entries:   ventries,
+		NextToken: nextPageToken,
 	}, nil
 }
 

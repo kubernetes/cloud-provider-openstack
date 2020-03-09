@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack"
@@ -80,19 +81,24 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 }
 
 // ListVolumes list all the volumes
-func (os *OpenStack) ListVolumes() ([]volumes.Volume, error) {
-
-	opts := volumes.ListOpts{}
+func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error) {
+	nextPageToken := ""
+	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	pages, err := volumes.List(os.blockstorage, opts).AllPages()
 	if err != nil {
-		return nil, err
+		return nil, nextPageToken, err
 	}
 	vols, err := volumes.ExtractVolumes(pages)
 	if err != nil {
-		return nil, err
+		return nil, nextPageToken, err
 	}
-
-	return vols, nil
+	nextPageURL, err := pages.NextPageURL()
+	if err != nil && nextPageURL != "" {
+		if queryParams, nerr := url.ParseQuery(nextPageURL); nerr != nil {
+			nextPageToken = queryParams.Get("marker")
+		}
+	}
+	return vols, nextPageToken, nil
 }
 
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName

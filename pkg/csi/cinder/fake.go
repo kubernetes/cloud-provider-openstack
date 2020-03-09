@@ -81,6 +81,7 @@ var FakeVol3 = volumes.Volume{
 	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
 	Name:             "fake-3",
 	Status:           "available",
+	Size:             2,
 	AvailabilityZone: "",
 }
 var FakeSnapshotRes = snapshots.Snapshot{
