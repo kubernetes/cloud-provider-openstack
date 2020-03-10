@@ -25,16 +25,16 @@ import (
 	"sync"
 
 	"gopkg.in/yaml.v2"
-	core_v1 "k8s.io/api/core/v1"
-	rbac_v1 "k8s.io/api/rbac/v1"
-	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
+
+	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
 )
 
-// By now only project syncing is supported
-// TODO(mfedosin): Implement syncing of role assignments, system role assignments, and user groups
 const (
 	Projects        = "projects"
 	RoleAssignments = "role_assignments"
@@ -42,37 +42,48 @@ const (
 
 var allowedDataTypesToSync = []string{Projects, RoleAssignments}
 
+type roleMap struct {
+	KeystoneRole string   `yaml:"keystone-role"`
+	Username     string   `yaml:"username"`
+	Groups       []string `yaml:"groups"`
+}
+
 // syncConfig contains configuration data for synchronization between Keystone and Kubernetes
 type syncConfig struct {
 	// List containing possible data types to sync. Now only "projects" are supported.
-	DataTypesToSync []string `yaml:"data_types_to_sync"`
+	DataTypesToSync []string `yaml:"data-types-to-sync"`
 
 	// Format of automatically created namespace name. Can contain wildcards %i and %n,
 	// corresponding to project id and project name respectively.
-	NamespaceFormat string `yaml:"namespace_format"`
+	NamespaceFormat string `yaml:"namespace-format"`
 
 	// List of project ids to exclude from syncing.
-	ProjectBlackList []string `yaml:"projects_black_list"`
+	ProjectBlackList []string `yaml:"projects-blacklist"`
 
 	// List of project names to exclude from syncing.
-	ProjectNameBlackList []string `yaml:"projects_name_black_list"`
+	ProjectNameBlackList []string `yaml:"projects-name-blacklist"`
+
+	// List of role mappings that will apply to the user info after authentication.
+	RoleMaps []*roleMap `yaml:"role-mappings"`
 }
 
 func (sc *syncConfig) validate() error {
-	// Namespace name must contain keystone project id
-	if !strings.Contains(sc.NamespaceFormat, "%i") {
-		return fmt.Errorf("format string should comprise a %%i substring (keystone project id)")
-	}
+	if sc.NamespaceFormat != "" {
+		// Namespace name must contain keystone project id
+		if !strings.Contains(sc.NamespaceFormat, "%i") {
+			return fmt.Errorf("format string should comprise a %%i substring (keystone project id)")
+		}
 
-	// By convention, the names should be up to maximum length of 63 characters and consist of
-	// lower and upper case alphanumeric characters, -, _ and .
-	ts := strings.Replace(sc.NamespaceFormat, "%i", "aa", -1)
-	ts = strings.Replace(ts, "%n", "aa", -1)
-	ts = strings.Replace(ts, "%d", "aa", -1)
+		// By convention, the names should be up to maximum length of 63 characters and consist of
+		// lower and upper case alphanumeric characters, -, _ and .
+		ts := strings.Replace(sc.NamespaceFormat, "%i", "aa", -1)
+		ts = strings.Replace(ts, "%n", "aa", -1)
+		ts = strings.Replace(ts, "%d", "aa", -1)
 
-	re := regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]$")
-	if !re.MatchString(ts) {
-		return fmt.Errorf("namespace name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character")
+		re := regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]$")
+		if !re.MatchString(ts) {
+			return fmt.Errorf("namespace name must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character")
+		}
 	}
 
 	// Check that only allowed data types are enabled for synchronization
@@ -115,8 +126,6 @@ func newSyncConfig() syncConfig {
 	return syncConfig{
 		// by default namespace name is a string containing just keystone project id
 		NamespaceFormat: "%i",
-		// by default all possible data types are enabled
-		DataTypesToSync: allowedDataTypesToSync,
 	}
 }
 
@@ -198,9 +207,9 @@ func (s *Syncer) syncData(u *userInfo) error {
 func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 	_, err := s.k8sClient.CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
 
-	if k8s_errors.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		// The required namespace is not found. Create it then.
-		namespace := &core_v1.Namespace{
+		namespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,
 			},
@@ -208,12 +217,12 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 		namespace, err = s.k8sClient.CoreV1().Namespaces().Create(namespace)
 		if err != nil {
 			klog.Warningf("Cannot create a namespace for the user: %v", err)
-			return errors.New("Internal server error")
+			return errors.New("internal server error")
 		}
 	} else if err != nil {
 		// Some other error.
 		klog.Warningf("Cannot get a response from the server: %v", err)
-		return errors.New("Internal server error")
+		return errors.New("internal server error")
 	}
 
 	return nil
@@ -224,7 +233,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 	roleBindings, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).List(metav1.ListOptions{})
 	if err != nil {
 		klog.Warningf("Cannot get a list of role bindings from the server: %v", err)
-		return errors.New("Internal server error")
+		return errors.New("internal server error")
 	}
 
 	// delete role bindings removed from Keystone
@@ -247,7 +256,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 			err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Delete(roleBinding.Name, &metav1.DeleteOptions{})
 			if err != nil {
 				klog.Warningf("Cannot delete a role binding from the server: %v", err)
-				return errors.New("Internal server error")
+				return errors.New("internal server error")
 			}
 		}
 
@@ -269,18 +278,18 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 			continue
 		}
 
-		roleBinding := &rbac_v1.RoleBinding{
+		roleBinding := &rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: roleBindingName,
 			},
-			Subjects: []rbac_v1.Subject{
+			Subjects: []rbacv1.Subject{
 				{
 					APIGroup: "rbac.authorization.k8s.io",
 					Kind:     "User",
 					Name:     u.Username,
 				},
 			},
-			RoleRef: rbac_v1.RoleRef{
+			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "ClusterRole",
 				Name:     roleName,
@@ -289,9 +298,31 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 		roleBinding, err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(roleBinding)
 		if err != nil {
 			klog.Warningf("Cannot create a role binding for the user: %v", err)
-			return errors.New("Internal server error")
+			return errors.New("internal server error")
 		}
 	}
 
 	return nil
+}
+
+// syncRoles modifies the user attributes according to the config.
+func (s *Syncer) syncRoles(user *userInfo) *userInfo {
+	if s.syncConfig == nil || len(s.syncConfig.RoleMaps) == 0 {
+		return user
+	}
+
+	if roles, isPresent := user.Extra[Roles]; isPresent {
+		for _, roleMap := range s.syncConfig.RoleMaps {
+			if roleMap.KeystoneRole != "" && cpoutil.Contains(roles, roleMap.KeystoneRole) {
+				if len(roleMap.Groups) > 0 {
+					user.Groups = append(user.Groups, roleMap.Groups...)
+				}
+				if roleMap.Username != "" {
+					user.Username = roleMap.Username
+				}
+			}
+		}
+	}
+
+	return user
 }

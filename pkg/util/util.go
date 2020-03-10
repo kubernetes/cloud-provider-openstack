@@ -25,3 +25,13 @@ func StringListEqual(list1, list2 []string) bool {
 
 	return s1.Equal(s2)
 }
+
+// Contains searches if a string list contains the given string or not.
+func Contains(list []string, strToSearch string) bool {
+	for _, item := range list {
+		if item == strToSearch {
+			return true
+		}
+	}
+	return false
+}
