@@ -14,112 +14,52 @@ limitations under the License.
 package keystone
 
 import (
-	"fmt"
-	"net/http"
 	"testing"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
 	th "github.com/gophercloud/gophercloud/testhelper"
+	"k8s.io/apiserver/pkg/authentication/user"
 )
 
 func TestAuthenticateToken(t *testing.T) {
-	th.SetupHTTP()
-	defer th.TeardownHTTP()
+	keystone := &MockIKeystone{}
+	keystone.
+		On("GetTokenInfo", "token").
+		Return(&tokenInfo{
+			userName:    "user-name",
+			userID:      "user-id",
+			projectID:   "project-id",
+			projectName: "project-name",
+			domainName:  "domain-name",
+			domainID:    "domain-id",
+			roles:       []string{"role1", "role2"},
+		}, nil).
+		Once()
+	keystone.
+		On("GetGroups", "token", "user-id").
+		Return([]string{"group1", "group2"}, nil).
+		Once()
 
-	th.Mux.HandleFunc("/auth/tokens", func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("X-Auth-Token")
-
-		if token == "GoodToken" {
-			w.WriteHeader(http.StatusOK)
-			resp := `{
-				"token": {
-					"methods": [
-						"token"
-					],
-					"expires_at": "2015-11-05T22:00:11.000000Z",
-					"user": {
-						"domain": {
-							"id": "default",
-							"name": "Default"
-						},
-						"id": "10a2e6e717a245d9acad3e5f97aeca3d",
-						"name": "admin",
-						"password_expires_at": null
-					},
-					"project": {
-						"id": "74a4e7d5f4e24a4c9cd01b8deec4bee5",
-						"name": "the_project"
-					},
-					"roles": [
-						{
-							"id": "51cc68287d524c759f47c811e6463340",
-							"name": "admin"
-						},
-						{
-							"id": "5af76e3aec294349929db2a0a27d3192",
-							"name": "developer"
-						}
-					],
-					"audit_ids": [
-						"mAjXQhiYRyKwkB4qygdLVg"
-					],
-					"issued_at": "2015-11-05T21:00:33.819948Z"
-				}
-			}`
-			fmt.Fprintf(w, resp)
-
-		} else if token == "WrongToken" {
-			w.WriteHeader(http.StatusUnauthorized)
-			resp := `{  
-				"error":{  
-				   "message":"Unauthorized.",
-				   "code":401,
-				   "title":"Unauthorized"
-				}
-			 }`
-			fmt.Fprintf(w, resp)
-
-		} else if token == "NoBody" {
-			w.WriteHeader(http.StatusOK)
-
-		} else if token == "MalformedBody" {
-			w.WriteHeader(http.StatusOK)
-			resp := "NotJSON"
-			fmt.Fprintf(w, resp)
-		}
-	})
-
-	provider, _ := openstack.NewClient(th.Endpoint())
-	cli := &gophercloud.ServiceClient{
-		ProviderClient: provider,
-		Endpoint:       th.Endpoint(),
+	a := &Authenticator{
+		keystoner: keystone,
 	}
+	userInfo, allowed, err := a.AuthenticateToken("token")
 
-	a := &Authenticator{authURL: th.Endpoint(), client: cli}
-
-	user, ok, err := a.AuthenticateToken("GoodToken")
-	th.AssertEquals(t, "admin", user.GetName())
-	th.AssertEquals(t, "10a2e6e717a245d9acad3e5f97aeca3d", user.GetUID())
 	th.AssertNoErr(t, err)
-	th.CheckEquals(t, ok, true)
+	th.AssertEquals(t, true, allowed)
 
-	th.AssertEquals(t, "74a4e7d5f4e24a4c9cd01b8deec4bee5", user.GetExtra()[ProjectID][0])
-	th.AssertEquals(t, "the_project", user.GetExtra()[ProjectName][0])
-	th.AssertEquals(t, "default", user.GetExtra()[DomainID][0])
-	th.AssertEquals(t, "Default", user.GetExtra()[DomainName][0])
-	th.AssertEquals(t, "admin", user.GetExtra()[Roles][0])
-	th.AssertEquals(t, "developer", user.GetExtra()[Roles][1])
+	expectedUserInfo := &user.DefaultInfo{
+		Name:   "user-name",
+		UID:    "user-id",
+		Groups: []string{"group1", "group2"},
+		Extra: map[string][]string{
+			Roles:       {"role1", "role2"},
+			ProjectID:   {"project-id"},
+			ProjectName: {"project-name"},
+			DomainID:    {"domain-id"},
+			DomainName:  {"domain-name"},
+		},
+	}
+	th.AssertDeepEquals(t, expectedUserInfo, userInfo)
 
-	_, ok, err = a.AuthenticateToken("WrongToken")
-	th.AssertEquals(t, (err != nil), true)
-	th.CheckEquals(t, ok, false)
-
-	_, ok, err = a.AuthenticateToken("NoBody")
-	th.AssertEquals(t, (err != nil), true)
-	th.CheckEquals(t, ok, false)
-
-	_, ok, err = a.AuthenticateToken("MalformedBody")
-	th.AssertEquals(t, (err != nil), true)
-	th.CheckEquals(t, ok, false)
+	keystone.AssertExpectations(t)
 }

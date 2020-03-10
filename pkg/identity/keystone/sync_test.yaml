@@ -1,0 +1,16 @@
+# In format %d, %n and %i wildcards represent keystone domain id, project name and project id respectively
+namespace-format: "prefix-%d-%n-%i-suffix"
+
+# List of Keystone project ids to omit from syncing
+projects-blacklist: ["id1", "id2"]
+
+# List of Keystone project names to omit from syncing
+projects-name-blacklist: ["name1", "name2"]
+
+# List of data types to synchronize
+"data-types-to-sync": ["projects", "role_assignments"]
+
+"role-mappings":
+  - keystone-role: _member_
+    username: myuser
+    groups: ["mygroup"]
