@@ -10,11 +10,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG ALPINE_ARCH=amd64
-FROM ${ALPINE_ARCH}/alpine:3.11
+ARG DEBIAN_ARCH=amd64
+# We not using scratch because we need to keep the basic image information
+# from parent image
+FROM k8s.gcr.io/debian-base-${DEBIAN_ARCH}:1.0.0
 
 ARG ARCH=amd64
 
-RUN apk add --no-cache ca-certificates
+# Fill out the labels
+LABEL name="cinder-csi-plugin" \
+      license="Apache Version 2.0" \
+      maintainers="Kubernetes Authors" \
+      description="Cinder CSI Plugin" \
+      architecture=$ARCH \
+      distribution-scope="public" \
+      summary="Cinder CSI Plugin" \
+      help="none"
 
-ADD magnum-auto-healer-${ARCH} /bin/magnum-auto-healer
+ADD rootfs.tar /
+
+CMD ["/bin/cinder-csi-plugin"]

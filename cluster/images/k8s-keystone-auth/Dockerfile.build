@@ -18,7 +18,3 @@ ARG ARCH=amd64
 RUN apk add --no-cache ca-certificates
 
 ADD k8s-keystone-auth-${ARCH} /bin/k8s-keystone-auth
-
-EXPOSE 8443
-
-CMD ["/bin/k8s-keystone-auth"]

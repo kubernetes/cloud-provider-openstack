@@ -84,6 +84,7 @@
               - cmd/tests/.*
               - ^go.mod$
               - ^go.sum$
+              - ^Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -124,6 +125,7 @@
               - ^pkg/share/manila/shareoptions/validator/.*
               - ^go.mod$
               - ^go.sum$
+              - ^Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$

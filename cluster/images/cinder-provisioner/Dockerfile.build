@@ -18,5 +18,3 @@ ARG ARCH=amd64
 RUN apk add --no-cache ca-certificates
 
 ADD cinder-provisioner-${ARCH} /bin/cinder-provisioner
-
-CMD ["/bin/cinder-provisioner"]

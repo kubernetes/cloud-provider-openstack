@@ -5,5 +5,3 @@ LABEL description="Barbican KMS Plugin"
 
 ARG ARCH=amd64
 ADD barbican-kms-plugin-${ARCH} /bin/barbican-kms-plugin
-
-CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-config ${cloudconfig}"]
