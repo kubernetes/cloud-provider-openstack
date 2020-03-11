@@ -120,19 +120,12 @@ sudo yum install -y -q git gcc etcd
 You will also need a recent version of Go and set your environment variables.
 
 ```
-GO_VERSION=1.13
+GO_VERSION=1.13.4
 GO_ARCH=linux-amd64
 curl -o go.tgz https://dl.google.com/go/go${GO_VERSION}.${GO_ARCH}.tar.gz
 sudo tar -C /usr/local/ -xvzf go.tgz
 export GOROOT=/usr/local/go
 export GOPATH=$HOME/go
-```
-
-Install go dependency management tool dep
-
-```
-curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
 ```
 
 Finally, set up your Git identity and GitHub integrations.
@@ -148,7 +141,7 @@ and versioning information.
 
 Following the [GitHub Workflow](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md) guidelines for Kubernetes development, set up your environment and get the latest development repository. Begin by forking both the Kubernetes and Cloud-Provider-OpenStack projects into your GitHub into your local workspace (or bringing your current fork up to date with the current state of both repositories).
 
-`make` will build, test, and package this project. This project uses [go dep](https://golang.github.io/dep/) for dependency management.
+`make` will build, test, and package this project. This project uses [go modules](https://github.com/golang/go/wiki/Modules) for dependency management since v1.17.
 
 Set up some environment variables to help download the repositories
 
