@@ -9,9 +9,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM alpine:3.11
 
+ARG ALPINE_ARCH=amd64
+FROM ${ALPINE_ARCH}/alpine:3.11
+
+ARG ARCH=amd64
 RUN apk add --no-cache ca-certificates
-ADD magnum-auto-healer /bin/
 
-CMD ["/bin/magnum-auto-healer"]
+ADD openstack-cloud-controller-manager-${ARCH} /bin/openstack-cloud-controller-manager
+
+CMD ["/bin/openstack-cloud-controller-manager"]

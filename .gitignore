@@ -148,6 +148,11 @@ zz_generated.openapi.go
 /barbican-kms-plugin
 /magnum-auto-healer
 /manila-csi-plugin
+/*-amd64
+/*-arm32v7
+/*-arm64v8
+/*-s390x
+/*-ppc64le
 
 # snap temp files
 /parts

@@ -10,12 +10,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:3.11
+FROM scratch
 
-RUN apk add --no-cache ca-certificates
+ADD rootfs.tar /
 
-ADD k8s-keystone-auth /bin/
-
-EXPOSE 8443
-
-CMD ["/bin/k8s-keystone-auth"]
+CMD ["/bin/sh"]

@@ -10,10 +10,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM alpine:3.11
+ARG ALPINE_ARCH=amd64
+FROM ${ALPINE_ARCH}/alpine:3.11
+
+ARG ARCH=amd64
 
 RUN apk add --no-cache ca-certificates
 
-ADD cinder-provisioner /bin/
+ADD manila-provisioner-${ARCH} /bin/manila-provisioner
 
-CMD ["/bin/cinder-provisioner"]
+ENTRYPOINT ["/bin/manila-provisioner"]

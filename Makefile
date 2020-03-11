@@ -23,16 +23,36 @@ HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
 HAS_IMPORT_BOSS := $(shell command -v import-boss;)
 GOX_PARALLEL ?= 3
-TARGETS ?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le
+TARGETS ?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
 DIST_DIRS         = find * -type d -exec
 
-GOOS ?= $(shell go env GOOS)
-VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
-                 git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
-GOFLAGS   :=
-TAGS      :=
-LDFLAGS   := "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
-REGISTRY ?= k8scloudprovider
+TEMP_DIR	:=$(shell mktemp -d)
+TAR_FILE 	?= rootfs.tar
+
+GOOS 		?= $(shell go env GOOS)
+VERSION 	?= $(shell git describe --exact-match 2> /dev/null || \
+			   git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
+DEBIAN_ARCH :=
+QEMUARCH    :=
+QEMUVERSION := "v4.2.0-4"
+GOARCH      :=
+GOFLAGS     :=
+TAGS        :=
+LDFLAGS     := "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
+REGISTRY 	?= k8scloudprovider
+IMAGE_NAMES ?= openstack-cloud-controller-manager cinder-flex-volume-driver \
+			   cinder-provisioner cinder-csi-plugin k8s-keystone-auth \
+			   octavia-ingress-controller manila-provisioner manila-csi-plugin \
+			   barbican-kms-plugin magnum-auto-healer
+ARCH 		?= amd64
+ARCHS 		?= amd64 arm32v7 arm64v8 ppc64le s390x
+BUILD_CMDS 	?= openstack-cloud-controller-manager cinder-provisioner \
+			   cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth \
+			   client-keystone-auth octavia-ingress-controller manila-provisioner \
+			   manila-csi-plugin barbican-kms-plugin magnum-auto-healer
+
+# This option is for running docker manifest command
+export DOCKER_CLI_EXPERIMENTAL := enabled
 
 # CTI targets
 
@@ -42,55 +62,32 @@ $(GOBIN):
 
 work: $(GOBIN)
 
-build: openstack-cloud-controller-manager cinder-provisioner cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin barbican-kms-plugin magnum-auto-healer
+ifeq ($(ARCH),arm32v7)
+    DEBIAN_ARCH=arm
+    GOARCH=arm
+    QEMUARCH=arm
+else ifeq ($(ARCH),arm64v8)
+    DEBIAN_ARCH=arm64
+    GOARCH=arm64
+    QEMUARCH=aarch64
+else
+    DEBIAN_ARCH=$(ARCH)
+    GOARCH=$(ARCH)
+    QEMUARCH=$(ARCH)
+endif
 
-openstack-cloud-controller-manager: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o openstack-cloud-controller-manager \
-		cmd/openstack-cloud-controller-manager/main.go
+build-all-archs:
+	@for arch in $(ARCHS); do $(MAKE) ARCH=$${arch} build ; done
 
-cinder-provisioner: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o cinder-provisioner \
-		cmd/cinder-provisioner/main.go
+build: $(addprefix build-cmd-,$(BUILD_CMDS))
 
+# Remove individual go build targets, once we migrate openlab-zuul-jobs
+# to use new build-cmd-% targets.
 cinder-csi-plugin: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
-
-cinder-flex-volume-driver: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o cinder-flex-volume-driver \
-		cmd/cinder-flex-volume-driver/main.go
-
-k8s-keystone-auth: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o k8s-keystone-auth \
-		cmd/k8s-keystone-auth/main.go
-
-client-keystone-auth: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o client-keystone-auth \
-		cmd/client-keystone-auth/main.go
-
-octavia-ingress-controller: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o octavia-ingress-controller \
-		cmd/octavia-ingress-controller/main.go
-
-manila-provisioner: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o manila-provisioner \
-		cmd/manila-provisioner/main.go
 
 manila-csi-plugin: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
@@ -98,17 +95,38 @@ manila-csi-plugin: work $(SOURCES)
 		-o manila-csi-plugin \
 		cmd/manila-csi-plugin/main.go
 
-barbican-kms-plugin: work $(SOURCES)
+# Remove this individual go build target, once we remove
+# image-controller-manager below.
+openstack-cloud-controller-manager: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
-		-o barbican-kms-plugin \
-		cmd/barbican-kms-plugin/main.go
+		-o openstack-cloud-controller-manager-$(ARCH) \
+		cmd/openstack-cloud-controller-manager/main.go
 
-magnum-auto-healer: work $(SOURCES)
+# Remove individual image builder once we migrate openlab-zuul-jobs
+# to use new image-openstack-cloud-controller-manager target.
+image-controller-manager: work openstack-cloud-controller-manager
+ifeq ($(GOOS),linux)
+	cp -r cluster/images/openstack-cloud-controller-manager $(TEMP_DIR)
+	cp openstack-cloud-controller-manager-$(ARCH) $(TEMP_DIR)/openstack-cloud-controller-manager
+	cp $(TEMP_DIR)/openstack-cloud-controller-manager/Dockerfile.build $(TEMP_DIR)/openstack-cloud-controller-manager/Dockerfile
+	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) $(TEMP_DIR)/openstack-cloud-controller-manager
+	rm -rf $(TEMP_DIR)/openstack-cloud-controller-manager
+else
+	$(error Please set GOOS=linux for building the image)
+endif
+
+build-cmd-%: work $(SOURCES)
+	@# Keep binary with no arch mark. We should remove this once we correct
+	@# openlab-zuul-jobs.
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
-		-o magnum-auto-healer \
-		cmd/magnum-auto-healer/main.go
+		-o $* \
+		cmd/$*/main.go
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
+		-ldflags $(LDFLAGS) \
+		-o $*-$(ARCH) \
+		cmd/$*/main.go
 
 test: unit functional
 
@@ -189,7 +207,9 @@ install-distro-packages:
 	tools/install-distro-packages.sh
 
 clean:
-	rm -rf _dist .bindep openstack-cloud-controller-manager cinder-flex-volume-driver cinder-provisioner cinder-csi-plugin k8s-keystone-auth client-keystone-auth octavia-ingress-controller manila-provisioner manila-csi-plugin magnum-auto-healer
+	rm -rf _dist .bindep
+	@echo "clean builds binary"
+	@for binary in $(BUILD_CMDS); do rm -rf $${binary}*; done
 
 realclean: clean
 	rm -rf vendor
@@ -200,110 +220,64 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-images: image-controller-manager image-flex-volume-driver image-provisioner image-csi-plugin image-k8s-keystone-auth image-octavia-ingress-controller image-manila-provisioner image-manila-csi-plugin image-kms-plugin image-magnum-auto-healer
+push-manifest-%:
+	docker manifest create --amend $(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
+	@for arch in $(ARCHS); do docker manifest annotate --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
+	docker manifest push --purge $(REGISTRY)/$*:${VERSION}
 
-image-controller-manager: work openstack-cloud-controller-manager
+push-all-manifest: $(addprefix push-manifest-,$(IMAGE_NAMES))
+
+build-images: $(addprefix image-,$(IMAGE_NAMES))
+
+push-images: $(addprefix push-image-,$(IMAGE_NAMES))
+
+image-%: work
+	$(MAKE) $(addprefix build-cmd-,$*)
 ifeq ($(GOOS),linux)
-	cp openstack-cloud-controller-manager cluster/images/controller-manager
-	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) cluster/images/controller-manager
-	rm cluster/images/controller-manager/openstack-cloud-controller-manager
+	cp -r cluster/images/$* $(TEMP_DIR)
+	cp cluster/images/Dockerfile.tmp $(TEMP_DIR)/$*/Dockerfile
+
+ifneq ($(ARCH),amd64)
+	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+	curl -sSL https://github.com/multiarch/qemu-user-static/releases/download/$(QEMUVERSION)/x86_64_qemu-$(QEMUARCH)-static.tar.gz | tar -xz -C $(TEMP_DIR)/$*
+	@# Ensure we don't get surprised by umask settings
+	chmod 0755 $(TEMP_DIR)/$*/qemu-$(QEMUARCH)-static
+	sed "/^FROM .*/a COPY qemu-$(QEMUARCH)-static /usr/bin/" $(TEMP_DIR)/$*/Dockerfile.build > $(TEMP_DIR)/$*/Dockerfile.build.tmp
+	mv $(TEMP_DIR)/$*/Dockerfile.build.tmp $(TEMP_DIR)/$*/Dockerfile.build
+endif
+
+	cp $*-$(ARCH) $(TEMP_DIR)/$*
+	docker build --build-arg ALPINE_ARCH=$(ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
+	docker create --name build-$*-$(ARCH) build-$*-$(ARCH)
+	docker export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
+
+	@echo "build image $(REGISTRY)/$*-$(ARCH)"
+	docker build -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
+
+	rm -rf $(TEMP_DIR)/$*
+	docker rm build-$*-$(ARCH)
+	docker rmi build-$*-$(ARCH)
 else
 	$(error Please set GOOS=linux for building the image)
 endif
 
-image-flex-volume-driver: work cinder-flex-volume-driver
-ifeq ($(GOOS),linux)
-	cp cinder-flex-volume-driver cluster/images/flex-volume-driver
-	docker build -t $(REGISTRY)/cinder-flex-volume-driver:$(VERSION) cluster/images/flex-volume-driver
-	rm cluster/images/flex-volume-driver/cinder-flex-volume-driver
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-provisioner: work cinder-provisioner
-ifeq ($(GOOS),linux)
-	cp cinder-provisioner cluster/images/cinder-provisioner
-	docker build -t $(REGISTRY)/cinder-provisioner:$(VERSION) cluster/images/cinder-provisioner
-	rm cluster/images/cinder-provisioner/cinder-provisioner
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-csi-plugin: work cinder-csi-plugin
-ifeq ($(GOOS),linux)
-	cp cinder-csi-plugin cluster/images/cinder-csi-plugin
-	docker build -t $(REGISTRY)/cinder-csi-plugin:$(VERSION) cluster/images/cinder-csi-plugin
-	rm cluster/images/cinder-csi-plugin/cinder-csi-plugin
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-k8s-keystone-auth: work k8s-keystone-auth
-ifeq ($(GOOS),linux)
-	cp k8s-keystone-auth cluster/images/webhook
-	docker build -t $(REGISTRY)/k8s-keystone-auth:$(VERSION) cluster/images/webhook
-	rm cluster/images/webhook/k8s-keystone-auth
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-octavia-ingress-controller: work octavia-ingress-controller
-ifeq ($(GOOS),linux)
-	cp octavia-ingress-controller cluster/images/octavia-ingress-controller
-	docker build -t $(REGISTRY)/octavia-ingress-controller:$(VERSION) cluster/images/octavia-ingress-controller
-	rm cluster/images/octavia-ingress-controller/octavia-ingress-controller
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-manila-provisioner: work manila-provisioner
-ifeq ($(GOOS),linux)
-	cp manila-provisioner cluster/images/manila-provisioner
-	docker build -t $(REGISTRY)/manila-provisioner:$(VERSION) cluster/images/manila-provisioner
-	rm cluster/images/manila-provisioner/manila-provisioner
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-manila-csi-plugin: work manila-csi-plugin
-ifeq ($(GOOS),linux)
-	cp manila-csi-plugin cluster/images/manila-csi-plugin
-	docker build -t $(REGISTRY)/manila-csi-plugin:$(VERSION) cluster/images/manila-csi-plugin
-	rm cluster/images/manila-csi-plugin/manila-csi-plugin
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-kms-plugin: work barbican-kms-plugin
-ifeq ($(GOOS), linux)
-	cp barbican-kms-plugin cluster/images/barbican-kms-plugin
-	docker build -t $(REGISTRY)/barbican-kms-plugin:$(VERSION) cluster/images/barbican-kms-plugin
-	rm cluster/images/barbican-kms-plugin/barbican-kms-plugin
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-image-magnum-auto-healer: work magnum-auto-healer
-ifeq ($(GOOS),linux)
-	cp magnum-auto-healer cluster/images/magnum-auto-healer
-	docker build -t $(REGISTRY)/magnum-auto-healer:$(VERSION) cluster/images/magnum-auto-healer
-	rm cluster/images/magnum-auto-healer/magnum-auto-healer
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-upload-images: images
-	@echo "push images to $(REGISTRY)"
+push-image-%:
+	@echo "push image $*-$(ARCH) to $(REGISTRY)"
 	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
-	docker push $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION)
-	docker push $(REGISTRY)/cinder-flex-volume-driver:$(VERSION)
-	docker push $(REGISTRY)/cinder-provisioner:$(VERSION)
-	docker push $(REGISTRY)/cinder-csi-plugin:$(VERSION)
-	docker push $(REGISTRY)/k8s-keystone-auth:$(VERSION)
-	docker push $(REGISTRY)/octavia-ingress-controller:$(VERSION)
-	docker push $(REGISTRY)/manila-provisioner:$(VERSION)
-	docker push $(REGISTRY)/manila-csi-plugin:$(VERSION)
-	docker push $(REGISTRY)/magnum-auto-healer:$(VERSION)
+	docker push $(REGISTRY)/$*-$(ARCH):$(VERSION)
+
+images: $(addprefix build-arch-image-,$(ARCH))
+
+images-all-archs: $(addprefix build-arch-image-,$(ARCHS))
+
+build-arch-image-%:
+	@echo "Building images for ARCH=$*"
+	$(MAKE) ARCH=$* build-images
+
+upload-image-%:
+	$(MAKE) ARCH=$* build-images push-images
+
+upload-images: $(addprefix upload-image-,$(ARCHS)) push-all-manifest
 
 version:
 	@echo ${VERSION}
