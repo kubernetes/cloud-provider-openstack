@@ -43,6 +43,7 @@
               - ^go.mod$
               - ^go.sum$
               - ^Makefile$
+              - ^tests/e2e/k8s-keystone-auth/.*
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
