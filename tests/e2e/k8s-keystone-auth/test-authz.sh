@@ -2,7 +2,7 @@
 
 OS_CONTEXT_NAME=${OS_CONTEXT_NAME:-""}
 AUTH_POLICY_CONFIGMAP=${AUTH_POLICY_CONFIGMAP:-""}
-AUTH_POLICY_CONFIGMAP=${AUTH_POLICY_CONFIGMAP:-""}
+ROLE_MAPPING_CONFIGMAP=${ROLE_MAPPING_CONFIGMAP:-""}
 
 function log {
   local msg=$1
@@ -38,7 +38,8 @@ data:
     ]
 EOF
 
-  local end=$((SECONDS+120))
+  # The default value of '--authorization-webhook-cache-authorized-ttl' is 5min
+  local end=$((SECONDS+300))
   while true; do
     kubectl --context ${OS_CONTEXT_NAME} get pod
     [ $? -eq 0 ] && break || true
@@ -79,7 +80,8 @@ EOF
   kubectl create role mytest --verb=get,list --resource=deployments
   kubectl create rolebinding mytest --role=mytest --group=member
 
-  local end=$((SECONDS+120))
+  # The default value of '--authorization-webhook-cache-authorized-ttl' is 5min
+  local end=$((SECONDS+300))
   while true; do
     kubectl --context ${OS_CONTEXT_NAME} get deployments
     [ $? -eq 0 ] && break || true
