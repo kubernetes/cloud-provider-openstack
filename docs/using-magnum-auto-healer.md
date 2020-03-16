@@ -1,5 +1,13 @@
 # Using magnum-auto-healer
 
+- [What is magnum-auto-healer](#what-is-magnum-auto-healer)
+- [magnum-auto-healer Design](#magnum-auto-healer-design)
+- [Deploying and testing magnum-auto-healer](#deploying-and-testing-magnum-auto-healer)
+  - [Prerequisites](#prerequisites)
+  - [Deploy magnum-auto-healer](#deploy-magnum-auto-healer)
+  - [Testing magnum-auto-healer](#testing-magnum-auto-healer)
+  - [magnum-auto-healer video demo](#magnum-auto-healer-video-demo)
+
 ## What is magnum-auto-healer
 
 Kubernetes is self-healing container orchestration platform that will detect failures from your pods and redeploy that workload, however, magnum-auto-healer is a self-healing cluster management service that will automatically recover a failed master or worker node within your Magnum cluster. Basically, magnum-auto-healer ensures the running Kubernetes nodes are healthy by monitoring the nodes' status periodically, searching for unhealthy instances and triggering replacements when needed, maximizing your cluster's high availability and reliability, and protecting your application from downtime when the node it's running on fails.

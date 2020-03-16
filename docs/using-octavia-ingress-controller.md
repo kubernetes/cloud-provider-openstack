@@ -1,5 +1,17 @@
 # Get started with octavia-ingress-controller for Kubernetes
 
+- [What is an Ingress Controller?](#what-is-an-ingress-controller)
+- [Why octavia-ingress-controller](#why-octavia-ingress-controller)
+- [Requirements](#requirements)
+- [Deploy octavia-ingress-controller in the Kubernetes cluster](#deploy-octavia-ingress-controller-in-the-kubernetes-cluster)
+  - [Create service account and grant permissions](#create-service-account-and-grant-permissions)
+  - [Prepare octavia-ingress-controller configuration](#prepare-octavia-ingress-controller-configuration)
+  - [Deploy octavia-ingress-controller](#deploy-octavia-ingress-controller)
+- [Setting up HTTP Load Balancing with Ingress](#setting-up-http-load-balancing-with-ingress)
+  - [Create a backend service](#create-a-backend-service)
+  - [Create an Ingress resource](#create-an-ingress-resource)
+- [Enable TLS encryption](#enable-tls-encryption)
+
 This guide explains how to deploy and config the octavia-ingress-controller in Kubernetes cluster on top of OpenStack cloud.
 
 > NOTE: octavia-ingress-controller is still in Beta, support for the overall feature will not be dropped, though details may change.
@@ -13,9 +25,7 @@ In Kubernetes, Ingress allows external users and client applications access to H
 It is vital that both pieces are properly configured to route traffic from an outside client to a Kubernetes Service.
 
 ## Why octavia-ingress-controller
-As an OpenStack based public cloud provider in [Catalyst Cloud](https://catalystcloud.nz/), one of our goals is to continuously provide the customers the capability of innovation by delivering robust and comprehensive cloud services. After deploying Octavia and Magnum service in the public cloud, we are thinking about how to help customers to develop their applications running on the Kubernetes cluster and make their services accessible to the public in a high-performance way.
-
-After creating a Kubernetes cluster in Magnum, the most common way to expose the application to the outside world is to use [LoadBalancer](https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer) type service. In the OpenStack cloud, Octavia(LBaaS v2) is the default implementation of LoadBalancer type service, as a result, for each LoadBalancer type service, there is a load balancer created in the cloud tenant account. We could see some drawbacks of this way:
+After creating a Kubernetes cluster, the most common way to expose the application to the outside world is to use [LoadBalancer](https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer) type service. In the OpenStack cloud, Octavia(LBaaS v2) is the default implementation of LoadBalancer type service, as a result, for each LoadBalancer type service, there is a load balancer created in the cloud tenant account. We could see some drawbacks of this way:
 
 - The cost of Kubernetes Service is a little bit high if it's one-to-one mapping from the service to Octavia load balancer, the customers have to pay for a load balancer per exposed service, which can get expensive.
 - There is no filtering, no routing, etc. for the service. This means you can send almost any kind of traffic to it, like HTTP, TCP, UDP, Websockets, gRPC, or whatever.
