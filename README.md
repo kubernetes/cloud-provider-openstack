@@ -1,21 +1,20 @@
 # Cloud Provider OpenStack
 
-
 Thank you for visiting the `Cloud Provider OpenStack` repository!
 
 This Repository hosts various plugins relevant to OpenStack and Kubernetes Integration
 
-* [OpenStack Cloud Controller Manager](/docs/openstack-cloud-controller-manager.md/)
+* [OpenStack Cloud Controller Manager](/docs/using-openstack-cloud-controller-manager.md/)
 * [Octavia Ingress Controller](/docs/using-octavia-ingress-controller.md/)
 * [Cinder CSI Plugin](/docs/using-cinder-csi-plugin.md/)
 * [Keystone Webhook Authentication Authorization](/docs/using-keystone-webhook-authenticator-and-authorizer.md/)
 * [Client Keystone](/docs/using-client-keystone-auth.md/)
-* [Cinder Standalone Provisioner](/docs/using-cinder-standalone-provisioner.md/)**[DEPRECATED]**
+* [Cinder Standalone Provisioner](/docs/using-cinder-standalone-provisioner.md/) - **DEPRECATED**
 * [Manila CSI Plugin](/docs/using-manila-csi-plugin.md/)
 * [Manila Provisioner](/docs/using-manila-provisioner.md/)
 * [Barbican KMS Plugin](/docs/using-barbican-kms-plugin.md/)
 * [Magnum Auto Healer](/docs/using-magnum-auto-healer.md/)
-* Cinder FlexVolume Driver**[DEPRECATED]**
+* Cinder FlexVolume Driver - **DEPRECATED**
 
 ## Developing
 
@@ -23,8 +22,12 @@ Please Refer [Getting Started Guide](/docs/getting-started-provider-dev.md/) for
 
 ## Contact
 
-* Please join us on [Kubernetes Slack](https://kubernetes.slack.com/messages/provider-openstack)
-* [SIG OpenStack Mailing List](https://groups.google.com/forum/#!forum/kubernetes-sig-openstack)
+Please join us on [Kubernetes provider-openstack slack channel](https://kubernetes.slack.com/messages/provider-openstack)
+
+Project Co-Leads:
+* @lxkong - Lingxian Kong
+* @ramineni - Anusha Ramineni
+* @chrigl - Christoph Glaubitz
 
 ## License
 

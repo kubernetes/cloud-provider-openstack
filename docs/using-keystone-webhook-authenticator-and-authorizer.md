@@ -1,5 +1,21 @@
 # k8s-keystone-auth
 
+- [Prerequisites](#prerequisites)
+- [Deploy k8s-keystone-auth webhook server](#deploy-k8s-keystone-auth-webhook-server)
+  - [Prepare the authorization policy (optional)](#prepare-the-authorization-policy-optional)
+    - [Non-resource permission](#non-resource-permission)
+    - [Sub-resource permission](#sub-resource-permission)
+  - [Prepare the service certificates](#prepare-the-service-certificates)
+  - [Create service account for k8s-keystone-auth](#create-service-account-for-k8s-keystone-auth)
+  - [Deploy k8s-keystone-auth](#deploy-k8s-keystone-auth)
+  - [Test k8s-keystone-auth service](#test-k8s-keystone-auth-service)
+  - [Configuration on K8S master for authentication and/or authorization](#configuration-on-k8s-master-for-authentication-andor-authorization)
+- [Authorization policy definition(version 2)](#authorization-policy-definitionversion-2)
+- [Client(kubectl) configuration](#clientkubectl-configuration)
+  - [Old kubectl clients](#old-kubectl-clients)
+  - [kubectl clients from v1.8.0 to v1.10.x](#kubectl-clients-from-v180-to-v110x)
+  - [New kubectl clients from v1.11.0 and later](#new-kubectl-clients-from-v1110-and-later)
+
 [Kubernetes webhook authentication and authorization](https://kubernetes.io/docs/reference/access-authn-authz/webhook/)
 for OpenStack Keystone. With k8s-keystone-auth, the Kubernetes cluster
 administrator only need to know the OpenStack project names or roles,

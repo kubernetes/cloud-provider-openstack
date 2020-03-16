@@ -1,5 +1,13 @@
 # Exposing applications using services of LoadBalancer type
 
+- [Creating a Service of LoadBalancer type](#creating-a-service-of-loadbalancer-type)
+- [Supported Features](#supported-features)
+  - [Service annotations](#service-annotations)
+  - [Switching between Floating Subnets by using preconfigured Classes](#switching-between-floating-subnets-by-using-preconfigured-classes)
+  - [Creating Service by specifying a floating IP](#creating-service-by-specifying-a-floating-ip)
+  - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
+- [Issues](#issues)
+
 This page shows how to create Services of LoadBalancer type in Kubernetes cluster which is running inside OpenStack. For an explanation of the Service concept and a discussion of the various types of Services, see [Services](https://kubernetes.io/docs/concepts/services-networking/service/).
 
 A LoadBalancer type Service is a typical way to expose an application to the internet. It relies on the cloud provider to create an external load balancer with an IP address in the relevant network space. Any traffic that is then directed to this IP address is forwarded on to the application’s service.
