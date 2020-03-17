@@ -20,6 +20,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"golang.org/x/net/context"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 )
 
 var FakeCluster = "cluster"
@@ -97,3 +98,13 @@ var FakeVolListEmpty = []volumes.Volume{}
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
 
 const FakeMaxVolume int64 = 256
+
+var FakeFsStats = mount.FsStats{
+	AvailableBytes:  2100,
+	TotalBytes:      2121,
+	UsedBytes:       21,
+	AvailableInodes: 150,
+	TotalInodes:     200,
+	UsedInodes:      50,
+}
+var FakeBlockDeviceSize = 536870912

@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/resizefs"
-	"k8s.io/kubernetes/pkg/volume/util/fs"
 	utilpath "k8s.io/utils/path"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -492,19 +491,43 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 		return nil, status.Error(codes.InvalidArgument, "Volume path not provided")
 	}
 
-	if err := verifyTargetDir(volumePath); err != nil {
-		return nil, err
+	exists, err := ns.Mount.PathExists(volumePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to stats volumePath: %s", err)
+	} else if !exists {
+		return nil, status.Errorf(codes.NotFound, "target: %s not found", volumePath)
 	}
 
-	available, capacity, usage, inodes, inodesFree, inodesUsed, err := fs.FsInfo(volumePath)
+	isBlock, err := ns.Mount.IsBlockDevice(volumePath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal,
-			"Unable to statfs target %s, err: %s", volumePath, err)
+		return nil, status.Errorf(codes.Internal, "failed to determine if volume is a block device: %s", err)
 	}
+
+	if isBlock {
+		size, err := ns.Mount.GetBlockDeviceSize(volumePath)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to get block device size: %s", err)
+		}
+
+		return &csi.NodeGetVolumeStatsResponse{
+			Usage: []*csi.VolumeUsage{
+				{
+					Total: size,
+					Unit:  csi.VolumeUsage_BYTES,
+				},
+			},
+		}, nil
+	}
+
+	fsStats, err := ns.Mount.GetFileSystemStats(volumePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get filesystem size: %s", err)
+	}
+
 	return &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
-			{Total: capacity, Available: available, Used: usage, Unit: csi.VolumeUsage_BYTES},
-			{Total: inodes, Available: inodesFree, Used: inodesUsed, Unit: csi.VolumeUsage_INODES},
+			{Total: fsStats.TotalBytes, Available: fsStats.AvailableBytes, Used: fsStats.UsedBytes, Unit: csi.VolumeUsage_BYTES},
+			{Total: fsStats.TotalInodes, Available: fsStats.AvailableInodes, Used: fsStats.UsedInodes, Unit: csi.VolumeUsage_INODES},
 		},
 	}, nil
 }
@@ -612,23 +635,4 @@ func getNodeID(mount mount.IMount, iMetadata openstack.IMetadata, order string) 
 		return "", err
 	}
 	return nodeID, nil
-}
-
-func verifyTargetDir(target string) error {
-	if target == "" {
-		return status.Error(codes.InvalidArgument,
-			"target path required")
-	}
-
-	_, err := os.Stat(target)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return status.Errorf(codes.NotFound,
-				"target: %s not found", target)
-		}
-		return status.Errorf(codes.Internal,
-			"failed to stat target, err: %s", err.Error())
-	}
-
-	return nil
 }

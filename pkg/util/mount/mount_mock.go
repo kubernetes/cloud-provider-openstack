@@ -29,6 +29,44 @@ type MountMock struct {
 	mock.Mock
 }
 
+func (_m *MountMock) PathExists(volumePath string) (bool, error) {
+	ret := _m.Called(volumePath)
+
+	return ret.Bool(0), ret.Error(1)
+}
+
+func (_m *MountMock) GetBlockDeviceSize(volumePath string) (int64, error) {
+	ret := _m.Called(volumePath)
+
+	return ret.Get(0).(int64), ret.Error(1)
+}
+
+func (_m *MountMock) GetFileSystemStats(volumePath string) (FsStats, error) {
+	ret := _m.Called(volumePath)
+
+	return ret.Get(0).(FsStats), ret.Error(1)
+}
+
+func (_m *MountMock) IsBlockDevice(devicePath string) (bool, error) {
+	ret := _m.Called(devicePath)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(string) bool); ok {
+		r0 = rf(devicePath)
+	} else {
+		r0 = ret.Bool(0)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(devicePath)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewFakeMounter returns fake mounter instance
 func NewFakeMounter() *mount.FakeMounter {
 	return &mount.FakeMounter{
@@ -171,6 +209,11 @@ func (_m *MountMock) GetBaseMounter() *mount.SafeFormatAndMount {
 		{
 			cmd:    "blkid",
 			output: []byte("UUID=\"1b47881a-1563-4896-a178-eec887b759de\" \n TYPE=\"ext4\""),
+			err:    nil,
+		},
+		{
+			cmd:    "blockdev",
+			output: []byte("536870912"),
 			err:    nil,
 		},
 	}

@@ -20,9 +20,6 @@ import (
 	"fmt"
 	"testing"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -395,7 +392,45 @@ func TestNodeGetVolumeStats(t *testing.T) {
 		VolumePath: FakeDevicePath,
 	}
 
-	// Invoke NodeGetVolumeStats
-	_, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
-	assert.Equal(status.Error(codes.NotFound, "target: /dev/xxx not found"), err)
+	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
+	// Invoke NodeGetVolumeStats with a block device
+	mmock.On("IsBlockDevice", FakeDevicePath).Return(true, nil)
+	mmock.On("GetBlockDeviceSize", FakeDevicePath).Return(int64(FakeBlockDeviceSize), nil)
+	expectedBlockRes := &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{Total: int64(FakeBlockDeviceSize), Unit: csi.VolumeUsage_BYTES},
+		},
+	}
+
+	blockRes, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
+
+	assert.NoError(err)
+	assert.Equal(expectedBlockRes, blockRes)
+
+}
+
+func TestNodeGetVolumeStatsFs(t *testing.T) {
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.NodeGetVolumeStatsRequest{
+		VolumeId:   FakeVolName,
+		VolumePath: FakeDevicePath,
+	}
+
+	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
+	mmock.On("IsBlockDevice", FakeDevicePath).Return(false, nil)
+	mmock.On("GetFileSystemStats", FakeDevicePath).Return(FakeFsStats, nil)
+	expectedFsRes := &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{Total: FakeFsStats.TotalBytes, Available: FakeFsStats.AvailableBytes, Used: FakeFsStats.UsedBytes, Unit: csi.VolumeUsage_BYTES},
+			{Total: FakeFsStats.TotalInodes, Available: FakeFsStats.AvailableInodes, Used: FakeFsStats.UsedInodes, Unit: csi.VolumeUsage_INODES},
+		},
+	}
+
+	fsRes, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
+
+	assert.NoError(err)
+	assert.Equal(expectedFsRes, fsRes)
 }

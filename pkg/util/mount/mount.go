@@ -21,9 +21,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	"k8s.io/utils/exec"
@@ -49,6 +51,74 @@ type IMount interface {
 	GetInstanceID() (string, error)
 	MakeFile(pathname string) error
 	MakeDir(pathname string) error
+	PathExists(devicePath string) (bool, error)
+	GetBlockDeviceSize(volumePath string) (int64, error)
+	GetFileSystemStats(volumePath string) (FsStats, error)
+	IsBlockDevice(devicePath string) (bool, error)
+}
+
+type FsStats struct {
+	AvailableBytes  int64
+	TotalBytes      int64
+	UsedBytes       int64
+	AvailableInodes int64
+	TotalInodes     int64
+	UsedInodes      int64
+}
+
+func (m *Mount) PathExists(volumePath string) (bool, error) {
+	_, err := os.Stat(volumePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to stat target, err: %s", err)
+	}
+
+	return true, nil
+}
+
+func (m *Mount) IsBlockDevice(devicePath string) (bool, error) {
+	var stat unix.Stat_t
+	err := unix.Stat(devicePath, &stat)
+	if err != nil {
+		return false, fmt.Errorf("failed to stat() %q: %s", devicePath, err)
+	}
+
+	return (stat.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
+}
+
+func (m *Mount) GetBlockDeviceSize(volumePath string) (int64, error) {
+	// See http://man7.org/linux/man-pages/man8/blockdev.8.html for details
+	output, err := m.GetBaseMounter().Exec.Command("blockdev", "--getsize64", volumePath).CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("error when getting size of block volume at path %s: output: %s, err: %v", volumePath, string(output), err)
+	}
+	strOut := strings.TrimSpace(string(output))
+	gotSizeBytes, err := strconv.ParseInt(strOut, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse size %s into int", strOut)
+	}
+
+	return gotSizeBytes, nil
+}
+func (m *Mount) GetFileSystemStats(volumePath string) (FsStats, error) {
+	var statfs unix.Statfs_t
+	// See http://man7.org/linux/man-pages/man2/statfs.2.html for details.
+	err := unix.Statfs(volumePath, &statfs)
+	if err != nil {
+		return FsStats{}, err
+	}
+
+	return FsStats{
+		AvailableBytes: int64(statfs.Bavail) * statfs.Bsize,
+		TotalBytes:     int64(statfs.Blocks) * statfs.Bsize,
+		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * statfs.Bsize,
+
+		AvailableInodes: int64(statfs.Ffree),
+		TotalInodes:     int64(statfs.Files),
+		UsedInodes:      int64(statfs.Files) - int64(statfs.Ffree),
+	}, nil
 }
 
 type Mount struct {
