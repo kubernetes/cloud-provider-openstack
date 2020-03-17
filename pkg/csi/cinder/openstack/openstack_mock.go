@@ -352,3 +352,8 @@ func (_m *OpenStackMock) GetMetadataOpts() cpo.MetadataOpts {
 	m.SearchOrder = "configDrive"
 	return m
 }
+
+// GetBlockStorageOpts provides a mock function to return BlockStorageOpts
+func (_m *OpenStackMock) GetBlockStorageOpts() BlockStorageOpts {
+	return BlockStorageOpts{}
+}

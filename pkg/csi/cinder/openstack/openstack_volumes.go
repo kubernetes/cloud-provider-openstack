@@ -321,3 +321,8 @@ func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
 
 	return false, nil
 }
+
+// GetBlockStorageOpts returns OpenStack block storage options
+func (os *OpenStack) GetBlockStorageOpts() BlockStorageOpts {
+	return os.bsOpts
+}

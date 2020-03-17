@@ -10,6 +10,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	cco "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type cloud struct {
@@ -222,4 +223,8 @@ func (cloud *cloud) GetMetadataOpts() cpo.MetadataOpts {
 	var m cpo.MetadataOpts
 	m.SearchOrder = ""
 	return m
+}
+
+func (cloud *cloud) GetBlockStorageOpts() cco.BlockStorageOpts {
+	return cco.BlockStorageOpts{}
 }
