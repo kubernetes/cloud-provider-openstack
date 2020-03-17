@@ -94,10 +94,14 @@
       jobs:
         - cloud-provider-openstack-e2e-test-csi-cinder:
             files:
+              - ^cmd/cinder-csi-plugin/.*
               - ^pkg/csi/cinder/.*
               - ^pkg/util/.*
+              - ^test/.*
+              - ^cmd/tests/.*
               - ^go.mod$
               - ^go.sum$
+              - ^Makefile$
     # Disable Cinder FlexVolume Driver Job as it is deprecated in cloud-provider-openstack repo.
     # cloud-provider-openstack-acceptance-test-flexvolume-cinder:
     #   jobs:
