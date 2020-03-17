@@ -211,11 +211,6 @@ func (_m *MountMock) GetBaseMounter() *mount.SafeFormatAndMount {
 			output: []byte("UUID=\"1b47881a-1563-4896-a178-eec887b759de\" \n TYPE=\"ext4\""),
 			err:    nil,
 		},
-		{
-			cmd:    "blockdev",
-			output: []byte("536870912"),
-			err:    nil,
-		},
 	}
 
 	fakeexec := &exec.FakeExec{}

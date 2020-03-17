@@ -385,6 +385,7 @@ func TestNodeGetVolumeStatsBlock(t *testing.T) {
 
 	// Init assert
 	assert := assert.New(t)
+	mmock.ExpectedCalls = nil
 
 	// Fake request
 	fakeReq := &csi.NodeGetVolumeStatsRequest{
@@ -412,6 +413,7 @@ func TestNodeGetVolumeStatsBlock(t *testing.T) {
 func TestNodeGetVolumeStatsFs(t *testing.T) {
 	// Init assert
 	assert := assert.New(t)
+	mmock.ExpectedCalls = nil
 
 	// Fake request
 	fakeReq := &csi.NodeGetVolumeStatsRequest{
