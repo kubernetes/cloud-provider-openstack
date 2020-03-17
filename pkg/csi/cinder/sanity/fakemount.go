@@ -2,7 +2,7 @@ package sanity
 
 import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	mount2 "k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
+	mount2 "k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/utils/mount"
 )
 

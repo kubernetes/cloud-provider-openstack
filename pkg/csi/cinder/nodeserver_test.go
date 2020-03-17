@@ -381,7 +381,7 @@ func TestNodeExpandVolume(t *testing.T) {
 
 }
 
-func TestNodeGetVolumeStats(t *testing.T) {
+func TestNodeGetVolumeStatsBlock(t *testing.T) {
 
 	// Init assert
 	assert := assert.New(t)
