@@ -61,6 +61,7 @@ type IOpenStack interface {
 	ExpandVolume(volumeID string, size int) error
 	GetMaxVolLimit() int64
 	GetMetadataOpts() openstack_provider.MetadataOpts
+	GetBlockStorageOpts() BlockStorageOpts
 }
 
 type OpenStack struct {
@@ -73,6 +74,7 @@ type OpenStack struct {
 
 type BlockStorageOpts struct {
 	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
+	RescanOnResize        bool  `gcfg:"rescan-on-resize"`
 }
 
 type Config struct {
