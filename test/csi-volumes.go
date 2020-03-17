@@ -13,11 +13,10 @@ import (
 
 var CSITestSuites = []func() testsuites.TestSuite{
 	testsuites.InitVolumesTestSuite,
-	testsuites.InitProvisioningTestSuite,
-	testsuites.InitVolumeExpandTestSuite,
 	testsuites.InitSubPathTestSuite,
-	testsuites.InitVolumeModeTestSuite,
+	testsuites.InitProvisioningTestSuite,
 	//testsuites.InitVolumeIOTestSuite,
+	//testsuites.InitVolumeModeTestSuite,
 	//testsuites.InitSnapshottableTestSuite,
 	//testsuites.InitMultiVolumeTestSuite,
 }
