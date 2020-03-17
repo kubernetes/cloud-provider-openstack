@@ -269,6 +269,13 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 				CapacityBytes: int64(v.Size * 1024 * 1024 * 1024),
 			},
 		}
+
+		status := &csi.ListVolumesResponse_VolumeStatus{}
+		for _, attachment := range v.Attachments {
+			status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
+		}
+		ventry.Status = status
+
 		ventries = append(ventries, &ventry)
 	}
 	return &csi.ListVolumesResponse{
