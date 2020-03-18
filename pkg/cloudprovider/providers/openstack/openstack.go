@@ -365,6 +365,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
 	}
 	var cfg Config
+
+	// Set default values
+	cfg.LoadBalancer.UseOctavia = true
+	cfg.LoadBalancer.InternalLB = false
+
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 
 	klog.V(5).Infof("Config, loaded from the config file:")
