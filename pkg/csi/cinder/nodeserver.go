@@ -25,6 +25,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	selinux "github.com/opencontainers/selinux/go-selinux"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -112,6 +113,16 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
+		// Change selinux context
+		klog.Infof("SELinux mode: %d", selinux.EnforceMode())
+		SELinuxLabel := "system_u:object_r:container_file_t:s0"
+		recursive := true
+		err = selinux.Chcon(targetPath, SELinuxLabel, recursive)
+		klog.Infof("Chcon: %s %s %t %s", targetPath, SELinuxLabel, recursive, err)
+		if err != nil {
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+
 	}
 
 	return &csi.NodePublishVolumeResponse{}, nil

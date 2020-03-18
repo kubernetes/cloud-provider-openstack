@@ -37,9 +37,9 @@ QEMUARCH    :=
 QEMUVERSION := "v4.2.0-4"
 GOARCH      :=
 GOFLAGS     :=
-TAGS        :=
+TAGS        := selinux
 LDFLAGS     := "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
-REGISTRY 	?= k8scloudprovider
+REGISTRY    ?= k8scloudprovider
 IMAGE_NAMES ?= openstack-cloud-controller-manager cinder-flex-volume-driver \
 			   cinder-provisioner cinder-csi-plugin k8s-keystone-auth \
 			   octavia-ingress-controller manila-provisioner manila-csi-plugin \
@@ -85,6 +85,7 @@ build: $(addprefix build-cmd-,$(BUILD_CMDS))
 # to use new build-cmd-% targets.
 cinder-csi-plugin: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		$(if $(TAGS),-tags '$(TAGS)',) \
 		-ldflags $(LDFLAGS) \
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
@@ -120,10 +121,12 @@ build-cmd-%: work $(SOURCES)
 	@# Keep binary with no arch mark. We should remove this once we correct
 	@# openlab-zuul-jobs.
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		$(if $(TAGS),-tags '$(TAGS)',) \
 		-ldflags $(LDFLAGS) \
 		-o $* \
 		cmd/$*/main.go
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -x \
+		$(if $(TAGS),-tags '$(TAGS)',) \
 		-ldflags $(LDFLAGS) \
 		-o $*-$(ARCH) \
 		cmd/$*/main.go
@@ -263,7 +266,6 @@ endif
 
 push-image-%:
 	@echo "push image $*-$(ARCH) to $(REGISTRY)"
-	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
 	docker push $(REGISTRY)/$*-$(ARCH):$(VERSION)
 
 images: $(addprefix build-arch-image-,$(ARCH))
