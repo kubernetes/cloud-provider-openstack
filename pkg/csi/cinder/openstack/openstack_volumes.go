@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/apiversions"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
@@ -46,6 +47,14 @@ const (
 	diskDetachSteps          = 13
 	volumeDescription        = "Created by OpenStack Cinder CSI driver"
 )
+
+func (os *OpenStack) CheckBlockStorageAPI() error {
+	_, err := apiversions.List(os.blockstorage).AllPages()
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 // CreateVolume creates a volume of given size
 func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {

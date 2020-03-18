@@ -116,6 +116,11 @@ func (_m *OpenStackMock) GetVolume(volumeID string) (*volumes.Volume, error) {
 	return &fakeVol1, nil
 }
 
+// CheckBlockStorageAPI
+func (_m *OpenStackMock) CheckBlockStorageAPI() error {
+	return nil
+}
+
 // DetachVolume provides a mock function with given fields: instanceID, volumeID
 func (_m *OpenStackMock) DetachVolume(instanceID string, volumeID string) error {
 	ret := _m.Called(instanceID, volumeID)
