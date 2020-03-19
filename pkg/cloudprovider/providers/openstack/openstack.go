@@ -250,9 +250,9 @@ func LogCfg(cfg Config) {
 	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
 }
 
-type logger struct{}
+type Logger struct{}
 
-func (l logger) Printf(format string, args ...interface{}) {
+func (l Logger) Printf(format string, args ...interface{}) {
 	debugger := klog.V(6)
 
 	// extra check in case, when verbosity has been changed dynamically
@@ -531,7 +531,7 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 	if klog.V(6) {
 		provider.HTTPClient.Transport = &client.RoundTripper{
 			Rt:     provider.HTTPClient.Transport,
-			Logger: &logger{},
+			Logger: &Logger{},
 		}
 	}
 
