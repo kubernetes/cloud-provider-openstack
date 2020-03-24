@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -161,6 +162,26 @@ func (provider OpenStackCloudProvider) waitForServerPoweredOff(serverID string, 
 	return err
 }
 
+// waitForClusterStatus checks periodically to see if the cluster has entered a given status.
+// Returns when the status is observed or the timeout is reached.
+func (provider OpenStackCloudProvider) waitForClusterComplete(clusterID string, timeout time.Duration) error {
+	log.V(2).Infof("Waiting for cluster %s in complete status", clusterID)
+
+	err := wait.Poll(3*time.Second, timeout,
+		func() (bool, error) {
+			cluster, err := clusters.Get(provider.Magnum, clusterID).Extract()
+			log.V(5).Infof("Cluster %s in status %s", clusterID, cluster.Status)
+			if err != nil {
+				return false, err
+			}
+			if strings.HasSuffix(cluster.Status, "_COMPLETE") {
+				return true, nil
+			}
+			return false, nil
+		})
+	return err
+}
+
 // For master nodes: Soft deletes the VMs, marks the heat resource "unhealthy" then trigger Heat stack update in order to rebuild
 // the VMs. The information this function needs:
 //     - Nova VM IDs
@@ -171,13 +192,26 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 		return nil
 	}
 
+	masters := []healthcheck.NodeInfo{}
+	workers := []healthcheck.NodeInfo{}
+
 	clusterName := provider.Config.ClusterName
+	isWorkerNode := nodes[0].IsWorker
+	if isWorkerNode {
+		workers = nodes
+	} else {
+		masters = nodes
+	}
+
+	err := provider.UpdateHealthStatus(masters, workers)
+	if err != nil {
+		return fmt.Errorf("Failed to update the helath status of cluster %s, error: %v", clusterName, err)
+	}
+
 	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to get the cluster %s, error: %v", clusterName, err)
 	}
-
-	isWorkerNode := nodes[0].IsWorker
 
 	if isWorkerNode {
 		for _, n := range nodes {
@@ -304,6 +338,66 @@ func (provider OpenStackCloudProvider) getNodeGroup(clusterName string, node hea
 	return ng, fmt.Errorf("failed to find node group")
 }
 
+// UpdateHealthStatus can update the cluster health status to reflect the
+// real-time health status of the k8s cluster.
+func (provider OpenStackCloudProvider) UpdateHealthStatus(masters []healthcheck.NodeInfo, workers []healthcheck.NodeInfo) error {
+	log.Infof("start to update cluster health status.")
+	clusterName := provider.Config.ClusterName
+
+	healthStatus := "UNHEALTHY"
+	healthStatusReasonMap := make(map[string]string)
+	healthStatusReasonMap["updated_at"] = time.Now().String()
+
+	if len(masters) == 0 && len(workers) == 0 {
+		// No unhealthy node passed in means the cluster is healthy
+		healthStatus = "HEALTHY"
+		healthStatusReasonMap["api"] = "ok"
+		healthStatusReasonMap["nodes"] = "ok"
+	} else {
+		if len(workers) > 0 {
+			for _, n := range workers {
+				// TODO: Need to figure out a way to reflect the detailed error information
+				healthStatusReasonMap[n.KubeNode.Name+"."+n.FailedCheck] = "error"
+			}
+		} else {
+			// TODO: Need to figure out a way to reflect detailed error information
+			healthStatusReasonMap["api"] = "error"
+		}
+	}
+
+	jsonDumps, err := json.Marshal(healthStatusReasonMap)
+	if err != nil {
+		return fmt.Errorf("failed to build health status reason for cluster %s, error: %v", clusterName, err)
+	}
+	healthStatusReason := strings.Replace(string(jsonDumps), "\"", "'", -1)
+
+	updateOpts := []clusters.UpdateOptsBuilder{
+		clusters.UpdateOpts{
+			Op:    clusters.ReplaceOp,
+			Path:  "/health_status",
+			Value: healthStatus,
+		},
+		clusters.UpdateOpts{
+			Op:    clusters.ReplaceOp,
+			Path:  "/health_status_reason",
+			Value: healthStatusReason,
+		},
+	}
+
+	log.Infof("updating cluster health status as %s for reason %s.", healthStatus, healthStatusReason)
+	res := clusters.Update(provider.Magnum, clusterName, updateOpts)
+
+	if res.Err != nil {
+		return fmt.Errorf("failed to update the health status of cluster %s error: %v", clusterName, res.Err)
+	}
+
+	if err := provider.waitForClusterComplete(clusterName, 30*time.Second); err != nil {
+		log.Warningf("failed to wait the cluster %s in complete status, error: %v", clusterName, err)
+	}
+
+	return nil
+}
+
 // Enabled decides if the repair should be triggered.
 // There are  two conditions that we disable the repair:
 // - The cluster admin disables the auto healing via OpenStack API.
@@ -313,7 +407,11 @@ func (provider OpenStackCloudProvider) Enabled() bool {
 
 	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
 	if err != nil {
-		log.Warningf("Failed to get the cluster %s, error: %v", clusterName, err)
+		log.Warningf("failed to get the cluster %s, error: %v", clusterName, err)
+		return false
+	}
+
+	if !strings.HasSuffix(cluster.Status, "_COMPLETE") {
 		return false
 	}
 

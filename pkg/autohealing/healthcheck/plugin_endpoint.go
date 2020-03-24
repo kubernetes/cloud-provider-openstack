@@ -62,6 +62,11 @@ type EndpointCheck struct {
 	Token string `mapstructure:"token"`
 }
 
+// GetName returns name of the health check
+func (check *EndpointCheck) GetName() string {
+	return "EndpointCheck"
+}
+
 // IsMasterSupported checks if the health check plugin supports master node.
 func (check *EndpointCheck) IsMasterSupported() bool {
 	return true
