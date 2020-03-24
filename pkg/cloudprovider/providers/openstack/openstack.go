@@ -366,9 +366,16 @@ func ReadConfig(config io.Reader) (Config, error) {
 	}
 	var cfg Config
 
-	// Set default values
+	// Set default values explicitly
 	cfg.LoadBalancer.UseOctavia = true
 	cfg.LoadBalancer.InternalLB = false
+	cfg.LoadBalancer.LBProvider = "amphora"
+	cfg.LoadBalancer.LBMethod = "ROUND_ROBIN"
+	cfg.LoadBalancer.CreateMonitor = false
+	cfg.LoadBalancer.ManageSecurityGroups = false
+	cfg.LoadBalancer.MonitorDelay = MyDuration{5 * time.Second}
+	cfg.LoadBalancer.MonitorTimeout = MyDuration{3 * time.Second}
+	cfg.LoadBalancer.MonitorMaxRetries = 1
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 
@@ -471,21 +478,6 @@ func readInstanceID(searchOrder string) (string, error) {
 
 // check opts for OpenStack
 func checkOpenStackOpts(openstackOpts *OpenStack) error {
-	lbOpts := openstackOpts.lbOpts
-
-	// if need to create health monitor for Neutron LB,
-	// monitor-delay, monitor-timeout and monitor-max-retries should be set.
-	if lbOpts.CreateMonitor {
-		if lbOpts.MonitorDelay == (MyDuration{}) {
-			return fmt.Errorf("monitor-delay not set in cloud provider config")
-		}
-		if lbOpts.MonitorTimeout == (MyDuration{}) {
-			return fmt.Errorf("monitor-timeout not set in cloud provider config")
-		}
-		if lbOpts.MonitorMaxRetries == uint(0) {
-			return fmt.Errorf("monitor-max-retries not set in cloud provider config")
-		}
-	}
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 

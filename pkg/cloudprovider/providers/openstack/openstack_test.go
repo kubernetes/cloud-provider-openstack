@@ -346,8 +346,6 @@ func TestToAuthOptions(t *testing.T) {
 }
 
 func TestCheckOpenStackOpts(t *testing.T) {
-	delay := MyDuration{60 * time.Second}
-	timeout := MyDuration{30 * time.Second}
 	tests := []struct {
 		name          string
 		openstackOpts *OpenStack
@@ -356,19 +354,6 @@ func TestCheckOpenStackOpts(t *testing.T) {
 		{
 			name: "test1",
 			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					LBProvider:           "haproxy",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorTimeout:       timeout,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
 				metadataOpts: MetadataOpts{
 					SearchOrder: metadata.ConfigDriveID,
 				},
@@ -379,46 +364,6 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			name: "test2",
 			openstackOpts: &OpenStack{
 				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorTimeout:       timeout,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: nil,
-		},
-		{
-			name: "test3",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorTimeout:       timeout,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: fmt.Errorf("monitor-delay not set in cloud provider config"),
-		},
-		{
-			name: "test4",
-			openstackOpts: &OpenStack{
-				provider: nil,
 				metadataOpts: MetadataOpts{
 					SearchOrder: "",
 				},
@@ -426,7 +371,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot be empty"),
 		},
 		{
-			name: "test5",
+			name: "test3",
 			openstackOpts: &OpenStack{
 				provider: nil,
 				metadataOpts: MetadataOpts{
@@ -436,7 +381,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot contain more than 2 elements"),
 		},
 		{
-			name: "test6",
+			name: "test4",
 			openstackOpts: &OpenStack{
 				provider: nil,
 				metadataOpts: MetadataOpts{
@@ -445,46 +390,6 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			},
 			expectedError: fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
 				"Supported elements include %q and %q", "value1", metadata.ConfigDriveID, metadata.MetadataID),
-		},
-		{
-			name: "test7",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorTimeout:       timeout,
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: fmt.Errorf("monitor-max-retries not set in cloud provider config"),
-		},
-		{
-			name: "test8",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: fmt.Errorf("monitor-timeout not set in cloud provider config"),
 		},
 	}
 

@@ -162,13 +162,13 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
   This option is not needed when using Octavia. The worker nodes and the Octavia amphorae are usually in the same subnet, so it's sufficient to config the port security group rules manually for worker nodes, to allow the traffic coming from the the subnet IP range to the node port range(i.e. 30000-32767).
 * `create-monitor`
-  Indicates whether or not to create a health monitor for the service load balancer. If `true`, `monitor-delay`, `monitor-timeout`, and `monitor-max-retries` must also be set. Default: false
+  Indicates whether or not to create a health monitor for the service load balancer. Default: false
 * `monitor-delay`
-  The time, in seconds, between sending probes to members of the load balancer.
+  The time, in seconds, between sending probes to members of the load balancer. Default: 5
 * `monitor-max-retries`
-  The number of successful checks before changing the operating status of the load balancer member to ONLINE. A valid value is from 1 to 10.
+  The number of successful checks before changing the operating status of the load balancer member to ONLINE. A valid value is from 1 to 10. Default: 1
 * `monitor-timeout`
-  The maximum time, in seconds, that a monitor waits to connect backend before it times out.
+  The maximum time, in seconds, that a monitor waits to connect backend before it times out. Default: 3
 * `node-security-group`
   Deprecated.
 * `internal-lb`
