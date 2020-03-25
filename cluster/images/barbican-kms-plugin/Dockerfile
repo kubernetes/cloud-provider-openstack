@@ -11,10 +11,22 @@
 # limitations under the License.
 
 ARG ALPINE_ARCH=amd64
+# We not using scratch because we need to keep the basic image information
+# from parent image
 FROM ${ALPINE_ARCH}/alpine:3.11
 
 ARG ARCH=amd64
 
-RUN apk add --no-cache ca-certificates
+# Fill out the labels
+LABEL name="barbican-kms-plugin" \
+      license="Apache Version 2.0" \
+      maintainers="Kubernetes Authors" \
+      description="Barbican kms plugin" \
+      architecture=$ARCH \
+      distribution-scope="public" \
+      summary="Barbican kms plugin" \
+      help="none"
 
-ADD magnum-auto-healer-${ARCH} /bin/magnum-auto-healer
+ADD rootfs.tar /
+
+CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-config ${cloudconfig}"]

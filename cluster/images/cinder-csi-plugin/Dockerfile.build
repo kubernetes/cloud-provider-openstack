@@ -1,7 +1,5 @@
 ARG DEBIAN_ARCH=amd64
 FROM k8s.gcr.io/debian-base-${DEBIAN_ARCH}:1.0.0
-LABEL maintainers="Kubernetes Authors"
-LABEL description="Cinder CSI Plugin"
 
 ARG ARCH=amd64
 
@@ -9,5 +7,3 @@ ARG ARCH=amd64
 RUN clean-install ca-certificates e2fsprogs mount xfsprogs udev
 
 ADD cinder-csi-plugin-${ARCH} /bin/cinder-csi-plugin
-
-CMD ["/bin/cinder-csi-plugin"]
