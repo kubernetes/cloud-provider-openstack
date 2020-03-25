@@ -185,3 +185,20 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
+
+
+    cloud-provider-openstack-multinode-csi-migration-test:
+      jobs:
+        - cloud-provider-openstack-multinode-csi-migration-test:
+            files:
+              - ^pkg/cloudprovider/.*
+              - ^go.mod$
+              - ^go.sum$
+              - ^Makefile$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
+
