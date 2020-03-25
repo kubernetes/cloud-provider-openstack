@@ -25,7 +25,7 @@ import (
 	"github.com/gophercloud/utils/client"
 	"io/ioutil"
 	certutil "k8s.io/client-go/util/cert"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 	"net/http"
@@ -101,7 +101,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 		}
 		provider.HTTPClient.Transport = &client.RoundTripper{
 			Rt:     provider.HTTPClient.Transport,
-			Logger: &openstack_provider.Logger{},
+			Logger: &cpo.Logger{},
 		}
 	}
 
