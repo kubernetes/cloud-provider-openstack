@@ -18,5 +18,3 @@ ARG ARCH=amd64
 RUN apk add --no-cache ca-certificates
 
 ADD manila-provisioner-${ARCH} /bin/manila-provisioner
-
-ENTRYPOINT ["/bin/manila-provisioner"]

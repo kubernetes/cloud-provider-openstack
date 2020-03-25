@@ -16,5 +16,3 @@ ARG ARCH=amd64
 
 RUN apk add --no-cache ca-certificates
 ADD octavia-ingress-controller-${ARCH} /bin/octavia-ingress-controller
-
-CMD ["/bin/octavia-ingress-controller"]

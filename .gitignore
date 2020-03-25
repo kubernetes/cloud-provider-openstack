@@ -149,8 +149,8 @@ zz_generated.openapi.go
 /magnum-auto-healer
 /manila-csi-plugin
 /*-amd64
-/*-arm32v7
-/*-arm64v8
+/*-arm
+/*-arm64
 /*-s390x
 /*-ppc64le
 

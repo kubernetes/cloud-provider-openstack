@@ -11,10 +11,22 @@
 # limitations under the License.
 
 ARG ALPINE_ARCH=amd64
+# We not using scratch because we need to keep the basic image information
+# from parent image
 FROM ${ALPINE_ARCH}/alpine:3.11
 
 ARG ARCH=amd64
 
-RUN apk add --no-cache ca-certificates
+# Fill out the labels
+LABEL name="magnum-auto-healer" \
+      license="Apache Version 2.0" \
+      maintainers="Kubernetes Authors" \
+      description="Magnum auto healer" \
+      architecture=$ARCH \
+      distribution-scope="public" \
+      summary="Magnum auto healer" \
+      help="none"
 
-ADD magnum-auto-healer-${ARCH} /bin/magnum-auto-healer
+ADD rootfs.tar /
+
+CMD ["/bin/magnum-auto-healer"]

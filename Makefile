@@ -23,30 +23,33 @@ HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
 HAS_IMPORT_BOSS := $(shell command -v import-boss;)
 GOX_PARALLEL ?= 3
-TARGETS ?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
-DIST_DIRS         = find * -type d -exec
+
+TARGETS		?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
+DIST_DIRS	= find * -type d -exec
 
 TEMP_DIR	:=$(shell mktemp -d)
-TAR_FILE 	?= rootfs.tar
+TAR_FILE	?= rootfs.tar
 
-GOOS 		?= $(shell go env GOOS)
-VERSION 	?= $(shell git describe --exact-match 2> /dev/null || \
+GOOS		?= $(shell go env GOOS)
+VERSION		?= $(shell git describe --exact-match 2> /dev/null || \
 			   git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
-DEBIAN_ARCH :=
-QEMUARCH    :=
-QEMUVERSION := "v4.2.0-4"
-GOARCH      :=
-GOFLAGS     :=
-TAGS        :=
-LDFLAGS     := "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
-REGISTRY 	?= k8scloudprovider
-IMAGE_NAMES ?= openstack-cloud-controller-manager cinder-flex-volume-driver \
+ALPINE_ARCH	:=
+DEBIAN_ARCH	:=
+QEMUARCH	:=
+QEMUVERSION	:= "v4.2.0-4"
+GOARCH		:=
+GOFLAGS		:=
+TAGS		:=
+LDFLAGS		:= "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
+REGISTRY	?= k8scloudprovider
+IMAGE_OS	?= linux
+IMAGE_NAMES	?= openstack-cloud-controller-manager cinder-flex-volume-driver \
 			   cinder-provisioner cinder-csi-plugin k8s-keystone-auth \
 			   octavia-ingress-controller manila-provisioner manila-csi-plugin \
 			   barbican-kms-plugin magnum-auto-healer
-ARCH 		?= amd64
-ARCHS 		?= amd64 arm32v7 arm64v8 ppc64le s390x
-BUILD_CMDS 	?= openstack-cloud-controller-manager cinder-provisioner \
+ARCH		?= amd64
+ARCHS		?= amd64 arm arm64 ppc64le s390x
+BUILD_CMDS	?= openstack-cloud-controller-manager cinder-provisioner \
 			   cinder-flex-volume-driver cinder-csi-plugin k8s-keystone-auth \
 			   client-keystone-auth octavia-ingress-controller manila-provisioner \
 			   manila-csi-plugin barbican-kms-plugin magnum-auto-healer
@@ -62,18 +65,21 @@ $(GOBIN):
 
 work: $(GOBIN)
 
-ifeq ($(ARCH),arm32v7)
-    DEBIAN_ARCH=arm
-    GOARCH=arm
-    QEMUARCH=arm
-else ifeq ($(ARCH),arm64v8)
-    DEBIAN_ARCH=arm64
-    GOARCH=arm64
+ifeq ($(ARCH),arm)
+    DEBIAN_ARCH=$(ARCH)
+    GOARCH=$(ARCH)
+    QEMUARCH=$(ARCH)
+    ALPINE_ARCH=arm32v7
+else ifeq ($(ARCH),arm64)
+    DEBIAN_ARCH=$(ARCH)
+    GOARCH=$(ARCH)
     QEMUARCH=aarch64
+    ALPINE_ARCH=arm64v8
 else
     DEBIAN_ARCH=$(ARCH)
     GOARCH=$(ARCH)
     QEMUARCH=$(ARCH)
+    ALPINE_ARCH=$(ARCH)
 endif
 
 build-all-archs:
@@ -222,7 +228,7 @@ shell:
 
 push-manifest-%:
 	docker manifest create --amend $(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
-	@for arch in $(ARCHS); do docker manifest annotate --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
+	@for arch in $(ARCHS); do docker manifest annotate --os $(IMAGE_OS) --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
 	docker manifest push --purge $(REGISTRY)/$*:${VERSION}
 
 push-all-manifest: $(addprefix push-manifest-,$(IMAGE_NAMES))
@@ -235,7 +241,6 @@ image-%: work
 	$(MAKE) $(addprefix build-cmd-,$*)
 ifeq ($(GOOS),linux)
 	cp -r cluster/images/$* $(TEMP_DIR)
-	cp cluster/images/Dockerfile.tmp $(TEMP_DIR)/$*/Dockerfile
 
 ifneq ($(ARCH),amd64)
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -247,12 +252,12 @@ ifneq ($(ARCH),amd64)
 endif
 
 	cp $*-$(ARCH) $(TEMP_DIR)/$*
-	docker build --build-arg ALPINE_ARCH=$(ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
+	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
 	docker create --name build-$*-$(ARCH) build-$*-$(ARCH)
 	docker export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
 
 	@echo "build image $(REGISTRY)/$*-$(ARCH)"
-	docker build -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
+	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
 
 	rm -rf $(TEMP_DIR)/$*
 	docker rm build-$*-$(ARCH)
@@ -263,7 +268,9 @@ endif
 
 push-image-%:
 	@echo "push image $*-$(ARCH) to $(REGISTRY)"
-	docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)";
+ifneq ($(and $(DOCKER_USERNAME),$(DOCKER_PASSWORD)),)
+	@docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)"
+endif
 	docker push $(REGISTRY)/$*-$(ARCH):$(VERSION)
 
 images: $(addprefix build-arch-image-,$(ARCH))

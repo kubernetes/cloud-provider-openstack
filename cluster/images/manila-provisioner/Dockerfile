@@ -10,8 +10,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM scratch
+ARG ALPINE_ARCH=amd64
+# We not using scratch because we need to keep the basic image information
+# from parent image
+FROM ${ALPINE_ARCH}/alpine:3.11
+
+ARG ARCH=amd64
+
+# Fill out the labels
+LABEL name="manila-provisioner" \
+      license="Apache Version 2.0" \
+      maintainers="Kubernetes Authors" \
+      description="Manila provisioner" \
+      architecture=$ARCH \
+      distribution-scope="public" \
+      summary="Manila provisioner" \
+      help="none"
 
 ADD rootfs.tar /
 
-CMD ["/bin/sh"]
+ENTRYPOINT ["/bin/manila-provisioner"]
