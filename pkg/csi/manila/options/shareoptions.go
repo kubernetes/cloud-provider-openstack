@@ -17,7 +17,7 @@ limitations under the License.
 package options
 
 import (
-	"k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/validator"
 )
 
 type ControllerVolumeContext struct {

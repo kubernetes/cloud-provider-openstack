@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -253,7 +254,7 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 
 	// Remove the broken nodes from the cluster
 	for _, n := range nodes {
-		if err := provider.KubeClient.CoreV1().Nodes().Delete(n.KubeNode.Name, &metav1.DeleteOptions{}); err != nil {
+		if err := provider.KubeClient.CoreV1().Nodes().Delete(context.TODO(), n.KubeNode.Name, metav1.DeleteOptions{}); err != nil {
 			log.Errorf("Failed to remove the node %s from cluster, error: %v", n.KubeNode.Name, err)
 		}
 	}

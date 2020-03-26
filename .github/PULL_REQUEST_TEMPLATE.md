@@ -13,7 +13,6 @@
 - [ ] client-keystone-auth
 - [ ] octavia-ingress-controller
 - [ ] manila-csi-plugin
-- [ ] manila-provisioner
 - [ ] magnum-auto-healer
 - [ ] barbican-kms-plugin
 

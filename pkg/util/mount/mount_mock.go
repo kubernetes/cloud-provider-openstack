@@ -178,8 +178,8 @@ func (_m *MountMock) GetBaseMounter() *mount.SafeFormatAndMount {
 	fakeexec := &exec.FakeExec{}
 	for _, s := range scripts {
 		fakeCmd := &exec.FakeCmd{
-			CombinedOutputScript: []exec.FakeCombinedOutputAction{
-				func() ([]byte, error) { return s.output, s.err },
+			CombinedOutputScript: []exec.FakeAction{
+				func() ([]byte, []byte, error) { return s.output, nil, s.err },
 			},
 		}
 		cmdAction := func(cmd string, args ...string) utilsexec.Cmd {
