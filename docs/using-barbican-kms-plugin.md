@@ -58,13 +58,13 @@ region = <region>
 key-id = <key-id>
 ```
 
-4. Clone the cloud-provider-openstack repo and build the docker image for barbican-kms-plugin
+4. Clone the cloud-provider-openstack repo and build the docker image for barbican-kms-plugin in architecture amd64
 ```
 $ git clone https://github.com/kubernetes/cloud-provider-openstack.git $GOPATH/k8s.io/src/
 $ cd $GOPATH/k8s.io/src/cloud-provider-openstack/
-$ make build barbican-kms-plugin
-$ cp barbican-kms-plugin cluster/images/barbican-kms-plugin
-$ docker build -t docker.io/k8scloudprovider/barbican-kms-plugin:latest cluster/images/barbican-kms-plugin
+$ export ARCH=amd64
+$ export VERSION=latest
+$ make image-barbican-kms-plugin
 ```
 
 5. Run the KMS Plugin in docker container
@@ -73,7 +73,7 @@ $ docker run -d --volume=/var/lib/kms:/var/lib/kms \
 --volume=/etc/kubernetes:/etc/kubernetes \
 -e socketpath=/var/lib/kms/kms.sock \
 -e cloudconfig=/etc/kubernetes/cloud-config \
-docker.io/k8scloudprovider/barbican-kms-plugin:latest
+docker.io/k8scloudprovider/barbican-kms-plugin-amd64:latest
 ```
 6. Create /etc/kubernetes/encryption-config.yaml
 ```
