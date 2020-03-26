@@ -99,7 +99,9 @@ var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
 
 const FakeMaxVolume int64 = 256
 
-var FakeFsStats = mount.FsStats{
+var FakeFsStats = &mount.DeviceStats{
+	Block: false,
+
 	AvailableBytes:  2100,
 	TotalBytes:      2121,
 	UsedBytes:       21,
@@ -107,4 +109,9 @@ var FakeFsStats = mount.FsStats{
 	TotalInodes:     200,
 	UsedInodes:      50,
 }
-var FakeBlockDeviceSize = 536870912
+
+var FakeBlockDeviceStats = &mount.DeviceStats{
+	Block: true,
+
+	TotalBytes: 536870912,
+}

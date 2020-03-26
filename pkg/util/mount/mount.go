@@ -21,9 +21,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"time"
+
+	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
 
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -51,13 +52,13 @@ type IMount interface {
 	GetInstanceID() (string, error)
 	MakeFile(pathname string) error
 	MakeDir(pathname string) error
-	PathExists(devicePath string) (bool, error)
-	GetBlockDeviceSize(volumePath string) (int64, error)
-	GetFileSystemStats(volumePath string) (FsStats, error)
-	IsBlockDevice(devicePath string) (bool, error)
+	PathExists(path string) (bool, error)
+	GetDeviceStats(path string) (*DeviceStats, error)
 }
 
-type FsStats struct {
+type DeviceStats struct {
+	Block bool
+
 	AvailableBytes  int64
 	TotalBytes      int64
 	UsedBytes       int64
@@ -78,39 +79,31 @@ func (m *Mount) PathExists(volumePath string) (bool, error) {
 	return true, nil
 }
 
-func (m *Mount) IsBlockDevice(devicePath string) (bool, error) {
-	var stat unix.Stat_t
-	err := unix.Stat(devicePath, &stat)
-	if err != nil {
-		return false, fmt.Errorf("failed to stat() %q: %s", devicePath, err)
+func (m *Mount) GetDeviceStats(path string) (*DeviceStats, error) {
+	isBlock, err := blockdevice.IsBlockDevice(path)
+
+	if isBlock {
+		size, err := blockdevice.GetBlockDeviceSize(path)
+		if err != nil {
+			return nil, err
+		}
+
+		return &DeviceStats{
+			Block:      true,
+			TotalBytes: size,
+		}, nil
 	}
 
-	return (stat.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
-}
-
-func (m *Mount) GetBlockDeviceSize(volumePath string) (int64, error) {
-	// See http://man7.org/linux/man-pages/man8/blockdev.8.html for details
-	output, err := m.GetBaseMounter().Exec.Command("blockdev", "--getsize64", volumePath).CombinedOutput()
-	if err != nil {
-		return 0, fmt.Errorf("error when getting size of block volume at path %s: output: %s, err: %v", volumePath, string(output), err)
-	}
-	strOut := strings.TrimSpace(string(output))
-	gotSizeBytes, err := strconv.ParseInt(strOut, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse size %s into int", strOut)
-	}
-
-	return gotSizeBytes, nil
-}
-func (m *Mount) GetFileSystemStats(volumePath string) (FsStats, error) {
 	var statfs unix.Statfs_t
 	// See http://man7.org/linux/man-pages/man2/statfs.2.html for details.
-	err := unix.Statfs(volumePath, &statfs)
+	err = unix.Statfs(path, &statfs)
 	if err != nil {
-		return FsStats{}, err
+		return nil, err
 	}
 
-	return FsStats{
+	return &DeviceStats{
+		Block: false,
+
 		AvailableBytes: int64(statfs.Bavail) * statfs.Bsize,
 		TotalBytes:     int64(statfs.Blocks) * statfs.Bsize,
 		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * statfs.Bsize,

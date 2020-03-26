@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/sys/unix"
+
 	"k8s.io/klog"
 )
 
@@ -43,8 +45,19 @@ func findBlockDeviceRescanPath(path string) (string, error) {
 	return "", fmt.Errorf("illegal path for device " + devicePath)
 }
 
-// getBlockDeviceSize returns the size of the block device by path
-func getBlockDeviceSize(path string) (int64, error) {
+// IsBlockDevice checks whether device on the path is a block device
+func IsBlockDevice(path string) (bool, error) {
+	var stat unix.Stat_t
+	err := unix.Stat(path, &stat)
+	if err != nil {
+		return false, fmt.Errorf("failed to stat() %q: %s", path, err)
+	}
+
+	return (stat.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
+}
+
+// GetBlockDeviceSize returns the size of the block device by path
+func GetBlockDeviceSize(path string) (int64, error) {
 	fd, err := os.Open(path)
 	if err != nil {
 		return 0, err
@@ -59,7 +72,7 @@ func getBlockDeviceSize(path string) (int64, error) {
 
 func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int64) error {
 	klog.V(4).Infof("Detecting %q volume size", deviceMountPath)
-	size, err := getBlockDeviceSize(devicePath)
+	size, err := GetBlockDeviceSize(devicePath)
 	if err != nil {
 		return err
 	}

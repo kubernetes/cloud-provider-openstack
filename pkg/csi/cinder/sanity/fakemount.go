@@ -48,18 +48,10 @@ func (m *fakemount) MakeFile(pathname string) error {
 	return nil
 }
 
-func (m *fakemount) PathExists(devicePath string) (bool, error) {
+func (m *fakemount) PathExists(path string) (bool, error) {
 	return false, nil
 }
 
-func (m *fakemount) GetBlockDeviceSize(volumePath string) (int64, error) {
-	return 0, nil
-}
-
-func (m *fakemount) GetFileSystemStats(volumePath string) (mount2.FsStats, error) {
-	return mount2.FsStats{}, nil
-}
-
-func (m *fakemount) IsBlockDevice(devicePath string) (bool, error) {
-	return true, nil
+func (m *fakemount) GetDeviceStats(path string) (*mount2.DeviceStats, error) {
+	return nil, nil
 }

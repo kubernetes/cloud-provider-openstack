@@ -395,11 +395,10 @@ func TestNodeGetVolumeStatsBlock(t *testing.T) {
 
 	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
 	// Invoke NodeGetVolumeStats with a block device
-	mmock.On("IsBlockDevice", FakeDevicePath).Return(true, nil)
-	mmock.On("GetBlockDeviceSize", FakeDevicePath).Return(int64(FakeBlockDeviceSize), nil)
+	mmock.On("GetDeviceStats", FakeDevicePath).Return(FakeBlockDeviceStats, nil)
 	expectedBlockRes := &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
-			{Total: int64(FakeBlockDeviceSize), Unit: csi.VolumeUsage_BYTES},
+			{Total: FakeBlockDeviceStats.TotalBytes, Unit: csi.VolumeUsage_BYTES},
 		},
 	}
 
@@ -411,6 +410,7 @@ func TestNodeGetVolumeStatsBlock(t *testing.T) {
 }
 
 func TestNodeGetVolumeStatsFs(t *testing.T) {
+
 	// Init assert
 	assert := assert.New(t)
 	mmock.ExpectedCalls = nil
@@ -422,8 +422,7 @@ func TestNodeGetVolumeStatsFs(t *testing.T) {
 	}
 
 	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
-	mmock.On("IsBlockDevice", FakeDevicePath).Return(false, nil)
-	mmock.On("GetFileSystemStats", FakeDevicePath).Return(FakeFsStats, nil)
+	mmock.On("GetDeviceStats", FakeDevicePath).Return(FakeFsStats, nil)
 	expectedFsRes := &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
 			{Total: FakeFsStats.TotalBytes, Available: FakeFsStats.AvailableBytes, Used: FakeFsStats.UsedBytes, Unit: csi.VolumeUsage_BYTES},
@@ -435,4 +434,5 @@ func TestNodeGetVolumeStatsFs(t *testing.T) {
 
 	assert.NoError(err)
 	assert.Equal(expectedFsRes, fsRes)
+
 }

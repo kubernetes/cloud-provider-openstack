@@ -493,41 +493,32 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 
 	exists, err := ns.Mount.PathExists(volumePath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to stats volumePath: %s", err)
-	} else if !exists {
+		return nil, status.Errorf(codes.Internal, "failed to check whether volumePath exists: %s", err)
+	}
+	if !exists {
 		return nil, status.Errorf(codes.NotFound, "target: %s not found", volumePath)
 	}
 
-	isBlock, err := ns.Mount.IsBlockDevice(volumePath)
+	stats, err := ns.Mount.GetDeviceStats(volumePath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to determine if volume is a block device: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to get stats by path: %s", err)
 	}
 
-	if isBlock {
-		size, err := ns.Mount.GetBlockDeviceSize(volumePath)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get block device size: %s", err)
-		}
-
+	if stats.Block {
 		return &csi.NodeGetVolumeStatsResponse{
 			Usage: []*csi.VolumeUsage{
 				{
-					Total: size,
+					Total: stats.TotalBytes,
 					Unit:  csi.VolumeUsage_BYTES,
 				},
 			},
 		}, nil
 	}
 
-	fsStats, err := ns.Mount.GetFileSystemStats(volumePath)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get filesystem size: %s", err)
-	}
-
 	return &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
-			{Total: fsStats.TotalBytes, Available: fsStats.AvailableBytes, Used: fsStats.UsedBytes, Unit: csi.VolumeUsage_BYTES},
-			{Total: fsStats.TotalInodes, Available: fsStats.AvailableInodes, Used: fsStats.UsedInodes, Unit: csi.VolumeUsage_INODES},
+			{Total: stats.TotalBytes, Available: stats.AvailableBytes, Used: stats.UsedBytes, Unit: csi.VolumeUsage_BYTES},
+			{Total: stats.TotalInodes, Available: stats.AvailableInodes, Used: stats.UsedInodes, Unit: csi.VolumeUsage_INODES},
 		},
 	}, nil
 }
