@@ -143,6 +143,10 @@ Request Body:
 
   If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is 'false'.
 
+- `loadbalancer.openstack.org/enable-health-monitor`
+
+  Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
+
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.
