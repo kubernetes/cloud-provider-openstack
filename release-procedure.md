@@ -21,7 +21,8 @@ $ git checkout -b release-X.Y upstream/release-X.Y
 $ git tag -s -m "Release for cloud-provider-openstack to support Kubernetes release x" vX.Y.Z
 $ git push upstream vX.Y.Z
 ```
-3. Build and push images to dockerhub. Provide `ARCHS` if needs to push only for specific types of architecture (for example `ARCHS='arm64v8 amd64'` or `ARCHS='amd64'`).
+3. Build and push images to dockerhub. Provide `ARCHS` if needs to push only for specific types of architecture (for example `ARCHS='arm64 amd64'` or `ARCHS='amd64'`).
+Don't need to provide `DOCKER_USERNAME` and `DOCKER_PASSWORD` if you already logged in.
 
 ```
 GOOS=linux DOCKER_USERNAME=user DOCKER_PASSWORD=my_password REGISTRY=docker.io/k8scloudprovider VERSION=vX.Y.Z make upload-images
