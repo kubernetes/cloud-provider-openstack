@@ -22,9 +22,12 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"github.com/gophercloud/utils/client"
 	"io/ioutil"
 	certutil "k8s.io/client-go/util/cert"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"
+	"k8s.io/klog"
 	"net/http"
 )
 
@@ -41,7 +44,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 	var setTransport bool
 
 	// Create new identity client
-	client, err := openstack.NewClient(options.AuthOptions.IdentityEndpoint)
+	provider, err := openstack.NewClient(options.AuthOptions.IdentityEndpoint)
 	if err != nil {
 		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
 		return token, msg
@@ -51,7 +54,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 
 	userAgent := gophercloud.UserAgent{}
 	userAgent.Prepend(fmt.Sprintf("client-keystone-auth/%s", version.Version))
-	client.UserAgent = userAgent
+	provider.UserAgent = userAgent
 
 	if options.ClientCertPath != "" && options.ClientKeyPath != "" {
 		clientCert, err := ioutil.ReadFile(options.ClientCertPath)
@@ -89,10 +92,20 @@ func GetToken(options Options) (*tokens3.Token, error) {
 
 	if setTransport {
 		transport := &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: tlsConfig}
-		client.HTTPClient.Transport = transport
+		provider.HTTPClient.Transport = transport
 	}
 
-	v3Client, err := openstack.NewIdentityV3(client, gophercloud.EndpointOpts{})
+	if klog.V(6) {
+		if provider.HTTPClient.Transport == nil {
+			provider.HTTPClient.Transport = http.DefaultTransport
+		}
+		provider.HTTPClient.Transport = &client.RoundTripper{
+			Rt:     provider.HTTPClient.Transport,
+			Logger: &cpo.Logger{},
+		}
+	}
+
+	v3Client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{})
 	if err != nil {
 		msg := fmt.Errorf("failed: Initializing openstack authentication client: %v", err)
 		return token, msg
