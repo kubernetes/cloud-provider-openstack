@@ -32,7 +32,7 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
-If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-controller-manager-with-kubeadm.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` and then jump directly to the `kubectl apply ...` command.
+If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/release-1.9/docs/using-controller-manager-with-kubeadm.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` and then jump directly to the `kubectl apply ...` command.
 
 Encode your ```$CLOUD_CONFIG``` file content using base64.
 
