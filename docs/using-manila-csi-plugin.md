@@ -163,8 +163,8 @@ If you're deploying CSI Manila with Helm:
 2. Set `csimanila.nodeAZ`. This value will be sourced into the [`--nodeaz`](#command-line-arguments) cmd flag. Bash expressions are also allowed.
 
 If you're deploying CSI Manila manually:
-1. Run the [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) with `--feature-gates=Topology=true` and `--strict-topology` cmd flags.
-2. Run CSI Manila with [`--with-topology`](#command-line-arguments) and set [`--nodeaz`](#command-line-arguments) to node's availability zone. For Nova, the zone may be retrieved via the Metadata service like so: `--nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq .availability_zone)`
+1. Run the [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) with `--feature-gates=Topology=true` cmd flag.
+2. Run CSI Manila with [`--with-topology`](#command-line-arguments) and set [`--nodeaz`](#command-line-arguments) to node's availability zone. For Nova, the zone may be retrieved via the Metadata service like so: `--nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)`
 
 See `examples/csi-manila-plugin/topology-aware` for examples on defining topology constraints.
 
