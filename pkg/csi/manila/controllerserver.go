@@ -153,9 +153,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	var accessibleTopology []*csi.Topology
 	if cs.d.withTopology {
-		// All requisite topologies are considered valid. Nodes from those zones are required to be able to reach the storage.
+		// All requisite/preferred topologies are considered valid. Nodes from those zones are required to be able to reach the storage.
 		// The operator is responsible for making sure that provided topology keys are valid and present on the nodes of the cluster.
-		accessibleTopology = req.GetAccessibilityRequirements().GetRequisite()
+		accessibleTopology = req.GetAccessibilityRequirements().GetPreferred()
 	}
 
 	return &csi.CreateVolumeResponse{
