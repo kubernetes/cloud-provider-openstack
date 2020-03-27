@@ -82,10 +82,31 @@ EOF
 ########################################################################
 function create_deployment {
     printf "\n>>>>>>> Create a Deployment\n"
-    kubectl -n $NAMESPACE get deploy echoserver > /dev/null 2>&1
-    if [ $? -eq 1 ]; then
-        kubectl -n $NAMESPACE run echoserver --image=gcr.io/google-containers/echoserver:1.10 --image-pull-policy=IfNotPresent --port=8080
-    fi
+    cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echoserver
+  namespace: $NAMESPACE
+  labels:
+    run: echoserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: echoserver
+  template:
+    metadata:
+      labels:
+        run: echoserver
+    spec:
+      containers:
+      - name: echoserver
+        image: gcr.io/google-containers/echoserver:1.10
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8080
+EOF
 }
 
 ########################################################################
