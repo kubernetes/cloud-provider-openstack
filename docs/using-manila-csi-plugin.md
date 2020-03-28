@@ -39,7 +39,7 @@ Parameter | Required | Description
 ----------|----------|------------
 `type` | _yes_ | Manila [share type](https://wiki.openstack.org/wiki/Manila/Concepts#share_type)
 `shareNetworkID` | _no_ | Manila [share network ID](https://wiki.openstack.org/wiki/Manila/Concepts#share_network)
-`availability` | _no_ | Manila availability zone of the provisioned share. This parameter is opaque to the CO and does not influence placement of workloads that will consume this share, meaning they may be scheduled onto any node of the cluster. If the specified Manila AZ is not equally accessible from all compute nodes of the cluster, use [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning).
+`availability` | _no_ | Manila availability zone of the provisioned share. If none is provided, the default Manila zone will be used. Note that this parameter is opaque to the CO and does not influence placement of workloads that will consume this share, meaning they may be scheduled onto any node of the cluster. If the specified Manila AZ is not equally accessible from all compute nodes of the cluster, use [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning).
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `nfs-shareClient` | _no_ | Relevant for NFS Manila shares. Specifies what address has access to the NFS share. Defaults to `0.0.0.0/0`, i.e. anyone. 
 
@@ -83,6 +83,34 @@ Each node of the cluster then gets labeled with a key/value pair of `topology.ma
 
 This label may be used as a node selector when defining topology constraints for dynamic provisioning.
 Administrators are also free to pass arbitrary labels, and as long as they are valid node selectors, they will be honored by the scheduler.
+
+```
+                          Topology-aware storage class example:
+
+
+Storage AZ does not influence
+ the placement of workloads.                                   Compute AZs do.
+
+        +-----------+                                         +---------------+
+        | Manila AZ |                                         |  Compute AZs  |
+        |   zone-a  |    apiVersion: storage.k8s.io/v1        |     nova-1    |
+        +-----------+    kind: StorageClass                   |     nova-2    |
+              |          metadata:                            +---------------+
+              |            name: cephfs-gold                          |
+              |          provisioner: cephfs.manila.csi.openstack.org |
+              |          parameters:                                  |
+              +---------+  availability: zone-a                       |
+                           ...                                        |
+                         allowedTopologies:  +------------------------+
+                           - matchLabelExpressions:
+                             - key: topology.manila.csi.openstack.org/zone
+                               values:
+                                 - nova-1
+                                 - nova-2
+
+
+          Shares in zone-a are accessible only from nodes in nova-1 and nova-2.
+```
 
 [Enabling topology awareness in Kubernetes](#enabling-topology-awareness)
 
@@ -166,7 +194,7 @@ If you're deploying CSI Manila manually:
 1. Run the [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) with `--feature-gates=Topology=true` cmd flag.
 2. Run CSI Manila with [`--with-topology`](#command-line-arguments) and set [`--nodeaz`](#command-line-arguments) to node's availability zone. For Nova, the zone may be retrieved via the Metadata service like so: `--nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)`
 
-See `examples/csi-manila-plugin/topology-aware` for examples on defining topology constraints.
+See `examples/csi-manila-plugin/nfs/topology-aware` for examples on defining topology constraints.
 
 ## Share protocol support matrix
 
