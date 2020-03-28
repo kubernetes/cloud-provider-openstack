@@ -62,13 +62,19 @@ spec:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag }}"
-          args:
-            - "--v=5"
-            - "--nodeid=$(NODE_ID)"
-            - "--endpoint=$(CSI_ENDPOINT)"
-            - "--drivername=$(DRIVER_NAME)"
-            - "--share-protocol-selector=$(MANILA_SHARE_PROTO)"
-            - "--fwdendpoint=$(FWD_CSI_ENDPOINT)"
+          command: ["/bin/sh", "-c",
+            '/bin/manila-csi-plugin
+            --v=5
+            --nodeid=$(NODE_ID)
+            {{- if $.Values.csimanila.topologyAwarenessEnabled }}
+            --with-topology
+            --nodeaz={{ $.Values.csimanila.nodeAZ }}
+            {{- end }}
+            --endpoint=$(CSI_ENDPOINT)
+            --drivername=$(DRIVER_NAME)
+            --share-protocol-selector=$(MANILA_SHARE_PROTO)
+            --fwdendpoint=$(FWD_CSI_ENDPOINT)'
+          ]
           env:
             - name: DRIVER_NAME
               value: {{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}

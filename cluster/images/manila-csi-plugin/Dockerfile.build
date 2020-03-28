@@ -3,4 +3,6 @@ FROM ${ALPINE_ARCH}/alpine:3.11
 
 ARG ARCH=amd64
 
+RUN apk add --no-cache ca-certificates jq curl
+
 ADD manila-csi-plugin-${ARCH} /bin/manila-csi-plugin

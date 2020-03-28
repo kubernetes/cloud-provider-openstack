@@ -310,9 +310,17 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-	return &csi.NodeGetInfoResponse{
+	nodeInfo := &csi.NodeGetInfoResponse{
 		NodeId: ns.d.nodeID,
-	}, nil
+	}
+
+	if ns.d.withTopology {
+		nodeInfo.AccessibleTopology = &csi.Topology{
+			Segments: map[string]string{topologyKey: ns.d.nodeAZ},
+		}
+	}
+
+	return nodeInfo, nil
 }
 
 func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {

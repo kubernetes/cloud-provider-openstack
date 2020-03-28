@@ -9,9 +9,11 @@ The CSI Manila driver is able to create and mount OpenStack Manila shares. Snaps
   * [Controller Service volume parameters](#controller-service-volume-parameters)
   * [Node Service volume context](#node-service-volume-context)
   * [Secrets, authentication](#secrets-authentication)
+  * [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
 * [Deployment](#deployment)
   * [Kubernetes 1.15+](#kubernetes-115)
     * [Verifying the deployment](#verifying-the-deployment)
+    * [Enabling topology awareness](#enabling-topology-awareness)
 * [Share protocol support matrix](#share-protocol-support-matrix)
 * [For developers](#for-developers)
 
@@ -24,19 +26,26 @@ Option | Default value | Description
 `--endpoint` | `unix:///tmp/csi.sock` | CSI Manila's CSI endpoint
 `--drivername` | `manila.csi.openstack.org` | Name of this driver
 `--nodeid` | _none_ | ID of this node
+`--nodeaz` | _none_ | Availability zone of this node
+`--with-topology` | _none_ | CSI Manila is topology-aware. See [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning) for more info
 `--share-protocol-selector` | _none_ | Specifies which Manila share protocol to use for this instance of the driver. See [supported protocols](#share-protocol-support-matrix) for valid values.
 `--fwdendpoint` | _none_ | [CSI Node Plugin](https://github.com/container-storage-interface/spec/blob/master/spec.md#rpc-interface) endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in `share-protocol-selector`. Check out the [Deployment](#deployment) section to see why this is necessary.
 
 ### Controller Service volume parameters
 
+_Kubernetes storage class parameters for dynamically provisioned volumes_
+
 Parameter | Required | Description
 ----------|----------|------------
 `type` | _yes_ | Manila [share type](https://wiki.openstack.org/wiki/Manila/Concepts#share_type)
 `shareNetworkID` | _no_ | Manila [share network ID](https://wiki.openstack.org/wiki/Manila/Concepts#share_network)
+`availability` | _no_ | Manila availability zone of the provisioned share. This parameter is opaque to the CO and does not influence placement of workloads that will consume this share, meaning they may be scheduled onto any node of the cluster. If the specified Manila AZ is not equally accessible from all compute nodes of the cluster, use [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning).
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `nfs-shareClient` | _no_ | Relevant for NFS Manila shares. Specifies what address has access to the NFS share. Defaults to `0.0.0.0/0`, i.e. anyone. 
 
 ### Node Service volume context
+
+_Kubernetes PV CSI volume attributes for pre-provisioned volumes_
 
 Parameter | Required | Description
 ----------|----------|------------
@@ -62,6 +71,20 @@ Mandatory secrets for _application credential authentication:_ `os-applicationCr
 Mandatory secrets for _trustee authentication:_ `os-trustID`, `os-trusteeID`, `os-trusteePassword`.
 
 Optionally, a custom certificate may be sourced via `os-certAuthorityPath` (path to a PEM file inside the plugin container). By default, the usual TLS verification is performed. To override this behavior and accept insecure certificates, set `os-TLSInsecure` to `true` (defaults to `false`).
+
+### Topology-aware dynamic provisioning
+
+Topology-aware dynamic provisioning makes it possible to reliably provision and use shares that are _not_ equally accessible from all compute nodes due to storage topology constraints.
+With topology awareness enabled, administrators can specify the mapping between compute and Manila availability zones.
+Doing so will instruct the CO scheduler to place the workloads+shares only on nodes that are able to reach the underlying storage.
+
+CSI Manila uses `topology.manila.csi.openstack.org/zone` _topology key_ to identify node's affinity to a certain compute availability zone.
+Each node of the cluster then gets labeled with a key/value pair of `topology.manila.csi.openstack.org/zone` / value of [`--nodeaz`](#command-line-arguments) cmd arg.
+
+This label may be used as a node selector when defining topology constraints for dynamic provisioning.
+Administrators are also free to pass arbitrary labels, and as long as they are valid node selectors, they will be honored by the scheduler.
+
+[Enabling topology awareness in Kubernetes](#enabling-topology-awareness)
 
 ## Deployment
 
@@ -132,6 +155,18 @@ statefulset.apps/openstack-manila-csi-controllerplugin   1/1     2m8s
 ```
 
 To test the deployment further, see `examples/csi-manila-plugin`.
+
+#### Enabling topology awareness
+
+If you're deploying CSI Manila with Helm:
+1. Set `csimanila.topologyAwarenessEnabled` to `true`
+2. Set `csimanila.nodeAZ`. This value will be sourced into the [`--nodeaz`](#command-line-arguments) cmd flag. Bash expressions are also allowed.
+
+If you're deploying CSI Manila manually:
+1. Run the [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) with `--feature-gates=Topology=true` cmd flag.
+2. Run CSI Manila with [`--with-topology`](#command-line-arguments) and set [`--nodeaz`](#command-line-arguments) to node's availability zone. For Nova, the zone may be retrieved via the Metadata service like so: `--nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)`
+
+See `examples/csi-manila-plugin/topology-aware` for examples on defining topology constraints.
 
 ## Share protocol support matrix
 
