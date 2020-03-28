@@ -21,6 +21,10 @@ nfs/
 ├── static-provisioning/
 │   ├── pod.yaml
 │   └── --> preprovisioned-pvc.yaml <--
+├── topology-aware/
+│   ├── pod.yaml
+│   ├── pvc.yaml
+│   └── --> storageclass.yaml <--
 └── --> secrets.yaml <--
 ```
 
@@ -29,6 +33,7 @@ Files marked with `--> ... <--` may need to be customized.
 * `dynamic-provisioning/` : creates a new Manila NFS share and mounts it in a Pod.
 * `static-provisioning/` : fetches an existing Manila NFS share and mounts it in a Pod
 * `snapshot/` : takes a snapshot from a PVC source, restores it into a new share and mounts it in a Pod. Deploy manifests in `dynamic-provisioning/` first 
+* `topology-aware/` : topology-aware dynamic provisioning
 
 Make sure the `provisioner` field in `storageclass.yaml` and `snapshotclass.yaml` matches the driver name in your deployment!
 
