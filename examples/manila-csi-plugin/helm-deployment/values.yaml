@@ -21,7 +21,7 @@ csimanila:
   # nodeAZ: "$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)"
   # Image spec
   image:
-    repository: manila-csi-plugin
+    repository: k8scloudprovider/manila-csi-plugin
     tag: latest
     pullPolicy: IfNotPresent
 
