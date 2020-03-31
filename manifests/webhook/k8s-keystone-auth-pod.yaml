@@ -12,7 +12,7 @@ spec:
   serviceAccountName: k8s-keystone
   containers:
     - name: k8s-keystone-auth
-      image: docker.io/k8scloudprovider/k8s-keystone-auth:latest
+      image: docker.io/k8scloudprovider/k8s-keystone-auth:v1.18.0
       args:
         - /bin/k8s-keystone-auth
         - --v=10
