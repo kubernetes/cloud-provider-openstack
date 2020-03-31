@@ -17,6 +17,7 @@ limitations under the License.
 package keystone
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -418,7 +419,7 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	// is possible that both are not provided, in this case, the keytone webhook authorization will always return deny.
 	var policy policyList
 	if c.PolicyConfigMapName != "" {
-		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(c.PolicyConfigMapName, metav1.GetOptions{})
+		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(context.TODO(), c.PolicyConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.PolicyConfigMapName, err)
 		}
@@ -448,7 +449,7 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	// is possible that both are not provided, in this case, the keytone webhook authenticator will not synchronize data.
 	var sc *syncConfig
 	if c.SyncConfigMapName != "" {
-		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(c.SyncConfigMapName, metav1.GetOptions{})
+		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(context.TODO(), c.SyncConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("configmap get err   #%v ", err)
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.SyncConfigMapName, err)

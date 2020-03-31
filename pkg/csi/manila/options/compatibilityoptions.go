@@ -13,7 +13,7 @@ limitations under the License.
 
 package options
 
-import "k8s.io/cloud-provider-openstack/pkg/share/manila/shareoptions/validator"
+import "k8s.io/cloud-provider-openstack/pkg/csi/manila/validator"
 
 type CompatibilityOptions struct {
 	CreateShareFromSnapshotEnabled         string `name:"CreateShareFromSnapshotEnabled" value:"default:false" matches:"^true|false$"`
