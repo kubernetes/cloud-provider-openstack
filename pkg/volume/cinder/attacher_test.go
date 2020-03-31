@@ -44,7 +44,7 @@ var attachStatus = "Attach"
 var detachStatus = "Detach"
 
 func TestGetDeviceName_Volume(t *testing.T) {
-	plugin := newPlugin()
+	plugin := newPlugin(t)
 	name := "my-cinder-volume"
 	spec := createVolSpec(name, false)
 
@@ -58,7 +58,7 @@ func TestGetDeviceName_Volume(t *testing.T) {
 }
 
 func TestGetDeviceName_PersistentVolume(t *testing.T) {
-	plugin := newPlugin()
+	plugin := newPlugin(t)
 	name := "my-cinder-pv"
 	spec := createPVSpec(name, true)
 
@@ -75,7 +75,7 @@ func TestGetDeviceMountPath(t *testing.T) {
 	name := "cinder-volume-id"
 	spec := createVolSpec(name, false)
 	rootDir := "/var/lib/kubelet/"
-	host := volumetest.NewFakeVolumeHost(rootDir, nil, nil)
+	host := volumetest.NewFakeVolumeHost(t, rootDir, nil, nil)
 
 	attacher := &cinderDiskAttacher{
 		host: host,
@@ -353,8 +353,8 @@ func serializeAttachments(attachments map[*volume.Spec]bool) string {
 
 // newPlugin creates a new gcePersistentDiskPlugin with fake cloud, NewAttacher
 // and NewDetacher won't work.
-func newPlugin() *cinderPlugin {
-	host := volumetest.NewFakeVolumeHost("/tmp", nil, nil)
+func newPlugin(t *testing.T) *cinderPlugin {
+	host := volumetest.NewFakeVolumeHost(t, "/tmp", nil, nil)
 	plugins := ProbeVolumePlugins()
 	plugin := plugins[0]
 	plugin.Init(host)

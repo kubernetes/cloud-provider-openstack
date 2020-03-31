@@ -9,12 +9,11 @@ This Repository hosts various plugins relevant to OpenStack and Kubernetes Integ
 * [Cinder CSI Plugin](/docs/using-cinder-csi-plugin.md/)
 * [Keystone Webhook Authentication Authorization](/docs/using-keystone-webhook-authenticator-and-authorizer.md/)
 * [Client Keystone](/docs/using-client-keystone-auth.md/)
-* [Cinder Standalone Provisioner](/docs/using-cinder-standalone-provisioner.md/) - **DEPRECATED**
 * [Manila CSI Plugin](/docs/using-manila-csi-plugin.md/)
-* [Manila Provisioner](/docs/using-manila-provisioner.md/)
 * [Barbican KMS Plugin](/docs/using-barbican-kms-plugin.md/)
 * [Magnum Auto Healer](/docs/using-magnum-auto-healer.md/)
-* Cinder FlexVolume Driver - **DEPRECATED**
+
+> NOTE: Cinder Standalone Provisioner, Manila Provisioner and Cinder FlexVolume Driver were removed since release v1.18.0.
 
 ## Developing
 

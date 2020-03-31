@@ -17,6 +17,7 @@ limitations under the License.
 package keystone
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -205,7 +206,7 @@ func (s *Syncer) syncData(u *userInfo) error {
 }
 
 func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
-	_, err := s.k8sClient.CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
+	_, err := s.k8sClient.CoreV1().Namespaces().Get(context.TODO(), namespaceName, metav1.GetOptions{})
 
 	if k8serrors.IsNotFound(err) {
 		// The required namespace is not found. Create it then.
@@ -214,7 +215,7 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 				Name: namespaceName,
 			},
 		}
-		namespace, err = s.k8sClient.CoreV1().Namespaces().Create(namespace)
+		namespace, err = s.k8sClient.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
 		if err != nil {
 			klog.Warningf("Cannot create a namespace for the user: %v", err)
 			return errors.New("internal server error")
@@ -230,7 +231,7 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 
 func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) error {
 	// TODO(mfedosin): add a field separator to filter out unnecessary roles bindings at an early stage
-	roleBindings, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).List(metav1.ListOptions{})
+	roleBindings, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		klog.Warningf("Cannot get a list of role bindings from the server: %v", err)
 		return errors.New("internal server error")
@@ -253,7 +254,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 			}
 		}
 		if !keepRoleBinding {
-			err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Delete(roleBinding.Name, &metav1.DeleteOptions{})
+			err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Delete(context.TODO(), roleBinding.Name, metav1.DeleteOptions{})
 			if err != nil {
 				klog.Warningf("Cannot delete a role binding from the server: %v", err)
 				return errors.New("internal server error")
@@ -295,7 +296,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 				Name:     roleName,
 			},
 		}
-		roleBinding, err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(roleBinding)
+		roleBinding, err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
 		if err != nil {
 			klog.Warningf("Cannot create a role binding for the user: %v", err)
 			return errors.New("internal server error")

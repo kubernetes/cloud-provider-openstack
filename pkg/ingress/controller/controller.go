@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
@@ -33,6 +34,7 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	nwv1beta1 "k8s.io/api/networking/v1beta1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -173,32 +175,53 @@ func createApiserverClient(apiserverHost string, kubeConfig string) (*kubernetes
 	return client, nil
 }
 
-func readyWorkerNodePredicate(node *apiv1.Node) bool {
-	// We add the master to the node list, but its unschedulable.  So we use this to filter
-	// the master.
-	if node.Spec.Unschedulable {
-		return false
+type NodeConditionPredicate func(node *apiv1.Node) bool
+
+// listWithPredicate gets nodes that matches predicate function.
+func listWithPredicate(nodeLister corelisters.NodeLister, predicate NodeConditionPredicate) ([]*apiv1.Node, error) {
+	nodes, err := nodeLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
 	}
 
-	// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
-	// Recognize nodes labeled as master, and filter them also, as we were doing previously.
-	if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
-		return false
-	}
-
-	// If we have no info, don't accept
-	if len(node.Status.Conditions) == 0 {
-		return false
-	}
-	for _, cond := range node.Status.Conditions {
-		// We consider the node for load balancing only when its NodeReady condition status
-		// is ConditionTrue
-		if cond.Type == apiv1.NodeReady && cond.Status != apiv1.ConditionTrue {
-			log.WithFields(log.Fields{"name": node.Name, "status": cond.Status}).Info("ignoring node")
-			return false
+	var filtered []*apiv1.Node
+	for i := range nodes {
+		if predicate(nodes[i]) {
+			filtered = append(filtered, nodes[i])
 		}
 	}
-	return true
+
+	return filtered, nil
+}
+
+func getNodeConditionPredicate() NodeConditionPredicate {
+	return func(node *apiv1.Node) bool {
+		// We add the master to the node list, but its unschedulable.  So we use this to filter
+		// the master.
+		if node.Spec.Unschedulable {
+			return false
+		}
+
+		// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
+		// Recognize nodes labeled as master, and filter them also, as we were doing previously.
+		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+			return false
+		}
+
+		// If we have no info, don't accept
+		if len(node.Status.Conditions) == 0 {
+			return false
+		}
+		for _, cond := range node.Status.Conditions {
+			// We consider the node for load balancing only when its NodeReady condition status
+			// is ConditionTrue
+			if cond.Type == apiv1.NodeReady && cond.Status != apiv1.ConditionTrue {
+				log.WithFields(log.Fields{"name": node.Name, "status": cond.Status}).Info("ignoring node")
+				return false
+			}
+		}
+		return true
+	}
 }
 
 // NewController creates a new OpenStack Ingress controller.
@@ -337,7 +360,7 @@ func (c *Controller) Start() {
 	}
 	log.Info("ingress controller synced and ready")
 
-	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
+	readyWorkerNodes, err := listWithPredicate(c.nodeLister, getNodeConditionPredicate())
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
@@ -361,7 +384,7 @@ func (c *Controller) Start() {
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
 func (c *Controller) nodeSyncLoop() {
-	readyWorkerNodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
+	readyWorkerNodes, err := listWithPredicate(c.nodeLister, getNodeConditionPredicate())
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
 		return
@@ -382,7 +405,7 @@ func (c *Controller) nodeSyncLoop() {
 	ings := new(nwv1beta1.IngressList)
 	// NOTE(lingxiankong): only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
-	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(opts); err != nil {
+	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(context.TODO(), opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
 	}
@@ -532,7 +555,7 @@ func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
 			return fmt.Errorf("failed to get security groups for ingress %s: %v", key, err)
 		}
 
-		nodes, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
+		nodes, err := listWithPredicate(c.nodeLister, getNodeConditionPredicate())
 		if err != nil {
 			return fmt.Errorf("failed to get nodes: %v", err)
 		}
@@ -556,7 +579,7 @@ func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
 }
 
 func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretName string) (string, error) {
-	secret, err := c.kubeClient.CoreV1().Secrets(namespace).Get(name, apimetav1.GetOptions{})
+	secret, err := c.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, apimetav1.GetOptions{})
 	if err != nil {
 		// TODO(lingxiankong): Creating secret on the fly not supported yet.
 		return "", err
@@ -652,7 +675,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 	}
 
 	// get nodes information
-	nodeObjs, err := c.nodeLister.ListWithPredicate(readyWorkerNodePredicate)
+	nodeObjs, err := listWithPredicate(c.nodeLister, getNodeConditionPredicate())
 	if err != nil {
 		return err
 	}
@@ -787,7 +810,7 @@ func (c *Controller) updateIngressStatus(ing *nwv1beta1.Ingress, vip string) (*n
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	newObj, err := c.kubeClient.NetworkingV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
+	newObj, err := c.kubeClient.NetworkingV1beta1().Ingresses(newIng.Namespace).UpdateStatus(context.TODO(), newIng, apimetav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}

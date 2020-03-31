@@ -17,9 +17,9 @@
               - pkg/cloudprovider/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
-              - ^Makefile$
+              - go.mod$
+              - go.sum$
+              - Makefile$
             irrelevant-files:
               - docs/.*$
               - ^.*\.md$
@@ -40,11 +40,11 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
             files:
-              - ^cmd/k8s-keystone-auth/.*
-              - ^pkg/identity/.*
-              - ^go.mod$
-              - ^go.sum$
-              - ^Makefile$
+              - cmd/k8s-keystone-auth/.*
+              - pkg/identity/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
               - tests/e2e/k8s-keystone-auth/.*
             irrelevant-files:
               - ^docs/.*$
@@ -52,26 +52,6 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    # Disable the job for Kubernetes in-tree cinder function.
-    # cloud-provider-openstack-acceptance-test-k8s-cinder:
-    #   jobs:
-    #     - cloud-provider-openstack-acceptance-test-k8s-cinder:
-    #         irrelevant-files:
-    #           - ^docs/.*$
-    #           - ^.*\.md$
-    #           - ^OWNERS$
-    #           - ^SECURITY_CONTACTS$
-    #           - ^.gitignore$
-    # Disable Standalone Cinder Driver Job as it is deprecated
-    # cloud-provider-openstack-acceptance-test-standalone-cinder:
-    #   jobs:
-    #     - cloud-provider-openstack-acceptance-test-standalone-cinder:
-    #         irrelevant-files:
-    #           - ^docs/.*$
-    #           - ^.*\.md$
-    #           - ^OWNERS$
-    #           - ^SECURITY_CONTACTS$
-    #           - ^.gitignore$
     cloud-provider-openstack-acceptance-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-cinder:
@@ -82,9 +62,9 @@
               - pkg/cloudprovider/providers/openstack/.*
               - test/.*
               - cmd/tests/.*
-              - ^go.mod$
-              - ^go.sum$
-              - ^Makefile$
+              - go.mod$
+              - go.sum$
+              - Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -95,37 +75,27 @@
       jobs:
         - cloud-provider-openstack-e2e-test-csi-cinder:
             files:
-              - ^cmd/cinder-csi-plugin/.*
-              - ^pkg/csi/cinder/.*
-              - ^pkg/util/.*
-              - ^test/.*
-              - ^cmd/tests/.*
-              - ^go.mod$
-              - ^go.sum$
-              - ^Makefile$
-    # Disable Cinder FlexVolume Driver Job as it is deprecated in cloud-provider-openstack repo.
-    # cloud-provider-openstack-acceptance-test-flexvolume-cinder:
-    #   jobs:
-    #     - cloud-provider-openstack-acceptance-test-flexvolume-cinder:
-    #         irrelevant-files:
-    #           - ^docs/.*$
-    #           - ^.*\.md$
-    #           - ^OWNERS$
-    #           - ^SECURITY_CONTACTS$
-    #           - ^.gitignore$
+              - cmd/cinder-csi-plugin/.*
+              - pkg/csi/cinder/.*
+              - pkg/util/.*
+              - test/.*
+              - cmd/tests/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:
             files:
-              - ^cmd/manila-csi-plugin/.*
-              - ^examples/manila-csi-plugin/.*
-              - ^pkg/csi/manila/.*
-              - ^pkg/util/errors/.*
-              - ^pkg/cloudprovider/providers/openstack/.*
-              - ^pkg/share/manila/shareoptions/validator/.*
-              - ^go.mod$
-              - ^go.sum$
-              - ^Makefile$
+              - cmd/manila-csi-plugin/.*
+              - examples/manila-csi-plugin/.*
+              - pkg/csi/manila/.*
+              - pkg/util/errors/.*
+              - pkg/cloudprovider/providers/openstack/.*
+              - pkg/share/manila/shareoptions/validator/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -136,23 +106,10 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
-              - ^Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.15:
-            files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
+              - pkg/cloudprovider/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -163,9 +120,9 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
             files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
+              - pkg/cloudprovider/.*
+              - go.mod$
+              - go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -176,9 +133,9 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
             files:
-              - ^pkg/cloudprovider/.*
-              - ^go.mod$
-              - ^go.sum$
+              - pkg/cloudprovider/.*
+              - go.mod$
+              - go.sum$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
