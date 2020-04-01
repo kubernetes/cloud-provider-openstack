@@ -24,6 +24,9 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
+
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	"k8s.io/utils/exec"
@@ -49,6 +52,66 @@ type IMount interface {
 	GetInstanceID() (string, error)
 	MakeFile(pathname string) error
 	MakeDir(pathname string) error
+	PathExists(path string) (bool, error)
+	GetDeviceStats(path string) (*DeviceStats, error)
+}
+
+type DeviceStats struct {
+	Block bool
+
+	AvailableBytes  int64
+	TotalBytes      int64
+	UsedBytes       int64
+	AvailableInodes int64
+	TotalInodes     int64
+	UsedInodes      int64
+}
+
+func (m *Mount) PathExists(volumePath string) (bool, error) {
+	_, err := os.Stat(volumePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to stat target, err: %s", err)
+	}
+
+	return true, nil
+}
+
+func (m *Mount) GetDeviceStats(path string) (*DeviceStats, error) {
+	isBlock, err := blockdevice.IsBlockDevice(path)
+
+	if isBlock {
+		size, err := blockdevice.GetBlockDeviceSize(path)
+		if err != nil {
+			return nil, err
+		}
+
+		return &DeviceStats{
+			Block:      true,
+			TotalBytes: size,
+		}, nil
+	}
+
+	var statfs unix.Statfs_t
+	// See http://man7.org/linux/man-pages/man2/statfs.2.html for details.
+	err = unix.Statfs(path, &statfs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeviceStats{
+		Block: false,
+
+		AvailableBytes: int64(statfs.Bavail) * statfs.Bsize,
+		TotalBytes:     int64(statfs.Blocks) * statfs.Bsize,
+		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * statfs.Bsize,
+
+		AvailableInodes: int64(statfs.Ffree),
+		TotalInodes:     int64(statfs.Files),
+		UsedInodes:      int64(statfs.Files) - int64(statfs.Ffree),
+	}, nil
 }
 
 type Mount struct {

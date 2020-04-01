@@ -29,6 +29,18 @@ type MountMock struct {
 	mock.Mock
 }
 
+func (_m *MountMock) PathExists(volumePath string) (bool, error) {
+	ret := _m.Called(volumePath)
+
+	return ret.Bool(0), ret.Error(1)
+}
+
+func (_m *MountMock) GetDeviceStats(path string) (*DeviceStats, error) {
+	ret := _m.Called(path)
+
+	return ret.Get(0).(*DeviceStats), ret.Error(1)
+}
+
 // NewFakeMounter returns fake mounter instance
 func NewFakeMounter() *mount.FakeMounter {
 	return &mount.FakeMounter{
