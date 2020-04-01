@@ -57,6 +57,7 @@
         - cloud-provider-openstack-acceptance-test-csi-cinder:
             files:
               - cmd/cinder-csi-plugin/.*
+              - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - pkg/cloudprovider/providers/openstack/.*
@@ -76,6 +77,7 @@
         - cloud-provider-openstack-e2e-test-csi-cinder:
             files:
               - cmd/cinder-csi-plugin/.*
+              - manifests/cinder-csi-plugin/.* 
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - test/.*
