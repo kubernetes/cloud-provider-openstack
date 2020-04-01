@@ -11,6 +11,8 @@ kind: VolumeSnapshotClass
 metadata:
   name: csi-cinder-snapclass
 snapshotter: cinder.csi.openstack.org
+parameters:
+  - snapshot-inuse-volumes: false
 
 ---
 
