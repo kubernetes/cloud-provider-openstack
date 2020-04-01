@@ -2,6 +2,7 @@ package sanity
 
 import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	mount2 "k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/utils/mount"
 )
 
@@ -45,4 +46,12 @@ func (m *fakemount) MakeDir(pathname string) error {
 // MakeFile creates an empty file
 func (m *fakemount) MakeFile(pathname string) error {
 	return nil
+}
+
+func (m *fakemount) PathExists(path string) (bool, error) {
+	return false, nil
+}
+
+func (m *fakemount) GetDeviceStats(path string) (*mount2.DeviceStats, error) {
+	return nil, nil
 }
