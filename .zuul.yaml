@@ -106,7 +106,10 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             files:
+              - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
+              - pkg/util/.*
+              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
               - Makefile$
@@ -120,9 +123,13 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
             files:
+              - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
+              - pkg/util/.*
+              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
+              - Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -133,9 +140,30 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
             files:
+              - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
+              - pkg/util/.*
+              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
+              - Makefile$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.18:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.18:
+            files:
+              - cmd/openstack-cloud-controller-manager/.*
+              - pkg/cloudprovider/.*
+              - pkg/util/.*
+              - tests/e2e/cloudprovider/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
