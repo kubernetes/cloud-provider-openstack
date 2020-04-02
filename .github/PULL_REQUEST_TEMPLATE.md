@@ -1,24 +1,22 @@
-**The binaries affected**:
-
 <!--
-1. Please add the binary name in the title, e.g. `[cinder-csi-plugin]: Add UDP protocol support` unless the PR affects multiple binaries.
-2. Use `[OCCM]` for openstack-cloud-controller-manager.
-3. Insert 'x' in '[ ]' for tick, i.e. [x] cinder-csi-plugin
--->
+Please add the affected binary name in the title unless multiple binaries are affected, e.g.
+[cinder-csi-plugin] Fix volume deletion
+For openstack-cloud-controller-manager, you can use [occm] for short.
 
-- [ ] All
-- [ ] openstack-cloud-controller-manager(OCCM)
-- [ ] cinder-csi-plugin
-- [ ] k8s-keystone-auth
-- [ ] client-keystone-auth
-- [ ] octavia-ingress-controller
-- [ ] manila-csi-plugin
-- [ ] magnum-auto-healer
-- [ ] barbican-kms-plugin
+All the currently maintained binaries are:
+* openstack-cloud-controller-manager (occm)
+* cinder-csi-plugin
+* manila-csi-plugin
+* k8s-keystone-auth
+* client-keystone-auth
+* octavia-ingress-controller
+* magnum-auto-healer
+* barbican-kms-plugin
+-->
 
 **What this PR does / why we need it**:
 
-**Which issue this PR fixes**:
+**Which issue this PR fixes(if applicable)**:
 fixes #
 
 **Special notes for reviewers**:
