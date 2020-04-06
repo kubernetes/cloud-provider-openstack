@@ -85,6 +85,17 @@
               - go.mod$
               - go.sum$
               - Makefile$
+    cloud-provider-openstack-multinode-csi-migration-test:
+      jobs:
+        - cloud-provider-openstack-multinode-csi-migration-test:
+            files:
+              - cmd/cinder-csi-plugin/.*
+              - pkg/csi/cinder/.*
+              - pkg/util/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
+              - .zuul.yaml$
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:
