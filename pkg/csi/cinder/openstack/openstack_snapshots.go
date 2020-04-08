@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	SnapshotReadyStatus = "available"
+	snapshotReadyStatus = "available"
 	snapReadyDuration   = 1 * time.Second
 	snapReadyFactor     = 1.2
 	snapReadySteps      = 10
@@ -64,7 +64,7 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 // operation.  Valid filter keys are:  Name, Status, VolumeID (TenantID has no effect)
 func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
 	// FIXME: honor the limit, offset and filters later
-	opts := snapshots.ListOpts{Status: SnapshotReadyStatus}
+	opts := snapshots.ListOpts{Status: snapshotReadyStatus}
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
 	if err != nil {
 		klog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
@@ -147,5 +147,5 @@ func (os *OpenStack) snapshotIsReady(snapshotID string) (bool, error) {
 		return false, err
 	}
 
-	return snap.Status == SnapshotReadyStatus, nil
+	return snap.Status == snapshotReadyStatus, nil
 }
