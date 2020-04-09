@@ -50,6 +50,7 @@ spec:
           image: quay.io/k8scsi/csi-provisioner:v1.6.0
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--feature-gates=Topology=true"
             - "--timeout=3m"
           env:
             - name: ADDRESS
