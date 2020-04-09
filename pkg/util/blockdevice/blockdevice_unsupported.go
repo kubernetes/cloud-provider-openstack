@@ -19,10 +19,17 @@ limitations under the License.
 package blockdevice
 
 import (
-	"k8s.io/klog"
+	"errors"
 )
 
+func IsBlockDevice(path string) (bool, error) {
+	return false, errors.New("IsBlockDevice is not implemented for this OS")
+}
+
+func GetBlockDeviceSize(path string) (int64, error) {
+	return -1, errors.New("GetBlockDeviceSize is not implemented for this OS")
+}
+
 func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSize int64) error {
-	klog.V(1).Info("RescanBlockDeviceGeometry is not implemented for this OS")
-	return nil
+	return errors.New("RescanBlockDeviceGeometry is not implemented for this OS")
 }
