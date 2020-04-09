@@ -30,7 +30,13 @@ func TestDriver(t *testing.T) {
 	fakemnt := &fakemount{}
 	fakemet := &fakemetadata{}
 
-	d.SetupDriver(c, fakemnt, fakemet)
+	var (
+		ids = cinder.NewIdentityServer(d)
+		cs  = cinder.NewControllerServer(d, c)
+		ns  = cinder.NewNodeServer(d, fakemnt, fakemet, c)
+	)
+
+	d.SetupDriver(ids, cs, ns)
 
 	// TODO: Stop call
 

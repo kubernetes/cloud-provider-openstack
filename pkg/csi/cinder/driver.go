@@ -22,8 +22,6 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
-	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/klog"
 )
 
@@ -44,9 +42,9 @@ type CinderDriver struct {
 	cloudconfig string
 	cluster     string
 
-	ids *identityServer
-	cs  *controllerServer
-	ns  *nodeServer
+	ids *IdentityServer
+	cs  *ControllerServer
+	ns  *NodeServer
 
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
@@ -135,15 +133,12 @@ func (d *CinderDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_
 	return d.vcap
 }
 
-func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata openstack.IMetadata) {
-
-	d.ids = NewIdentityServer(d)
-	d.cs = NewControllerServer(d, cloud)
-	d.ns = NewNodeServer(d, mount, metadata, cloud)
-
+func (d *CinderDriver) SetupDriver(ids *IdentityServer, cs *ControllerServer, ns *NodeServer) {
+	d.ids = ids
+	d.cs = cs
+	d.ns = ns
 }
 
 func (d *CinderDriver) Run() {
-
-	RunControllerandNodePublishServer(d.endpoint, d.ids, d.cs, d.ns)
+	RunControllerAndNodePublishServer(d.endpoint, d.ids, d.cs, d.ns)
 }

@@ -21,20 +21,23 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog"
 )
 
 var (
-	endpoint    string
-	nodeID      string
-	cloudconfig string
-	cluster     string
+	cloudconfig          string
+	cluster              string
+	endpoint             string
+	nodeID               string
+	runControllerService bool
+	runNodeService       bool
 )
 
 func init() {
@@ -73,16 +76,20 @@ func main() {
 
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
-	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
-	cmd.MarkPersistentFlagRequired("nodeid")
-
-	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
-	cmd.MarkPersistentFlagRequired("endpoint")
-
 	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "CSI driver cloud config")
 	cmd.MarkPersistentFlagRequired("cloud-config")
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
+
+	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
+	cmd.MarkPersistentFlagRequired("endpoint")
+
+	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
+	cmd.MarkPersistentFlagRequired("nodeid")
+
+	cmd.PersistentFlags().BoolVar(&runControllerService, "run-controller-service", true, "If set to false then the CSI driver does not activate its controller service (default: true)")
+
+	cmd.PersistentFlags().BoolVar(&runNodeService, "run-node-service", true, "If set to false then the CSI driver does not activate its node service (default: true)")
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
@@ -98,30 +105,43 @@ func main() {
 }
 
 func handle() {
-
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
 
-	//Intiliaze mount
-	mount, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-	}
-
-	//Intiliaze Metadatda
-	metadatda, err := openstack.GetMetadataProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
-	}
-
-	// Initiliaze cloud
+	// Initialize cloud
 	openstack.InitOpenStackProvider(cloudconfig)
 	cloud, err := openstack.GetOpenStackProvider()
-
 	if err != nil {
 		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
 		return
 	}
 
-	d.SetupDriver(cloud, mount, metadatda)
+	// Initialize driver services
+	var (
+		ids = cinder.NewIdentityServer(d)
+		cs  *cinder.ControllerServer
+		ns  *cinder.NodeServer
+	)
+
+	if runControllerService {
+		cs = cinder.NewControllerServer(d, cloud)
+	}
+
+	if runNodeService {
+		// Initialize mount
+		mount, err := mount.GetMountProvider()
+		if err != nil {
+			klog.V(3).Infof("Failed to GetMountProvider: %v", err)
+		}
+
+		// Initialize Metadatda
+		metadata, err := openstack.GetMetadataProvider()
+		if err != nil {
+			klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
+		}
+
+		ns = cinder.NewNodeServer(d, mount, metadata, cloud)
+	}
+
+	d.SetupDriver(ids, cs, ns)
 	d.Run()
 }

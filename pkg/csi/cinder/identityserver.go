@@ -25,11 +25,11 @@ import (
 	"k8s.io/klog"
 )
 
-type identityServer struct {
+type IdentityServer struct {
 	Driver *CinderDriver
 }
 
-func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+func (ids *IdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	klog.V(5).Infof("Using default GetPluginInfo")
 
 	if ids.Driver.name == "" {
@@ -46,7 +46,7 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 	}, nil
 }
 
-func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+func (ids *IdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	klog.V(5).Infof("Probe() called with req %+v", req)
 	oProvider, err := openstack.GetOpenStackProvider()
 	if err != nil {
@@ -60,7 +60,7 @@ func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*c
 	return &csi.ProbeResponse{}, nil
 }
 
-func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+func (ids *IdentityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
 	klog.V(5).Infof("GetPluginCapabilities called with req %+v", req)
 	return &csi.GetPluginCapabilitiesResponse{
 		Capabilities: []*csi.PluginCapability{

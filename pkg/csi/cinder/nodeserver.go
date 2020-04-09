@@ -39,14 +39,14 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
-type nodeServer struct {
+type NodeServer struct {
 	Driver   *CinderDriver
 	Mount    mount.IMount
 	Metadata openstack.IMetadata
 	Cloud    openstack.IOpenStack
 }
 
-func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (ns *NodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolume: called with args %+v", *req)
 
 	volumeID := req.GetVolumeId()
@@ -117,7 +117,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*csi.NodePublishVolumeResponse, error) {
+func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *NodeServer) (*csi.NodePublishVolumeResponse, error) {
 
 	var size int
 	var err error
@@ -205,7 +205,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 
 }
 
-func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer, mountOptions []string) (*csi.NodePublishVolumeResponse, error) {
+func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *NodeServer, mountOptions []string) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolumeBlock: called with args %+v", *req)
 
 	volumeID := req.GetVolumeId()
@@ -244,7 +244,7 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (ns *NodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnPublishVolume: called with args %+v", *req)
 
 	volumeID := req.GetVolumeId()
@@ -308,7 +308,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 
 }
 
-func nodeUnpublishEphermeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer, vol *volumes.Volume) (*csi.NodeUnpublishVolumeResponse, error) {
+func nodeUnpublishEphermeral(req *csi.NodeUnpublishVolumeRequest, ns *NodeServer, vol *volumes.Volume) (*csi.NodeUnpublishVolumeResponse, error) {
 	volumeID := vol.ID
 	var instanceID string
 
@@ -339,7 +339,7 @@ func nodeUnpublishEphermeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+func (ns *NodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.V(4).Infof("NodeStageVolume: called with args %+v", *req)
 
 	stagingTarget := req.GetStagingTargetPath()
@@ -405,7 +405,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+func (ns *NodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", *req)
 
 	volumeID := req.GetVolumeId()
@@ -448,7 +448,7 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
-func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+func (ns *NodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 
 	nodeID, err := getNodeID(ns.Mount, ns.Metadata, ns.Cloud.GetMetadataOpts().SearchOrder)
 	if err != nil {
@@ -470,7 +470,7 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	}, nil
 }
 
-func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+func (ns *NodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	klog.V(5).Infof("NodeGetCapabilities called with req: %#v", req)
 
 	return &csi.NodeGetCapabilitiesResponse{
@@ -478,7 +478,7 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 	}, nil
 }
 
-func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+func (ns *NodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", *req)
 
 	volumeID := req.GetVolumeId()
@@ -523,7 +523,7 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 	}, nil
 }
 
-func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+func (ns *NodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	klog.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
 
 	volumeID := req.GetVolumeId()

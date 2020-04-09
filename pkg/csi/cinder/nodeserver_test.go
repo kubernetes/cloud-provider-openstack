@@ -27,7 +27,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
-var fakeNs *nodeServer
+var fakeNs *NodeServer
 var mmock *mount.MountMock
 var omock *openstack.OpenStackMock
 

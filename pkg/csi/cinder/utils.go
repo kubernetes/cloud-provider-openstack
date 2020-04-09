@@ -36,21 +36,21 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 	return &csi.VolumeCapability_AccessMode{Mode: mode}
 }
 
-func NewControllerServer(d *CinderDriver, cloud openstack.IOpenStack) *controllerServer {
-	return &controllerServer{
+func NewControllerServer(d *CinderDriver, cloud openstack.IOpenStack) *ControllerServer {
+	return &ControllerServer{
 		Driver: d,
 		Cloud:  cloud,
 	}
 }
 
-func NewIdentityServer(d *CinderDriver) *identityServer {
-	return &identityServer{
+func NewIdentityServer(d *CinderDriver) *IdentityServer {
+	return &IdentityServer{
 		Driver: d,
 	}
 }
 
-func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata openstack.IMetadata, cloud openstack.IOpenStack) *nodeServer {
-	return &nodeServer{
+func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata openstack.IMetadata, cloud openstack.IOpenStack) *NodeServer {
+	return &NodeServer{
 		Driver:   d,
 		Mount:    mount,
 		Metadata: metadata,
@@ -58,8 +58,7 @@ func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata openstack.IMeta
 	}
 }
 
-func RunControllerandNodePublishServer(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
-
+func RunControllerAndNodePublishServer(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
 	s := NewNonBlockingGRPCServer()
 	s.Start(endpoint, ids, cs, ns)
 	s.Wait()

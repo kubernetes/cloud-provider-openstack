@@ -25,7 +25,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
-var fakeCs *controllerServer
+var fakeCs *ControllerServer
 var osmock *openstack.OpenStackMock
 
 // Init Controller Server
