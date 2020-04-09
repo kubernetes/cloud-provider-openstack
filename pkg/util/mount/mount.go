@@ -104,9 +104,9 @@ func (m *Mount) GetDeviceStats(path string) (*DeviceStats, error) {
 	return &DeviceStats{
 		Block: false,
 
-		AvailableBytes: int64(statfs.Bavail) * statfs.Bsize,
-		TotalBytes:     int64(statfs.Blocks) * statfs.Bsize,
-		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * statfs.Bsize,
+		AvailableBytes: int64(statfs.Bavail) * int64(statfs.Bsize),
+		TotalBytes:     int64(statfs.Blocks) * int64(statfs.Bsize),
+		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * int64(statfs.Bsize),
 
 		AvailableInodes: int64(statfs.Ffree),
 		TotalInodes:     int64(statfs.Files),
