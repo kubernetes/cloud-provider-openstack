@@ -135,9 +135,9 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `ipv6-support-disabled`
   Indicates whether or not IPv6 is supported. Default: false
 * `public-network-name`
-  The name of Neutron external network. openstack-cloud-controller-manager uses this option when getting the external IP of the Kubernetes node. Default: ""
+  The name of Neutron external network. openstack-cloud-controller-manager uses this option when getting the external IP of the Kubernetes node. Can be specified multiple times. Specified network names will be ORed. Default: ""
 * `internal-network-name`
-  The name of Neutron internal network. openstack-cloud-controller-manager uses this option when getting the internal IP of the Kubernetes node, this is useful if the node has multiple interfaces. Default: ""
+  The name of Neutron internal network. openstack-cloud-controller-manager uses this option when getting the internal IP of the Kubernetes node, this is useful if the node has multiple interfaces. Can be specified multiple times. Specified network names will be ORed. Default: ""
 
 ###  Load Balancer
 
