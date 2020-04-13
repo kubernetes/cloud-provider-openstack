@@ -90,6 +90,7 @@
         - cloud-provider-openstack-multinode-csi-migration-test:
             files:
               - cmd/cinder-csi-plugin/.*
+              - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - go.mod$
