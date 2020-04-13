@@ -128,6 +128,11 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	capacity, ok := req.GetVolumeContext()["capacity"]
 	volumeCapability := req.GetVolumeCapability()
 
+	volAvailability, err := getAvailabilityZoneMetadataService(ns.Metadata)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
+	}
+
 	size = 1 // default size is 1GB
 	if ok && strings.HasSuffix(capacity, "Gi") {
 		size, err = strconv.Atoi(strings.TrimSuffix(capacity, "Gi"))
@@ -137,8 +142,8 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		}
 	}
 
-	// TODO: About AZ and Volume type
-	evol, err := ns.Cloud.CreateVolume(volName, size, "", "", "", "", &properties)
+	// TODO: Add Volume type support
+	evol, err := ns.Cloud.CreateVolume(volName, size, "", volAvailability, "", "", &properties)
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)
