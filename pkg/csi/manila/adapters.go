@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 func getShareAdapter(proto string) shareadapters.ShareAdapter {

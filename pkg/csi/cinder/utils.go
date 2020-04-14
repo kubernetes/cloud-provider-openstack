@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 func NewControllerServiceCapability(cap csi.ControllerServiceCapability_RPC_Type) *csi.ControllerServiceCapability {

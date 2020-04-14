@@ -12,7 +12,7 @@ import (
 	pb "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1"
 	"k8s.io/cloud-provider-openstack/pkg/kms/barbican"
 	"k8s.io/cloud-provider-openstack/pkg/kms/encryption/aescbc"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (

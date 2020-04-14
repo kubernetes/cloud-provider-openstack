@@ -29,7 +29,7 @@ import (
 	gcfg "gopkg.in/gcfg.v1"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	md "k8s.io/cloud-provider-openstack/pkg/util/metadata"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // userAgentData is used to add extra information to the gophercloud user-agent

@@ -33,10 +33,11 @@ require (
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.5.1
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
-	golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933
+	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sys v0.0.0-20200122134326-e047566fdf82
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
+	golang.org/x/tools v0.0.0-20200414032229-332987a829c3 // indirect
 	google.golang.org/appengine v1.6.2 // indirect
 	google.golang.org/grpc v1.26.0
 	gopkg.in/gcfg.v1 v1.2.3
@@ -48,8 +49,10 @@ require (
 	k8s.io/apiserver v0.18.0
 	k8s.io/client-go v0.18.0
 	k8s.io/cloud-provider v0.18.0
+	k8s.io/code-generator v0.18.1 // indirect
 	k8s.io/component-base v0.18.0
-	k8s.io/klog v1.0.0
+	k8s.io/gengo v0.0.0-20200413195148-3a45101e95ac // indirect
+	k8s.io/klog/v2 v2.0.0
 	k8s.io/kubernetes v1.18.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 	software.sslmate.com/src/go-pkcs12 v0.0.0-20190209200317-47dd539968c4
