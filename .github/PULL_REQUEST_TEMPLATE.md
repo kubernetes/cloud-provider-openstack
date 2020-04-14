@@ -25,7 +25,7 @@ fixes #
 **Release note**:
 <!--
 1. Release note is required if a significant change is introduced, otherwise please keep this section as is.
-2. Release note is in Markdown format and should begin with the binary name unless multiple binaries are affected, e.g. openstack-cloud-controller-manager: Deprecate Neutron-LBaaS support.
+2. Release note is in Markdown format and should begin with the binary name unless multiple binaries are affected, e.g. [openstack-cloud-controller-manager] Deprecate Neutron-LBaaS support.
 3. Instructions for writing a release note: https://git.k8s.io/community/contributors/guide/release-notes.md
 -->
 ```release-note
