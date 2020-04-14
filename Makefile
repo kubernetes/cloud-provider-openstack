@@ -170,7 +170,7 @@ endif
 import-boss:
 ifndef HAS_IMPORT_BOSS
 	echo "installing import-boss"
-	GO111MODULE=off go get -u k8s.io/code-generator/cmd/import-boss
+	go get -u k8s.io/code-generator/cmd/import-boss
 endif
 	hack/verify-import-boss.sh
 
