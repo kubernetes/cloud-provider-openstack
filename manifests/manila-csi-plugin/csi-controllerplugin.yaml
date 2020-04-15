@@ -40,6 +40,8 @@ spec:
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
+            # To enable topology awareness in csi-provisioner, uncomment the following line:
+            # - "--feature-gates=Topology=true"
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/manila.csi.openstack.org/csi-controllerplugin.sock"
@@ -65,14 +67,20 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "manila-csi-plugin:latest"
-          args:
-            - "--v=5"
-            - "--nodeid=$(NODE_ID)"
-            - "--endpoint=$(CSI_ENDPOINT)"
-            - "--drivername=$(DRIVER_NAME)"
-            - "--share-protocol-selector=$(MANILA_SHARE_PROTO)"
-            - "--fwdendpoint=$(FWD_CSI_ENDPOINT)"
+          image: "k8scloudprovider/manila-csi-plugin:latest"
+          command: ["/bin/sh", "-c",
+            '/bin/manila-csi-plugin
+            --v=5
+            --nodeid=$(NODE_ID)
+            --endpoint=$(CSI_ENDPOINT)
+            --drivername=$(DRIVER_NAME)
+            --share-protocol-selector=$(MANILA_SHARE_PROTO)
+            --fwdendpoint=$(FWD_CSI_ENDPOINT)'
+            # To enable topology awareness and retrieve compute node AZs from the OpenStack Metadata Service, add the following flags:
+            # --with-topology
+            # --nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)
+            # Those flags need to be added to csi-nodeplugin.yaml as well.
+          ]
           env:
             - name: DRIVER_NAME
               value: manila.csi.openstack.org
