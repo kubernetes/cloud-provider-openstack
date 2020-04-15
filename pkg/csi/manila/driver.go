@@ -32,6 +32,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
@@ -56,7 +57,7 @@ type Driver struct {
 	nodeAZ       string
 	withTopology bool
 	name         string
-	version      string
+	fqVersion    string // Fully qualified version in format {driverVersion}@{CPO version}
 	shareProto   string
 
 	serverEndpoint string
@@ -106,9 +107,8 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		}
 	}
 
-	klog.Infof("Driver: %s version: %s CSI spec version: %s", o.DriverName, driverVersion, specVersion)
-
 	d := &Driver{
+		fqVersion:           fmt.Sprintf("%s@%s", driverVersion, version.Version),
 		nodeID:              o.NodeID,
 		nodeAZ:              o.NodeAZ,
 		withTopology:        o.WithTopology,
@@ -120,6 +120,10 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		manilaClientBuilder: o.ManilaClientBuilder,
 		csiClientBuilder:    o.CSIClientBuilder,
 	}
+
+	klog.Info("Driver: ", d.name)
+	klog.Info("Driver version: ", d.fqVersion)
+	klog.Info("CSI spec version: ", specVersion)
 
 	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
 	klog.Infof("Operating on %s shares", d.shareProto)
