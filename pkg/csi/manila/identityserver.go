@@ -34,7 +34,7 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 
 	return &csi.GetPluginInfoResponse{
 		Name:          ids.d.name,
-		VendorVersion: driverVersion,
+		VendorVersion: ids.d.fqVersion,
 	}, nil
 }
 
