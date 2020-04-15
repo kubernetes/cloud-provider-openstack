@@ -251,7 +251,7 @@ cloud-controller-manager-roles.yaml
 you need use following command to create ClusterRole and ClusterRoleBinding
 otherwise the cloud-controller-manager is not able to access k8s API.
 ```
-./cluster/kubectl.sh create -f cluster/addons/rbac/
+./cluster/kubectl.sh create -f $working_dir/cloud-provider-openstack/cluster/addons/rbac/
 ```
 
 Have a good time with OpenStack and Kubernetes!
