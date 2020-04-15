@@ -34,6 +34,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/cloud-provider-openstack/pkg/util"
+
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
@@ -150,9 +152,9 @@ type BlockStorageOpts struct {
 
 // NetworkingOpts is used for networking settings
 type NetworkingOpts struct {
-	IPv6SupportDisabled bool   `gcfg:"ipv6-support-disabled"`
-	PublicNetworkName   string `gcfg:"public-network-name"`
-	InternalNetworkName string `gcfg:"internal-network-name"`
+	IPv6SupportDisabled bool     `gcfg:"ipv6-support-disabled"`
+	PublicNetworkName   []string `gcfg:"public-network-name"`
+	InternalNetworkName []string `gcfg:"internal-network-name"`
 }
 
 // RouterOpts is used for Neutron routes
@@ -397,6 +399,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	if cfg.Metadata.SearchOrder == "" {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
+
 	return cfg, err
 }
 
@@ -742,10 +745,10 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	for _, network := range networks {
 		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
+			if props.IPType == "floating" || util.Contains(networkingOpts.PublicNetworkName, network) {
 				addressType = v1.NodeExternalIP
 			} else {
-				if networkingOpts.InternalNetworkName == "" || network == networkingOpts.InternalNetworkName {
+				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
