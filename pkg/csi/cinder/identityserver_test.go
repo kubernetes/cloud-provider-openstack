@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -33,5 +34,8 @@ func TestGetPluginInfo(t *testing.T) {
 	resp, err := ids.GetPluginInfo(context.Background(), &req)
 	assert.NoError(t, err)
 	assert.Equal(t, resp.GetName(), driverName)
-	assert.Equal(t, resp.GetVendorVersion(), vendorVersion)
+
+	// This is no driver version returned in this test
+	fqVersion := fmt.Sprintf("%s@", vendorVersion)
+	assert.Equal(t, resp.GetVendorVersion(), fqVersion)
 }
