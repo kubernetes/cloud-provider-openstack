@@ -197,8 +197,10 @@ Following prerequisite needed for volume snapshot feature to work.
 1. Enable `--feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
 2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass. external-snapshotter is a part of `csi-cinder-controllerplugin`
 
-For Snapshot Creation and Volume Restore, please follow below steps:
+Supported parameters for VolumeSnapshotClass:
+* `force-create`: Support creating snapshot for a volume in in-use status.
 
+For Snapshot Creation and Volume Restore, please follow below steps:
 * Create Storage Class, Snapshot Class and PVC    
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/example.yaml create
@@ -206,6 +208,7 @@ storageclass.storage.k8s.io/csi-sc-cinderplugin created
 volumesnapshotclass.snapshot.storage.k8s.io/csi-cinder-snapclass created
 persistentvolumeclaim/pvc-snapshot-demo created
 ```
+
 * Verify that pvc is bounded
 ``` 
 $ kubectl get pvc --all-namespaces
@@ -216,7 +219,7 @@ default     pvc-snapshot-demo   Bound    pvc-4699fa78-4149-4772-b900-9536891fe20
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotcreate.yaml create
 volumesnapshot.snapshot.storage.k8s.io/new-snapshot-demo created
-```       
+```
 * Verify that snapshot is created    
 ```
 $ kubectl get volumesnapshot 
