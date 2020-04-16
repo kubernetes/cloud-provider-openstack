@@ -32,7 +32,7 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
-If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-controller-manager-with-kubeadm.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` and then jump directly to the `kubectl apply ...` command.
+If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` from [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin) and then jump directly to the `kubectl apply ...` command.
 
 Encode your ```$CLOUD_CONFIG``` file content using base64.
 
@@ -58,7 +58,7 @@ volumes:
     type: Directory
 ```
 
-Then call following command by using existing manifests:
+Then call following command by using existing [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin):
 
 ```kubectl -f manifests/cinder-csi-plugin apply```
 
@@ -100,7 +100,7 @@ Events:               <none>
 ### Example Nginx application usage
 
 After performing above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
-Try following command:
+Try following command by using [examples](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/nginx.yaml):
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
 
