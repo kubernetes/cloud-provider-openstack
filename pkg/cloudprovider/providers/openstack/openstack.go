@@ -132,7 +132,8 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
 	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
 	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
-	InternalLB           bool                `gcfg:"internal-lb"` // default false
+	InternalLB           bool                `gcfg:"internal-lb"`    // default false
+	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -378,6 +379,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorDelay = MyDuration{5 * time.Second}
 	cfg.LoadBalancer.MonitorTimeout = MyDuration{3 * time.Second}
 	cfg.LoadBalancer.MonitorMaxRetries = 1
+	cfg.LoadBalancer.CascadeDelete = true
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 

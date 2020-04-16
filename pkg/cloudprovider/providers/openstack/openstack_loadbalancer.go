@@ -1857,7 +1857,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 	}
 
 	// delete the loadbalancer and all its sub-resources.
-	if lbaas.opts.UseOctavia {
+	if lbaas.opts.UseOctavia && lbaas.opts.CascadeDelete {
 		deleteOpts := loadbalancers.DeleteOpts{Cascade: true}
 		if err := loadbalancers.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
 			return fmt.Errorf("failed to delete loadbalancer %s: %v", loadbalancer.ID, err)
