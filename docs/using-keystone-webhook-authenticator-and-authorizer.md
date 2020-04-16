@@ -1,5 +1,21 @@
 # k8s-keystone-auth
 
+- [Prerequisites](#prerequisites)
+- [Deploy k8s-keystone-auth webhook server](#deploy-k8s-keystone-auth-webhook-server)
+  - [Prepare the authorization policy (optional)](#prepare-the-authorization-policy-optional)
+    - [Non-resource permission](#non-resource-permission)
+    - [Sub-resource permission](#sub-resource-permission)
+  - [Prepare the service certificates](#prepare-the-service-certificates)
+  - [Create service account for k8s-keystone-auth](#create-service-account-for-k8s-keystone-auth)
+  - [Deploy k8s-keystone-auth](#deploy-k8s-keystone-auth)
+  - [Test k8s-keystone-auth service](#test-k8s-keystone-auth-service)
+  - [Configuration on K8S master for authentication and/or authorization](#configuration-on-k8s-master-for-authentication-andor-authorization)
+- [Authorization policy definition(version 2)](#authorization-policy-definitionversion-2)
+- [Client(kubectl) configuration](#clientkubectl-configuration)
+  - [Old kubectl clients](#old-kubectl-clients)
+  - [kubectl clients from v1.8.0 to v1.10.x](#kubectl-clients-from-v180-to-v110x)
+  - [New kubectl clients from v1.11.0 and later](#new-kubectl-clients-from-v1110-and-later)
+
 [Kubernetes webhook authentication and authorization](https://kubernetes.io/docs/reference/access-authn-authz/webhook/)
 for OpenStack Keystone. With k8s-keystone-auth, the Kubernetes cluster
 administrator only need to know the OpenStack project names or roles,
@@ -18,9 +34,11 @@ by kubelet) or a normal kubernetes service.
 > If you run k8s-keystone-auth service as a static pod, the pod creation could
   be a part of kubernetes cluster initialization process.
 
-## Running k8s-keystone-auth as a Kubernetes service
+## Deploy k8s-keystone-auth webhook server
 
-### Prepare the authorization policy
+### Prepare the authorization policy (optional)
+
+> The authorization feature is optional, you can choose to deploy k8s-keystone-auth webhook server for authentication only and rely on Kubernetes RBAC for authorization. See more details [here](./using-auth-data-synchronization.md). However, k8s-keystone-auth authorization provides more flexible configurations than Kubernetes native RBAC.
 
 The authorization policy can be specified using an existing ConfigMap name in
 the cluster, by doing this, the policy could be changed dynamically without the
@@ -229,12 +247,6 @@ deployment manifest:
 - The value of `keystone_auth_url` needs to be changed according to your
   environment.
 
-please refer to [pods](../manifests/webhook/k8s-keystone-auth-pod.yaml) for definition
-of the pods and [service](../examples/webhook/keystone-service.yaml) for definition
-of the service, before applying, make sure you replaced correct configuration
-such as `keystone_auth_url` to your keystone url and `image` to desired image,
-e.g `k8scloudprovider/k8s-keystone-auth:latest`.
-
 ```shell
 $ kubectl apply -f manifests/webhook/k8s-keystone-auth-pod.yaml
 $ kubectl apply -f examples/webhook/keystone-service.yaml
@@ -242,168 +254,173 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 
 ### Test k8s-keystone-auth service
 
-- Test k8s-keystone-auth service and its pods running well
+- Check k8s-keystone-auth webhook pod.
 
-First we need test whether the k8s-keystone-auth service and pods is running:
+  First we need check if the k8s-keystone-auth pod is up and running:
 
-```shell
-$ kubectl get pods --all-namespaces
-NAMESPACE     NAME                        READY   STATUS    RESTARTS   AGE
-kube-system   k8s-keystone-auth           1/1     Running   0          2m27s
-kube-system   kube-dns-547db76c8f-6wf49   3/3     Running   0          7m42s
-```
+  ```shell
+  $ kubectl get pods --all-namespaces
+  NAMESPACE     NAME                        READY   STATUS    RESTARTS   AGE
+  kube-system   k8s-keystone-auth           1/1     Running   0          2m27s
+  kube-system   kube-dns-547db76c8f-6wf49   3/3     Running   0          7m42s
+  ```
 
-Before we continue to config kube-apiserver, we could test the
-k8s-keystone-auth service by sending HTTP request directly to make sure
-the service works as expected.
+  Before we continue to config kube-apiserver, we could test the
+  k8s-keystone-auth service by sending HTTP request directly to make sure
+  the service works as expected.
 
 - Authentication
 
-    Fetch a token of an OpenStack user from the `demo` project, send
-    request to the k8s-keystone-auth service, in this example,
-    `10.109.16.219` is the cluster IP of k8s-keystone-auth service.
+  Get a token of an OpenStack user from the `demo` project, send
+  request to the k8s-keystone-auth service, in this example,
+  `10.109.16.219` is the cluster IP of k8s-keystone-auth service.
 
-    ```shell
-    $ keystone_auth_service_addr=10.109.16.219
-    $ token=...
-    $ cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
-    {
+  ```shell
+  $ keystone_auth_service_addr=10.109.16.219
+  $ token=...
+  $ cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
+  {
+    "apiVersion": "authentication.k8s.io/v1beta1",
+    "kind": "TokenReview",
+    "metadata": {
+      "creationTimestamp": null
+    },
+    "spec": {
+      "token": "$token"
+    }
+  }
+  EOF
+  ```
+
+  You should see the detailed information of the Keystone user from the
+  response if the service is configured correctly. You may notice that besides the user's Keystone group, the user's
+  project ID is also included in the *group* field, so the cluster admin could config RBAC *rolebindings* based on the
+  groups without involving the webhook authorization.
+
+  ```shell
+  {
       "apiVersion": "authentication.k8s.io/v1beta1",
       "kind": "TokenReview",
       "metadata": {
-        "creationTimestamp": null
+          "creationTimestamp": null
       },
       "spec": {
-        "token": "$token"
+          "token": "<truncated>"
+      },
+      "status": {
+          "authenticated": true,
+          "user": {
+              "extra": {
+                  "alpha.kubernetes.io/identity/project/id": [
+                      "423d41d3a02f4b77b4a9bbfbc3a1b3c6"
+                  ],
+                  "alpha.kubernetes.io/identity/project/name": [
+                      "demo"
+                  ],
+                  "alpha.kubernetes.io/identity/roles": [
+                      "member",
+                      "load-balancer_member"
+                  ],
+                  "alpha.kubernetes.io/identity/user/domain/id": [
+                      "default"
+                  ],
+                  "alpha.kubernetes.io/identity/user/domain/name": [
+                      "Default"
+                  ]
+              },
+              "groups": [
+                  "mygroup",
+                  "423d41d3a02f4b77b4a9bbfbc3a1b3c6"
+              ],
+              "uid": "ff369be2cbb14ee9bb775c0bcf2a1061",
+              "username": "demo"
+          }
+      }
+  }
+  ```
+
+- Authorization (optional)
+
+  > Please skip this validation if you are using Kubernetes RBAC for authorization.
+
+  From the above response,  we know the `demo` user in the `demo` project
+  does have `member` role associated:
+
+  ```shell
+  cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
+  {
+    "apiVersion": "authorization.k8s.io/v1beta1",
+    "kind": "SubjectAccessReview",
+    "spec": {
+      "resourceAttributes": {
+        "namespace": "default",
+        "verb": "get",
+        "group": "",
+        "resource": "pods",
+        "name": "pod1"
+      },
+      "user": "demo",
+      "group": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
+      "extra": {
+          "alpha.kubernetes.io/identity/project/id": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
+          "alpha.kubernetes.io/identity/project/name": ["demo"],
+          "alpha.kubernetes.io/identity/roles": ["load-balancer_member","member"]
       }
     }
-    EOF
-    ```
+  }
+  EOF
+  ```
 
-    You should see the detailed information of the Keystone user from the
-    response if the service is configured correctly:
+  Response:
 
-    ```shell
-    {
-        "apiVersion": "authentication.k8s.io/v1beta1",
-        "kind": "TokenReview",
-        "metadata": {
-            "creationTimestamp": null
-        },
-        "spec": {
-            "token": "<truncated>"
-        },
-        "status": {
-            "authenticated": true,
-            "user": {
-                "extra": {
-                    "alpha.kubernetes.io/identity/project/id": [
-                        "423d41d3a02f4b77b4a9bbfbc3a1b3c6"
-                    ],
-                    "alpha.kubernetes.io/identity/project/name": [
-                        "demo"
-                    ],
-                    "alpha.kubernetes.io/identity/roles": [
-                        "member",
-                        "load-balancer_member"
-                    ],
-                    "alpha.kubernetes.io/identity/user/domain/id": [
-                        "default"
-                    ],
-                    "alpha.kubernetes.io/identity/user/domain/name": [
-                        "Default"
-                    ]
-                },
-                "groups": [
-                    "423d41d3a02f4b77b4a9bbfbc3a1b3c6"
-                ],
-                "uid": "ff369be2cbb14ee9bb775c0bcf2a1061",
-                "username": "demo"
-            }
-        }
-    }
-    ```
-
-- Authorization
-
-    From the above response,  we know the `demo` user in the `demo` project
-    does have `member` role associated:
-
-    ```shell
-    cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
-    {
+  ```shell
+  {
       "apiVersion": "authorization.k8s.io/v1beta1",
       "kind": "SubjectAccessReview",
-      "spec": {
-        "resourceAttributes": {
-          "namespace": "default",
-          "verb": "get",
-          "group": "",
-          "resource": "pods",
-          "name": "pod1"
-        },
-        "user": "demo",
-        "group": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
-        "extra": {
-            "alpha.kubernetes.io/identity/project/id": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
-            "alpha.kubernetes.io/identity/project/name": ["demo"],
-            "alpha.kubernetes.io/identity/roles": ["load-balancer_member","member"]
-        }
+      "status": {
+          "allowed": true
+      }
+  }
+  ```
+
+  According to the policy definition, pod creation should fail:
+
+  ```shell
+  cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
+  {
+    "apiVersion": "authorization.k8s.io/v1beta1",
+    "kind": "SubjectAccessReview",
+    "spec": {
+      "resourceAttributes": {
+        "namespace": "default",
+        "verb": "create",
+        "group": "",
+        "resource": "pods",
+        "name": "pod1"
+      },
+      "user": "demo",
+      "group": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
+      "extra": {
+          "alpha.kubernetes.io/identity/project/id": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
+          "alpha.kubernetes.io/identity/project/name": ["demo"],
+          "alpha.kubernetes.io/identity/roles": ["load-balancer_member","member"]
       }
     }
-    EOF
-    ```
+  }
+  EOF
+  ```
 
-    Response:
+  Response:
 
-    ```shell
-    {
-        "apiVersion": "authorization.k8s.io/v1beta1",
-        "kind": "SubjectAccessReview",
-        "status": {
-            "allowed": true
-        }
-    }
-    ```
-
-    According to the policy definition, pod creation should fail:
-
-    ```shell
-    cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
-    {
+  ```shell
+  {
       "apiVersion": "authorization.k8s.io/v1beta1",
       "kind": "SubjectAccessReview",
-      "spec": {
-        "resourceAttributes": {
-          "namespace": "default",
-          "verb": "create",
-          "group": "",
-          "resource": "pods",
-          "name": "pod1"
-        },
-        "user": "demo",
-        "group": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
-        "extra": {
-            "alpha.kubernetes.io/identity/project/id": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
-            "alpha.kubernetes.io/identity/project/name": ["demo"],
-            "alpha.kubernetes.io/identity/roles": ["load-balancer_member","member"]
-        }
+      "status": {
+          "allowed": false
       }
-    }
-    EOF
-    ```
-
-    Response:
-
-    ```shell
-    {
-        "apiVersion": "authorization.k8s.io/v1beta1",
-        "kind": "SubjectAccessReview",
-        "status": {
-            "allowed": false
-        }
-    }
-    ```
+  }
+  ```
 
 Now the k8s-keystone-auth service works as expected, we could go ahead to
 config kubernetes API server to use the k8s-keystone-auth service as a webhook
@@ -411,10 +428,11 @@ service for both authentication and authorization. In fact, the
 k8s-keystone-auth service can be used for authentication or authorization only,
 and both as well, depending on your requirement.
 
-### Configuration on K8S master for authentication and authorization
+### Configuration on K8S master for authentication and/or authorization
 
 - Create webhook config file. We reuse the folder `/etc/kubernetes/pki/`
-  because it's already mounted and accessible by API server pod.
+  because it's already mounted and accessible by API server pod in a
+  cluster that is set up by kubeadm.
 
     ```shell
     cat <<EOF > /etc/kubernetes/pki/webhookconfig.yaml
@@ -439,13 +457,20 @@ and both as well, depending on your requirement.
     ```
 
 - Modify kube-apiserver config file to use the webhook service for
-  authentication and authorization.
+  authentication and/or authorization.
 
-    ```shell
-    sed -i '/image:/ i \ \ \ \ - --authentication-token-webhook-config-file=/etc/kubernetes/pki/webhookconfig.yaml' /etc/kubernetes/manifests/kube-apiserver.yaml
-    sed -i '/image:/ i \ \ \ \ - --authorization-webhook-config-file=/etc/kubernetes/pki/webhookconfig.yaml' /etc/kubernetes/manifests/kube-apiserver.yaml
-    sed -i "/authorization-mode/c \ \ \ \ - --authorization-mode=Node,Webhook,RBAC" /etc/kubernetes/manifests/kube-apiserver.yaml
-    ```
+  Authentication:
+
+  ```
+  --authentication-token-webhook-config-file=/etc/kubernetes/pki/webhookconfig.yaml
+  ```
+
+  Authorization (optional):
+
+  ```
+  --authorization-webhook-config-file=/etc/kubernetes/pki/webhookconfig.yaml
+  --authorization-mode=Node,Webhook,RBAC
+  ```
 
 - Wait for the API server to restart successfully until you can see all the
   pods are running in `kube-system` namespace.

@@ -239,15 +239,15 @@ func validateDeleteSnapshotRequest(req *csi.DeleteSnapshotRequest) error {
 	return nil
 }
 
-func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions, shareTypeCaps capabilities.ManilaCapabilities) error {
-	coalesceValue := func(v string) string {
-		if v == "" {
-			return "<none>"
-		}
-
-		return v
+func coalesceValue(v string) string {
+	if v == "" {
+		return "<none>"
 	}
 
+	return v
+}
+
+func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions, shareTypeCaps capabilities.ManilaCapabilities) error {
 	if share.Size != sizeInGiB {
 		return fmt.Errorf("size mismatch: wanted %d, got %d", share.Size, sizeInGiB)
 	}

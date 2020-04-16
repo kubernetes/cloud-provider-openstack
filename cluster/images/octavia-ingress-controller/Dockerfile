@@ -9,9 +9,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM alpine:3.11
 
-RUN apk add --no-cache ca-certificates
-ADD octavia-ingress-controller /bin/
+ARG ALPINE_ARCH=amd64
+# We not using scratch because we need to keep the basic image information
+# from parent image
+FROM ${ALPINE_ARCH}/alpine:3.11
+
+ARG ARCH=amd64
+
+# Fill out the labels
+LABEL name="octavia-ingress-controller" \
+      license="Apache Version 2.0" \
+      maintainers="Kubernetes Authors" \
+      description="Octavia ingress controller" \
+      architecture=$ARCH \
+      distribution-scope="public" \
+      summary="Octavia ingress controller" \
+      help="none"
+
+ADD rootfs.tar /
 
 CMD ["/bin/octavia-ingress-controller"]

@@ -23,21 +23,22 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	log "github.com/sirupsen/logrus"
 
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 )
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
-	octavia *gophercloud.ServiceClient
-	nova    *gophercloud.ServiceClient
-	neutron *gophercloud.ServiceClient
-	config  config.Config
+	Octavia  *gophercloud.ServiceClient
+	nova     *gophercloud.ServiceClient
+	neutron  *gophercloud.ServiceClient
+	Barbican *gophercloud.ServiceClient
+	config   config.Config
 }
 
 // NewOpenStack gets openstack struct
 func NewOpenStack(cfg config.Config) (*OpenStack, error) {
-	provider, err := openstack_provider.NewOpenStackClient(&cfg.OpenStack, "octavia-ingress-controller")
+	provider, err := cpo.NewOpenStackClient(&cfg.OpenStack, "octavia-ingress-controller")
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +70,22 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 		return nil, fmt.Errorf("failed to find compute v2 endpoint for region %s: %v", cfg.OpenStack.Region, err)
 	}
 
+	// Get barbican service client.
+	var barbican *gophercloud.ServiceClient
+	barbican, err = openstack.NewKeyManagerV1(provider, gophercloud.EndpointOpts{
+		Region: cfg.OpenStack.Region,
+	})
+	if err != nil {
+		log.Warn("Barbican not suppported.")
+		barbican = nil
+	}
+
 	os := OpenStack{
-		octavia: lb,
-		nova:    compute,
-		neutron: network,
-		config:  cfg,
+		Octavia:  lb,
+		nova:     compute,
+		neutron:  network,
+		Barbican: barbican,
+		config:   cfg,
 	}
 
 	log.Debug("openstack client initialized")

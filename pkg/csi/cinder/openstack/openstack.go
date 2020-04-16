@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/gophercloud/gophercloud"
@@ -27,6 +28,7 @@ import (
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	md "k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog"
 )
 
@@ -39,6 +41,7 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 }
 
 type IOpenStack interface {
+	CheckBlockStorageAPI() error
 	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
@@ -58,6 +61,8 @@ type IOpenStack interface {
 	GetInstanceByID(instanceID string) (*servers.Server, error)
 	ExpandVolume(volumeID string, size int) error
 	GetMaxVolLimit() int64
+	GetMetadataOpts() openstack_provider.MetadataOpts
+	GetBlockStorageOpts() BlockStorageOpts
 }
 
 type OpenStack struct {
@@ -65,10 +70,12 @@ type OpenStack struct {
 	blockstorage *gophercloud.ServiceClient
 	bsOpts       BlockStorageOpts
 	epOpts       gophercloud.EndpointOpts
+	metadataOpts openstack_provider.MetadataOpts
 }
 
 type BlockStorageOpts struct {
 	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
+	RescanOnResize        bool  `gcfg:"rescan-on-resize"`
 }
 
 type Config struct {
@@ -142,12 +149,18 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		return nil, err
 	}
 
+	// if no search order given, use default
+	if len(cfg.Config.Metadata.SearchOrder) == 0 {
+		cfg.Config.Metadata.SearchOrder = fmt.Sprintf("%s,%s", md.ConfigDriveID, md.MetadataID)
+	}
+
 	// Init OpenStack
 	OsInstance = &OpenStack{
 		compute:      computeclient,
 		blockstorage: blockstorageclient,
 		bsOpts:       cfg.BlockStorage,
 		epOpts:       epOpts,
+		metadataOpts: cfg.Config.Metadata,
 	}
 
 	return OsInstance, nil

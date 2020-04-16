@@ -137,16 +137,18 @@ zz_generated.openapi.go
 
 # binaries
 /openstack-cloud-controller-manager
-/cinder-flex-volume-driver
-/cinder-provisioner
 /k8s-keystone-auth
 /cinder-csi-plugin
 /octavia-ingress-controller
 /client-keystone-auth
-/manila-provisioner
 /barbican-kms-plugin
 /magnum-auto-healer
 /manila-csi-plugin
+/*-amd64
+/*-arm
+/*-arm64
+/*-s390x
+/*-ppc64le
 
 # snap temp files
 /parts

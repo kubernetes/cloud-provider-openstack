@@ -32,7 +32,7 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
-If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-controller-manager-with-kubeadm.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` and then jump directly to the `kubectl apply ...` command.
+If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` from [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin) and then jump directly to the `kubectl apply ...` command.
 
 Encode your ```$CLOUD_CONFIG``` file content using base64.
 
@@ -41,7 +41,13 @@ Encode your ```$CLOUD_CONFIG``` file content using base64.
 Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
 
-> NOTE: if your openstack cloud has cert (which means you already has cafile definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
+> NOTE: In OpenStack, the compute instance uses either config drive or metadata service to retrieve instance-specific data. As the cluster administrator, you are able to config the order in the cloud config file for cinder-csi-plugin, the default configuration is as follows:
+```
+[Metadata]
+search-order = configDrive,metadataService
+```
+
+> NOTE: if your openstack cloud has cert (which means you already has [ca-file](provider-configuration.md#global-optional-parameters) definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
 
 ```
 volumes:
@@ -52,7 +58,7 @@ volumes:
     type: Directory
 ```
 
-Then call following command by using existing manifests:
+Then call following command by using existing [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin):
 
 ```kubectl -f manifests/cinder-csi-plugin apply```
 
@@ -94,7 +100,7 @@ Events:               <none>
 ### Example Nginx application usage
 
 After performing above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
-Try following command:
+Try following command by using [examples](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/nginx.yaml):
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
 
@@ -320,6 +326,13 @@ $ kubectl exec nginx -- df -h /var/lib/www/html
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/vdb        2.0G   27M  1.97G   1% /var/lib/www/html
 ```
+
+#### Rescan block device geometry on in-use volume resize
+
+Some hypervizors (like VMware) don't automatically send a new volume size to a Linux kernel, when a volume is in-use. Sending a "1" to `/sys/class/block/XXX/device/rescan` is telling the SCSI block device to refresh it's information about where it's ending boundary is (among other things) to give the kernel information about it's updated size. When a `rescan-on-resize` flag is set in a CSI node driver cloud-config `[BlockStorage]` section, a CSI node driver will rescan block device and verify its size before expanding the filesystem. CSI driver will raise an error, when expected volume size cannot be detected.
+
+Not all hypervizors have a `/sys/class/block/XXX/device/rescan` location, therefore if you enable this option and your hypervizor doesn't support this, you'll get a warning log on resize event. It is recommended to disable this option in this case.
+
 ### Inline Volumes
 
 This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. As of Kubernetes v1.16 this feature is beta so enabled by default. To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes. `podInfoOnMount` must be `true` to use this feature. 

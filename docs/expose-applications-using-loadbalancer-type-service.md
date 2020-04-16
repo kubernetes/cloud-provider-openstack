@@ -1,5 +1,13 @@
 # Exposing applications using services of LoadBalancer type
 
+- [Creating a Service of LoadBalancer type](#creating-a-service-of-loadbalancer-type)
+- [Supported Features](#supported-features)
+  - [Service annotations](#service-annotations)
+  - [Switching between Floating Subnets by using preconfigured Classes](#switching-between-floating-subnets-by-using-preconfigured-classes)
+  - [Creating Service by specifying a floating IP](#creating-service-by-specifying-a-floating-ip)
+  - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
+- [Issues](#issues)
+
 This page shows how to create Services of LoadBalancer type in Kubernetes cluster which is running inside OpenStack. For an explanation of the Service concept and a discussion of the various types of Services, see [Services](https://kubernetes.io/docs/concepts/services-networking/service/).
 
 A LoadBalancer type Service is a typical way to expose an application to the internet. It relies on the cloud provider to create an external load balancer with an IP address in the relevant network space. Any traffic that is then directed to this IP address is forwarded on to the application’s service.
@@ -71,69 +79,73 @@ Request Body:
 
 ### Service annotations
 
-- loadbalancer.openstack.org/floating-network-id
+- `loadbalancer.openstack.org/floating-network-id`
 
   The public network id which will allocate public IP for loadbalancer. This annotation works when the value of `service.beta.kubernetes.io/openstack-internal-load-balancer` is false.
 
-- loadbalancer.openstack.org/floating-subnet
+- `loadbalancer.openstack.org/floating-subnet`
 
   A public network can have several subnets. This annotation is one of subnets' name.
 
-- loadbalancer.openstack.org/floating-subnet-id
+- `loadbalancer.openstack.org/floating-subnet-id`
 
   This annotation is one of subnets' id in a public network.
 
-- loadbalancer.openstack.org/class
+- `loadbalancer.openstack.org/class`
 
   The name of a preconfigured class in the config file. The annotation of floating-subnet-id and floating-network-id won't work if you use class annotation. See the section below for how it works.
 
-- loadbalancer.openstack.org/subnet-id
+- `loadbalancer.openstack.org/subnet-id`
 
   VIP subnet ID of load balancer created.
 
-- loadbalancer.openstack.org/network-id
+- `loadbalancer.openstack.org/network-id`
 
   The network ID which will allocate virtual IP for loadbalancer.
 
-- loadbalancer.openstack.org/port-id
+- `loadbalancer.openstack.org/port-id`
 
   The VIP port ID for load balancer created.
 
-- loadbalancer.openstack.org/connection-limit
+- `loadbalancer.openstack.org/connection-limit`
 
   The maximum number of connections per second allowed for the listener. Positive integer or -1 for unlimited (default).
 
-- loadbalancer.openstack.org/keep-floatingip
+- `loadbalancer.openstack.org/keep-floatingip`
 
   If 'true', the floating IP will **NOT** be deleted. Default is 'false'.
 
-- loadbalancer.openstack.org/proxy-protocol
+- `loadbalancer.openstack.org/proxy-protocol`
 
   If 'true', the protocol for listener will be set as `PROXY`. Default is 'false'.
 
-- loadbalancer.openstack.org/x-forwarded-for
+- `loadbalancer.openstack.org/x-forwarded-for`
 
-  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request.
+  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request. Only applies when using Octavia.
 
-- loadbalancer.openstack.org/timeout-client-data
+- `loadbalancer.openstack.org/timeout-client-data`
 
   Frontend client inactivity timeout in milliseconds for the load balancer.
 
-- loadbalancer.openstack.org/timeout-member-connect
+- `loadbalancer.openstack.org/timeout-member-connect`
 
   Backend member connection timeout in milliseconds for the load balancer.
 
-- loadbalancer.openstack.org/timeout-member-data
+- `loadbalancer.openstack.org/timeout-member-data`
 
   Backend member inactivity timeout in milliseconds for the load balancer.
 
-- loadbalancer.openstack.org/timeout-tcp-inspect
+- `loadbalancer.openstack.org/timeout-tcp-inspect`
 
   Time to wait for additional TCP packets for content inspection in milliseconds for the load balancer.
 
-- service.beta.kubernetes.io/openstack-internal-load-balancer
+- `service.beta.kubernetes.io/openstack-internal-load-balancer`
 
   If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is 'false'.
+
+- `loadbalancer.openstack.org/enable-health-monitor`
+
+  Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 

@@ -23,8 +23,8 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
 var fakeNs *nodeServer
@@ -129,7 +129,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
-	omock.On("CreateVolume", fvolName, 2, "", "", "", "", &properties).Return(&FakeVol, nil)
+	omock.On("CreateVolume", fvolName, 2, "", "nova", "", "", &properties).Return(&FakeVol, nil)
 
 	omock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
@@ -378,5 +378,61 @@ func TestNodeExpandVolume(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+
+}
+
+func TestNodeGetVolumeStatsBlock(t *testing.T) {
+
+	// Init assert
+	assert := assert.New(t)
+	mmock.ExpectedCalls = nil
+
+	// Fake request
+	fakeReq := &csi.NodeGetVolumeStatsRequest{
+		VolumeId:   FakeVolName,
+		VolumePath: FakeDevicePath,
+	}
+
+	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
+	// Invoke NodeGetVolumeStats with a block device
+	mmock.On("GetDeviceStats", FakeDevicePath).Return(FakeBlockDeviceStats, nil)
+	expectedBlockRes := &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{Total: FakeBlockDeviceStats.TotalBytes, Unit: csi.VolumeUsage_BYTES},
+		},
+	}
+
+	blockRes, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
+
+	assert.NoError(err)
+	assert.Equal(expectedBlockRes, blockRes)
+
+}
+
+func TestNodeGetVolumeStatsFs(t *testing.T) {
+
+	// Init assert
+	assert := assert.New(t)
+	mmock.ExpectedCalls = nil
+
+	// Fake request
+	fakeReq := &csi.NodeGetVolumeStatsRequest{
+		VolumeId:   FakeVolName,
+		VolumePath: FakeDevicePath,
+	}
+
+	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
+	mmock.On("GetDeviceStats", FakeDevicePath).Return(FakeFsStats, nil)
+	expectedFsRes := &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{Total: FakeFsStats.TotalBytes, Available: FakeFsStats.AvailableBytes, Used: FakeFsStats.UsedBytes, Unit: csi.VolumeUsage_BYTES},
+			{Total: FakeFsStats.TotalInodes, Available: FakeFsStats.AvailableInodes, Used: FakeFsStats.UsedInodes, Unit: csi.VolumeUsage_INODES},
+		},
+	}
+
+	fsRes, err := fakeNs.NodeGetVolumeStats(FakeCtx, fakeReq)
+
+	assert.NoError(err)
+	assert.Equal(expectedFsRes, fsRes)
 
 }

@@ -179,7 +179,7 @@ type Controller struct {
 // UpdateNodeAnnotation updates the specified node annotation, if value equals empty string, the annotation will be
 // removed. This implements the interface healthcheck.NodeController
 func (c *Controller) UpdateNodeAnnotation(node healthcheck.NodeInfo, annotation string, value string) error {
-	n, err := c.kubeClient.CoreV1().Nodes().Get(node.KubeNode.Name, metav1.GetOptions{})
+	n, err := c.kubeClient.CoreV1().Nodes().Get(context.TODO(), node.KubeNode.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (c *Controller) UpdateNodeAnnotation(node healthcheck.NodeInfo, annotation 
 		n.Annotations[annotation] = value
 	}
 
-	if _, err := c.kubeClient.CoreV1().Nodes().Update(n); err != nil {
+	if _, err := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), n, metav1.UpdateOptions{}); err != nil {
 		return err
 	}
 
@@ -234,7 +234,7 @@ func (c *Controller) getUnhealthyMasterNodes() ([]healthcheck.NodeInfo, error) {
 	}
 
 	// Get all the master nodes need to check
-	nodeList, err := c.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodeList, err := c.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +266,7 @@ func (c *Controller) getUnhealthyWorkerNodes() ([]healthcheck.NodeInfo, error) {
 	}
 
 	// Get all the worker nodes.
-	nodeList, err := c.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
+	nodeList, err := c.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 					newNode := node.KubeNode.DeepCopy()
 					newNode.Spec.Unschedulable = true
 
-					if _, err := c.kubeClient.CoreV1().Nodes().Update(newNode); err != nil {
+					if _, err := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
 						log.Errorf("Failed to cordon node %s, error: %v", nodeName, err)
 					} else {
 						log.Infof("Node %s is cordoned", nodeName)

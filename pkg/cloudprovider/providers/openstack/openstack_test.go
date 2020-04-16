@@ -33,7 +33,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/spf13/pflag"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -90,7 +90,7 @@ func ConfigFromEnv() Config {
 	cfg.BlockStorage.IgnoreVolumeAZ = false
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	cfg.Networking.IPv6SupportDisabled = false
-	cfg.Networking.PublicNetworkName = "public"
+	cfg.Networking.PublicNetworkName = []string{"public"}
 	cfg.LoadBalancer.InternalLB = false
 
 	return cfg
@@ -346,8 +346,6 @@ func TestToAuthOptions(t *testing.T) {
 }
 
 func TestCheckOpenStackOpts(t *testing.T) {
-	delay := MyDuration{60 * time.Second}
-	timeout := MyDuration{30 * time.Second}
 	tests := []struct {
 		name          string
 		openstackOpts *OpenStack
@@ -356,19 +354,6 @@ func TestCheckOpenStackOpts(t *testing.T) {
 		{
 			name: "test1",
 			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					LBProvider:           "haproxy",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorTimeout:       timeout,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
 				metadataOpts: MetadataOpts{
 					SearchOrder: metadata.ConfigDriveID,
 				},
@@ -379,46 +364,6 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			name: "test2",
 			openstackOpts: &OpenStack{
 				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorTimeout:       timeout,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: nil,
-		},
-		{
-			name: "test3",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorTimeout:       timeout,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: fmt.Errorf("monitor-delay not set in cloud provider config"),
-		},
-		{
-			name: "test4",
-			openstackOpts: &OpenStack{
-				provider: nil,
 				metadataOpts: MetadataOpts{
 					SearchOrder: "",
 				},
@@ -426,7 +371,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot be empty"),
 		},
 		{
-			name: "test5",
+			name: "test3",
 			openstackOpts: &OpenStack{
 				provider: nil,
 				metadataOpts: MetadataOpts{
@@ -436,7 +381,7 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot contain more than 2 elements"),
 		},
 		{
-			name: "test6",
+			name: "test4",
 			openstackOpts: &OpenStack{
 				provider: nil,
 				metadataOpts: MetadataOpts{
@@ -445,46 +390,6 @@ func TestCheckOpenStackOpts(t *testing.T) {
 			},
 			expectedError: fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
 				"Supported elements include %q and %q", "value1", metadata.ConfigDriveID, metadata.MetadataID),
-		},
-		{
-			name: "test7",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorTimeout:       timeout,
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: fmt.Errorf("monitor-max-retries not set in cloud provider config"),
-		},
-		{
-			name: "test8",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				lbOpts: LoadBalancerOpts{
-					LBVersion:            "v2",
-					SubnetID:             "6261548e-ffde-4bc7-bd22-59c83578c5ef",
-					FloatingNetworkID:    "38b8b5f9-64dc-4424-bf86-679595714786",
-					LBMethod:             "ROUND_ROBIN",
-					CreateMonitor:        true,
-					MonitorDelay:         delay,
-					MonitorMaxRetries:    uint(3),
-					ManageSecurityGroups: true,
-				},
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: fmt.Errorf("monitor-timeout not set in cloud provider config"),
 		},
 	}
 
@@ -585,7 +490,7 @@ func TestNodeAddresses(t *testing.T) {
 	}
 
 	networkingOpts := NetworkingOpts{
-		PublicNetworkName: "public",
+		PublicNetworkName: []string{"public"},
 	}
 
 	interfaces := []attachinterfaces.Interface{
@@ -664,7 +569,7 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 	}
 
 	networkingOpts := NetworkingOpts{
-		PublicNetworkName: "pub-net",
+		PublicNetworkName: []string{"pub-net"},
 	}
 
 	interfaces := []attachinterfaces.Interface{
@@ -696,6 +601,90 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
 		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
+	}
+
+	if !reflect.DeepEqual(want, addrs) {
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
+	}
+}
+
+func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
+	srv := servers.Server{
+		Status:     "ACTIVE",
+		HostID:     "29d3c8c896a45aa4c34e52247875d7fefc3d94bbcc9f622b5d204362",
+		AccessIPv4: "50.56.176.99",
+		AccessIPv6: "2001:4800:790e:510:be76:4eff:fe04:82a8",
+		Addresses: map[string]interface{}{
+			"private": []interface{}{
+				map[string]interface{}{
+					"OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:7c:1b:2b",
+					"version":                 float64(4),
+					"addr":                    "10.0.0.32",
+					"OS-EXT-IPS:type":         "fixed",
+				},
+				map[string]interface{}{
+					"version":         float64(4),
+					"addr":            "50.56.176.36",
+					"OS-EXT-IPS:type": "floating",
+				},
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "10.0.0.31",
+					// No OS-EXT-IPS:type
+				},
+			},
+			"also-private": []interface{}{
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "10.0.0.64",
+					// No OS-EXT-IPS:type
+				},
+			},
+			"pub-net": []interface{}{
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "50.56.176.35",
+				},
+				map[string]interface{}{
+					"version": float64(6),
+					"addr":    "2001:4800:780e:510:be76:4eff:fe04:84a8",
+				},
+			},
+		},
+	}
+
+	networkingOpts := NetworkingOpts{
+		InternalNetworkName: []string{"private", "also-private"},
+	}
+
+	interfaces := []attachinterfaces.Interface{
+		{
+			PortState: "ACTIVE",
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	if err != nil {
+		t.Fatalf("nodeAddresses returned error: %v", err)
+	}
+
+	t.Logf("addresses are %v", addrs)
+
+	want := []v1.NodeAddress{
+		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.64"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
@@ -742,7 +731,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 	}
 
 	networkingOpts := NetworkingOpts{
-		PublicNetworkName:   "public",
+		PublicNetworkName:   []string{"public"},
 		IPv6SupportDisabled: true,
 	}
 

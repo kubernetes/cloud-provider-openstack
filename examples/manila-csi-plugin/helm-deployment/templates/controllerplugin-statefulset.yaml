@@ -33,6 +33,9 @@ spec:
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
+            {{- if $.Values.csimanila.topologyAwarenessEnabled }}
+            - "--feature-gates=Topology=true"
+            {{- end }}
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
@@ -63,16 +66,22 @@ spec:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag }}"
-          args:
-            - "--v=5"
-            - "--nodeid=$(NODE_ID)"
-            - "--endpoint=$(CSI_ENDPOINT)"
-            - "--drivername=$(DRIVER_NAME)"
-            - "--share-protocol-selector=$(MANILA_SHARE_PROTO)"
-            - "--fwdendpoint=$(FWD_CSI_ENDPOINT)"
-            {{- if .compatibilitySettings }}
-            - "--compatibility-settings={{ .compatibilitySettings }}"
+          command: ["/bin/sh", "-c",
+            '/bin/manila-csi-plugin
+            --v=5
+            --nodeid=$(NODE_ID)
+            {{- if $.Values.csimanila.topologyAwarenessEnabled }}
+            --with-topology
+            --nodeaz={{ $.Values.csimanila.nodeAZ }}
             {{- end }}
+            --endpoint=$(CSI_ENDPOINT)
+            --drivername=$(DRIVER_NAME)
+            --share-protocol-selector=$(MANILA_SHARE_PROTO)
+            --fwdendpoint=$(FWD_CSI_ENDPOINT)
+            {{- if .compatibilitySettings }}
+            --compatibility-settings={{ .compatibilitySettings }}
+            {{- end }}'
+          ]
           env:
             - name: DRIVER_NAME
               value: {{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}

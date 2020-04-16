@@ -24,6 +24,11 @@ import (
 	"time"
 )
 
+var (
+	_ Node     = &NodeSvcClient{}
+	_ Identity = &IdentitySvcClient{}
+)
+
 type NodeSvcClient struct {
 	cl csi.NodeClient
 }
@@ -50,6 +55,10 @@ func (c *NodeSvcClient) UnpublishVolume(ctx context.Context, req *csi.NodeUnpubl
 
 type IdentitySvcClient struct {
 	cl csi.IdentityClient
+}
+
+func (c IdentitySvcClient) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	return c.cl.Probe(ctx, req)
 }
 
 func (c IdentitySvcClient) ProbeForever(conn *grpc.ClientConn, singleProbeTimeout time.Duration) error {

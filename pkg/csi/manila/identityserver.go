@@ -18,7 +18,6 @@ package manila
 
 import (
 	"context"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,24 +34,41 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 
 	return &csi.GetPluginInfoResponse{
 		Name:          ids.d.name,
-		VendorVersion: driverVersion,
+		VendorVersion: ids.d.fqVersion,
 	}, nil
 }
 
 func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
-	return &csi.ProbeResponse{}, nil
+	csiConn, err := ids.d.csiClientBuilder.NewConnectionWithContext(ctx, ids.d.fwdEndpoint)
+	if err != nil {
+		return nil, status.Error(codes.FailedPrecondition, fmtGrpcConnError(ids.d.fwdEndpoint, err))
+	}
+
+	return ids.d.csiClientBuilder.NewIdentityServiceClient(csiConn).Probe(ctx, req)
 }
 
 func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
-	return &csi.GetPluginCapabilitiesResponse{
-		Capabilities: []*csi.PluginCapability{
-			{
-				Type: &csi.PluginCapability_Service_{
-					Service: &csi.PluginCapability_Service{
-						Type: csi.PluginCapability_Service_CONTROLLER_SERVICE,
-					},
+	caps := []*csi.PluginCapability{
+		{
+			Type: &csi.PluginCapability_Service_{
+				Service: &csi.PluginCapability_Service{
+					Type: csi.PluginCapability_Service_CONTROLLER_SERVICE,
 				},
 			},
 		},
+	}
+
+	if ids.d.withTopology {
+		caps = append(caps, &csi.PluginCapability{
+			Type: &csi.PluginCapability_Service_{
+				Service: &csi.PluginCapability_Service{
+					Type: csi.PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS,
+				},
+			},
+		})
+	}
+
+	return &csi.GetPluginCapabilitiesResponse{
+		Capabilities: caps,
 	}, nil
 }

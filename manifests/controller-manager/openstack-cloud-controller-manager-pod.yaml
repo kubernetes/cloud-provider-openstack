@@ -26,8 +26,6 @@ spec:
         - mountPath: /etc/ssl/certs
           name: ca-certs
           readOnly: true
-        - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
-          name: flexvolume-dir
         - mountPath: /etc/config
           name: cloud-config-volume
           readOnly: true
@@ -41,10 +39,6 @@ spec:
   securityContext:
     runAsUser: 1001
   volumes:
-  - hostPath:
-      path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
-      type: DirectoryOrCreate
-    name: flexvolume-dir
   - hostPath:
       path: /etc/kubernetes/pki
       type: DirectoryOrCreate

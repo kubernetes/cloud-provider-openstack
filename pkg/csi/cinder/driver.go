@@ -22,8 +22,8 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/mount"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/klog"
 )
 
@@ -79,6 +79,7 @@ func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
 		[]csi.NodeServiceCapability_RPC_Type{
 			csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 			csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+			csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
 		})
 
 	return d

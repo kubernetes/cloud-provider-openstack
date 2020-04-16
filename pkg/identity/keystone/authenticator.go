@@ -17,99 +17,126 @@ limitations under the License.
 package keystone
 
 import (
-	"encoding/json"
-	"errors"
-	"io/ioutil"
+	"fmt"
 
 	"github.com/gophercloud/gophercloud"
-	"k8s.io/klog"
-
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/groups"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/users"
 	"k8s.io/apiserver/pkg/authentication/user"
 )
 
-// Authenticator contacts openstack keystone to validate user's token passed in the request.
-// The keystone endpoint is passed during apiserver startup
-type Authenticator struct {
-	authURL string
-	client  *gophercloud.ServiceClient
+type tokenInfo struct {
+	userName    string
+	userID      string
+	roles       []string
+	projectName string
+	projectID   string
+	domainName  string
+	domainID    string
 }
 
-type keystoneResponse struct {
-	Token struct {
-		User struct {
-			ID     string `json:"id"`
-			Name   string `json:"name"`
-			Domain struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"domain"`
-		} `json:"user"`
-		Project struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"project"`
-		Roles []struct {
-			Name string `json:"name"`
-		} `json:"roles"`
-	} `json:"token"`
+type IKeystone interface {
+	GetTokenInfo(string) (*tokenInfo, error)
+	GetGroups(string, string) ([]string, error)
+}
+
+type Keystoner struct {
+	client *gophercloud.ServiceClient
+}
+
+func NewKeystoner(client *gophercloud.ServiceClient) *Keystoner {
+	return &Keystoner{
+		client: client,
+	}
+}
+
+func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
+	k.client.ProviderClient.SetToken(token)
+	ret := tokens.Get(k.client, token)
+
+	tokenUser, err := ret.ExtractUser()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract user information from Keystone response: %v", err)
+	}
+
+	project, err := ret.ExtractProject()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract project information from Keystone response: %v", err)
+	}
+
+	roles, err := ret.ExtractRoles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract roles information from Keystone response: %v", err)
+	}
+
+	var userRoles []string
+	for _, role := range roles {
+		userRoles = append(userRoles, role.Name)
+	}
+
+	return &tokenInfo{
+		userName:    tokenUser.Name,
+		userID:      tokenUser.ID,
+		projectName: project.Name,
+		projectID:   project.ID,
+		roles:       userRoles,
+		domainID:    tokenUser.Domain.ID,
+		domainName:  tokenUser.Domain.Name,
+	}, nil
+}
+
+func (k *Keystoner) GetGroups(token string, userID string) ([]string, error) {
+	var userGroups []string
+
+	k.client.ProviderClient.SetToken(token)
+	allGroupPages, err := users.ListGroups(k.client, userID).AllPages()
+	if err != nil {
+		return userGroups, fmt.Errorf("failed to get user groups from Keystone: %v", err)
+	}
+
+	allGroups, err := groups.ExtractGroups(allGroupPages)
+	if err != nil {
+		return userGroups, fmt.Errorf("failed to extract user groups from Keystone response: %v", err)
+	}
+
+	for _, g := range allGroups {
+		userGroups = append(userGroups, g.Name)
+	}
+
+	return userGroups, nil
+}
+
+// Authenticator contacts openstack keystone to validate user's token passed in the request.
+type Authenticator struct {
+	keystoner IKeystone
 }
 
 // AuthenticateToken checks the token via Keystone call
 func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error) {
-	// We can use the Keystone GET /v3/auth/tokens API to validate the token
-	// and get information about the user as well
-	// http://git.openstack.org/cgit/openstack/keystone/tree/api-ref/source/v3/authenticate-v3.inc#n437
-	// https://developer.openstack.org/api-ref/identity/v3/?expanded=validate-and-show-information-for-token-detail
-	requestOpts := gophercloud.RequestOpts{
-		MoreHeaders: map[string]string{
-			"X-Auth-Token":    token,
-			"X-Subject-Token": token,
-		},
-	}
-	url := a.client.ServiceURL("auth", "tokens")
-	response, err := a.client.Request("GET", url, &requestOpts)
+	tokenInfo, err := a.keystoner.GetTokenInfo(token)
 	if err != nil {
-		klog.Warningf("Failed: bad response from API call: %v", err)
-		return nil, false, errors.New("Failed to authenticate")
+		return nil, false, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
-	defer response.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(response.Body)
+	userGroups, err := a.keystoner.GetGroups(token, tokenInfo.userID)
 	if err != nil {
-		klog.Warningf("Cannot get HTTP response body from keystone token validate: %v", err)
-		return nil, false, errors.New("Failed to authenticate")
-	}
-
-	var obj keystoneResponse
-
-	err = json.Unmarshal(bodyBytes, &obj)
-	if err != nil {
-		klog.Warningf("Cannot unmarshal response: %v", err)
-		return nil, false, errors.New("Failed to authenticate")
-	}
-
-	var roles []string
-	if obj.Token.Roles != nil && len(obj.Token.Roles) > 0 {
-		roles = make([]string, len(obj.Token.Roles))
-		for i := 0; i < len(obj.Token.Roles); i++ {
-			roles[i] = obj.Token.Roles[i].Name
-		}
-	} else {
-		roles = make([]string, 0)
+		return nil, false, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
 	extra := map[string][]string{
-		Roles:       roles,
-		ProjectID:   {obj.Token.Project.ID},
-		ProjectName: {obj.Token.Project.Name},
-		DomainID:    {obj.Token.User.Domain.ID},
-		DomainName:  {obj.Token.User.Domain.Name},
+		Roles:       tokenInfo.roles,
+		ProjectID:   {tokenInfo.projectID},
+		ProjectName: {tokenInfo.projectName},
+		DomainID:    {tokenInfo.domainID},
+		DomainName:  {tokenInfo.domainName},
 	}
 
+	userGroups = append(userGroups, tokenInfo.projectID)
 	authenticatedUser := &user.DefaultInfo{
-		Name:   obj.Token.User.Name,
-		UID:    obj.Token.User.ID,
-		Groups: []string{obj.Token.Project.ID},
+		Name:   tokenInfo.userName,
+		UID:    tokenInfo.userID,
+		Groups: userGroups,
 		Extra:  extra,
 	}
 
