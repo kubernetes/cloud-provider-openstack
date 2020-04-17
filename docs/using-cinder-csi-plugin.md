@@ -32,6 +32,19 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
+You can either use the manifests under `manifests/cinder-csi-plugin` or the Helm chart `charts/cinder-csi-plugin`. 
+
+#### Using the Helm chart
+
+> NOTE: This chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+
+To install the chart use the following command:
+```
+helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugin
+```
+
+#### Using the maninfests
+
 If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` from [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin) and then jump directly to the `kubectl apply ...` command.
 
 Encode your ```$CLOUD_CONFIG``` file content using base64.
