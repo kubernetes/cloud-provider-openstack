@@ -844,11 +844,6 @@ func (os *OpenStack) ProviderName() string {
 	return ProviderName
 }
 
-// ScrubDNS filters DNS settings for pods.
-func (os *OpenStack) ScrubDNS(nameServers, searches []string) ([]string, []string) {
-	return nameServers, searches
-}
-
 // HasClusterID returns true if the cluster has a clusterID
 func (os *OpenStack) HasClusterID() bool {
 	return true
@@ -997,53 +992,6 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	klog.V(1).Info("Claiming to support Routes")
 	return r, true
-}
-
-func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
-	bsVersion := ""
-	if forceVersion == "" {
-		bsVersion = os.bsOpts.BSVersion
-	} else {
-		bsVersion = forceVersion
-	}
-
-	switch bsVersion {
-	case "v2":
-		sClient, err := os.NewBlockStorageV2()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V2")
-		return &VolumesV2{sClient, os.bsOpts}, nil
-	case "v3":
-		sClient, err := os.NewBlockStorageV3()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V3")
-		return &VolumesV3{sClient, os.bsOpts}, nil
-	case "auto":
-		// Currently kubernetes support Cinder v1 / Cinder v2 / Cinder v3.
-		// Choose Cinder v3 firstly, if kubernetes can't initialize cinder v3 client, try to initialize cinder v2 client.
-		// If kubernetes can't initialize cinder v2 client, try to initialize cinder v1 client.
-		// Return appropriate message when kubernetes can't initialize them.
-		if sClient, err := os.NewBlockStorageV3(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V3")
-			return &VolumesV3{sClient, os.bsOpts}, nil
-		}
-
-		if sClient, err := os.NewBlockStorageV2(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V2")
-			return &VolumesV2{sClient, os.bsOpts}, nil
-		}
-
-		errTxt := "BlockStorage API version autodetection failed. " +
-			"Please set it explicitly in cloud.conf in section [BlockStorage] with key `bs-version`"
-		return nil, errors.New(errTxt)
-	default:
-		errTxt := fmt.Sprintf("Config error: unrecognised bs-version \"%v\"", os.bsOpts.BSVersion)
-		return nil, errors.New(errTxt)
-	}
 }
 
 func checkMetadataSearchOrder(order string) error {
