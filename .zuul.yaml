@@ -27,15 +27,16 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
+    # Disable this job only for release-1.17 branch because the job was refactored since release-1.18
+    # cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
+    #   jobs:
+    #     - cloud-provider-openstack-acceptance-test-keystone-authentication-authorization:
+    #         irrelevant-files:
+    #           - ^docs/.*$
+    #           - ^.*\.md$
+    #           - ^OWNERS$
+    #           - ^SECURITY_CONTACTS$
+    #           - ^.gitignore$
     cloud-provider-openstack-acceptance-test-k8s-cinder:
       jobs:
         - cloud-provider-openstack-acceptance-test-k8s-cinder:
