@@ -3,6 +3,8 @@ package util
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -73,4 +75,13 @@ func RoundUpSizeInt(volumeSizeBytes int64, allocationUnitBytes int64) (int, erro
 func RoundUpToGiBInt(size resource.Quantity) (int, error) {
 	requestBytes := size.Value()
 	return RoundUpSizeInt(requestBytes, GIB)
+}
+
+// IsValidUUID returns if a string is valid UUID or not
+func IsValidUUID(str string) bool {
+	_, err := uuid.Parse(str)
+	if err != nil {
+		return false
+	}
+	return true
 }

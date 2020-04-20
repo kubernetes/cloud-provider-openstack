@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/exec"
 	"k8s.io/utils/mount"
 
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
 )
 
@@ -232,9 +233,10 @@ func (m *Mount) GetInstanceID() (string, error) {
 		instanceID := string(idBytes)
 		instanceID = strings.TrimSpace(instanceID)
 		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" {
+		if instanceID != "" && util.IsValidUUID(instanceID) {
 			return instanceID, nil
 		}
+		return "", fmt.Errorf("invalid instance id: %s", instanceID)
 	}
 	return "", err
 }
