@@ -36,3 +36,22 @@ func AddToNodeAddresses(addresses *[]v1.NodeAddress, addAddresses ...v1.NodeAddr
 		}
 	}
 }
+
+// RemoveFromNodeAddresses removes the NodeAddresses from the passed-by-pointer
+// slice if they already exist.
+func RemoveFromNodeAddressees(addresses *[]v1.NodeAddress, removeAddresses ...v1.NodeAddress) {
+	var indexesToRemove []int
+	for _, remove := range removeAddresses {
+		for i := len(*addresses) - 1; i >= 0; i-- {
+			existing := (*addresses)[i]
+			if existing.Address == remove.Address && (existing.Type == remove.Type || remove.Type == "") {
+				indexesToRemove = append(indexesToRemove, i)
+			}
+		}
+	}
+	for _, i := range indexesToRemove {
+		if i < len(*addresses) {
+			*addresses = append((*addresses)[:i], (*addresses)[i+1:]...)
+		}
+	}
+}
