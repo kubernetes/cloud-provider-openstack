@@ -19,19 +19,18 @@ package cinder
 import (
 	"fmt"
 
-	"github.com/golang/protobuf/ptypes"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
-	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
-	"k8s.io/cloud-provider-openstack/pkg/volume/util"
 
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog"
 )
 
