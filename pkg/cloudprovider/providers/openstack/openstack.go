@@ -55,7 +55,6 @@ import (
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
-	v1helper "k8s.io/cloud-provider-openstack/pkg/apis/core/v1/helper"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
@@ -685,7 +684,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 			if iface.PortState == "ACTIVE" {
 				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
 				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-					v1helper.AddToNodeAddresses(&addrs,
+					AddToNodeAddresses(&addrs,
 						v1.NodeAddress{
 							Type:    v1.NodeInternalIP,
 							Address: fixedIP.IPAddress,
@@ -698,7 +697,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 
 	// process public IP addresses
 	if srv.AccessIPv4 != "" {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv4,
@@ -707,7 +706,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	}
 
 	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv6,
@@ -716,7 +715,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	}
 
 	if srv.Metadata[TypeHostName] != "" {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeHostName,
 				Address: srv.Metadata[TypeHostName],
@@ -752,7 +751,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
-					v1helper.RemoveFromNodeAddressees(&addrs,
+					RemoveFromNodeAddressees(&addrs,
 						v1.NodeAddress{
 							Address: props.Addr,
 						},
@@ -763,7 +762,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 
 			isIPv6 := net.ParseIP(props.Addr).To4() == nil
 			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-				v1helper.AddToNodeAddresses(&addrs,
+				AddToNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Type:    addressType,
 						Address: props.Addr,
