@@ -36,6 +36,8 @@ var (
 	endpoint              string
 	driverName            string
 	nodeID                string
+	nodeAZ                string
+	withTopology          bool
 	protoSelector         string
 	fwdEndpoint           string
 	userAgentData         []string
@@ -124,7 +126,21 @@ func main() {
 			manilaClientBuilder := &manilaclient.ClientBuilder{UserAgent: "manila-csi-plugin", ExtraUserAgentData: userAgentData}
 			csiClientBuilder := &csiclient.ClientBuilder{}
 
-			d, err := manila.NewDriver(nodeID, driverName, endpoint, fwdEndpoint, protoSelector, manilaClientBuilder, csiClientBuilder, compatOpts)
+			d, err := manila.NewDriver(
+				&manila.DriverOpts{
+					DriverName:          driverName,
+					NodeID:              nodeID,
+					NodeAZ:              nodeAZ,
+					WithTopology:        withTopology,
+					ShareProto:          protoSelector,
+					ServerCSIEndpoint:   endpoint,
+					FwdCSIEndpoint:      fwdEndpoint,
+					ManilaClientBuilder: manilaClientBuilder,
+					CSIClientBuilder:    csiClientBuilder,
+					CompatOpts:          compatOpts,
+				},
+			)
+
 			if err != nil {
 				klog.Fatalf("driver initialization failed: %v", err)
 			}
@@ -141,6 +157,10 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
 	cmd.MarkPersistentFlagRequired("nodeid")
+
+	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
+
+	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", false, "cluster is topology-aware")
 
 	cmd.PersistentFlags().StringVar(&protoSelector, "share-protocol-selector", "", "specifies which Manila share protocol to use. Valid values are NFS and CEPHFS")
 	cmd.MarkPersistentFlagRequired("share-protocol-selector")

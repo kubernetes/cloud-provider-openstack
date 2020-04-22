@@ -32,14 +32,33 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
+type DriverOpts struct {
+	DriverName   string
+	NodeID       string
+	NodeAZ       string
+	WithTopology bool
+	ShareProto   string
+
+	ServerCSIEndpoint string
+	FwdCSIEndpoint    string
+
+	ManilaClientBuilder manilaclient.Builder
+	CSIClientBuilder    csiclient.Builder
+
+	CompatOpts *options.CompatibilityOptions
+}
+
 type Driver struct {
-	nodeID     string
-	name       string
-	version    string
-	shareProto string
+	nodeID       string
+	nodeAZ       string
+	withTopology bool
+	name         string
+	fqVersion    string // Fully qualified version in format {driverVersion}@{CPO version}
+	shareProto   string
 
 	serverEndpoint string
 	fwdEndpoint    string
@@ -66,6 +85,7 @@ type nonBlockingGRPCServer struct {
 const (
 	specVersion   = "1.2.0"
 	driverVersion = "0.9.0"
+	topologyKey   = "topology.manila.csi.openstack.org/zone"
 )
 
 var (
@@ -80,37 +100,48 @@ func argNotEmpty(val, name string) error {
 	return nil
 }
 
-func NewDriver(nodeID, driverName, endpoint, fwdEndpoint, shareProto string, manilaClientBuilder manilaclient.Builder, csiClientBuilder csiclient.Builder, compatOpts *options.CompatibilityOptions) (*Driver, error) {
-	for k, v := range map[string]string{"node ID": nodeID, "driver name": driverName, "driver endpoint": endpoint, "FWD endpoint": fwdEndpoint, "share protocol selector": shareProto} {
+func NewDriver(o *DriverOpts) (*Driver, error) {
+	for k, v := range map[string]string{"node ID": o.NodeID, "driver name": o.DriverName, "driver endpoint": o.ServerCSIEndpoint, "FWD endpoint": o.FwdCSIEndpoint, "share protocol selector": o.ShareProto} {
 		if err := argNotEmpty(v, k); err != nil {
 			return nil, err
 		}
 	}
 
-	klog.Infof("Driver: %s version: %s CSI spec version: %s", driverName, driverVersion, specVersion)
-
 	d := &Driver{
-		nodeID:              nodeID,
-		name:                driverName,
-		serverEndpoint:      endpoint,
-		fwdEndpoint:         fwdEndpoint,
-		shareProto:          strings.ToUpper(shareProto),
-		compatOpts:          compatOpts,
-		manilaClientBuilder: manilaClientBuilder,
-		csiClientBuilder:    csiClientBuilder,
+		fqVersion:           fmt.Sprintf("%s@%s", driverVersion, version.Version),
+		nodeID:              o.NodeID,
+		nodeAZ:              o.NodeAZ,
+		withTopology:        o.WithTopology,
+		name:                o.DriverName,
+		serverEndpoint:      o.ServerCSIEndpoint,
+		fwdEndpoint:         o.FwdCSIEndpoint,
+		shareProto:          strings.ToUpper(o.ShareProto),
+		compatOpts:          o.CompatOpts,
+		manilaClientBuilder: o.ManilaClientBuilder,
+		csiClientBuilder:    o.CSIClientBuilder,
 	}
+
+	klog.Info("Driver: ", d.name)
+	klog.Info("Driver version: ", d.fqVersion)
+	klog.Info("CSI spec version: ", specVersion)
 
 	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
 	klog.Infof("Operating on %s shares", d.shareProto)
 
-	serverProto, serverAddr, err := parseGRPCEndpoint(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse server endpoint address %s: %v", endpoint, err)
+	if d.withTopology {
+		klog.Infof("Topology awareness enabled, node availability zone: %s", d.nodeAZ)
+	} else {
+		klog.Info("Topology awareness disabled")
 	}
 
-	fwdProto, fwdAddr, err := parseGRPCEndpoint(fwdEndpoint)
+	serverProto, serverAddr, err := parseGRPCEndpoint(o.ServerCSIEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse proxy client address %s: %v", fwdEndpoint, err)
+		return nil, fmt.Errorf("failed to parse server endpoint address %s: %v", o.ServerCSIEndpoint, err)
+	}
+
+	fwdProto, fwdAddr, err := parseGRPCEndpoint(o.FwdCSIEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proxy client address %s: %v", o.FwdCSIEndpoint, err)
 	}
 
 	d.serverEndpoint = endpointAddress(serverProto, serverAddr)

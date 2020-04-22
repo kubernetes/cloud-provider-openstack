@@ -21,6 +21,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/stretchr/testify/mock"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 )
 
 var fakeVol1 = volumes.Volume{
@@ -113,6 +114,11 @@ func (_m *OpenStackMock) DeleteVolume(volumeID string) error {
 // GetVolume provides a mock function with given fields: volumeID
 func (_m *OpenStackMock) GetVolume(volumeID string) (*volumes.Volume, error) {
 	return &fakeVol1, nil
+}
+
+// CheckBlockStorageAPI
+func (_m *OpenStackMock) CheckBlockStorageAPI() error {
+	return nil
 }
 
 // DetachVolume provides a mock function with given fields: instanceID, volumeID
@@ -344,4 +350,15 @@ func (_m *OpenStackMock) ExpandVolume(volumeID string, size int) error {
 	}
 
 	return r0
+}
+
+func (_m *OpenStackMock) GetMetadataOpts() cpo.MetadataOpts {
+	var m cpo.MetadataOpts
+	m.SearchOrder = "configDrive"
+	return m
+}
+
+// GetBlockStorageOpts provides a mock function to return BlockStorageOpts
+func (_m *OpenStackMock) GetBlockStorageOpts() BlockStorageOpts {
+	return BlockStorageOpts{}
 }

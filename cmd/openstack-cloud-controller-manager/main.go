@@ -39,7 +39,6 @@ import (
 	"k8s.io/component-base/logs"
 	_ "k8s.io/component-base/metrics/prometheus/restclient" // for client metric registration
 	_ "k8s.io/component-base/metrics/prometheus/version"    // for version metric registration
-	"k8s.io/component-base/version/verflag"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
 	cloudcontrollerconfig "k8s.io/kubernetes/cmd/cloud-controller-manager/app/config"
@@ -58,6 +57,10 @@ func init() {
 	mux := http.NewServeMux()
 	healthz.InstallHandler(mux)
 }
+
+var (
+	versionFlag bool
+)
 
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -91,7 +94,10 @@ the cloud specific control loops shipped with Kubernetes.`,
 			})
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			verflag.PrintAndExitIfRequested()
+			if versionFlag {
+				version.PrintVersionAndExit()
+			}
+
 			utilflag.PrintFlags(cmd.Flags())
 
 			c, err := s.Config(KnownControllers(), ControllersDisabledByDefault.List())
@@ -112,6 +118,8 @@ the cloud specific control loops shipped with Kubernetes.`,
 	for _, f := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(f)
 	}
+
+	fs.BoolVar(&versionFlag, "version", false, "Print version and exit")
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 

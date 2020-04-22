@@ -76,11 +76,12 @@ const (
 	activeStatus = "ACTIVE"
 	errorStatus  = "ERROR"
 
+	// ServiceAnnotationLoadBalancerInternal defines whether or not to create an internal loadbalancer. Default: false.
+	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
 	ServiceAnnotationLoadBalancerConnLimit            = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerFloatingNetworkID    = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerFloatingSubnet       = "loadbalancer.openstack.org/floating-subnet"
 	ServiceAnnotationLoadBalancerFloatingSubnetID     = "loadbalancer.openstack.org/floating-subnet-id"
-	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
 	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
@@ -92,10 +93,9 @@ const (
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
 	ServiceAnnotationLoadBalancerTimeoutTCPInspect    = "loadbalancer.openstack.org/timeout-tcp-inspect"
 	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
-
-	// ServiceAnnotationLoadBalancerInternal is the annotation used on the service
-	// to indicate that we want an internal loadbalancer service.
-	// If the value of ServiceAnnotationLoadBalancerInternal is false, it indicates that we want an external loadbalancer service. Default to false.
+	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
+	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
+	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
 )
 
 // LbaasV2 is a LoadBalancer implementation for Neutron LBaaS v2 API
@@ -951,11 +951,6 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE, current provisioning status %s", provisioningStatus)
 	}
 
-	lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
-	if lbmethod == "" {
-		lbmethod = v2pools.LBMethodRoundRobin
-	}
-
 	oldListeners, err := getListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.Name, err)
@@ -1070,6 +1065,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				poolProto = v2pools.ProtocolHTTP
 			}
 
+			lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
 			createOpt := v2pools.CreateOpts{
 				Name:        cutString(fmt.Sprintf("pool_%d_%s", portIndex, name)),
 				Protocol:    poolProto,
@@ -1147,7 +1143,11 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 
 		monitorID := pool.MonitorID
-		if monitorID == "" && lbaas.opts.CreateMonitor {
+		enableHealthMonitor, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
+		if err != nil {
+			return nil, err
+		}
+		if monitorID == "" && enableHealthMonitor {
 			klog.V(4).Infof("Creating monitor for pool %s", pool.ID)
 			monitorProtocol := string(port.Protocol)
 			if port.Protocol == corev1.ProtocolUDP {
@@ -1169,12 +1169,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after creating monitor, current provisioning status %s", provisioningStatus)
 			}
 			monitorID = monitor.ID
-		} else if lbaas.opts.CreateMonitor == false {
-			klog.V(4).Infof("Do not create monitor for pool %s when create-monitor is false", pool.ID)
-		}
-
-		if monitorID != "" {
-			klog.V(4).Infof("Monitor for pool %s: %s", pool.ID, monitorID)
+		} else if monitorID != "" && !enableHealthMonitor {
+			klog.Infof("Deleting health monitor %s for pool %s", monitorID, pool.ID)
+			err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
+			if err != nil {
+				return nil, fmt.Errorf("failed to delete health monitor %s for pool %s, error: %v", monitorID, pool.ID, err)
+			}
 		}
 	}
 

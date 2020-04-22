@@ -1,39 +1,32 @@
-<!--  Thanks for sending a pull request!  Here are some tips for you:
-1. If this is your first time, read our contributor guidelines https://git.k8s.io/community/contributors/guide/pull-requests.md#the-pull-request-submit-process and developer guide https://git.k8s.io/community/contributors/devel/development.md#development-guide
-2. If you want *faster* PR reviews, read how: https://git.k8s.io/community/contributors/guide/pull-requests.md#best-practices-for-faster-reviews
-3. Follow the instructions for writing a release note: https://git.k8s.io/community/contributors/guide/release-notes.md
+<!--
+Please add the affected binary name in the title unless multiple binaries are affected, e.g.
+[cinder-csi-plugin] Fix volume deletion
+For openstack-cloud-controller-manager, you can use [occm] for short.
+
+All the currently maintained binaries are:
+* openstack-cloud-controller-manager (occm)
+* cinder-csi-plugin
+* manila-csi-plugin
+* k8s-keystone-auth
+* client-keystone-auth
+* octavia-ingress-controller
+* magnum-auto-healer
+* barbican-kms-plugin
 -->
-
-**The binaries affected**:
-
-IMPORTANT: Please also add the binary name in the title, e.g.
-`[openstack-cloud-controller-manager]: Add UDP protocol support`
-unless the PR affects multiple binaries.
-
-- [ ] openstack-cloud-controller-manager
-- [ ] cinder-csi-plugin
-- [ ] k8s-keystone-auth
-- [ ] client-keystone-auth
-- [ ] octavia-ingress-controller
-- [ ] manila-csi-plugin
-- [ ] manila-provisioner
-- [ ] magnum-auto-healer
-- [ ] barbican-kms-plugin
 
 **What this PR does / why we need it**:
 
-
-**Which issue this PR fixes**:
+**Which issue this PR fixes(if applicable)**:
 fixes #
 
 **Special notes for reviewers**:
-
 <!-- e.g. How to test this PR -->
 
 **Release note**:
-<!--  Steps to write your release note:
-1. Use the release-note-* labels to set the release note state (if you have access)
-2. Enter your extended release note in the below block; leaving it blank means using the PR title as the release note. If no release note is required, just write `NONE`.
+<!--
+1. Release note is required if a significant change is introduced, otherwise please keep this section as is.
+2. Release note is in Markdown format and should begin with the binary name unless multiple binaries are affected, e.g. [openstack-cloud-controller-manager] Deprecate Neutron-LBaaS support.
+3. Instructions for writing a release note: https://git.k8s.io/community/contributors/guide/release-notes.md
 -->
 ```release-note
 NONE

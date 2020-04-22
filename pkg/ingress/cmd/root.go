@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -29,6 +30,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller"
+	"k8s.io/klog"
 )
 
 var (
@@ -70,6 +72,10 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ingress_openstack.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&isDebug, "debug", false, "Print more detailed information.")
+
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+	rootCmd.PersistentFlags().AddGoFlagSet(klogFlags)
 }
 
 // initConfig reads in config file and ENV variables if set.

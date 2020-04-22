@@ -34,6 +34,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/cloud-provider-openstack/pkg/util"
+
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
@@ -150,9 +152,9 @@ type BlockStorageOpts struct {
 
 // NetworkingOpts is used for networking settings
 type NetworkingOpts struct {
-	IPv6SupportDisabled bool   `gcfg:"ipv6-support-disabled"`
-	PublicNetworkName   string `gcfg:"public-network-name"`
-	InternalNetworkName string `gcfg:"internal-network-name"`
+	IPv6SupportDisabled bool     `gcfg:"ipv6-support-disabled"`
+	PublicNetworkName   []string `gcfg:"public-network-name"`
+	InternalNetworkName []string `gcfg:"internal-network-name"`
 }
 
 // RouterOpts is used for Neutron routes
@@ -250,9 +252,9 @@ func LogCfg(cfg Config) {
 	klog.V(5).Infof("ApplicationCredentialName: %s", cfg.Global.ApplicationCredentialName)
 }
 
-type logger struct{}
+type Logger struct{}
 
-func (l logger) Printf(format string, args ...interface{}) {
+func (l Logger) Printf(format string, args ...interface{}) {
 	debugger := klog.V(6)
 
 	// extra check in case, when verbosity has been changed dynamically
@@ -365,6 +367,18 @@ func ReadConfig(config io.Reader) (Config, error) {
 		return Config{}, fmt.Errorf("no OpenStack cloud provider config file given")
 	}
 	var cfg Config
+
+	// Set default values explicitly
+	cfg.LoadBalancer.UseOctavia = true
+	cfg.LoadBalancer.InternalLB = false
+	cfg.LoadBalancer.LBProvider = "amphora"
+	cfg.LoadBalancer.LBMethod = "ROUND_ROBIN"
+	cfg.LoadBalancer.CreateMonitor = false
+	cfg.LoadBalancer.ManageSecurityGroups = false
+	cfg.LoadBalancer.MonitorDelay = MyDuration{5 * time.Second}
+	cfg.LoadBalancer.MonitorTimeout = MyDuration{3 * time.Second}
+	cfg.LoadBalancer.MonitorMaxRetries = 1
+
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 
 	klog.V(5).Infof("Config, loaded from the config file:")
@@ -385,6 +399,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	if cfg.Metadata.SearchOrder == "" {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
+
 	return cfg, err
 }
 
@@ -466,21 +481,6 @@ func readInstanceID(searchOrder string) (string, error) {
 
 // check opts for OpenStack
 func checkOpenStackOpts(openstackOpts *OpenStack) error {
-	lbOpts := openstackOpts.lbOpts
-
-	// if need to create health monitor for Neutron LB,
-	// monitor-delay, monitor-timeout and monitor-max-retries should be set.
-	if lbOpts.CreateMonitor {
-		if lbOpts.MonitorDelay == (MyDuration{}) {
-			return fmt.Errorf("monitor-delay not set in cloud provider config")
-		}
-		if lbOpts.MonitorTimeout == (MyDuration{}) {
-			return fmt.Errorf("monitor-timeout not set in cloud provider config")
-		}
-		if lbOpts.MonitorMaxRetries == uint(0) {
-			return fmt.Errorf("monitor-max-retries not set in cloud provider config")
-		}
-	}
 	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
@@ -526,7 +526,7 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 	if klog.V(6) {
 		provider.HTTPClient.Transport = &client.RoundTripper{
 			Rt:     provider.HTTPClient.Transport,
-			Logger: &logger{},
+			Logger: &Logger{},
 		}
 	}
 
@@ -745,10 +745,10 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	for _, network := range networks {
 		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
+			if props.IPType == "floating" || util.Contains(networkingOpts.PublicNetworkName, network) {
 				addressType = v1.NodeExternalIP
 			} else {
-				if networkingOpts.InternalNetworkName == "" || network == networkingOpts.InternalNetworkName {
+				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)

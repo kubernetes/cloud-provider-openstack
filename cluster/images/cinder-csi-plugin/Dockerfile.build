@@ -1,0 +1,9 @@
+ARG DEBIAN_ARCH=amd64
+FROM k8s.gcr.io/debian-base-${DEBIAN_ARCH}:1.0.0
+
+ARG ARCH=amd64
+
+# Install e4fsprogs for format
+RUN clean-install ca-certificates e2fsprogs mount xfsprogs udev
+
+ADD cinder-csi-plugin-${ARCH} /bin/cinder-csi-plugin

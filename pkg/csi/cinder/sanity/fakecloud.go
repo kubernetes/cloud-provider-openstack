@@ -8,7 +8,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
+	cco "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 type cloud struct {
@@ -24,6 +26,8 @@ func getfakecloud() *cloud {
 		instances: make(map[string]*servers.Server, 0),
 	}
 }
+
+var _ cco.IOpenStack = &cloud{}
 
 // Fake Cloud
 func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
@@ -49,6 +53,10 @@ func (cloud *cloud) DeleteVolume(volumeID string) error {
 
 	return nil
 
+}
+
+func (cloud *cloud) CheckBlockStorageAPI() error {
+	return nil
 }
 
 func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
@@ -215,4 +223,14 @@ func (cloud *cloud) ExpandVolume(volumeID string, size int) error {
 
 func (cloud *cloud) GetMaxVolLimit() int64 {
 	return 256
+}
+
+func (cloud *cloud) GetMetadataOpts() cpo.MetadataOpts {
+	var m cpo.MetadataOpts
+	m.SearchOrder = ""
+	return m
+}
+
+func (cloud *cloud) GetBlockStorageOpts() cco.BlockStorageOpts {
+	return cco.BlockStorageOpts{}
 }

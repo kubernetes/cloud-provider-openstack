@@ -43,6 +43,7 @@ func initCinderDriver(name string, manifests ...string) testsuites.TestDriver {
 				testsuites.CapFsGroup:     true,
 				testsuites.CapExec:        true,
 				testsuites.CapMultiPODs:   true,
+				testsuites.CapBlock:       true,
 			},
 		},
 		manifests: manifests,

@@ -15,7 +15,7 @@ spec:
     csi:
       driver: cinder.csi.openstack.org
       volumeAttributes:
-          capacity: 1Gi # default is 1Gi
+        capacity: 1Gi # default is 1Gi
       readOnly: false  # default is false
       fsType: ext4 # default is ext4
 

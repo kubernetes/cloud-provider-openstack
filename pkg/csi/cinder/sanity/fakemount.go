@@ -2,7 +2,7 @@ package sanity
 
 import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	"k8s.io/kubernetes/pkg/volume/util/hostutil"
+	mount2 "k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/utils/mount"
 )
 
@@ -19,17 +19,8 @@ func (m *fakemount) IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	return true, nil
 }
 
-func (m *fakemount) FormatAndMount(source string, target string, fstype string, options []string) error {
-	return nil
-}
-
 func (m *fakemount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
 	return false, nil
-}
-
-func (m *fakemount) Mount(source string, target string, fstype string, options []string) error {
-	return nil
-
 }
 
 func (m *fakemount) UnmountPath(mountPath string) error {
@@ -48,10 +39,6 @@ func (m *fakemount) GetBaseMounter() *mount.SafeFormatAndMount {
 	return nil
 }
 
-func (m *fakemount) GetHostUtil() hostutil.HostUtils {
-	return nil
-}
-
 func (m *fakemount) MakeDir(pathname string) error {
 	return nil
 }
@@ -59,4 +46,12 @@ func (m *fakemount) MakeDir(pathname string) error {
 // MakeFile creates an empty file
 func (m *fakemount) MakeFile(pathname string) error {
 	return nil
+}
+
+func (m *fakemount) PathExists(path string) (bool, error) {
+	return false, nil
+}
+
+func (m *fakemount) GetDeviceStats(path string) (*mount2.DeviceStats, error) {
+	return nil, nil
 }

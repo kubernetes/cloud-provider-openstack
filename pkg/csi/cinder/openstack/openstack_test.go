@@ -47,7 +47,8 @@ tenant-id=` + fakeTenantID + `
 domain-id=` + fakeDomainID + `
 ca-file=` + fakeCAfile + `
 region=` + fakeRegion + `
-`
+[BlockStorage]
+rescan-on-resize=true`
 
 	f, err := os.Create(fakeFileName)
 	if err != nil {
@@ -71,6 +72,7 @@ region=` + fakeRegion + `
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
+	expectedOpts.BlockStorage.RescanOnResize = true
 
 	// Invoke GetConfigFromFile
 	actualAuthOpts, err := GetConfigFromFile(fakeFileName)
