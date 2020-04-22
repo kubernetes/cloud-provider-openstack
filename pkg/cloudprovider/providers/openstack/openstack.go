@@ -860,16 +860,19 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	network, err := os.NewNetworkV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
 	compute, err := os.NewComputeV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
 		return nil, false
 	}
 
 	lb, err := os.NewLoadBalancerV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack LoadBalancer client: %v", err)
 		return nil, false
 	}
 
@@ -965,6 +968,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	network, err := os.NewNetworkV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
@@ -981,6 +985,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	compute, err := os.NewComputeV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
 		return nil, false
 	}
 
