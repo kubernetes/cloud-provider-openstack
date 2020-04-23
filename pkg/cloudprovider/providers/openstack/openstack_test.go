@@ -471,7 +471,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, interfaces, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -550,7 +550,7 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, interfaces, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -580,12 +580,6 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 		AccessIPv6: "2001:4800:790e:510:be76:4eff:fe04:82a8",
 		Addresses: map[string]interface{}{
 			"private": []interface{}{
-				map[string]interface{}{
-					"OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:7c:1b:2b",
-					"version":                 float64(4),
-					"addr":                    "10.0.0.32",
-					"OS-EXT-IPS:type":         "fixed",
-				},
 				map[string]interface{}{
 					"version":         float64(4),
 					"addr":            "50.56.176.36",
@@ -632,10 +626,12 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 					IPAddress: "10.0.0.31",
 				},
 			},
+			NetID: "test",
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	netIdsToNamesMapping := map[string]string{"test": "test"}
+	addrs, err := nodeAddresses(&srv, interfaces, netIdsToNamesMapping, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -643,12 +639,11 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 	t.Logf("addresses are %v", addrs)
 
 	want := []v1.NodeAddress{
-		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
-		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
 		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.64"},
 		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
 	}
 
 	if !reflect.DeepEqual(want, addrs) {
@@ -713,7 +708,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, interfaces, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}

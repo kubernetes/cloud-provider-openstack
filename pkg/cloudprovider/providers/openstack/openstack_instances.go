@@ -24,9 +24,9 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -112,7 +112,12 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
-	addresses, err := nodeAddresses(server, interfaces, i.networkingOpts)
+	networkIdsToNameMapping, err := mapNetworkIdsToNames(i.compute)
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := nodeAddresses(server, interfaces, networkIdsToNameMapping, i.networkingOpts)
 	if err != nil {
 		return []v1.NodeAddress{}, err
 	}

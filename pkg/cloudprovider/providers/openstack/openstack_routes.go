@@ -66,7 +66,12 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 			return false, err
 		}
 
-		addrs, err := nodeAddresses(srv, interfaces, r.networkingOpts)
+		networkIdsToNameMapping, err := mapNetworkIdsToNames(r.network)
+		if err != nil {
+			return false, err
+		}
+
+		addrs, err := nodeAddresses(srv, interfaces, networkIdsToNameMapping, r.networkingOpts)
 		if err != nil {
 			return false, err
 		}

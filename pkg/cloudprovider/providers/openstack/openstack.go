@@ -43,6 +43,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	"github.com/gophercloud/gophercloud/pagination"
 	"github.com/gophercloud/utils/client"
 	"github.com/gophercloud/utils/openstack/clientconfig"
@@ -676,7 +677,7 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 // * access IPs
 // * metadata hostname
 // * server object Addresses (floating type)
-func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
+func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkIdsToNameMapping map[string]string, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	addrs := []v1.NodeAddress{}
 
 	// parse private IP addresses first in an ordered manner
@@ -685,12 +686,23 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 			if iface.PortState == "ACTIVE" {
 				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
 				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-					v1helper.AddToNodeAddresses(&addrs,
-						v1.NodeAddress{
-							Type:    v1.NodeInternalIP,
-							Address: fixedIP.IPAddress,
-						},
-					)
+					if len(networkingOpts.InternalNetworkName) > 0 {
+						if util.Contains(networkingOpts.InternalNetworkName, networkIdsToNameMapping[iface.NetID]) {
+							v1helper.AddToNodeAddresses(&addrs,
+								v1.NodeAddress{
+									Type:    v1.NodeInternalIP,
+									Address: fixedIP.IPAddress,
+								},
+							)
+						}
+					} else {
+						v1helper.AddToNodeAddresses(&addrs,
+							v1.NodeAddress{
+								Type:    v1.NodeInternalIP,
+								Address: fixedIP.IPAddress,
+							},
+						)
+					}
 				}
 			}
 		}
@@ -771,6 +783,27 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	return addrs, nil
 }
 
+func mapNetworkIdsToNames(client *gophercloud.ServiceClient) (map[string]string, error) {
+	var mapping = make(map[string]string)
+
+	pager := networks.List(client, nil)
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		s, err := networks.ExtractNetworks(page)
+		if err != nil {
+			return false, err
+		}
+		for _, osNetwork := range s {
+			mapping[osNetwork.ID] = osNetwork.Name
+		}
+		return true, nil
+	})
+	if err != nil {
+		return mapping, err
+	}
+
+	return mapping, nil
+}
+
 func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	srv, err := getServerByName(client, name)
 	if err != nil {
@@ -782,7 +815,12 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 		return nil, err
 	}
 
-	return nodeAddresses(&srv.Server, interfaces, networkingOpts)
+	networkIdsToNameMapping, err := mapNetworkIdsToNames(client)
+	if err != nil {
+		return nil, err
+	}
+
+	return nodeAddresses(&srv.Server, interfaces, networkIdsToNameMapping, networkingOpts)
 }
 
 func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
