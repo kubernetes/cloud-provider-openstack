@@ -744,8 +744,15 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	for _, network := range networks {
 		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || util.Contains(networkingOpts.PublicNetworkName, network) {
+			if props.IPType == "floating" {
 				addressType = v1.NodeExternalIP
+			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
+				addressType = v1.NodeExternalIP
+				RemoveFromNodeAddressees(&addrs,
+					v1.NodeAddress{
+						Address: props.Addr,
+					},
+				)
 			} else {
 				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
 					addressType = v1.NodeInternalIP
