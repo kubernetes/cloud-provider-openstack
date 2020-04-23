@@ -45,7 +45,7 @@ type IOpenStack interface {
 	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
-	ListVolumes() ([]volumes.Volume, error)
+	ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error
