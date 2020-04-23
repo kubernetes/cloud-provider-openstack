@@ -41,6 +41,7 @@ import (
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	"github.com/gophercloud/gophercloud/pagination"
+	groups_utils "github.com/gophercloud/utils/openstack/networking/v2/exensions/security/groups"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -1397,7 +1398,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 
 	// ensure security group for LB
 	lbSecGroupName := getSecurityGroupName(apiService)
-	lbSecGroupID, err := groups.IDFromName(lbaas.network, lbSecGroupName)
+	lbSecGroupID, err := groups_utils.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		// If the security group of LB not exist, create it later
 		if isSecurityGroupNotFound(err) {
@@ -1750,7 +1751,7 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1
 
 	// Generate Name
 	lbSecGroupName := getSecurityGroupName(apiService)
-	lbSecGroupID, err := groups.IDFromName(lbaas.network, lbSecGroupName)
+	lbSecGroupID, err := groups_utils.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
 	}
@@ -1966,7 +1967,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *corev1.Service) error {
 	// Generate Name
 	lbSecGroupName := getSecurityGroupName(service)
-	lbSecGroupID, err := groups.IDFromName(lbaas.network, lbSecGroupName)
+	lbSecGroupID, err := groups_utils.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		if isSecurityGroupNotFound(err) {
 			// It is OK when the security group has been deleted by others.
