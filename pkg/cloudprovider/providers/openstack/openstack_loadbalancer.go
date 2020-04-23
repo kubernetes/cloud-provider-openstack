@@ -41,7 +41,7 @@ import (
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	"github.com/gophercloud/gophercloud/pagination"
-	groups_utils "github.com/gophercloud/utils/openstack/networking/v2/exensions/security/groups"
+	groups_utils "github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
