@@ -312,15 +312,31 @@ func TestControllerUnpublishVolume(t *testing.T) {
 
 func TestListVolumes(t *testing.T) {
 
-	osmock.On("ListVolumes").Return(nil)
+	osmock.On("ListVolumes", 2, FakeVolID).Return(FakeVolListMultiple, "", nil)
 
 	// Init assert
 	assert := assert.New(t)
 
-	fakeReq := &csi.ListVolumesRequest{}
+	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: FakeVolID}
 
 	// Expected Result
-	expectedRes := &csi.ListVolumesResponse{}
+	expectedRes := &csi.ListVolumesResponse{
+		Entries: []*csi.ListVolumesResponse_Entry{
+			{
+				Volume: &csi.Volume{
+					VolumeId:      FakeVol1.ID,
+					CapacityBytes: int64(FakeVol1.Size * 1024 * 1024 * 1024),
+				},
+			},
+			{
+				Volume: &csi.Volume{
+					VolumeId:      FakeVol3.ID,
+					CapacityBytes: int64(FakeVol3.Size * 1024 * 1024 * 1024),
+				},
+			},
+		},
+		NextToken: "",
+	}
 
 	// Invoke ListVolumes
 	actualRes, err := fakeCs.ListVolumes(FakeCtx, fakeReq)

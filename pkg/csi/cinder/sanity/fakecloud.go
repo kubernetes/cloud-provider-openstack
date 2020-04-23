@@ -78,14 +78,28 @@ func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
 	return "", notFoundError()
 }
 
-func (cloud *cloud) ListVolumes() ([]volumes.Volume, error) {
+func (cloud *cloud) ListVolumes(limit int, marker string) ([]volumes.Volume, string, error) {
 
 	var vollist []volumes.Volume
 
-	for _, value := range cloud.volumes {
-		vollist = append(vollist, *value)
+	if marker != "" {
+		if _, ok := cloud.volumes[marker]; !ok {
+			return nil, "", invalidError()
+		}
 	}
-	return vollist, nil
+
+	count := 0
+	retToken := ""
+	for _, value := range cloud.volumes {
+		if limit != 0 && count >= limit {
+			retToken = value.ID
+			break
+		}
+		vollist = append(vollist, *value)
+		count++
+
+	}
+	return vollist, retToken, nil
 
 }
 
@@ -134,6 +148,10 @@ func (cloud *cloud) GetVolume(volumeID string) (*volumes.Volume, error) {
 
 func notFoundError() error {
 	return gophercloud.ErrDefault404{}
+}
+
+func invalidError() error {
+	return gophercloud.ErrDefault400{}
 }
 
 func (cloud *cloud) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
