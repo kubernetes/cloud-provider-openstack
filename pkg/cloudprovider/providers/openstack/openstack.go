@@ -748,7 +748,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 				addressType = v1.NodeExternalIP
 			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
 				addressType = v1.NodeExternalIP
-				RemoveFromNodeAddressees(&addrs,
+				RemoveFromNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Address: props.Addr,
 					},
@@ -758,7 +758,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
-					RemoveFromNodeAddressees(&addrs,
+					RemoveFromNodeAddresses(&addrs,
 						v1.NodeAddress{
 							Address: props.Addr,
 						},
