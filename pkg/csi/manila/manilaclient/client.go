@@ -22,6 +22,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	shares_utils "github.com/gophercloud/utils/openstack/sharedfilesystems/v2/shares"
+	sharetypes_utils "github.com/gophercloud/utils/openstack/sharedfilesystems/v2/sharetypes"
+	snapshots_utils "github.com/gophercloud/utils/openstack/sharedfilesystems/v2/snapshots"
 )
 
 type Client struct {
@@ -33,7 +36,7 @@ func (c Client) GetShareByID(shareID string) (*shares.Share, error) {
 }
 
 func (c Client) GetShareByName(shareName string) (*shares.Share, error) {
-	shareID, err := shares.IDFromName(c.c, shareName)
+	shareID, err := shares_utils.IDFromName(c.c, shareName)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +53,7 @@ func (c Client) DeleteShare(shareID string) error {
 }
 
 func (c Client) GetExportLocations(shareID string) ([]shares.ExportLocation, error) {
-	return shares.GetExportLocations(c.c, shareID).Extract()
+	return shares.ListExportLocations(c.c, shareID).Extract()
 }
 
 func (c Client) SetShareMetadata(shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error) {
@@ -70,7 +73,7 @@ func (c Client) GetSnapshotByID(snapID string) (*snapshots.Snapshot, error) {
 }
 
 func (c Client) GetSnapshotByName(snapName string) (*snapshots.Snapshot, error) {
-	snapID, err := snapshots.IDFromName(c.c, snapName)
+	snapID, err := snapshots_utils.IDFromName(c.c, snapName)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +103,7 @@ func (c Client) GetShareTypes() ([]sharetypes.ShareType, error) {
 }
 
 func (c Client) GetShareTypeIDFromName(shareTypeName string) (string, error) {
-	return sharetypes.IDFromName(c.c, shareTypeName)
+	return sharetypes_utils.IDFromName(c.c, shareTypeName)
 }
 
 func (c Client) GetUserMessages(opts messages.ListOptsBuilder) ([]messages.Message, error) {

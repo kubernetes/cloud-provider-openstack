@@ -11,8 +11,8 @@ require (
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.3.2
 	github.com/googleapis/gnostic v0.3.1 // indirect
-	github.com/gophercloud/gophercloud v0.7.1-0.20200116010453-5391bb776e58
-	github.com/gophercloud/utils v0.0.0-20191020172814-bd86af96d544
+	github.com/gophercloud/gophercloud v0.10.1-0.20200423022346-456b0b69b115
+	github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/go-version v1.2.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
