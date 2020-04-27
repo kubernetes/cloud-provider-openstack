@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
 )
 
@@ -33,13 +34,15 @@ const (
 )
 
 var (
-	version = "1.2.0"
+	specVersion = "1.2.0"
+	// we used to use spec version as driver version, now separate them
+	Version = "1.2.0"
 )
 
 type CinderDriver struct {
 	name        string
 	nodeID      string
-	version     string
+	fqVersion   string //Fully qualified version in format {Version}@{CPO version}
 	endpoint    string
 	cloudconfig string
 	cluster     string
@@ -54,14 +57,17 @@ type CinderDriver struct {
 }
 
 func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
-	klog.Infof("Driver: %v version: %v", driverName, version)
 
 	d := &CinderDriver{}
 	d.name = driverName
 	d.nodeID = nodeID
-	d.version = version
+	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
 	d.endpoint = endpoint
 	d.cluster = cluster
+
+	klog.Info("Driver: ", d.name)
+	klog.Info("Driver version: ", d.fqVersion)
+	klog.Info("CSI Spec version: ", specVersion)
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{
