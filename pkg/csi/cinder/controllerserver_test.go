@@ -327,12 +327,16 @@ func TestListVolumes(t *testing.T) {
 					VolumeId:      FakeVol1.ID,
 					CapacityBytes: int64(FakeVol1.Size * 1024 * 1024 * 1024),
 				},
+				Status: &csi.ListVolumesResponse_VolumeStatus{
+					PublishedNodeIds: []string{FakeNodeID},
+				},
 			},
 			{
 				Volume: &csi.Volume{
 					VolumeId:      FakeVol3.ID,
 					CapacityBytes: int64(FakeVol3.Size * 1024 * 1024 * 1024),
 				},
+				Status: &csi.ListVolumesResponse_VolumeStatus{},
 			},
 		},
 		NextToken: "",
