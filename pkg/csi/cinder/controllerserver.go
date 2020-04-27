@@ -101,10 +101,24 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	if content != nil && content.GetSnapshot() != nil {
 		snapshotID = content.GetSnapshot().GetSnapshotId()
+		_, err := cloud.GetSnapshotByID(snapshotID)
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				return nil, status.Errorf(codes.NotFound, "VolumeContentSource Snapshot %s not found", snapshotID)
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to retrieve the snapshot %s: %v", snapshotID, err)
+		}
 	}
 
 	if content != nil && content.GetVolume() != nil {
 		sourcevolID = content.GetVolume().GetVolumeId()
+		_, err := cloud.GetVolume(sourcevolID)
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				return nil, status.Errorf(codes.NotFound, "Source Volume %s not found", sourcevolID)
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to retrieve the source volume %s: %v", sourcevolID, err)
+		}
 	}
 
 	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
@@ -146,51 +160,54 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	// Volume Attach
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
+	volumeCapability := req.GetVolumeCapability()
 
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume ID must be provided")
 	}
-
 	if len(instanceID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Instance ID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Instance ID must be provided")
+	}
+	if volumeCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume capability must be provided")
 	}
 
 	_, err := cs.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerPublishVolume Volume not found")
+			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Volume %s not found", volumeID)
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume get volume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] get volume failed with error %v", err))
 	}
 
 	_, err = cs.Cloud.GetInstanceByID(instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerPublishVolume Instance not found")
+			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Instance %s not found", instanceID)
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume GetInstanceByID failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] GetInstanceByID failed with error %v", err))
 	}
 
 	_, err = cs.Cloud.AttachVolume(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to AttachVolume: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume Attach Volume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] Attach Volume failed with error %v", err))
 
 	}
 
 	err = cs.Cloud.WaitDiskAttached(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitDiskAttached: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] failed to attach volume: %v", err))
 	}
 
 	devicePath, err := cs.Cloud.GetAttachmentDiskPath(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] failed to get device path of attached volume : %v", err))
 	}
 
-	klog.V(4).Infof("ControllerPublishVolume %s on %s", volumeID, instanceID)
+	klog.V(4).Infof("ControllerPublishVolume %s on %s is successful", volumeID, instanceID)
 
 	// Publish Volume Info
 	pvInfo := map[string]string{}
@@ -208,7 +225,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	volumeID := req.GetVolumeId()
 
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Volume ID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] Volume ID must be provided")
 	}
 	_, err := cs.Cloud.GetInstanceByID(instanceID)
 	if err != nil {
@@ -216,7 +233,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because node %s does not exist", volumeID, instanceID)
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume GetInstanceByID failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerUnpublishVolume] GetInstanceByID failed with error %v", err))
 	}
 
 	err = cs.Cloud.DetachVolume(instanceID, volumeID)

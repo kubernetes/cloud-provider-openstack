@@ -257,10 +257,14 @@ func TestControllerPublishVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.ControllerPublishVolumeRequest{
-		VolumeId:         FakeVolID,
-		NodeId:           FakeNodeID,
-		VolumeCapability: nil,
-		Readonly:         false,
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+		Readonly: false,
 	}
 
 	// Expected Result
