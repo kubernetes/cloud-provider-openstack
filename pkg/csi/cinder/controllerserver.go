@@ -212,7 +212,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because node %s does not exist", volumeID, instanceID)
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume GetInstanceByID failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume GetInstanceByID failed with error: %v", err))
 	}
 
 	err = cs.Cloud.DetachVolume(instanceID, volumeID)
