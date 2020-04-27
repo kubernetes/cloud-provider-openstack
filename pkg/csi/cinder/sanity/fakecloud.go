@@ -1,6 +1,7 @@
 package sanity
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -226,6 +227,9 @@ func randString(n int) string {
 }
 
 func (cloud *cloud) GetInstanceByID(instanceID string) (*servers.Server, error) {
+	if _, ok := cloud.instances[cinder.FakeInstanceID]; !ok {
+		cloud.instances[cinder.FakeInstanceID] = &servers.Server{}
+	}
 	inst, ok := cloud.instances[instanceID]
 
 	if !ok {
@@ -245,7 +249,7 @@ func (cloud *cloud) GetMaxVolLimit() int64 {
 
 func (cloud *cloud) GetMetadataOpts() cpo.MetadataOpts {
 	var m cpo.MetadataOpts
-	m.SearchOrder = ""
+	m.SearchOrder = fmt.Sprintf("%s,%s", "configDrive", "metadataService")
 	return m
 }
 
