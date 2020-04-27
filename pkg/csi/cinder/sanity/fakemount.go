@@ -2,14 +2,33 @@ package sanity
 
 import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	mount2 "k8s.io/cloud-provider-openstack/pkg/util/mount"
+	cpomount "k8s.io/cloud-provider-openstack/pkg/util/mount"
+	exec "k8s.io/utils/exec/testing"
 	"k8s.io/utils/mount"
 )
 
 type fakemount struct {
 }
 
-// fake mount
+var mInstance *mount.FakeMounter
+
+// NewFakeMounter returns fake mounter instance
+func newFakeMounter() *mount.FakeMounter {
+	if mInstance == nil {
+		mInstance = &mount.FakeMounter{
+			MountPoints: []mount.MountPoint{},
+		}
+	}
+	return mInstance
+}
+
+// NewFakeSafeFormatAndMounter returns base Fake mounter instance
+func newFakeSafeFormatAndMounter() *mount.SafeFormatAndMount {
+	return &mount.SafeFormatAndMount{
+		Interface: newFakeMounter(),
+		Exec:      &exec.FakeExec{DisableScripts: true},
+	}
+}
 
 func (m *fakemount) ScanForAttach(devicePath string) error {
 	return nil
@@ -36,7 +55,7 @@ func (m *fakemount) GetDevicePath(volumeID string) (string, error) {
 }
 
 func (m *fakemount) GetBaseMounter() *mount.SafeFormatAndMount {
-	return nil
+	return newFakeSafeFormatAndMounter()
 }
 
 func (m *fakemount) MakeDir(pathname string) error {
@@ -52,6 +71,6 @@ func (m *fakemount) PathExists(path string) (bool, error) {
 	return false, nil
 }
 
-func (m *fakemount) GetDeviceStats(path string) (*mount2.DeviceStats, error) {
-	return nil, nil
+func (m *fakemount) GetDeviceStats(path string) (*cpomount.DeviceStats, error) {
+	return cinder.FakeFsStats, nil
 }
