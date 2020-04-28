@@ -102,6 +102,10 @@ cinder-csi-plugin: work $(SOURCES)
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
+# This target is for supporting CI jobs of release-1.17 branch. We should delete this target once 1.17 support is dropped and change the cinder-csi-plugin related CI jobs to use target image-cinder-csi-plugin
+image-csi-plugin:
+	$(MAKE) image-cinder-csi-plugin
+
 manila-csi-plugin: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
