@@ -20,6 +20,7 @@ package openstack
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
@@ -34,15 +35,31 @@ const (
 	snapReadySteps      = 10
 
 	snapshotDescription = "Created by OpenStack Cinder CSI driver"
+	snapshotForceCreate = "force-create"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
 // returns the resultant gophercloud Snapshot Item upon success
 func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
+
+	force := false
+	// if no flag given, then force will be false by default
+	// if flag it given , check it
+	if item, ok := (*tags)[snapshotForceCreate]; ok {
+		var err error
+		force, err = strconv.ParseBool(item)
+		if err != nil {
+			klog.V(5).Infof("Make force create flag to false due to: %v", err)
+		}
+
+		delete(*tags, snapshotForceCreate)
+	}
+	// Force the creation of snapshot even the Volume is in in-use state
 	opts := &snapshots.CreateOpts{
 		VolumeID:    volID,
 		Name:        name,
 		Description: snapshotDescription,
+		Force:       force,
 	}
 	if tags != nil {
 		opts.Metadata = *tags
