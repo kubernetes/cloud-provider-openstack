@@ -173,7 +173,8 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Deprecated.
 * `internal-lb`
   Determines whether or not to create an internal load balancer (no floating IP) by default. Default: false.
-
+* `cascade-delete`
+  Determines whether or not to perform cascade deletion of load balancers. Default: true.
 ### Metadata
 
 * `search-order`
