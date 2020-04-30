@@ -26,11 +26,11 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"k8s.io/klog/v2"
 
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 // Instances encapsulates an implementation of Instances for OpenStack.
@@ -161,7 +161,7 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 // InstanceID returns the kubelet's cloud provider ID.
 func (os *OpenStack) InstanceID() (string, error) {
 	if len(os.localInstanceID) == 0 {
-		id, err := readInstanceID(os.metadataOpts.SearchOrder)
+		id, err := openstackutil.GetInstanceID(os.metadataOpts.SearchOrder)
 		if err != nil {
 			return "", err
 		}

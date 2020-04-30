@@ -37,13 +37,13 @@ import (
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 type nodeServer struct {
-	Driver   *CinderDriver
-	Mount    mount.IMount
-	Metadata openstack.IMetadata
-	Cloud    openstack.IOpenStack
+	Driver *CinderDriver
+	Mount  mount.IMount
+	Cloud  openstack.IOpenStack
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -128,7 +128,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	capacity, ok := req.GetVolumeContext()["capacity"]
 	volumeCapability := req.GetVolumeCapability()
 
-	volAvailability, err := getAvailabilityZoneMetadataService(ns.Metadata)
+	volAvailability, err := getAvailabilityZoneMetadataService(ns.Cloud.GetMetadataOpts().SearchOrder)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
 	}
@@ -154,7 +154,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 
 	// attach volume
 	// for attach volume we need to have information about node.
-	nodeID, err := getNodeID(ns.Mount, ns.Metadata, ns.Cloud.GetMetadataOpts().SearchOrder)
+	nodeID, err := openstackutil.GetInstanceID(ns.Cloud.GetMetadataOpts().SearchOrder)
 	if err != nil {
 		klog.V(3).Infof("Ephermal Volume Attach: Failed to get Instance ID: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to get Instance ID: %v", err))
@@ -430,12 +430,12 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 
-	nodeID, err := getNodeID(ns.Mount, ns.Metadata, ns.Cloud.GetMetadataOpts().SearchOrder)
+	nodeID, err := openstackutil.GetInstanceID(ns.Cloud.GetMetadataOpts().SearchOrder)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeGetInfo failed with error %v", err))
 	}
 
-	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
+	zone, err := getAvailabilityZoneMetadataService(ns.Cloud.GetMetadataOpts().SearchOrder)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
 	}
@@ -550,59 +550,11 @@ func getDevicePath(volumeID string, m mount.IMount) (string, error) {
 
 }
 
-func getNodeIDMountProvider(m mount.IMount) (string, error) {
-	nodeID, err := m.GetInstanceID()
+func getAvailabilityZoneMetadataService(order string) (string, error) {
+	m, err := metadata.Get(order)
 	if err != nil {
-		klog.V(3).Infof("Failed to GetInstanceID: %v", err)
+		klog.Errorf("Failed to Get metadata: %v", err)
 		return "", err
 	}
-	klog.V(5).Infof("getNodeIDMountProvider return node id %s", nodeID)
-
-	return nodeID, nil
-}
-
-func getNodeIDMetdataService(m openstack.IMetadata) (string, error) {
-
-	nodeID, err := m.GetInstanceID()
-	if err != nil {
-		return "", err
-	}
-	klog.V(5).Infof("getNodeIDMetdataService return node id %s", nodeID)
-	return nodeID, nil
-}
-
-func getAvailabilityZoneMetadataService(m openstack.IMetadata) (string, error) {
-
-	zone, err := m.GetAvailabilityZone()
-	if err != nil {
-		return "", err
-	}
-	return zone, nil
-}
-
-func getNodeID(mount mount.IMount, iMetadata openstack.IMetadata, order string) (string, error) {
-	elements := strings.Split(order, ",")
-
-	var nodeID string
-	var err error
-	for _, id := range elements {
-		id = strings.TrimSpace(id)
-		switch id {
-		case metadata.ConfigDriveID:
-			nodeID, err = getNodeIDMountProvider(mount)
-		case metadata.MetadataID:
-			nodeID, err = getNodeIDMetdataService(iMetadata)
-		default:
-			err = fmt.Errorf("%s is not a valid metadata search order option. Supported options are %s and %s", id, metadata.ConfigDriveID, metadata.MetadataID)
-		}
-		if err == nil {
-			break
-		}
-	}
-
-	if err != nil {
-		klog.Errorf("Failed to GetInstanceID from config drive or metadata service: %v", err)
-		return "", err
-	}
-	return nodeID, nil
+	return m.AvailabilityZone, nil
 }

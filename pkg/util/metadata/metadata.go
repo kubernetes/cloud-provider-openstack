@@ -29,6 +29,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/utils/exec"
 )
@@ -55,7 +56,7 @@ const (
 )
 
 // ErrBadMetadata is used to indicate a problem parsing data from metadata server
-var ErrBadMetadata = errors.New("invalid OpenStack metadata, got empty uuid")
+var ErrBadMetadata = errors.New("invalid OpenStack metadata, got invalid uuid")
 
 // DeviceMetadata is a single/simplified data structure for all kinds of device metadata types.
 type DeviceMetadata struct {
@@ -86,7 +87,7 @@ func parseMetadata(r io.Reader) (*Metadata, error) {
 		return nil, err
 	}
 
-	if metadata.UUID == "" {
+	if metadata.UUID == "" || util.IsValidUUID(metadata.UUID) {
 		return nil, ErrBadMetadata
 	}
 

@@ -26,6 +26,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
@@ -44,19 +45,16 @@ func init() {
 		mount.MInstance = mmock
 
 		omock = new(openstack.OpenStackMock)
-		openstack.MetadataService = omock
 		openstack.OsInstance = omock
-		fakeNs = NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+		fakeNs = NewNodeServer(d, mount.MInstance, openstack.OsInstance)
 	}
 }
 
 // Test NodeGetInfo
 func TestNodeGetInfo(t *testing.T) {
 
-	// GetInstanceID() (string, error)
-	mmock.On("GetInstanceID").Return(FakeNodeID, nil)
-
-	omock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
+	// Set fake metadata
+	metadata.Set(&metadata.Metadata{UUID: FakeNodeID, AvailabilityZone: FakeAvailability})
 
 	omock.On("GetMaxVolumeLimit").Return(FakeMaxVolume)
 
@@ -135,11 +133,10 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
 
 	mount.MInstance = mmock
-	openstack.MetadataService = omock
 	openstack.OsInstance = omock
 
 	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
-	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+	fakeNse := NewNodeServer(d, mount.MInstance, openstack.OsInstance)
 
 	// Init assert
 	assert := assert.New(t)
@@ -279,7 +276,6 @@ func TestNodeUnpublishVolume(t *testing.T) {
 func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 
 	mount.MInstance = mmock
-	openstack.MetadataService = omock
 	openstack.OsInstance = omock
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
@@ -290,7 +286,7 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	omock.On("DeleteVolume", FakeVolID).Return(nil)
 
 	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
-	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+	fakeNse := NewNodeServer(d, mount.MInstance, openstack.OsInstance)
 
 	// Init assert
 	assert := assert.New(t)

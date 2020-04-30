@@ -10,7 +10,6 @@ require (
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/golang/protobuf v1.3.2
-	github.com/google/uuid v1.1.1
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/gophercloud/gophercloud v0.11.1-0.20200518183226-7aec46f32c19
 	github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
@@ -53,6 +52,7 @@ require (
 	k8s.io/code-generator v0.18.1 // indirect
 	k8s.io/component-base v0.18.0
 	k8s.io/gengo v0.0.0-20200413195148-3a45101e95ac // indirect
+	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.0.0
 	k8s.io/kubernetes v1.18.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89

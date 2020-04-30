@@ -32,7 +32,7 @@ func TestDriver(t *testing.T) {
 	fakemnt := GetFakeMountProvider()
 	fakemet := &fakemetadata{}
 
-	d.SetupDriver(fakecloudprovider, fakemnt, fakemet)
+	d.SetupDriver(fakecloudprovider, fakemnt)
 
 	// TODO: Stop call
 

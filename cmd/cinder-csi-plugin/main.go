@@ -107,12 +107,6 @@ func handle() {
 		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
 	}
 
-	//Intiliaze Metadatda
-	metadatda, err := openstack.GetMetadataProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
-	}
-
 	// Initiliaze cloud
 	openstack.InitOpenStackProvider(cloudconfig)
 	cloud, err := openstack.GetOpenStackProvider()
@@ -122,6 +116,6 @@ func handle() {
 		return
 	}
 
-	d.SetupDriver(cloud, mount, metadatda)
+	d.SetupDriver(cloud, mount)
 	d.Run()
 }

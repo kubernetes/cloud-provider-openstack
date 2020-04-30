@@ -49,12 +49,11 @@ func NewIdentityServer(d *CinderDriver) *identityServer {
 	}
 }
 
-func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata openstack.IMetadata, cloud openstack.IOpenStack) *nodeServer {
+func NewNodeServer(d *CinderDriver, mount mount.IMount, cloud openstack.IOpenStack) *nodeServer {
 	return &nodeServer{
-		Driver:   d,
-		Mount:    mount,
-		Metadata: metadata,
-		Cloud:    cloud,
+		Driver: d,
+		Mount:  mount,
+		Cloud:  cloud,
 	}
 }
 

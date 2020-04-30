@@ -142,11 +142,11 @@ func (d *CinderDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_
 	return d.vcap
 }
 
-func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata openstack.IMetadata) {
+func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount) {
 
 	d.ids = NewIdentityServer(d)
 	d.cs = NewControllerServer(d, cloud)
-	d.ns = NewNodeServer(d, mount, metadata, cloud)
+	d.ns = NewNodeServer(d, mount, cloud)
 
 }
 

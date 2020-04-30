@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -455,29 +454,6 @@ func (c *caller) call(f func()) {
 	if *c {
 		f()
 	}
-}
-
-func readInstanceID(searchOrder string) (string, error) {
-	// First, try to get data from metadata service because local
-	// data might be changed by accident
-	md, err := metadata.Get(searchOrder)
-	if err == nil {
-		return md.UUID, nil
-	}
-
-	// Try to find instance ID on the local filesystem (created by cloud-init)
-	const instanceIDFile = "/var/lib/cloud/data/instance-id"
-	idBytes, err := ioutil.ReadFile(instanceIDFile)
-	if err == nil {
-		instanceID := string(idBytes)
-		instanceID = strings.TrimSpace(instanceID)
-		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" && instanceID != "iid-datasource-none" {
-			return instanceID, nil
-		}
-	}
-
-	return "", err
 }
 
 // check opts for OpenStack

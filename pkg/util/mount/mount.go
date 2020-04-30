@@ -49,7 +49,6 @@ type IMount interface {
 	GetDevicePath(volumeID string) (string, error)
 	IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	UnmountPath(mountPath string) error
-	GetInstanceID() (string, error)
 	MakeFile(pathname string) error
 	MakeDir(pathname string) error
 	GetDeviceStats(path string) (*DeviceStats, error)
@@ -223,22 +222,6 @@ func (m *Mount) IsLikelyNotMountPointAttach(targetpath string) (bool, error) {
 // UnmountPath
 func (m *Mount) UnmountPath(mountPath string) error {
 	return mount.CleanupMountPoint(mountPath, m.BaseMounter, false /* extensiveMountPointCheck */)
-}
-
-// GetInstanceID from file
-func (m *Mount) GetInstanceID() (string, error) {
-	// Try to find instance ID on the local filesystem (created by cloud-init)
-	idBytes, err := ioutil.ReadFile(instanceIDFile)
-	if err == nil {
-		instanceID := string(idBytes)
-		instanceID = strings.TrimSpace(instanceID)
-		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" && util.IsValidUUID(instanceID) {
-			return instanceID, nil
-		}
-		return "", fmt.Errorf("invalid instance id: %s", instanceID)
-	}
-	return "", err
 }
 
 // MakeDir creates dir
