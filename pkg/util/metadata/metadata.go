@@ -87,7 +87,7 @@ func parseMetadata(r io.Reader) (*Metadata, error) {
 		return nil, err
 	}
 
-	if metadata.UUID == "" || util.IsValidUUID(metadata.UUID) {
+	if metadata.UUID == "" || !util.IsValidUUID(metadata.UUID) {
 		return nil, ErrBadMetadata
 	}
 

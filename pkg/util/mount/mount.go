@@ -30,7 +30,6 @@ import (
 	"k8s.io/utils/exec"
 	"k8s.io/utils/mount"
 
-	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
 )
 

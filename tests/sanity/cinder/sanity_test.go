@@ -30,7 +30,6 @@ func TestDriver(t *testing.T) {
 	openstack.OsInstance = fakecloudprovider
 
 	fakemnt := GetFakeMountProvider()
-	fakemet := &fakemetadata{}
 
 	d.SetupDriver(fakecloudprovider, fakemnt)
 
