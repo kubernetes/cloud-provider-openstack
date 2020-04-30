@@ -748,6 +748,8 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 				addressType = v1.NodeExternalIP
 			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
 				addressType = v1.NodeExternalIP
+				// removing already added address to avoid listing it as both ExternalIP and InternalIP
+				// may happen due to listing "private" network as "public" in CCM's config
 				RemoveFromNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Address: props.Addr,
