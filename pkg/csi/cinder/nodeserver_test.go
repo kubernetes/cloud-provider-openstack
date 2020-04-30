@@ -18,11 +18,13 @@ package cinder
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
@@ -84,12 +86,8 @@ func TestNodeGetInfo(t *testing.T) {
 // Test NodePublishVolume
 func TestNodePublishVolume(t *testing.T) {
 
-	// ScanForAttach(devicePath string) error
 	mmock.On("ScanForAttach", FakeDevicePath).Return(nil)
-	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
-	// Mount(source string, target string, fstype string, options []string) error
-	mmock.On("Mount", FakeStagingTargetPath, FakeTargetPath, mock.AnythingOfType("string"), []string{"bind", "rw"}).Return(nil)
 	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 	// Init assert
 	assert := assert.New(t)
@@ -135,7 +133,6 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
-	mmock.On("FormatAndMount", FakeDevicePath, FakeTargetPath, "ext4", []string(nil)).Return(nil)
 
 	mount.MInstance = mmock
 	openstack.MetadataService = omock
@@ -181,12 +178,8 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 // Test NodeStageVolume
 func TestNodeStageVolume(t *testing.T) {
 
-	// GetDevicePath(volumeID string) error
 	mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
-	// IsLikelyNotMountPointAttach(targetpath string) (bool, error)
 	mmock.On("IsLikelyNotMountPointAttach", FakeStagingTargetPath).Return(true, nil)
-	// FormatAndMount(source string, target string, fstype string, options []string) error
-	mmock.On("FormatAndMount", FakeDevicePath, FakeStagingTargetPath, "ext4", []string(nil)).Return(nil)
 	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 
 	// Init assert
@@ -258,9 +251,6 @@ func TestNodeStageVolumeBlock(t *testing.T) {
 // Test NodeUnpublishVolume
 func TestNodeUnpublishVolume(t *testing.T) {
 
-	// IsLikelyNotMountPointDetach(targetpath string) (bool, error)
-	mmock.On("IsLikelyNotMountPointDetach", FakeTargetPath).Return(false, nil)
-	// UnmountPath(mountPath string) error
 	mmock.On("UnmountPath", FakeTargetPath).Return(nil)
 	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 
@@ -293,7 +283,6 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	openstack.OsInstance = omock
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
-	mmock.On("IsLikelyNotMountPointDetach", FakeTargetPath).Return(false, nil)
 	mmock.On("UnmountPath", FakeTargetPath).Return(nil)
 	omock.On("GetVolumesByName", fvolName).Return(FakeVolList, nil)
 	omock.On("DetachVolume", FakeNodeID, FakeVolID).Return(nil)
@@ -328,9 +317,6 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 // Test NodeUnstageVolume
 func TestNodeUnstageVolume(t *testing.T) {
 
-	// IsLikelyNotMountPointDetach(targetpath string) (bool, error)
-	mmock.On("IsLikelyNotMountPointDetach", FakeStagingTargetPath).Return(false, nil)
-	// UnmountPath(mountPath string) error
 	mmock.On("UnmountPath", FakeStagingTargetPath).Return(nil)
 	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
 
@@ -387,15 +373,25 @@ func TestNodeGetVolumeStatsBlock(t *testing.T) {
 	assert := assert.New(t)
 	mmock.ExpectedCalls = nil
 
+	// setup for test
+	tempDir, err := ioutil.TempDir("", "cpo-test")
+	if err != nil {
+		t.Fatalf("Failed to set up temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+	volumePath := filepath.Join(tempDir, FakeTargetPath)
+	err = os.MkdirAll(volumePath, 0750)
+	if err != nil {
+		t.Fatalf("Failed to set up volumepath: %v", err)
+	}
+
 	// Fake request
 	fakeReq := &csi.NodeGetVolumeStatsRequest{
 		VolumeId:   FakeVolName,
-		VolumePath: FakeDevicePath,
+		VolumePath: volumePath,
 	}
 
-	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
-	// Invoke NodeGetVolumeStats with a block device
-	mmock.On("GetDeviceStats", FakeDevicePath).Return(FakeBlockDeviceStats, nil)
+	mmock.On("GetDeviceStats", volumePath).Return(FakeBlockDeviceStats, nil)
 	expectedBlockRes := &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
 			{Total: FakeBlockDeviceStats.TotalBytes, Unit: csi.VolumeUsage_BYTES},
@@ -415,14 +411,25 @@ func TestNodeGetVolumeStatsFs(t *testing.T) {
 	assert := assert.New(t)
 	mmock.ExpectedCalls = nil
 
+	// setup for test
+	tempDir, err := ioutil.TempDir("", "cpo-test")
+	if err != nil {
+		t.Fatalf("Failed to set up temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+	volumePath := filepath.Join(tempDir, FakeTargetPath)
+	err = os.MkdirAll(volumePath, 0750)
+	if err != nil {
+		t.Fatalf("Failed to set up volumepath: %v", err)
+	}
+
 	// Fake request
 	fakeReq := &csi.NodeGetVolumeStatsRequest{
 		VolumeId:   FakeVolName,
-		VolumePath: FakeDevicePath,
+		VolumePath: volumePath,
 	}
 
-	mmock.On("PathExists", FakeDevicePath).Return(true, nil)
-	mmock.On("GetDeviceStats", FakeDevicePath).Return(FakeFsStats, nil)
+	mmock.On("GetDeviceStats", volumePath).Return(FakeFsStats, nil)
 	expectedFsRes := &csi.NodeGetVolumeStatsResponse{
 		Usage: []*csi.VolumeUsage{
 			{Total: FakeFsStats.TotalBytes, Available: FakeFsStats.AvailableBytes, Used: FakeFsStats.UsedBytes, Unit: csi.VolumeUsage_BYTES},

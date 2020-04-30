@@ -24,13 +24,13 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
-
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog"
 	"k8s.io/utils/exec"
 	"k8s.io/utils/mount"
+
+	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
 )
 
 const (
@@ -43,16 +43,14 @@ const (
 )
 
 type IMount interface {
-	GetBaseMounter() *mount.SafeFormatAndMount
+	Mounter() *mount.SafeFormatAndMount
 	ScanForAttach(devicePath string) error
 	GetDevicePath(volumeID string) (string, error)
 	IsLikelyNotMountPointAttach(targetpath string) (bool, error)
-	IsLikelyNotMountPointDetach(targetpath string) (bool, error)
 	UnmountPath(mountPath string) error
 	GetInstanceID() (string, error)
 	MakeFile(pathname string) error
 	MakeDir(pathname string) error
-	PathExists(path string) (bool, error)
 	GetDeviceStats(path string) (*DeviceStats, error)
 }
 
@@ -67,75 +65,34 @@ type DeviceStats struct {
 	UsedInodes      int64
 }
 
-func (m *Mount) PathExists(volumePath string) (bool, error) {
-	_, err := os.Stat(volumePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to stat target, err: %s", err)
-	}
-
-	return true, nil
-}
-
-func (m *Mount) GetDeviceStats(path string) (*DeviceStats, error) {
-	isBlock, err := blockdevice.IsBlockDevice(path)
-
-	if isBlock {
-		size, err := blockdevice.GetBlockDeviceSize(path)
-		if err != nil {
-			return nil, err
-		}
-
-		return &DeviceStats{
-			Block:      true,
-			TotalBytes: size,
-		}, nil
-	}
-
-	var statfs unix.Statfs_t
-	// See http://man7.org/linux/man-pages/man2/statfs.2.html for details.
-	err = unix.Statfs(path, &statfs)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DeviceStats{
-		Block: false,
-
-		AvailableBytes: int64(statfs.Bavail) * int64(statfs.Bsize),
-		TotalBytes:     int64(statfs.Blocks) * int64(statfs.Bsize),
-		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * int64(statfs.Bsize),
-
-		AvailableInodes: int64(statfs.Ffree),
-		TotalInodes:     int64(statfs.Files),
-		UsedInodes:      int64(statfs.Files) - int64(statfs.Ffree),
-	}, nil
-}
-
 type Mount struct {
+	BaseMounter *mount.SafeFormatAndMount
 }
+
+var _ IMount = &Mount{}
 
 var MInstance IMount = nil
 
-func GetMountProvider() (IMount, error) {
-
-	if MInstance == nil {
-		MInstance = &Mount{}
-	}
-	return MInstance, nil
-}
-
-// GetBaseMounter returns instance of SafeFormatAndMount
-func (m *Mount) GetBaseMounter() *mount.SafeFormatAndMount {
+func getBaseMounter() *mount.SafeFormatAndMount {
 	nMounter := mount.New("")
 	nExec := exec.New()
 	return &mount.SafeFormatAndMount{
 		Interface: nMounter,
 		Exec:      nExec,
 	}
+}
 
+//GetMountProvider returns instance of Mounter
+func GetMountProvider() (IMount, error) {
+	if MInstance == nil {
+		MInstance = &Mount{BaseMounter: getBaseMounter()}
+	}
+	return MInstance, nil
+}
+
+// Mounter returns instance of SafeFormatAndMount
+func (m *Mount) Mounter() *mount.SafeFormatAndMount {
+	return m.BaseMounter
 }
 
 // probeVolume probes volume in compute
@@ -250,7 +207,7 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 
 // IsLikelyNotMountPointAttach
 func (m *Mount) IsLikelyNotMountPointAttach(targetpath string) (bool, error) {
-	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetpath)
+	notMnt, err := m.BaseMounter.IsLikelyNotMountPoint(targetpath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(targetpath, 0750)
@@ -262,21 +219,9 @@ func (m *Mount) IsLikelyNotMountPointAttach(targetpath string) (bool, error) {
 	return notMnt, err
 }
 
-// IsLikelyNotMountPointDetach
-func (m *Mount) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
-	notMnt, err := mount.New("").IsLikelyNotMountPoint(targetpath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return notMnt, fmt.Errorf("targetpath not found")
-		}
-		return notMnt, err
-	}
-	return notMnt, nil
-}
-
 // UnmountPath
 func (m *Mount) UnmountPath(mountPath string) error {
-	return mount.CleanupMountPoint(mountPath, mount.New(""), false /* extensiveMountPointCheck */)
+	return mount.CleanupMountPoint(mountPath, m.BaseMounter, false /* extensiveMountPointCheck */)
 }
 
 // GetInstanceID from file
@@ -317,6 +262,37 @@ func (m *Mount) MakeFile(pathname string) error {
 	return nil
 }
 
-func IsCorruptedMnt(err error) bool {
-	return mount.IsCorruptedMnt(err)
+func (m *Mount) GetDeviceStats(path string) (*DeviceStats, error) {
+	isBlock, err := blockdevice.IsBlockDevice(path)
+
+	if isBlock {
+		size, err := blockdevice.GetBlockDeviceSize(path)
+		if err != nil {
+			return nil, err
+		}
+
+		return &DeviceStats{
+			Block:      true,
+			TotalBytes: size,
+		}, nil
+	}
+
+	var statfs unix.Statfs_t
+	// See http://man7.org/linux/man-pages/man2/statfs.2.html for details.
+	err = unix.Statfs(path, &statfs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeviceStats{
+		Block: false,
+
+		AvailableBytes: int64(statfs.Bavail) * int64(statfs.Bsize),
+		TotalBytes:     int64(statfs.Blocks) * int64(statfs.Bsize),
+		UsedBytes:      (int64(statfs.Blocks) - int64(statfs.Bfree)) * int64(statfs.Bsize),
+
+		AvailableInodes: int64(statfs.Ffree),
+		TotalInodes:     int64(statfs.Files),
+		UsedInodes:      int64(statfs.Files) - int64(statfs.Ffree),
+	}, nil
 }
