@@ -49,15 +49,16 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 
-	v1service "k8s.io/cloud-provider-openstack/pkg/api/v1/service"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	netsets "k8s.io/cloud-provider-openstack/pkg/util/net/sets"
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
 // this timeout is used for waiting until the Loadbalancer provisioning status goes to ACTIVE state.
 const (
+	defaultLoadBalancerSourceRanges = "0.0.0.0/0"
 	// loadbalancerActive* is configuration of exponential backoff for
 	// going into ACTIVE loadbalancer provisioning status. Starting with 1
 	// seconds, multiplying by 1.2 with each step and taking 19 steps at maximum
@@ -902,14 +903,14 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 	}
 
 	var listenerAllowedCIDRs []string
-	sourceRanges, err := v1service.GetLoadBalancerSourceRanges(apiService)
+	sourceRanges, err := GetLoadBalancerSourceRanges(apiService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
 	if lbaas.opts.UseOctavia && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
 		klog.V(4).Info("loadBalancerSourceRanges is suppported")
 		listenerAllowedCIDRs = sourceRanges.StringSlice()
-	} else if !v1service.IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
+	} else if !IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
 		return nil, fmt.Errorf("source range restrictions are not supported for openstack load balancers without managing security groups")
 	}
 
@@ -1391,7 +1392,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 	}
 
 	// get service source ranges
-	sourceRanges, err := v1service.GetLoadBalancerSourceRanges(apiService)
+	sourceRanges, err := GetLoadBalancerSourceRanges(apiService)
 	if err != nil {
 		return fmt.Errorf("failed to get source ranges for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 	}
@@ -2018,4 +2019,43 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *co
 	}
 
 	return nil
+}
+
+// IsAllowAll checks whether the netsets.IPNet allows traffic from 0.0.0.0/0
+func IsAllowAll(ipnets netsets.IPNet) bool {
+	for _, s := range ipnets.StringSlice() {
+		if s == "0.0.0.0/0" {
+			return true
+		}
+	}
+	return false
+}
+
+// GetLoadBalancerSourceRanges first try to parse and verify LoadBalancerSourceRanges field from a service.
+// If the field is not specified, turn to parse and verify the AnnotationLoadBalancerSourceRangesKey annotation from a service,
+// extracting the source ranges to allow, and if not present returns a default (allow-all) value.
+func GetLoadBalancerSourceRanges(service *corev1.Service) (netsets.IPNet, error) {
+	var ipnets netsets.IPNet
+	var err error
+	// if SourceRange field is specified, ignore sourceRange annotation
+	if len(service.Spec.LoadBalancerSourceRanges) > 0 {
+		specs := service.Spec.LoadBalancerSourceRanges
+		ipnets, err = netsets.ParseIPNets(specs...)
+
+		if err != nil {
+			return nil, fmt.Errorf("service.Spec.LoadBalancerSourceRanges: %v is not valid. Expecting a list of IP ranges. For example, 10.0.0.0/24. Error msg: %v", specs, err)
+		}
+	} else {
+		val := service.Annotations[corev1.AnnotationLoadBalancerSourceRangesKey]
+		val = strings.TrimSpace(val)
+		if val == "" {
+			val = defaultLoadBalancerSourceRanges
+		}
+		specs := strings.Split(val, ",")
+		ipnets, err = netsets.ParseIPNets(specs...)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %s is not valid. Expecting a comma-separated list of source IP ranges. For example, 10.0.0.0/24,192.168.2.0/24", corev1.AnnotationLoadBalancerSourceRangesKey, val)
+		}
+	}
+	return ipnets, nil
 }
