@@ -247,3 +247,39 @@ func instanceIDFromProviderID(providerID string) (instanceID string, err error) 
 	}
 	return matches[1], nil
 }
+
+// AddToNodeAddresses appends the NodeAddresses to the passed-by-pointer slice,
+// only if they do not already exist
+func AddToNodeAddresses(addresses *[]v1.NodeAddress, addAddresses ...v1.NodeAddress) {
+	for _, add := range addAddresses {
+		exists := false
+		for _, existing := range *addresses {
+			if existing.Address == add.Address && existing.Type == add.Type {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			*addresses = append(*addresses, add)
+		}
+	}
+}
+
+// RemoveFromNodeAddresses removes the NodeAddresses from the passed-by-pointer
+// slice if they already exist.
+func RemoveFromNodeAddresses(addresses *[]v1.NodeAddress, removeAddresses ...v1.NodeAddress) {
+	var indexesToRemove []int
+	for _, remove := range removeAddresses {
+		for i := len(*addresses) - 1; i >= 0; i-- {
+			existing := (*addresses)[i]
+			if existing.Address == remove.Address && (existing.Type == remove.Type || remove.Type == "") {
+				indexesToRemove = append(indexesToRemove, i)
+			}
+		}
+	}
+	for _, i := range indexesToRemove {
+		if i < len(*addresses) {
+			*addresses = append((*addresses)[:i], (*addresses)[i+1:]...)
+		}
+	}
+}

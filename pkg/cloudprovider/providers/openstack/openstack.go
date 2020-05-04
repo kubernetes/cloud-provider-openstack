@@ -53,7 +53,6 @@ import (
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
-	v1helper "k8s.io/cloud-provider-openstack/pkg/apis/core/v1/helper"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog"
@@ -682,7 +681,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 			if iface.PortState == "ACTIVE" {
 				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
 				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-					v1helper.AddToNodeAddresses(&addrs,
+					AddToNodeAddresses(&addrs,
 						v1.NodeAddress{
 							Type:    v1.NodeInternalIP,
 							Address: fixedIP.IPAddress,
@@ -695,7 +694,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 
 	// process public IP addresses
 	if srv.AccessIPv4 != "" {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv4,
@@ -704,7 +703,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	}
 
 	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv6,
@@ -713,7 +712,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	}
 
 	if srv.Metadata[TypeHostName] != "" {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeHostName,
 				Address: srv.Metadata[TypeHostName],
@@ -742,20 +741,34 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	for _, network := range networks {
 		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || network == networkingOpts.PublicNetworkName {
+			if props.IPType == "floating" {
 				addressType = v1.NodeExternalIP
+			} else if network == networkingOpts.PublicNetworkName {
+				addressType = v1.NodeExternalIP
+				// removing already added address to avoid listing it as both ExternalIP and InternalIP
+				// may happen due to listing "private" network as "public" in CCM's config
+				RemoveFromNodeAddresses(&addrs,
+					v1.NodeAddress{
+						Address: props.Addr,
+					},
+				)
 			} else {
 				if networkingOpts.InternalNetworkName == "" || network == networkingOpts.InternalNetworkName {
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
+					RemoveFromNodeAddresses(&addrs,
+						v1.NodeAddress{
+							Address: props.Addr,
+						},
+					)
 					continue
 				}
 			}
 
 			isIPv6 := net.ParseIP(props.Addr).To4() == nil
 			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-				v1helper.AddToNodeAddresses(&addrs,
+				AddToNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Type:    addressType,
 						Address: props.Addr,
