@@ -108,7 +108,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			}
 		}
 		// Mount
-		err = m.GetBaseMounter().Mount(source, targetPath, fsType, mountOptions)
+		err = m.Mounter().Mount(source, targetPath, fsType, mountOptions)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -200,7 +200,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 			options = append(options, mountFlags...)
 		}
 		// Mount
-		err = m.GetBaseMounter().FormatAndMount(devicePath, targetPath, fsType, nil)
+		err = m.Mounter().FormatAndMount(devicePath, targetPath, fsType, nil)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -239,7 +239,7 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 		return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
 	}
 
-	if err := m.GetBaseMounter().Mount(source, targetPath, "", mountOptions); err != nil {
+	if err := m.Mounter().Mount(source, targetPath, "", mountOptions); err != nil {
 		if removeErr := os.Remove(targetPath); removeErr != nil {
 			return nil, status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, err)
 		}
@@ -255,10 +255,10 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 	if len(targetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume Target Path must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[NodeUnpublishVolume] Target Path must be provided")
 	}
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume volumeID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[NodeUnpublishVolume] volumeID must be provided")
 	}
 
 	ephemeralVolume := false
@@ -288,21 +288,9 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		}
 	}
 
-	m := ns.Mount
-	notMnt, err := m.IsLikelyNotMountPointDetach(targetPath)
-	if err != nil && !mount.IsCorruptedMnt(err) {
-		klog.V(4).Infof("NodeUnpublishVolume: unable to unmount volume: %v", err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	if notMnt && !mount.IsCorruptedMnt(err) {
-		// the volume is not mounted at all. There is no need for retrying to unmount.
-		klog.V(4).Infoln("NodeUnpublishVolume: skipping... not mounted any more")
-		return &csi.NodeUnpublishVolumeResponse{}, nil
-	}
-
-	err = m.UnmountPath(targetPath)
+	err = ns.Mount.UnmountPath(targetPath)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "Unmount of targetpath %s failed with error %v", targetPath, err)
 	}
 
 	if ephemeralVolume {
@@ -401,7 +389,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			options = append(options, mountFlags...)
 		}
 		// Mount
-		err = m.GetBaseMounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -432,22 +420,9 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
-	m := ns.Mount
-
-	notMnt, err := m.IsLikelyNotMountPointDetach(stagingTargetPath)
-	if err != nil && !mount.IsCorruptedMnt(err) {
-		klog.V(4).Infof("NodeUnstageVolume: unable to unmount volume: %v", err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	if notMnt && !mount.IsCorruptedMnt(err) {
-		// the volume is not mounted at all. There is no need for retrying to unmount.
-		klog.V(4).Infoln("NodeUnstageVolume: skipping... not mounted any more")
-		return &csi.NodeUnstageVolumeResponse{}, nil
-	}
-
-	err = m.UnmountPath(stagingTargetPath)
+	err = ns.Mount.UnmountPath(stagingTargetPath)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "Unmount of targetPath %s failed with error %v", stagingTargetPath, err)
 	}
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
@@ -496,14 +471,13 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 		return nil, status.Error(codes.InvalidArgument, "Volume path not provided")
 	}
 
-	exists, err := ns.Mount.PathExists(volumePath)
+	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, req.VolumePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to check whether volumePath exists: %s", err)
 	}
 	if !exists {
 		return nil, status.Errorf(codes.NotFound, "target: %s not found", volumePath)
 	}
-
 	stats, err := ns.Mount.GetDeviceStats(volumePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get stats by path: %s", err)
@@ -538,7 +512,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	volumePath := req.GetVolumePath()
 
 	args := []string{"-o", "source", "--noheadings", "--target", volumePath}
-	output, err := ns.Mount.GetBaseMounter().Exec.Command("findmnt", args...).CombinedOutput()
+	output, err := ns.Mount.Mounter().Exec.Command("findmnt", args...).CombinedOutput()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not determine device path: %v", err)
 
@@ -557,7 +531,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 		}
 	}
 
-	r := resizefs.NewResizeFs(ns.Mount.GetBaseMounter())
+	r := resizefs.NewResizeFs(ns.Mount.Mounter())
 	if _, err := r.Resize(devicePath, volumePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 	}

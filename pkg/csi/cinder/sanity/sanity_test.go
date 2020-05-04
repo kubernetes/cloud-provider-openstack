@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/kubernetes-csi/csi-test/pkg/sanity"
+	"github.com/kubernetes-csi/csi-test/v3/pkg/sanity"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
@@ -28,7 +28,8 @@ func TestDriver(t *testing.T) {
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
 	fakecloudprovider := getfakecloud()
 	openstack.OsInstance = fakecloudprovider
-	fakemnt := &fakemount{}
+
+	fakemnt := GetFakeMountProvider()
 	fakemet := &fakemetadata{}
 
 	d.SetupDriver(fakecloudprovider, fakemnt, fakemet)
@@ -37,11 +38,7 @@ func TestDriver(t *testing.T) {
 
 	go d.Run()
 
-	config := &sanity.Config{
-		TargetPath:  path.Join(basePath, "mnt"),
-		StagingPath: path.Join(basePath, "mnt-stage"),
-		Address:     endpoint,
-	}
-
+	config := sanity.NewTestConfig()
+	config.Address = endpoint
 	sanity.Test(t, config)
 }

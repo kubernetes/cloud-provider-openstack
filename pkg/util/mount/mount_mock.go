@@ -29,12 +29,6 @@ type MountMock struct {
 	mock.Mock
 }
 
-func (_m *MountMock) PathExists(volumePath string) (bool, error) {
-	ret := _m.Called(volumePath)
-
-	return ret.Bool(0), ret.Error(1)
-}
-
 func (_m *MountMock) GetDeviceStats(path string) (*DeviceStats, error) {
 	ret := _m.Called(path)
 
@@ -79,27 +73,6 @@ func (_m *MountMock) GetInstanceID() (string, error) {
 
 // IsLikelyNotMountPointAttach provides a mock function with given fields: targetpath
 func (_m *MountMock) IsLikelyNotMountPointAttach(targetpath string) (bool, error) {
-	ret := _m.Called(targetpath)
-
-	var r0 bool
-	if rf, ok := ret.Get(0).(func(string) bool); ok {
-		r0 = rf(targetpath)
-	} else {
-		r0 = ret.Get(0).(bool)
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(string) error); ok {
-		r1 = rf(targetpath)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// IsLikelyNotMountPointDetach provides a mock function with given fields: targetpath
-func (_m *MountMock) IsLikelyNotMountPointDetach(targetpath string) (bool, error) {
 	ret := _m.Called(targetpath)
 
 	var r0 bool
@@ -169,7 +142,7 @@ func (_m *MountMock) UnmountPath(mountPath string) error {
 }
 
 // GetBaseMounter provides a mock function
-func (_m *MountMock) GetBaseMounter() *mount.SafeFormatAndMount {
+func (_m *MountMock) Mounter() *mount.SafeFormatAndMount {
 	scripts := []struct {
 		cmd    string
 		output []byte
