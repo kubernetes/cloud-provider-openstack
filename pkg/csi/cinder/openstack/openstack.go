@@ -53,9 +53,8 @@ type IOpenStack interface {
 	GetVolume(volumeID string) (*volumes.Volume, error)
 	GetVolumesByName(name string) ([]volumes.Volume, error)
 	CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error)
-	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
+	ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error)
 	DeleteSnapshot(snapID string) error
-	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)
 	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
 	WaitSnapshotReady(snapshotID string) error
 	GetInstanceByID(instanceID string) (*servers.Server, error)
