@@ -128,14 +128,14 @@ func GetFromConfigDrive(metadataVersion string) (*Metadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error in GetMountProvider %v", err)
 	}
-	err = mounter.GetBaseMounter().Mount(dev, mntdir, "iso9660", []string{"ro"})
+	err = mounter.Mounter().Mount(dev, mntdir, "iso9660", []string{"ro"})
 	if err != nil {
-		err = mounter.GetBaseMounter().Mount(dev, mntdir, "vfat", []string{"ro"})
+		err = mounter.Mounter().Mount(dev, mntdir, "vfat", []string{"ro"})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error mounting configdrive %s: %v", dev, err)
 	}
-	defer mounter.GetBaseMounter().Unmount(mntdir)
+	defer mounter.Mounter().Unmount(mntdir)
 
 	klog.V(4).Infof("Configdrive mounted on %s", mntdir)
 
