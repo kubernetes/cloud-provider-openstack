@@ -475,15 +475,15 @@ func (lbaas *LbaasV2) createLoadBalancer(service *corev1.Service, name, clusterN
 	}
 
 	loadbalancer, err := loadbalancers.Create(lbaas.lb, createOpts).Extract()
+	if err != nil {
+		return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
+	}
 
 	// when NetworkID is specified, subnet will be selected by the backend for allocating virtual IP
 	if (lbClass != nil && lbClass.NetworkID != "") || lbaas.opts.NetworkID != "" {
 		lbaas.opts.SubnetID = loadbalancer.VipSubnetID
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
-	}
 	return loadbalancer, nil
 }
 
