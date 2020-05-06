@@ -359,7 +359,8 @@ func TestListVolumes(t *testing.T) {
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
 
-	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{"tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
 	// Init assert
@@ -413,14 +414,10 @@ func TestDeleteSnapshot(t *testing.T) {
 
 func TestListSnapshots(t *testing.T) {
 
-	osmock.On("ListSnapshots", 0, 0, map[string]string{}).Return(FakeSnapshotsRes, nil)
-
-	// Init assert
+	osmock.On("ListSnapshots", map[string]string{"Limit": "1", "Marker": FakeVolID, "Status": "available"}).Return(FakeSnapshotsRes, "", nil)
 	assert := assert.New(t)
 
-	fakeReq := &csi.ListSnapshotsRequest{}
-
-	// Invoke ListVolumes
+	fakeReq := &csi.ListSnapshotsRequest{MaxEntries: 1, StartingToken: FakeVolID}
 	actualRes, err := fakeCs.ListSnapshots(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to ListSnapshots: %v", err)
@@ -428,7 +425,6 @@ func TestListSnapshots(t *testing.T) {
 
 	// Assert
 	assert.Equal(FakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
-
 	assert.NotNil(FakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
 }
 
