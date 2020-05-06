@@ -85,6 +85,26 @@
               - go.mod$
               - go.sum$
               - Makefile$
+            irrelevant-files:
+              - docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+    cloud-provider-openstack-sanity-test-csi-cinder:
+      jobs:
+        - cloud-provider-openstack-sanity-test-csi-cinder:
+            files:
+              - cmd/cinder-csi-plugin/.*
+              - pkg/csi/cinder/.*
+              - pkg/util/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
+            irrelevant-files:
+              - docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-multinode-csi-migration-test:
       jobs:
         - cloud-provider-openstack-multinode-csi-migration-test:

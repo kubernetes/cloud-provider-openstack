@@ -3,6 +3,7 @@ package sanity
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -169,14 +170,43 @@ func (cloud *cloud) CreateSnapshot(name, volID string, tags *map[string]string) 
 	return snap, nil
 }
 
-func (cloud *cloud) ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
+func (cloud *cloud) ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error) {
 	var snaplist []snapshots.Snapshot
+	startingToken := filters["Marker"]
+	limitfilter := filters["Limit"]
+	limit, _ := strconv.Atoi(limitfilter)
+	name := filters["Name"]
+	volumeID := filters["VolumeID"]
 
 	for _, value := range cloud.snapshots {
-		snaplist = append(snaplist, *value)
+		if volumeID != "" {
+			if value.VolumeID == volumeID {
+				snaplist = append(snaplist, *value)
+				break
+			}
+		} else if name != "" {
+			if value.Name == name {
+				snaplist = append(snaplist, *value)
+				break
+			}
+		} else {
+			snaplist = append(snaplist, *value)
+		}
 	}
-	return snaplist, nil
 
+	if startingToken != "" {
+		t, _ := strconv.Atoi(startingToken)
+		snaplist = snaplist[t:]
+	}
+
+	retToken := ""
+
+	if limit != 0 {
+		snaplist = snaplist[:limit]
+		retToken = limitfilter
+	}
+
+	return snaplist, retToken, nil
 }
 
 func (cloud *cloud) DeleteSnapshot(snapID string) error {
@@ -184,21 +214,6 @@ func (cloud *cloud) DeleteSnapshot(snapID string) error {
 	delete(cloud.snapshots, snapID)
 
 	return nil
-
-}
-
-func (cloud *cloud) GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error) {
-
-	var vlist []snapshots.Snapshot
-
-	for _, v := range cloud.snapshots {
-		if v.Name == n {
-			vlist = append(vlist, *v)
-
-		}
-	}
-
-	return vlist, nil
 
 }
 

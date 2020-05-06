@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes"
@@ -303,7 +304,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	name := req.Name
-	volumeId := req.SourceVolumeId
+	volumeId := req.GetSourceVolumeId()
 
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
@@ -314,7 +315,9 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Verify a snapshot with the provided name doesn't already exist for this tenant
-	snapshots, err := cs.Cloud.GetSnapshotByNameAndVolumeID(name, volumeId)
+	filters := map[string]string{}
+	filters["Name"] = name
+	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 	}
@@ -368,7 +371,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 
-	id := req.SnapshotId
+	id := req.GetSnapshotId()
 
 	if id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot ID must be provided in DeleteSnapshot request")
@@ -389,11 +392,15 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 
 func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 
-	if len(req.GetSnapshotId()) != 0 {
-		snap, err := cs.Cloud.GetSnapshotByID(req.SnapshotId)
+	snapshotID := req.GetSnapshotId()
+	if len(snapshotID) != 0 {
+		snap, err := cs.Cloud.GetSnapshotByID(snapshotID)
 		if err != nil {
-			klog.V(3).Infof("Failed to Get snapshot: %v", err)
-			return &csi.ListSnapshotsResponse{}, nil
+			if cpoerrors.IsNotFound(err) {
+				klog.V(3).Infof("Snapshot %s not found", snapshotID)
+				return &csi.ListSnapshotsResponse{}, nil
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to GetSnapshot %s : %v", snapshotID, err)
 		}
 
 		ctime, err := ptypes.TimestampProto(snap.CreatedAt)
@@ -415,35 +422,35 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 
 	}
 
-	// FIXME: honor the limit, offset and filters later
 	filters := map[string]string{}
 
-	var vlist []snapshots.Snapshot
+	var slist []snapshots.Snapshot
 	var err error
+	var nextPageToken string
 
+	// Add the filters
 	if len(req.GetSourceVolumeId()) != 0 {
-		vlist, err = cs.Cloud.GetSnapshotByNameAndVolumeID("", req.GetSourceVolumeId())
-		if err != nil {
-			klog.V(3).Infof("Failed to ListSnapshots: %v", err)
-			return nil, status.Error(codes.Internal, fmt.Sprintf("ListSnapshots get snapshot failed with error %v", err))
-		}
+		filters["VolumeID"] = req.GetSourceVolumeId()
 	} else {
-		vlist, err = cs.Cloud.ListSnapshots(int(req.MaxEntries), 0, filters)
-		if err != nil {
-			klog.V(3).Infof("Failed to ListSnapshots: %v", err)
-			return nil, status.Error(codes.Internal, fmt.Sprintf("ListSnapshots get snapshot failed with error %v", err))
-
-		}
-
+		filters["Limit"] = strconv.Itoa(int(req.MaxEntries))
+		filters["Marker"] = req.StartingToken
 	}
 
-	var ventries []*csi.ListSnapshotsResponse_Entry
-	for _, v := range vlist {
+	// Only retrieve snapshots that are available
+	filters["Status"] = "available"
+	slist, nextPageToken, err = cs.Cloud.ListSnapshots(filters)
+	if err != nil {
+		klog.V(3).Infof("Failed to ListSnapshots: %v", err)
+		return nil, status.Errorf(codes.Internal, "ListSnapshots failed with error %v", err)
+	}
+
+	var sentries []*csi.ListSnapshotsResponse_Entry
+	for _, v := range slist {
 		ctime, err := ptypes.TimestampProto(v.CreatedAt)
 		if err != nil {
 			klog.Errorf("Error to convert time to timestamp: %v", err)
 		}
-		ventry := csi.ListSnapshotsResponse_Entry{
+		sentry := csi.ListSnapshotsResponse_Entry{
 			Snapshot: &csi.Snapshot{
 				SizeBytes:      int64(v.Size * 1024 * 1024 * 1024),
 				SnapshotId:     v.ID,
@@ -452,10 +459,11 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 				ReadyToUse:     true,
 			},
 		}
-		ventries = append(ventries, &ventry)
+		sentries = append(sentries, &sentry)
 	}
 	return &csi.ListSnapshotsResponse{
-		Entries: ventries,
+		Entries:   sentries,
+		NextToken: nextPageToken,
 	}, nil
 
 }
