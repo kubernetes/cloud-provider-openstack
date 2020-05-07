@@ -39,11 +39,12 @@ func initCinderDriver(name string, manifests ...string) testsuites.TestDriver {
 				"xfs",
 			),
 			Capabilities: map[testsuites.Capability]bool{
-				testsuites.CapPersistence: true,
-				testsuites.CapFsGroup:     true,
-				testsuites.CapExec:        true,
-				testsuites.CapMultiPODs:   true,
-				testsuites.CapBlock:       true,
+				testsuites.CapPersistence:        true,
+				testsuites.CapFsGroup:            true,
+				testsuites.CapExec:               true,
+				testsuites.CapMultiPODs:          true,
+				testsuites.CapBlock:              true,
+				testsuites.CapSnapshotDataSource: true,
 			},
 		},
 		manifests: manifests,
@@ -65,6 +66,7 @@ var _ testsuites.TestDriver = &cinderDriver{}
 
 // var _ testsuites.PreprovisionedVolumeTestDriver = &cinderDriver{}
 // var _ testsuites.PreprovisionedPVTestDriver = &cinderDriver{}
+var _ testsuites.SnapshottableTestDriver = &cinderDriver{}
 var _ testsuites.DynamicPVTestDriver = &cinderDriver{}
 
 func (d *cinderDriver) GetDriverInfo() *testsuites.DriverInfo {
