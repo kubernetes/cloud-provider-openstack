@@ -30,7 +30,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 var (

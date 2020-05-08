@@ -25,7 +25,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/cloud-provider-openstack/pkg/version"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (

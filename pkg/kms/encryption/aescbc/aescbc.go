@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // Encrypt plain text

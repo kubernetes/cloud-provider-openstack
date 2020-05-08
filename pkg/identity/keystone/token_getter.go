@@ -27,7 +27,7 @@ import (
 	certutil "k8s.io/client-go/util/cert"
 	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"net/http"
 )
 
@@ -95,7 +95,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 		provider.HTTPClient.Transport = transport
 	}
 
-	if klog.V(6) {
+	if klog.V(6).Enabled() {
 		if provider.HTTPClient.Transport == nil {
 			provider.HTTPClient.Transport = http.DefaultTransport
 		}
