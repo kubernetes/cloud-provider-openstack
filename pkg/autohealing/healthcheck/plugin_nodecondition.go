@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	log "k8s.io/klog"
+	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/utils"
 )

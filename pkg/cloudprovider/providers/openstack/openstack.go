@@ -57,7 +57,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -255,7 +255,7 @@ func LogCfg(cfg Config) {
 type Logger struct{}
 
 func (l Logger) Printf(format string, args ...interface{}) {
-	debugger := klog.V(6)
+	debugger := klog.V(6).Enabled()
 
 	// extra check in case, when verbosity has been changed dynamically
 	if debugger {
@@ -524,7 +524,7 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 
 	provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 
-	if klog.V(6) {
+	if klog.V(6).Enabled() {
 		provider.HTTPClient.Transport = &client.RoundTripper{
 			Rt:     provider.HTTPClient.Transport,
 			Logger: &Logger{},
