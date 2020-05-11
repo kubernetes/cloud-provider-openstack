@@ -35,16 +35,23 @@ type volumeCreator interface {
 type blankVolume struct{}
 
 func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
-	klog.V(4).Infof("creating a new share (%s) in AZ %s", shareName, coalesceValue(shareOpts.AvailabilityZone))
+	if shareOpts.AvailabilityZone != "" {
+		klog.V(4).Infof("creating a new share (%s) in AZ %s", shareName, coalesceValue(shareOpts.AvailabilityZone))
+	} else {
+		klog.V(4).Infof("creating a new share (%s)", shareName)
+	}
 
 	createOpts := &shares.CreateOpts{
-		AvailabilityZone: shareOpts.AvailabilityZone,
-		ShareProto:       shareOpts.Protocol,
-		ShareType:        shareOpts.Type,
-		ShareNetworkID:   shareOpts.ShareNetworkID,
-		Name:             shareName,
-		Description:      shareDescription,
-		Size:             sizeInGiB,
+		ShareProto:     shareOpts.Protocol,
+		ShareType:      shareOpts.Type,
+		ShareNetworkID: shareOpts.ShareNetworkID,
+		Name:           shareName,
+		Description:    shareDescription,
+		Size:           sizeInGiB,
+	}
+
+	if shareOpts.AvailabilityZone != "" {
+		createOpts.AvailabilityZone = shareOpts.AvailabilityZone
 	}
 
 	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
@@ -78,7 +85,11 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 		return nil, status.Error(codes.InvalidArgument, "snapshot ID cannot be empty")
 	}
 
-	klog.V(4).Infof("restoring snapshot %s into a share (%s) in AZ %s", snapshotSource.GetSnapshotId(), shareName, coalesceValue(shareOpts.AvailabilityZone))
+	if shareOpts.AvailabilityZone != "" {
+		klog.V(4).Infof("restoring snapshot %s into a share (%s) in AZ %s", snapshotSource.GetSnapshotId(), shareName, coalesceValue(shareOpts.AvailabilityZone))
+	} else {
+		klog.V(4).Infof("restoring snapshot %s into a share (%s)", snapshotSource.GetSnapshotId(), shareName)
+	}
 
 	snapshot, err := manilaClient.GetSnapshotByID(snapshotSource.GetSnapshotId())
 	if err != nil {
@@ -98,14 +109,17 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 	}
 
 	createOpts := &shares.CreateOpts{
-		AvailabilityZone: shareOpts.AvailabilityZone,
-		SnapshotID:       snapshot.ID,
-		ShareProto:       shareOpts.Protocol,
-		ShareType:        shareOpts.Type,
-		ShareNetworkID:   shareOpts.ShareNetworkID,
-		Name:             shareName,
-		Description:      shareDescription,
-		Size:             sizeInGiB,
+		SnapshotID:     snapshot.ID,
+		ShareProto:     shareOpts.Protocol,
+		ShareType:      shareOpts.Type,
+		ShareNetworkID: shareOpts.ShareNetworkID,
+		Name:           shareName,
+		Description:    shareDescription,
+		Size:           sizeInGiB,
+	}
+
+	if shareOpts.AvailabilityZone != "" {
+		createOpts.AvailabilityZone = shareOpts.AvailabilityZone
 	}
 
 	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
