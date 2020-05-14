@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/startstop"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clusters"
+	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/nodegroups"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks"
 	uuid "github.com/pborman/uuid"
@@ -179,8 +180,8 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 	isWorkerNode := nodes[0].IsWorker
 
 	if isWorkerNode {
-		nodesToReplace := sets.NewString()
 		for _, n := range nodes {
+			nodesToReplace := sets.NewString()
 			machineID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
 			if machineID == nil {
 				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
@@ -193,21 +194,31 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 			}
 
 			nodesToReplace.Insert(serverID)
+			ng, err := provider.getNodeGroup(clusterName, n)
+			ngName := "default-worker"
+			ngNodeCount := &cluster.NodeCount
+			if err == nil {
+				ngName = ng.Name
+				ngNodeCount = &ng.NodeCount
+			}
+
+			opts := clusters.ResizeOpts{
+				NodeGroup:     ngName,
+				NodeCount:     ngNodeCount,
+				NodesToRemove: nodesToReplace.List(),
+			}
+
+			clusters.Resize(provider.Magnum, clusterName, opts)
+			// Wait 10 seconds to make sure Magnum has already got the request
+			// to avoid sending all of the resize API calls at the same time.
+			time.Sleep(10 * time.Second)
+			// TODO: Ignore the result value until https://github.com/gophercloud/gophercloud/pull/1649 is merged.
+			//if ret.Err != nil {
+			//	return fmt.Errorf("failed to resize cluster %s, error: %v", clusterName, ret.Err)
+			//}
+
+			log.Infof("Cluster %s resized", clusterName)
 		}
-
-		opts := clusters.ResizeOpts{
-			NodeGroup:     "node",
-			NodeCount:     &cluster.NodeCount,
-			NodesToRemove: nodesToReplace.List(),
-		}
-
-		clusters.Resize(provider.Magnum, clusterName, opts)
-		// TODO: Ignore the result value until https://github.com/gophercloud/gophercloud/pull/1649 is merged.
-		//if ret.Err != nil {
-		//	return fmt.Errorf("failed to resize cluster %s, error: %v", clusterName, ret.Err)
-		//}
-
-		log.Infof("Cluster %s resized", clusterName)
 	} else {
 		clusterStackName, err := provider.getStackName(cluster.StackID)
 		if err != nil {
@@ -260,6 +271,37 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 	}
 
 	return nil
+}
+
+func (provider OpenStackCloudProvider) getNodeGroup(clusterName string, node healthcheck.NodeInfo) (nodegroups.NodeGroup, error) {
+	var ng nodegroups.NodeGroup
+
+	ngPages, err := nodegroups.List(provider.Magnum, clusterName, nodegroups.ListOpts{}).AllPages()
+	if err == nil {
+		ngs, err := nodegroups.ExtractNodeGroups(ngPages)
+		if err != nil {
+			log.Warningf("Failed to get node group for cluster %s, error: %v", clusterName, err)
+			return ng, err
+		}
+		for _, ng := range ngs {
+			ngInfo, err := nodegroups.Get(provider.Magnum, clusterName, ng.UUID).Extract()
+			if err != nil {
+				log.Warningf("Failed to get node group for cluster %s, error: %v", clusterName, err)
+				return ng, err
+			}
+			log.Infof("Got node addresses %v, node group's node addresses %v ", node.KubeNode.Status.Addresses, ngInfo.NodeAddresses)
+			for _, na := range node.KubeNode.Status.Addresses {
+				for _, nodeAddress := range ngInfo.NodeAddresses {
+					if na.Address == nodeAddress {
+						log.Infof("Got matched node group %s", ngInfo.Name)
+						return *ngInfo, nil
+					}
+				}
+			}
+		}
+	}
+
+	return ng, fmt.Errorf("failed to find node group")
 }
 
 // Enabled decides if the repair should be triggered.
