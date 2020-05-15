@@ -29,7 +29,7 @@ spec:
                 command: ["/bin/sh", "-c", "rm -rf /registration/cinder.csi.openstack.org /registration/cinder.csi.openstack.org-reg.sock"]
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: passthrough://csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
               value: /var/lib/kubelet/plugins/cinder.csi.openstack.org/csi.sock
             - name: KUBE_NODE_NAME
