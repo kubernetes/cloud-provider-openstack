@@ -150,16 +150,16 @@ test: unit functional
 check: work fmt vet lint import-boss
 
 unit: work
-	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}' | sed -e '/test/ {N; d;}') $(TESTARGS)
+	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
 
 test-cinder-csi-sanity: work
-	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/cinder/sanity/
+	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/cinder
 
 test-manila-csi-sanity: work
-	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/manila/sanity/
+	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
 
 fmt:
 	hack/verify-gofmt.sh

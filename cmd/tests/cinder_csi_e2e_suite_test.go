@@ -12,7 +12,7 @@ import (
 	"github.com/onsi/ginkgo/config"
 	"github.com/onsi/ginkgo/reporters"
 	"github.com/onsi/gomega"
-	_ "k8s.io/cloud-provider-openstack/test"
+	_ "k8s.io/cloud-provider-openstack/tests/e2e/csi/cinder"
 	"k8s.io/kubernetes/test/e2e/framework"
 	frameworkconfig "k8s.io/kubernetes/test/e2e/framework/config"
 )
