@@ -26,11 +26,13 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/startstop"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clusters"
 	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/nodegroups"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks"
+	"github.com/gophercloud/gophercloud/pagination"
 	uuid "github.com/pborman/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -182,6 +184,41 @@ func (provider OpenStackCloudProvider) waitForClusterComplete(clusterID string, 
 	return err
 }
 
+func (provider OpenStackCloudProvider) waitForServerDetachVolumes(serverID string, timeout time.Duration) error {
+	err := volumeattach.List(provider.Nova, serverID).EachPage(func(page pagination.Page) (bool, error) {
+		attachments, err := volumeattach.ExtractVolumeAttachments(page)
+		if err != nil {
+			return false, err
+		}
+		for _, attachment := range attachments {
+			log.Infof("detaching volume %s for instance %s", attachment.VolumeID, serverID)
+			err := volumeattach.Delete(provider.Nova, serverID, attachment.ID).ExtractErr()
+			if err != nil {
+				return false, fmt.Errorf("failed to detach volume %s from instance %s", attachment.VolumeID, serverID)
+			}
+		}
+		return true, err
+	})
+	if err != nil {
+		return err
+	}
+	err = wait.Poll(3*time.Second, timeout,
+		func() (bool, error) {
+			server, err := servers.Get(provider.Nova, serverID).Extract()
+			if err != nil {
+				return false, err
+			}
+
+			if len(server.AttachedVolumes) == 0 {
+				return true, nil
+			}
+
+			return false, nil
+		})
+
+	return err
+}
+
 // For master nodes: Soft deletes the VMs, marks the heat resource "unhealthy" then trigger Heat stack update in order to rebuild
 // the VMs. The information this function needs:
 //     - Nova VM IDs
@@ -222,6 +259,10 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 				continue
 			}
 			serverID := machineID.String()
+
+			if err := provider.waitForServerDetachVolumes(serverID, 30*time.Second); err != nil {
+				log.Warningf("Failed to detach volumes from server %s, error: %v", serverID, err)
+			}
 
 			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
 				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
