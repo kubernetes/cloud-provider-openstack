@@ -65,6 +65,11 @@ const (
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
 )
 
+var (
+	masterUnhealthyNodes []healthcheck.NodeInfo
+	workerUnhealthyNodes []healthcheck.NodeInfo
+)
+
 // Event holds the context of an event
 type Event struct {
 	Type EventType
@@ -340,6 +345,8 @@ func (c *Controller) startMasterMonitor(wg *sync.WaitGroup) {
 		return
 	}
 
+	masterUnhealthyNodes = append(masterUnhealthyNodes, unhealthyNodes...)
+
 	c.repairNodes(unhealthyNodes)
 
 	if len(unhealthyNodes) == 0 {
@@ -362,6 +369,8 @@ func (c *Controller) startWorkerMonitor(wg *sync.WaitGroup) {
 		return
 	}
 
+	workerUnhealthyNodes = append(workerUnhealthyNodes, unhealthyNodes...)
+
 	c.repairNodes(unhealthyNodes)
 
 	if len(unhealthyNodes) == 0 {
@@ -380,6 +389,8 @@ func (c *Controller) Start(ctx context.Context) {
 
 	var wg sync.WaitGroup
 	for {
+		masterUnhealthyNodes = []healthcheck.NodeInfo{}
+		workerUnhealthyNodes = []healthcheck.NodeInfo{}
 		select {
 		case <-ticker.C:
 			if c.config.MasterMonitorEnabled {
@@ -392,6 +403,7 @@ func (c *Controller) Start(ctx context.Context) {
 			}
 
 			wg.Wait()
+			c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
 		}
 	}
 }
