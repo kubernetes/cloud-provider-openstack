@@ -73,6 +73,11 @@ func (check *NodeConditionCheck) Check(node NodeInfo, controller NodeController)
 	return true
 }
 
+// GetName returns name of the health check
+func (check *NodeConditionCheck) GetName() string {
+	return "NodeConditionCheck"
+}
+
 // IsMasterSupported checks if the health check plugin supports master node.
 func (check *NodeConditionCheck) IsMasterSupported() bool {
 	return true

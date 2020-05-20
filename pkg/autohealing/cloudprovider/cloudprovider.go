@@ -33,6 +33,9 @@ type CloudProvider interface {
 	// GetName returns the cloud provider name.
 	GetName() string
 
+	// Update cluster health status.
+	UpdateHealthStatus([]healthcheck.NodeInfo, []healthcheck.NodeInfo) error
+
 	// Repair triggers the node repair process in the cloud.
 	Repair([]healthcheck.NodeInfo) error
 
