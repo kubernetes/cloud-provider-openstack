@@ -13,7 +13,7 @@
 ARG DEBIAN_ARCH=amd64
 # We not using scratch because we need to keep the basic image information
 # from parent image
-FROM k8s.gcr.io/debian-base-${DEBIAN_ARCH}:1.0.0
+FROM us.gcr.io/k8s-artifacts-prod/build-image/debian-base-${DEBIAN_ARCH}:v2.1.0
 
 ARG ARCH=amd64
 
