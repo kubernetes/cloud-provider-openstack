@@ -5,7 +5,7 @@ metadata:
 spec:
   storageClassName: csi-sc-cinderplugin
   dataSource:
-    name: new-snapshot-demo 
+    name: new-snapshot-demo
     kind: VolumeSnapshot
     apiGroup: snapshot.storage.k8s.io
   accessModes:

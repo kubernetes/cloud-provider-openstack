@@ -1,6 +1,6 @@
 # Release Procedure
 
-Cloud Provider OpenStack Release is done in sync with kubernetes/kubernetes, Minor versions can be released intermittently for critical bug fixes. 
+Cloud Provider OpenStack Release is done in sync with kubernetes/kubernetes, Minor versions can be released intermittently for critical bug fixes.
 
 ## Before Release
 
@@ -8,7 +8,7 @@ Update cloud-provider-openstack to kubernetes/kubernetes latest release. Make Su
 
 ## Making a Release
 
-1. Checkout the release branch 
+1. Checkout the release branch
 
 ```
 $ git fetch upstream

@@ -1,10 +1,10 @@
-apiVersion: v1 
-kind: Pod 
-metadata: 
+apiVersion: v1
+kind: Pod
+metadata:
  name: barbican-kms
-spec: 
-  containers: 
-    - name: barbican-kms 
+spec:
+  containers:
+    - name: barbican-kms
       image: docker.io/k8scloudprovider/barbican-kms-plugin:latest
       args:
         - "--socketpath=/kms/kms.sock"

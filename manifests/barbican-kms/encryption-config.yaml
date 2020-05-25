@@ -5,7 +5,7 @@ resources:
     - secrets
     providers:
     - kms:
-        name : barbican
+        name: barbican
         endpoint: unix:///var/lib/kms/kms.sock
         cachesize: 20
     - identity: {}
