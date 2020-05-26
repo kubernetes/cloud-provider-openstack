@@ -21,7 +21,7 @@ For more information about cloud-controller-manager, please see:
 - <https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager>
 - <https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/>
 
-**NOTE: Now, the openstack-cloud-controller-manager implementation is based on OpenStack Octavia, Neutron-LBaaS has been deprecated in OpenStack since Queens release and no longer maintained in openstack-cloud-controller-manager. So make sure to use Octavia if upgrade to the latest openstack-cloud-controller-manager docker image.** 
+**NOTE: Now, the openstack-cloud-controller-manager implementation is based on OpenStack Octavia, Neutron-LBaaS has been deprecated in OpenStack since Queens release and no longer maintained in openstack-cloud-controller-manager. So make sure to use Octavia if upgrade to the latest openstack-cloud-controller-manager docker image.**
 
 ## Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm
 
@@ -98,7 +98,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `domain-name`
   Keystone user domain name, not required if `domain-id` is set.
 * `tenant-id`
-  Keystone project ID. When using Keystone V3 - which changed the identifier `tenant` to `project` - the `tenant-id` value is automatically mapped to the project construct in the API. 
+  Keystone project ID. When using Keystone V3 - which changed the identifier `tenant` to `project` - the `tenant-id` value is automatically mapped to the project construct in the API.
 
   `tenant-id` is not needed when using `trust-id` or [Keystone application credential](https://docs.openstack.org/keystone/latest/user/application_credentials.html)
 * `tenant-name`
@@ -107,7 +107,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   Keystone project domain ID.
 * `tenant-domain-name`
   Keystone project domain name.
-* `user-domain-id`: 
+* `user-domain-id`
   Keystone user domain ID.
 * `user-domain-name`
   Keystone user domain name.
@@ -183,7 +183,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   * `metadataService` - Only retrieve instance metadata from the metadata service.
   * `metadataService,configDrive` - Retrieve instance metadata from the metadata service first if available, then the configuration drive.
 
-  Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both. Especially, the metadata on the config drive may grow stale over time, whereas the metadata service always provides the most up to date data. 
+  Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both. Especially, the metadata on the config drive may grow stale over time, whereas the metadata service always provides the most up to date data.
 
 ## Exposing applications using services of LoadBalancer type
 

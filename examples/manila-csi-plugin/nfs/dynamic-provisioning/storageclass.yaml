@@ -6,7 +6,7 @@ provisioner: nfs.manila.csi.openstack.org
 parameters:
   # Manila share type
   type: default
-  
+
   csi.storage.k8s.io/provisioner-secret-name: csi-manila-secrets
   csi.storage.k8s.io/provisioner-secret-namespace: default
   csi.storage.k8s.io/node-stage-secret-name: csi-manila-secrets

@@ -32,7 +32,7 @@ Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag det
 
 ### Deploy
 
-You can either use the manifests under `manifests/cinder-csi-plugin` or the Helm chart `charts/cinder-csi-plugin`. 
+You can either use the manifests under `manifests/cinder-csi-plugin` or the Helm chart `charts/cinder-csi-plugin`.
 
 #### Using the Helm chart
 
@@ -85,7 +85,7 @@ csi-cinder-controllerplugin         4/4     Running   0          29h
 csi-cinder-nodeplugin               2/2     Running   0          46h
 ```
 
-you can get information about CSI Drivers running in a cluster, using **CSIDriver** object    
+you can get information about CSI Drivers running in a cluster, using **CSIDriver** object
 
 ```
 $ kubectl get csidrivers.storage.k8s.io
@@ -109,7 +109,7 @@ Spec:
   Pod Info On Mount:  false
 Events:               <none>
 ```
- 
+
 ### Example Nginx application usage
 
 After performing above steps, you can try to create StorageClass, PersistentVolumeClaim and pod to consume it.
@@ -117,7 +117,7 @@ Try following command by using [examples](https://github.com/kubernetes/cloud-pr
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
 
-You will get pvc which claims one volume from cinder 
+You will get pvc which claims one volume from cinder
 
 ```
 $ kubectl get pvc
@@ -214,7 +214,7 @@ Supported parameters for VolumeSnapshotClass:
 * `force-create`: Support creating snapshot for a volume in in-use status.
 
 For Snapshot Creation and Volume Restore, please follow below steps:
-* Create Storage Class, Snapshot Class and PVC    
+* Create Storage Class, Snapshot Class and PVC
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/example.yaml create
 storageclass.storage.k8s.io/csi-sc-cinderplugin created
@@ -223,19 +223,19 @@ persistentvolumeclaim/pvc-snapshot-demo created
 ```
 
 * Verify that pvc is bounded
-``` 
+```
 $ kubectl get pvc --all-namespaces
 NAMESPACE   NAME                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS          AGE
 default     pvc-snapshot-demo   Bound    pvc-4699fa78-4149-4772-b900-9536891fe200   1Gi        RWO 
-```   
-* Create Snapshot of the PVC    
+```
+* Create Snapshot of the PVC
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotcreate.yaml create
 volumesnapshot.snapshot.storage.k8s.io/new-snapshot-demo created
 ```
-* Verify that snapshot is created    
+* Verify that snapshot is created
 ```
-$ kubectl get volumesnapshot 
+$ kubectl get volumesnapshot
 NAME                AGE
 new-snapshot-demo   2m54s
 $ openstack snapshot list
@@ -244,13 +244,13 @@ $ openstack snapshot list
 +--------------------------------------+-----------------------------------------------+-------------+-----------+------+
 | 1b673af2-3a69-4cc6-8dd0-9ac62e29df9e | snapshot-332a8a7e-c5f2-4df9-b6a0-cf52e18e72b1 | None        | available |    1 |
 +--------------------------------------+-----------------------------------------------+-------------+-----------+------+
-```   
-* Restore volume from snapshot    
+```
+* Restore volume from snapshot
 ```
 $ kubectl -f examples/cinder-csi-plugin/snapshot/snapshotrestore.yaml create
 persistentvolumeclaim/snapshot-demo-restore created
 ```
-* Verify that volume from snapshot is created    
+* Verify that volume from snapshot is created
 ```
 $ kubectl get pvc
 NAME                    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS          AGE
@@ -263,7 +263,7 @@ $ openstack volume list
 +--------------------------------------+------------------------------------------+-----------+------+-------------------------------------------------+
 | 07522a3b-95db-4bfa-847c-ffa179d08c39 | pvc-400b1ca8-8786-435f-a6cc-f684afddbbea | available |    1 |                                                 |
 | bf8f9ae9-87b4-42bb-b74c-ba4645634be6 | pvc-4699fa78-4149-4772-b900-9536891fe200 | available |    1 |                                                 |
-``` 
+```
 ### Example: Raw Block Volume
 
 For consuming a cinder volume as a raw block device
@@ -351,20 +351,20 @@ Not all hypervizors have a `/sys/class/block/XXX/device/rescan` location, theref
 
 ### Inline Volumes
 
-This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. As of Kubernetes v1.16 this feature is beta so enabled by default. To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes. `podInfoOnMount` must be `true` to use this feature. 
+This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. As of Kubernetes v1.16 this feature is beta so enabled by default. To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes. `podInfoOnMount` must be `true` to use this feature.
 
 Example:
-1. Deploy CSI Driver, in default yamls both modes are enabled. 
+1. Deploy CSI Driver, in default yamls both modes are enabled.
 ```
 $ kubectl create -f manifests/cinder-csi-plugin/
 ```
 2. Create a pod with inline volume
 ```
-$ kubectl create -f examples/cinder-csi-plugin/inline/inline-example.yaml 
+$ kubectl create -f examples/cinder-csi-plugin/inline/inline-example.yaml
 ```
 3. Get the pod description, verify created volume in Volumes section.
 ```
-$ kubectl describe pod 
+$ kubectl describe pod
 
 Volumes:
   my-csi-volume:
