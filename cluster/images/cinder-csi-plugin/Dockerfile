@@ -24,7 +24,7 @@ LABEL name="cinder-csi-plugin" \
       description="Cinder CSI Plugin" \
       architecture=$ARCH \
       distribution-scope="public" \
-      summary="Cinder CSI Plugin" \
+      summary="Cinder CSI Plugin " \
       help="none"
 
 ADD rootfs.tar /
