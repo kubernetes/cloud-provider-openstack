@@ -90,6 +90,7 @@ const (
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
+	ServiceAnnotationLoadBalancerMemberSubnetID       = "loadbalancer.openstack.org/member-subnet-id"
 	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
 	ServiceAnnotationLoadBalancerTimeoutMemberConnect = "loadbalancer.openstack.org/timeout-member-connect"
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
@@ -1113,7 +1114,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 					Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, name)),
 					ProtocolPort: int(port.NodePort),
 					Address:      addr,
-					SubnetID:     lbaas.opts.SubnetID,
+					SubnetID:     getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerMemberSubnetID, lbaas.opts.SubnetID),
 				}).Extract()
 				if err != nil {
 					return nil, fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
@@ -1697,7 +1698,7 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 				Name:         cutString(fmt.Sprintf("member_%d_%s_%s_", portIndex, node.Name, loadbalancer.Name)),
 				Address:      addr,
 				ProtocolPort: int(port.NodePort),
-				SubnetID:     lbaas.opts.SubnetID,
+				SubnetID:     getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerMemberSubnetID, lbaas.opts.SubnetID),
 			}).Extract()
 			if err != nil {
 				return err
