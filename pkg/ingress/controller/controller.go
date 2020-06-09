@@ -100,8 +100,8 @@ const (
 	// IngressSecretKeyName is private key name defined in the secret data.
 	IngressSecretKeyName = "tls.key"
 
-	// BarbianSecretNameTemplate is the name format string to create Barbican secret.
-	BarbianSecretNameTemplate = "kube_ingress_%s_%s_%s_%s"
+	// BarbicanSecretNameTemplate is the name format string to create Barbican secret.
+	BarbicanSecretNameTemplate = "kube_ingress_%s_%s_%s_%s"
 )
 
 // EventType type of event associated with an informer
@@ -657,7 +657,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 	// Convert kubernetes secrets to barbican ones
 	var secretRefs []string
 	for _, tls := range ing.Spec.TLS {
-		secretName := fmt.Sprintf(BarbianSecretNameTemplate, clusterName, ingNamespace, ingName, tls.SecretName)
+		secretName := fmt.Sprintf(BarbicanSecretNameTemplate, clusterName, ingNamespace, ingName, tls.SecretName)
 		secretRef, err := c.toBarbicanSecret(tls.SecretName, ingNamespace, secretName)
 		if err != nil {
 			return fmt.Errorf("failed to create Barbican secret: %v", err)
