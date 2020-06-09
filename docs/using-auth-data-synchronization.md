@@ -36,11 +36,11 @@ The config options:
 
   To correctly create the *rolebindings*, the cluster admin should create the *clusterrole* (same with Keystone role name) first. For example, if the user *alice* has a role assignment *member* in Keystone, when *alice* accesses the cluster, before Kubernetes actually does authorization, the webhook should create a new *rolebinding* in the new namespace with the *clusterrole* name *member* and the user *alice*. As a result, the user *alice* should have some pre-defined resource permissions even it's the first time to access the cluster.
 
-* **projects-blacklist**
+* **projects-blocklist**
 
   Contains a list of Keystone project ids, that should be excluded from synchronization. Default: []
 
-* **projects-name-blacklist**
+* **projects-name-blocklist**
 
   Contains a list of Keystone project names, that should be excluded from synchronization. Default: []
 
