@@ -59,10 +59,10 @@ type syncConfig struct {
 	NamespaceFormat string `yaml:"namespace-format"`
 
 	// List of project ids to exclude from syncing.
-	ProjectBlackList []string `yaml:"projects-blacklist"`
+	ProjectBlockList []string `yaml:"projects-blacklist"`
 
 	// List of project names to exclude from syncing.
-	ProjectNameBlackList []string `yaml:"projects-name-blacklist"`
+	ProjectNameBlockList []string `yaml:"projects-name-blacklist"`
 
 	// List of role mappings that will apply to the user info after authentication.
 	RoleMaps []*roleMap `yaml:"role-mappings"`
