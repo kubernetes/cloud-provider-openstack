@@ -293,7 +293,7 @@ func init() {
 		}
 		cloud, err := NewOpenStack(cfg)
 		if err != nil {
-			klog.V(1).Infof("New openstack client created failed with config")
+			klog.Warningf("New openstack client created failed with config: %v", err)
 		}
 		return cloud, err
 	})
