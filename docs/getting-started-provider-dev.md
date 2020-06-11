@@ -56,55 +56,7 @@ development goals is to make this setup easier and more consistent.
 
 ### Docker
 
-Your cloud instance will need to have Docker installed. If you're ok with working from the latest
-release, it's simple enough to call the Get Docker script:
-
-```
-curl -sSL https://get.docker.io | bash
-```
-
-If you don't want to pipe a random script from the internet into your environment, you can
-install the latest version of Docker with this script.
-
-```
-sudo yum update -y
-sudo yum install -y -q epel-release yum-utils
-sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo yum-config-manager --enable docker-ce-edge
-sudo yum install -y -q docker-ce
-```
-
-However, the Kubernetes community still recommends that you run Docker v1.12. To install that version
-by hand you can use the following script.
-
-```
-sudo yum -y update
-sudo yum -y -q install yum-utils
-sudo yum-config-manager --add-repo https://yum.dockerproject.org/repo/main/centos/7
-sudo yum -y --nogpgcheck install docker-engine-1.12.6-1.el7.centos.x86_64
-```
-
-You'll want to set up Docker to use the same cgroup driver as Kubernetes
-
-```
-sed -i '/^ExecStart=\/usr\/bin\/dockerd$/ s/$/ --exec-opt native.cgroupdriver=systemd/' \
-       /usr/lib/systemd/system/docker.service
-```
-
-You may want to configure your environment to allow you to control Docker without sudo:
-
-```
-user="$(id -un 2\>/dev/null || true)"
-sudo usermod -aG docker centos
-```
-
-Regardless of how you install, enable start the service:
-
-```
-sudo systemctl daemon-reload
-sudo systemctl enable docker
-sudo systemctl start docker
-```
+Your cloud instance will need to have Docker installed. To install, please refer to [Docker Container runtime](https://kubernetes.io/docs/setup/production-environment/container-runtimes/#docker).
 
 ### Development tools
 
