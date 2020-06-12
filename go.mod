@@ -52,7 +52,7 @@ require (
 	k8s.io/code-generator v0.18.1 // indirect
 	k8s.io/component-base v0.18.0
 	k8s.io/gengo v0.0.0-20200413195148-3a45101e95ac // indirect
-	k8s.io/klog/v2 v2.0.0
+	k8s.io/klog/v2 v2.1.0
 	k8s.io/kubernetes v1.18.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 	software.sslmate.com/src/go-pkcs12 v0.0.0-20190209200317-47dd539968c4
