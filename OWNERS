@@ -2,6 +2,7 @@
 
 approvers:
   - shiftstack-team
-
+reviewers:
+  - shiftstack-team
 component: "Installer"
 subcomponent: "OpenShift on OpenStack"
