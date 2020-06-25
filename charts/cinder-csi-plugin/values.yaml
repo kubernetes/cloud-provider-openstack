@@ -5,7 +5,7 @@ csi:
   attacher:
     image:
       repository: quay.io/k8scsi/csi-attacher
-      tag: v2.0.0
+      tag: v2.1.1
       pullPolicy: IfNotPresent
   provisioner:
     image:
@@ -20,17 +20,17 @@ csi:
   resizer:
     image:
       repository: quay.io/k8scsi/csi-resizer
-      tag: v0.3.0
+      tag: v0.4.0
       pullPolicy: IfNotPresent
   nodeDriverRegistrar:
     image:
       repository: quay.io/k8scsi/csi-node-driver-registrar
-      tag: v1.1.0
+      tag: v1.2.0
       pullPolicy: IfNotPresent
   plugin:
     image:
       repository: docker.io/k8scloudprovider/cinder-csi-plugin
-      tag: v1.17.0
+      tag: v1.18.0
       pullPolicy: IfNotPresent
 
 storageClass:
