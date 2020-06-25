@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
+  serviceName: csi-cinder-controller
   replicas: 1
   selector:
     matchLabels:
