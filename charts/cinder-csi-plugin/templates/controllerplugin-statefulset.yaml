@@ -1,3 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cinder-csi.name" . }}-controllerplugin
+  labels:
+    {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+---    
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
@@ -5,7 +14,7 @@ metadata:
   labels:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
-  serviceName: csi-cinder-controller
+  serviceName: {{ include "cinder-csi.name" . }}-controllerplugin
   replicas: 1
   selector:
     matchLabels:
