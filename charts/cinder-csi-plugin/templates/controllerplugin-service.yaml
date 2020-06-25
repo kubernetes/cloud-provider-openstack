@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "cinder-csi.name" . }}-controllerplugin
+  labels:
+    {{- include "cinder-csi.controllerplugin.matchLabels" . | nindent 4}}
+spec:
+  selector:
+    {{- include "cinder-csi.controllerplugin.matchLabels" . | nindent 4}}
+  ports:
+    - name: dummy
+      port: 12345
