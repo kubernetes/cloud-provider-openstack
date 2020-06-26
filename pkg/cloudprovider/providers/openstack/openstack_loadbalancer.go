@@ -901,6 +901,18 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				floatingSubnetID = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerFloatingSubnetID, lbaas.opts.FloatingSubnetID)
 			}
 		}
+
+		// check subnets belongs to network
+		if floatingNetworkID != "" && floatingSubnetID != "" {
+			subnet, err := subnets.Get(lbaas.network, floatingSubnetID).Extract()
+			if err != nil {
+				return nil, fmt.Errorf("Failed to find subnet %q: %v", floatingSubnetID, err)
+			}
+
+			if subnet.NetworkID != floatingNetworkID {
+				return nil, fmt.Errorf("FloatingSubnet %q doesn't belong to FloatingNetwork %q", floatingSubnetID, floatingSubnetID)
+			}
+		}
 	} else {
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
