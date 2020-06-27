@@ -178,3 +178,8 @@ func GetOpenStackProvider() (IOpenStack, error) {
 
 	return OsInstance, nil
 }
+
+// GetMetadataOpts returns metadataopts
+func (os *OpenStack) GetMetadataOpts() openstack_provider.MetadataOpts {
+	return os.metadataOpts
+}

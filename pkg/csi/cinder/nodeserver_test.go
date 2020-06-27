@@ -26,11 +26,13 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 
 var fakeNs *nodeServer
 var mmock *mount.MountMock
+var metamock *metadata.MetadataMock
 var omock *openstack.OpenStackMock
 
 // Init Node Server
@@ -43,21 +45,21 @@ func init() {
 		mmock = new(mount.MountMock)
 		mount.MInstance = mmock
 
+		metamock = new(metadata.MetadataMock)
+		metadata.MetadataService = metamock
+
 		omock = new(openstack.OpenStackMock)
-		openstack.MetadataService = omock
 		openstack.OsInstance = omock
-		fakeNs = NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+
+		fakeNs = NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
 	}
 }
 
 // Test NodeGetInfo
 func TestNodeGetInfo(t *testing.T) {
 
-	// GetInstanceID() (string, error)
-	mmock.On("GetInstanceID").Return(FakeNodeID, nil)
-
-	omock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
-
+	metamock.On("GetInstanceID").Return(FakeNodeID, nil)
+	metamock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
 	omock.On("GetMaxVolumeLimit").Return(FakeMaxVolume)
 
 	// Init assert
@@ -133,13 +135,14 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
+	metamock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
 
 	mount.MInstance = mmock
-	openstack.MetadataService = omock
+	metadata.MetadataService = metamock
 	openstack.OsInstance = omock
 
 	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
-	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
 
 	// Init assert
 	assert := assert.New(t)
@@ -279,7 +282,7 @@ func TestNodeUnpublishVolume(t *testing.T) {
 func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 
 	mount.MInstance = mmock
-	openstack.MetadataService = omock
+	metadata.MetadataService = metamock
 	openstack.OsInstance = omock
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
@@ -290,7 +293,7 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	omock.On("DeleteVolume", FakeVolID).Return(nil)
 
 	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
-	fakeNse := NewNodeServer(d, mount.MInstance, openstack.MetadataService, openstack.OsInstance)
+	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
 
 	// Init assert
 	assert := assert.New(t)

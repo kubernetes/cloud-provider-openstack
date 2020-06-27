@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2"
@@ -100,27 +101,18 @@ func main() {
 func handle() {
 
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
-
-	//Intiliaze mount
-	mount, err := mount.GetMountProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMountProvider: %v", err)
-	}
-
-	//Intiliaze Metadatda
-	metadatda, err := openstack.GetMetadataProvider()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetMetadataProvider: %v", err)
-	}
-
 	// Initiliaze cloud
 	openstack.InitOpenStackProvider(cloudconfig)
 	cloud, err := openstack.GetOpenStackProvider()
-
 	if err != nil {
 		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
 		return
 	}
+	//Intiliaze mount
+	mount := mount.GetMountProvider()
+
+	//Intiliaze Metadatda
+	metadatda := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
 
 	d.SetupDriver(cloud, mount, metadatda)
 	d.Run()
