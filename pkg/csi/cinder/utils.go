@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/klog/v2"
 )
@@ -49,7 +50,7 @@ func NewIdentityServer(d *CinderDriver) *identityServer {
 	}
 }
 
-func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata openstack.IMetadata, cloud openstack.IOpenStack) *nodeServer {
+func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata metadata.IMetadata, cloud openstack.IOpenStack) *nodeServer {
 	return &nodeServer{
 		Driver:   d,
 		Mount:    mount,
