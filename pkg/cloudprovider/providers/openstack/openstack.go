@@ -289,6 +289,7 @@ func init() {
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
 		if err != nil {
+			klog.Warningf("failed to read config: %v", err)
 			return nil, err
 		}
 		cloud, err := NewOpenStack(cfg)
@@ -381,6 +382,9 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.CascadeDelete = true
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
+	if err != nil {
+		return Config{}, err
+	}
 
 	klog.V(5).Infof("Config, loaded from the config file:")
 	LogCfg(cfg)
