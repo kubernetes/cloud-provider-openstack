@@ -80,7 +80,7 @@ the cloud specific control loops shipped with Kubernetes.`,
 			goflag.CommandLine.Parse(nil)
 
 			// This is a temporary hack to enable proper logging until upstream dependencies
-			// are migrated to fully utilize klog instead of glog.
+			// are migrated to fully utilize klog instead of glog
 			klogFlags := goflag.NewFlagSet("klog", goflag.ExitOnError)
 			klog.InitFlags(klogFlags)
 

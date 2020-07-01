@@ -30,7 +30,7 @@ func main() {
 	// Glog requires this otherwise it complains.
 	flag.CommandLine.Parse(nil)
 	// This is a temporary hack to enable proper logging until upstream dependencies
-	// are migrated to fully utilize klog instead of glog.
+	// are migrated to fully utilize klog instead of glog .
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
 
