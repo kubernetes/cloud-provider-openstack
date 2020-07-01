@@ -24,8 +24,7 @@ To get started, you will need to set up your development environment.
 You will need access to an OpenStack cloud, either public or private. You can sign up
 for a public OpenStack Cloud through the [OpenStack Passport](https://www.openstack.org/passport)
 program, or you can install a small private development cloud with
-[DevStack](https://docs.openstack.org/devstack/latest/) or
-[Getting Started With OpenStack](https://github.com/hogepodge/getting-started-with-openstack).
+[DevStack](https://docs.openstack.org/devstack/latest/).
 
 Once you have obtained access to an OpenStack cloud, you will need to start a development
 VM. The rest of this guide assumes a CentOS 7 cloud image, but should be easily transferrable
