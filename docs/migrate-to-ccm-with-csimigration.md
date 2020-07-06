@@ -1,3 +1,16 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Migrate from in-tree cloud provider to openstack-cloud-controller-manager and enable CSIMigration](#migrate-from-in-tree-cloud-provider-to-openstack-cloud-controller-manager-and-enable-csimigration)
+  - [Before you begin](#before-you-begin)
+  - [Migrate to openstack-cloud-controller-manager](#migrate-to-openstack-cloud-controller-manager)
+  - [Enable CSIMigration](#enable-csimigration)
+  - [Finalize the migration](#finalize-the-migration)
+  - [Caveats](#caveats)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Migrate from in-tree cloud provider to openstack-cloud-controller-manager and enable CSIMigration
 
 This guide walks you through the process of migrating from using the Kubernetes in-tree cloud provider (specified by using `--cloud-provider=openstack` on `kube-controller-manager`) to use the `cloud-controller-manager` (CCM) for OpenStack. This document tries to give an example for using multiple steps in order to get the migration fully done. We expect users to want to migrate to `cloud-provider-openstack` but stay with the in-tree `cinder-volume-provisioner` up until `CSIMigration` has become GA.
