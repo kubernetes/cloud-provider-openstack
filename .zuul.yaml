@@ -81,7 +81,7 @@
               - manifests/cinder-csi-plugin/.* 
               - pkg/csi/cinder/.*
               - pkg/util/.*
-              - test/.*
+              - tests/e2e/csi/cinder/.*
               - cmd/tests/.*
               - go.mod$
               - go.sum$
@@ -98,6 +98,7 @@
               - cmd/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
               - pkg/util/.*
+              - tests/sanity/cinder/.*
               - go.mod$
               - go.sum$
               - Makefile$
