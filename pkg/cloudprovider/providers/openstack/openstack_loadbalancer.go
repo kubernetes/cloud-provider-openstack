@@ -917,12 +917,29 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
 
+	var keepClientIP bool
+	var useProxyProtocol bool
 	if !lbaas.opts.UseOctavia {
 		// Check for TCP protocol on each port
 		for _, port := range ports {
 			if port.Protocol != corev1.ProtocolTCP {
 				return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
 			}
+		}
+	} else {
+		//setting http headers and proxy protocol is only supported by Octavia
+		keepClientIP, err = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerXForwardedFor, false)
+		if err != nil {
+			return nil, err
+		}
+
+		useProxyProtocol, err = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
+		if err != nil {
+			return nil, err
+		}
+
+		if useProxyProtocol && keepClientIP {
+			return nil, fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 		}
 	}
 
@@ -992,17 +1009,8 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			connLimit = tmp
 		}
 
-		keepClientIP := false
 		if listener == nil {
 			listenerProtocol := listeners.Protocol(port.Protocol)
-			keepClientIP, err = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerXForwardedFor, false)
-			if err != nil {
-				return nil, err
-			}
-			if keepClientIP {
-				listenerProtocol = listeners.ProtocolHTTP
-			}
-
 			listenerCreateOpt := listeners.CreateOpts{
 				Name:           cutString(fmt.Sprintf("listener_%d_%s", portIndex, name)),
 				Protocol:       listenerProtocol,
@@ -1012,6 +1020,15 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			}
 
 			if lbaas.opts.UseOctavia {
+				if keepClientIP {
+					if listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
+						klog.V(4).Infof("Forcing to use %q protocol for listener because %q "+
+							"annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+						listenerCreateOpt.Protocol = listeners.ProtocolHTTP
+					}
+					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
+				}
+
 				if timeoutClientData, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutClientData); ok {
 					listenerCreateOpt.TimeoutClientData = &timeoutClientData
 				}
@@ -1023,9 +1040,6 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				}
 				if timeoutTCPInspect, ok := getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutTCPInspect); ok {
 					listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
-				}
-				if keepClientIP {
-					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
 				}
 				if len(listenerAllowedCIDRs) > 0 {
 					listenerCreateOpt.AllowedCIDRs = listenerAllowedCIDRs
@@ -1078,17 +1092,14 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			// Use the protocol of the listerner
 			poolProto := v2pools.Protocol(listener.Protocol)
 
-			useProxyProtocol, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
-			if err != nil {
-				return nil, err
-			}
-			if useProxyProtocol && keepClientIP {
-				return nil, fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
-			}
-			if useProxyProtocol {
-				poolProto = v2pools.ProtocolPROXY
-			} else if keepClientIP {
-				poolProto = v2pools.ProtocolHTTP
+			if lbaas.opts.UseOctavia {
+				if useProxyProtocol {
+					poolProto = v2pools.ProtocolPROXY
+				} else if keepClientIP && poolProto != v2pools.ProtocolHTTP {
+					klog.V(4).Infof("Forcing to use %q protocol for pool because %q "+
+						"annotation is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+					poolProto = v2pools.ProtocolHTTP
+				}
 			}
 
 			lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
