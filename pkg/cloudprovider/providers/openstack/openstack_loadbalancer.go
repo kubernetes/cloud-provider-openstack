@@ -98,6 +98,10 @@ const (
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
+	// When ServiceAnnotationLoadBalancerUnmanagedPoolID annotation is set, cloud provider will simply add/remove members
+	// from the pool. Creation and deletion of pool, listener, healthmonitor and loadbalancer will not be performed by
+	// cloudprovider. User has to create a pool beforehand using openstack CLI.
+	ServiceAnnotationLoadBalancerUnmanagedPoolID = "loadbalancer.openstack.org/unmanaged-pool-id"
 )
 
 // LbaasV2 is a LoadBalancer implementation for Neutron LBaaS v2 API
@@ -214,6 +218,47 @@ func getListenerForPort(existingListeners []listeners.Listener, port corev1.Serv
 	}
 
 	return nil
+}
+
+// Get listener for a pool. A pool is always assosiated with a single listener
+func getListenerByPoolID(client *gophercloud.ServiceClient, poolID string) (*listeners.Listener, error) {
+	pool, err := v2pools.Get(client, poolID).Extract()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pool %q: %v", poolID, err)
+	}
+
+	if len(pool.Listeners) == 0 {
+		return nil, fmt.Errorf("No Listener is attached to pool %q", poolID)
+	}
+
+	listenerID := pool.Listeners[0].ID
+
+	listener, err := listeners.Get(client, listenerID).Extract()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get listener %q: %v", listenerID, err)
+	}
+
+	return listener, nil
+}
+
+// Get loadbalancer assosiated with a pool.
+func getLoadBalancerByPoolID(client *gophercloud.ServiceClient, poolID string) (*loadbalancers.LoadBalancer, error) {
+	pool, err := v2pools.Get(client, poolID).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pool.Loadbalancers) == 0 {
+		return nil, fmt.Errorf("No Loadbalancer is assosiated with pool %q", poolID)
+	}
+
+	loadbalancerID := pool.Loadbalancers[0].ID
+	loadbalancer, err := loadbalancers.Get(client, loadbalancerID).Extract()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get loadbalancer %q: %v", loadbalancerID, err)
+	}
+
+	return loadbalancer, nil
 }
 
 // Get pool for a listener. A listener always has exactly one pool.
@@ -490,29 +535,31 @@ func (lbaas *LbaasV2) createLoadBalancer(service *corev1.Service, name, clusterN
 
 // GetLoadBalancer returns whether the specified load balancer exists and its status
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service) (*corev1.LoadBalancerStatus, bool, error) {
-	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.GetLoadBalancerLegacyName(ctx, clusterName, service)
-	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name, legacyName)
-	if err == ErrNotFound {
-		return nil, false, nil
-	}
-	if loadbalancer == nil {
-		return nil, false, err
-	}
-
-	status := &corev1.LoadBalancerStatus{}
-
-	portID := loadbalancer.VipPortID
-	if portID != "" {
-		floatIP, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
+	var name string
+	var loadbalancer *loadbalancers.LoadBalancer
+	unmanagedPoolID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerUnmanagedPoolID, "")
+	if unmanagedPoolID != "" {
+		var err error
+		loadbalancer, err = getLoadBalancerByPoolID(lbaas.lb, unmanagedPoolID)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed when trying to get floating IP for port %s: %v", portID, err)
+			return nil, false, err
 		}
-		if floatIP != nil {
-			status.Ingress = []corev1.LoadBalancerIngress{{IP: floatIP.FloatingIP}}
-		} else {
-			status.Ingress = []corev1.LoadBalancerIngress{{IP: loadbalancer.VipAddress}}
+	} else {
+		var err error
+		name = lbaas.GetLoadBalancerName(ctx, clusterName, service)
+		legacyName := lbaas.GetLoadBalancerLegacyName(ctx, clusterName, service)
+		loadbalancer, err = getLoadbalancerByName(lbaas.lb, name, legacyName)
+		if err == ErrNotFound {
+			return nil, false, nil
 		}
+		if loadbalancer == nil {
+			return nil, false, err
+		}
+	}
+
+	status, err := getLoadBalancerStatus(lbaas.network, loadbalancer)
+	if err != nil {
+		return nil, false, err
 	}
 
 	return status, true, nil
@@ -811,6 +858,108 @@ func getFloatingNetworkIDForLB(client *gophercloud.ServiceClient) (string, error
 	return floatingNetworkIds[0], nil
 }
 
+func getLoadBalancerStatus(client *gophercloud.ServiceClient, lb *loadbalancers.LoadBalancer) (*corev1.LoadBalancerStatus, error) {
+	portID := lb.VipPortID
+	if portID == "" {
+		return nil, fmt.Errorf("VipPortID is not set for loadbalancer: %q", lb.ID)
+	}
+
+	floatIP, err := openstackutil.GetFloatingIPByPortID(client, portID)
+	if err != nil {
+		return nil, fmt.Errorf("failed when trying to get floating IP for port %s: %v", portID, err)
+	}
+	status := &corev1.LoadBalancerStatus{}
+	if floatIP != nil {
+		status.Ingress = []corev1.LoadBalancerIngress{{IP: floatIP.FloatingIP}}
+	} else {
+		status.Ingress = []corev1.LoadBalancerIngress{{IP: lb.VipAddress}}
+	}
+
+	return status, nil
+}
+
+func (lbaas *LbaasV2) ensureMembersForUnmanagedPool(clusterName string, poolID string, port corev1.ServicePort, nodes []*corev1.Node) (*loadbalancers.LoadBalancer, error) {
+	klog.V(4).Infof("%q annotation is set, only members will be ensured for the pool %q", ServiceAnnotationLoadBalancerUnmanagedPoolID, poolID)
+
+	listenerProtocolPort := int(port.Port)
+	nodePort := int(port.NodePort)
+
+	listener, err := getListenerByPoolID(lbaas.lb, poolID)
+	if err != nil {
+		return nil, err
+	}
+
+	if listener.ProtocolPort != listenerProtocolPort {
+		return nil, fmt.Errorf("mismatch in existing listener's port %d and port specified in spec %d", listener.ProtocolPort, listenerProtocolPort)
+	}
+
+	loadbalancerID := listener.Loadbalancers[0].ID
+	loadbalancer, err := loadbalancers.Get(lbaas.lb, loadbalancerID).Extract()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get loadbalancer %q: %v", loadbalancerID, err)
+	}
+
+	members, err := getMembersByPoolID(lbaas.lb, poolID)
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		return nil, fmt.Errorf("error getting pool members %s: %v", poolID, err)
+	}
+
+	// don't process members of other kubernetes clusters
+	for _, member := range members {
+		if !strings.HasPrefix(member.Name, clusterName) {
+			members = popMember(members, member.Address, member.ProtocolPort)
+		}
+	}
+
+	for _, node := range nodes {
+		addr, err := nodeAddressForLB(node)
+		if err != nil {
+			if err == ErrNoAddressFound {
+				// Node failure, do not create member
+				klog.Warningf("Failed to create LB pool member for node %s: %v", node.Name, err)
+				continue
+			} else {
+				return nil, fmt.Errorf("error getting address for node %s: %v", node.Name, err)
+			}
+		}
+
+		if !memberExists(members, addr, nodePort) {
+			klog.V(4).Infof("Creating member for pool %s", poolID)
+			_, err := v2pools.CreateMember(lbaas.lb, poolID, v2pools.CreateMemberOpts{
+				Name:         cutString(fmt.Sprintf("%s_%s_%d", clusterName, node.Name, nodePort)),
+				ProtocolPort: nodePort,
+				Address:      addr,
+				SubnetID:     lbaas.opts.SubnetID,
+			}).Extract()
+			if err != nil {
+				return nil, fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
+			}
+
+			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancerID)
+			if err != nil {
+				return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after creating member, current provisioning status %s", provisioningStatus)
+			}
+		} else {
+			// member already exists
+			members = popMember(members, addr, nodePort)
+		}
+	}
+
+	// delete obsolete members
+	for _, member := range members {
+		err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
+		if err != nil && !cpoerrors.IsNotFound(err) {
+			return nil, err
+		}
+		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancerID)
+		if err != nil {
+			return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
+		}
+	}
+
+	return loadbalancer, nil
+}
+
 // TODO: This code currently ignores 'region' and always creates a
 // loadbalancer in only the current OpenStack region.  We should take
 // a list of regions (from config) and query/create loadbalancers in
@@ -826,6 +975,30 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		return nil, fmt.Errorf("there are no available nodes for LoadBalancer service %s", serviceName)
 	}
 
+	ports := apiService.Spec.Ports
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("no ports provided to openstack load balancer")
+	}
+
+	unmanagedPoolID := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerUnmanagedPoolID, "")
+	if unmanagedPoolID != "" {
+		if len(ports) > 1 {
+			return nil, fmt.Errorf("more than one ports provided in spec along with %q annotation", ServiceAnnotationLoadBalancerUnmanagedPoolID)
+		}
+
+		loadbalancer, err := lbaas.ensureMembersForUnmanagedPool(clusterName, unmanagedPoolID, ports[0], nodes)
+		if err != nil {
+			return nil, err
+		}
+
+		status, err := getLoadBalancerStatus(lbaas.network, loadbalancer)
+		if err != nil {
+			return nil, err
+		}
+
+		return status, nil
+	}
+
 	lbaas.opts.NetworkID = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerNetworkID, lbaas.opts.NetworkID)
 	lbaas.opts.SubnetID = getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 	if len(lbaas.opts.SubnetID) == 0 && len(lbaas.opts.NetworkID) == 0 {
@@ -838,11 +1011,6 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				"and failed to find subnet-id from OpenStack: %v", apiService.Namespace, apiService.Name, err)
 		}
 		lbaas.opts.SubnetID = subnetID
-	}
-
-	ports := apiService.Spec.Ports
-	if len(ports) == 0 {
-		return nil, fmt.Errorf("no ports provided to openstack load balancer")
 	}
 
 	internalAnnotation, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
@@ -1613,6 +1781,25 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 	klog.V(4).Infof("UpdateLoadBalancer(%v, %s, %v)", clusterName, serviceName, nodes)
 
+	ports := service.Spec.Ports
+	if len(ports) == 0 {
+		return fmt.Errorf("no ports provided to openstack load balancer")
+	}
+
+	unmanagedPoolID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerUnmanagedPoolID, "")
+	if unmanagedPoolID != "" {
+		if len(ports) > 1 {
+			return fmt.Errorf("more than one ports provided in spec along with %q annotation", ServiceAnnotationLoadBalancerUnmanagedPoolID)
+		}
+
+		_, err := lbaas.ensureMembersForUnmanagedPool(clusterName, unmanagedPoolID, ports[0], nodes)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	lbaas.opts.SubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 	if len(lbaas.opts.SubnetID) == 0 && len(nodes) > 0 {
 		// Get SubnetID automatically.
@@ -1624,11 +1811,6 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 				"and failed to find subnet-id from OpenStack: %v", service.Namespace, service.Name, err)
 		}
 		lbaas.opts.SubnetID = subnetID
-	}
-
-	ports := service.Spec.Ports
-	if len(ports) == 0 {
-		return fmt.Errorf("no ports provided to openstack load balancer")
 	}
 
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
@@ -1833,10 +2015,47 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1
 	return nil
 }
 
+func (lbaas *LbaasV2) ensureMembersDeletedFromUnmanagedPool(poolID string, clusterName string) error {
+	klog.V(4).Infof("Removing only members from unmanaged pool: %q", poolID)
+
+	loadbalancer, err := getLoadBalancerByPoolID(lbaas.lb, poolID)
+	if err != nil {
+		return err
+	}
+
+	// get members for existing pool
+	membersList, err := getMembersByPoolID(lbaas.lb, poolID)
+
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		return fmt.Errorf("error getting pool members %s: %v", poolID, err)
+	}
+
+	// delete members
+	for _, member := range membersList {
+		if strings.HasPrefix(member.Name, clusterName) {
+			err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
+			if err != nil && !cpoerrors.IsNotFound(err) {
+				return err
+			}
+			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+			if err != nil {
+				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
+			}
+		}
+	}
+
+	return nil
+}
+
 // EnsureLoadBalancerDeleted deletes the specified load balancer
 func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 	klog.V(4).Infof("EnsureLoadBalancerDeleted(%s, %s)", clusterName, serviceName)
+
+	unmanagedPoolID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerUnmanagedPoolID, "")
+	if unmanagedPoolID != "" {
+		return lbaas.ensureMembersDeletedFromUnmanagedPool(unmanagedPoolID, clusterName)
+	}
 
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	legacyName := lbaas.GetLoadBalancerLegacyName(ctx, clusterName, service)
