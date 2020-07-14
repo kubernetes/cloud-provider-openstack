@@ -220,7 +220,7 @@ func getListenerForPort(existingListeners []listeners.Listener, port corev1.Serv
 	return nil
 }
 
-// Get listener for a pool. A pool is always assosiated with a single listener
+// Get listener for a pool. A pool is always associated with a single listener
 func getListenerByPoolID(client *gophercloud.ServiceClient, poolID string) (*listeners.Listener, error) {
 	pool, err := v2pools.Get(client, poolID).Extract()
 	if err != nil {
@@ -241,7 +241,7 @@ func getListenerByPoolID(client *gophercloud.ServiceClient, poolID string) (*lis
 	return listener, nil
 }
 
-// Get loadbalancer assosiated with a pool.
+// Get loadbalancer associated with a pool.
 func getLoadBalancerByPoolID(client *gophercloud.ServiceClient, poolID string) (*loadbalancers.LoadBalancer, error) {
 	pool, err := v2pools.Get(client, poolID).Extract()
 	if err != nil {
@@ -249,7 +249,7 @@ func getLoadBalancerByPoolID(client *gophercloud.ServiceClient, poolID string) (
 	}
 
 	if len(pool.Loadbalancers) == 0 {
-		return nil, fmt.Errorf("No Loadbalancer is assosiated with pool %q", poolID)
+		return nil, fmt.Errorf("No Loadbalancer is associated with pool %q", poolID)
 	}
 
 	loadbalancerID := pool.Loadbalancers[0].ID

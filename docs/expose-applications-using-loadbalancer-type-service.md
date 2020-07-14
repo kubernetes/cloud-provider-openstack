@@ -147,6 +147,10 @@ Request Body:
 
   Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
 
+- `loadbalancer.openstack.org/unmanaged-pool-id`
+
+  Cloud provider will simply add or remove members from the pool. Creation and deletion of pool, listener, healthmonitor and loadbalancer will not be performed by cloudprovider---user is expected to create these resources beforehand using openstack CLI. With this feature services running on different k8s clusters can be served from the same loadbalancer.
+  
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.
