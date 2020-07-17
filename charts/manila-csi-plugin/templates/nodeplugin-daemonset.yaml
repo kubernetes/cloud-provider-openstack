@@ -110,7 +110,7 @@ spec:
         - name: {{ .protocolSelector | lower }}-fwd-plugin-dir
           hostPath:
             path: {{ .fwdNodePluginEndpoint.dir }}
-            type: Directory
+            type: DirectoryOrCreate
         {{- end }}
     {{- if .Values.nodeplugin.affinity -}}
       affinity:
