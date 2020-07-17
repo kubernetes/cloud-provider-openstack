@@ -80,6 +80,8 @@ Mandatory secrets for _trustee authentication:_ `os-trustID`, `os-trusteeID`, `o
 
 Optionally, a custom certificate may be sourced via `os-certAuthorityPath` (path to a PEM file inside the plugin container). By default, the usual TLS verification is performed. To override this behavior and accept insecure certificates, set `os-TLSInsecure` to `true` (defaults to `false`).
 
+For a client TLS authentication use both `os-clientCertPath` and `os-clientKeyPath` (paths to TLS keypair PEM files inside the plugin container).
+
 ### Topology-aware dynamic provisioning
 
 Topology-aware dynamic provisioning makes it possible to reliably provision and use shares that are _not_ equally accessible from all compute nodes due to storage topology constraints.
