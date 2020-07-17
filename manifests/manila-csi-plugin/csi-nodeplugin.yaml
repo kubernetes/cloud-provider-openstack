@@ -96,5 +96,5 @@ spec:
         - name: fwd-plugin-dir
           hostPath:
             path: /var/lib/kubelet/plugins/FWD-NODEPLUGIN
-            type: Directory
+            type: DirectoryOrCreate
 
