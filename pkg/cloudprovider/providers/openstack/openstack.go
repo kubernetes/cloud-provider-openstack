@@ -187,21 +187,22 @@ type OpenStack struct {
 }
 
 type AuthOpts struct {
-	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID"`
-	UserID           string `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
-	Username         string `name:"os-userName" value:"optional" dependsOn:"os-password"`
-	Password         string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
-	TenantID         string `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password"`
-	TenantName       string `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password"`
-	TrustID          string `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
-	DomainID         string `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password"`
-	DomainName       string `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password"`
-	TenantDomainID   string `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
-	TenantDomainName string `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
-	UserDomainID     string `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
-	UserDomainName   string `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
-	Region           string `name:"os-region"`
-	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
+	AuthURL          string                `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID"`
+	UserID           string                `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
+	AuthType         clientconfig.AuthType `gcfg:"auth-type" mapstructure:"auth-type" name:"os-authType" value:"optional"`
+	Username         string                `name:"os-userName" value:"optional" dependsOn:"os-password"`
+	Password         string                `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
+	TenantID         string                `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password"`
+	TenantName       string                `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password"`
+	TrustID          string                `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
+	DomainID         string                `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password"`
+	DomainName       string                `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password"`
+	TenantDomainID   string                `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
+	TenantDomainName string                `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
+	UserDomainID     string                `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
+	UserDomainName   string                `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
+	Region           string                `name:"os-region"`
+	CAFile           string                `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 
 	// Manila only options
 	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
@@ -233,6 +234,7 @@ type Config struct {
 func LogCfg(cfg Config) {
 	klog.V(5).Infof("AuthURL: %s", cfg.Global.AuthURL)
 	klog.V(5).Infof("UserID: %s", cfg.Global.UserID)
+	klog.V(5).Infof("AuthType: %s", cfg.Global.AuthType)
 	klog.V(5).Infof("Username: %s", cfg.Global.Username)
 	klog.V(5).Infof("TenantID: %s", cfg.Global.TenantID)
 	klog.V(5).Infof("TenantName: %s", cfg.Global.TenantName)
@@ -305,6 +307,7 @@ func (cfg AuthOpts) ToAuthOptions() gophercloud.AuthOptions {
 		// this is needed to disable the clientconfig.AuthOptions func env detection
 		EnvPrefix: "_",
 		Cloud:     cfg.Cloud,
+		AuthType:  cfg.AuthType,
 		AuthInfo: &clientconfig.AuthInfo{
 			AuthURL:                     cfg.AuthURL,
 			UserID:                      cfg.UserID,
@@ -388,6 +391,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 
 	klog.V(5).Infof("Config, loaded from the config file:")
 	LogCfg(cfg)
+
+	if cfg.Global.AuthType == "" {
+		cfg.Global.AuthType = "password"
+		klog.V(5).Infof("No auth method provided, default to 'password'")
+	}
 
 	if cfg.Global.UseClouds {
 		if cfg.Global.CloudsFile != "" {
