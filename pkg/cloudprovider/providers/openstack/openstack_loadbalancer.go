@@ -1323,13 +1323,16 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 		// third attempt: create a new floating IP
 		if floatIP == nil {
-			if floatingNetworkID != "" && floatingSubnetID != "" {
+			if floatingNetworkID != "" {
 				klog.V(4).Infof("Creating floating IP %s for loadbalancer %s", loadBalancerIP, loadbalancer.ID)
 				floatIPOpts := floatingips.CreateOpts{
 					FloatingNetworkID: floatingNetworkID,
-					SubnetID:          floatingSubnetID,
 					PortID:            portID,
 					Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", serviceName, clusterName),
+				}
+
+				if floatingSubnetID != "" {
+					floatIPOpts.SubnetID = floatingSubnetID
 				}
 
 				if loadBalancerIP != "" {

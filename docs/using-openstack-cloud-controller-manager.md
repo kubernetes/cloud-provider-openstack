@@ -147,6 +147,8 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Whether or not to use Octavia for LoadBalancer type of Service implementation instead of using Neutron-LBaaS. Default: true
 * `floating-network-id`
   Optional. The external network used to create floating IP for the load balancer VIP.
+* `floating-subnet-id`
+  Optional. The subnet ID used to create floating IP for the load balancer's VIP. Floating subnet should belong to the floating network.
 * `lb-method`
   The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
 * `lb-provider`

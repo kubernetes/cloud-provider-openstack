@@ -85,11 +85,11 @@ Request Body:
 
 - `loadbalancer.openstack.org/floating-subnet`
 
-  A public network can have several subnets. This annotation is one of subnets' name.
+  A public network can have several subnets. This annotation is the name of subnet belonging to the floating network. This annotation is optional.
 
 - `loadbalancer.openstack.org/floating-subnet-id`
 
-  This annotation is one of subnets' id in a public network.
+  This annotation is the ID of a subnet belonging to the floating network. This annotation is optional.
 
 - `loadbalancer.openstack.org/class`
 
