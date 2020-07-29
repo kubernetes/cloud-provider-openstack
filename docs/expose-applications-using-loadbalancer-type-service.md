@@ -96,11 +96,11 @@ Request Body:
 
 - `loadbalancer.openstack.org/floating-subnet-id`
 
-  This annotation is the ID of a subnet belonging to the floating network. This annotation is optional.
+  This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet`.
 
 - `loadbalancer.openstack.org/class`
 
-  The name of a preconfigured class in the config file. The annotation of floating-subnet-id and floating-network-id won't work if you use class annotation. See the section below for how it works.
+  The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
 
 - `loadbalancer.openstack.org/subnet-id`
 
@@ -116,7 +116,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/connection-limit`
 
-  The maximum number of connections per second allowed for the listener. Positive integer or -1 for unlimited (default).
+  The maximum number of connections per second allowed for the listener. Positive integer or -1 for unlimited (default). This annotation supports update operation.
 
 - `loadbalancer.openstack.org/keep-floatingip`
 
@@ -148,7 +148,7 @@ Request Body:
 
 - `service.beta.kubernetes.io/openstack-internal-load-balancer`
 
-  If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is 'false'.
+  If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is 'false'. This annotation is ignored if only internal Service is allowed to create in the cluster.
 
 - `loadbalancer.openstack.org/enable-health-monitor`
 
@@ -257,6 +257,8 @@ spec:
       port: 80
       targetPort: 8080
 ```
+
+`loadBalancerSourceRanges` field supports to be updated.
 
 ## Issues
 
