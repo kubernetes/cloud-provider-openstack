@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -871,11 +870,6 @@ func (os *OpenStack) HasClusterID() bool {
 // LoadBalancer initializes a LbaasV2 object
 func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	klog.V(4).Info("openstack.LoadBalancer() called")
-
-	if reflect.DeepEqual(os.lbOpts, LoadBalancerOpts{}) {
-		klog.V(4).Info("LoadBalancer section is empty/not defined in cloud-config")
-		return nil, false
-	}
 
 	network, err := os.NewNetworkV2()
 	if err != nil {
