@@ -213,7 +213,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 	// Because the security group is supposed to be managed by octavia-ingress-controller, we assume the `port_range_min`
 	// equals to `port_range_max`.
 	for _, rule := range allRules {
-		if !dstPortsSet.Has(string(rule.PortRangeMin)) {
+		if !dstPortsSet.Has(strconv.Itoa(rule.PortRangeMin)) {
 			// Delete the rule
 			if err := rules.Delete(os.neutron, rule.ID).ExtractErr(); err != nil {
 				return err
