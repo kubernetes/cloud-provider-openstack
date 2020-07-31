@@ -1,20 +1,29 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Getting Started with Cloud Provider OpenStack Development](#getting-started-with-cloud-provider-openstack-development)
+  - [Prerequisites](#prerequisites)
+    - [OpenStack Cloud](#openstack-cloud)
+    - [Docker](#docker)
+    - [Development tools](#development-tools)
+  - [Development](#development)
+    - [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
+      - [Building inside container](#building-inside-container)
+    - [Getting and Building Kubernetes](#getting-and-building-kubernetes)
+    - [Running the Cloud Provider](#running-the-cloud-provider)
+  - [Publish Container images](#publish-container-images)
+    - [Build and push images](#build-and-push-images)
+    - [Only Build Image](#only-build-image)
+  - [Troubleshooting](#troubleshooting)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Getting Started with Cloud Provider OpenStack Development
 
 This guide will help you get started with building a development environment for you
 to build and run a single node Kubernetes cluster with the OpenStack Cloud Provider
 enabled.
-
-## Contents
-
-* [Prerequisites](#prerequisites)
-  + [OpenStack Cloud](#openstack-cloud)
-  + [Docker](#docker)
-  + [Development tools](#development-tools)
-* [Development](#development)
-  + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
-  + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
-  + [Running the Cloud Provider](#running-the-cloud-provider)
-* [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 

@@ -1,21 +1,27 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [CSI Manila driver](#csi-manila-driver)
+          - [Table of contents](#table-of-contents)
+  - [Configuration](#configuration)
+    - [Command line arguments](#command-line-arguments)
+    - [Controller Service volume parameters](#controller-service-volume-parameters)
+    - [Node Service volume context](#node-service-volume-context)
+    - [Secrets, authentication](#secrets-authentication)
+    - [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
+  - [Deployment](#deployment)
+    - [Kubernetes 1.15+](#kubernetes-115)
+      - [Verifying the deployment](#verifying-the-deployment)
+      - [Enabling topology awareness](#enabling-topology-awareness)
+  - [Share protocol support matrix](#share-protocol-support-matrix)
+  - [For developers](#for-developers)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # CSI Manila driver
 
 The CSI Manila driver is able to create and mount OpenStack Manila shares. Snapshots and recovering shares from snapshots is supported as well (support for CephFS snapshots will be added soon).
-
-###### Table of contents
-
-* [Configuration](#configuration)
-  * [Command line arguments](#command-line-arguments)
-  * [Controller Service volume parameters](#controller-service-volume-parameters)
-  * [Node Service volume context](#node-service-volume-context)
-  * [Secrets, authentication](#secrets-authentication)
-  * [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
-* [Deployment](#deployment)
-  * [Kubernetes 1.15+](#kubernetes-115)
-    * [Verifying the deployment](#verifying-the-deployment)
-    * [Enabling topology awareness](#enabling-topology-awareness)
-* [Share protocol support matrix](#share-protocol-support-matrix)
-* [For developers](#for-developers)
 
 ## Configuration
 

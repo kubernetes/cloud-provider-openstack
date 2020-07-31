@@ -1,3 +1,16 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Keystone client-go credential plugin usage](#keystone-client-go-credential-plugin-usage)
+  - [Overview](#overview)
+  - [Example use case](#example-use-case)
+  - [Configuration](#configuration)
+  - [Input and output formats](#input-and-output-formats)
+  - [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Keystone client-go credential plugin usage
 
 ## Overview

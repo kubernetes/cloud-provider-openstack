@@ -1,15 +1,22 @@
-# Get started with external openstack-cloud-controller-manager in Kubernetes
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm](#deploy-a-kubernetes-cluster-with-openstack-cloud-controller-manager-using-kubeadm)
-  - [Prerequisites](#prerequisites)
-  - [Steps](#steps)
-- [Migrating from in-tree openstack cloud provider to external openstack-cloud-controller-manager](#migrating-from-in-tree-openstack-cloud-provider-to-external-openstack-cloud-controller-manager)
-- [Config openstack-cloud-controller-manager](#config-openstack-cloud-controller-manager)
-  - [Global](#global)
-  - [Networking](#networking)
-  - [Load Balancer](#load-balancer)
-  - [Metadata](#metadata)
-- [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+- [Get started with external openstack-cloud-controller-manager in Kubernetes](#get-started-with-external-openstack-cloud-controller-manager-in-kubernetes)
+  - [Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm](#deploy-a-kubernetes-cluster-with-openstack-cloud-controller-manager-using-kubeadm)
+    - [Prerequisites](#prerequisites)
+    - [Steps](#steps)
+  - [Migrating from in-tree openstack cloud provider to external openstack-cloud-controller-manager](#migrating-from-in-tree-openstack-cloud-provider-to-external-openstack-cloud-controller-manager)
+  - [Config openstack-cloud-controller-manager](#config-openstack-cloud-controller-manager)
+    - [Global](#global)
+    - [Networking](#networking)
+    - [Load Balancer](#load-balancer)
+    - [Metadata](#metadata)
+  - [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Get started with external openstack-cloud-controller-manager in Kubernetes
 
 External cloud providers were introduced as an Alpha feature in Kubernetes release 1.6. openstack-cloud-controller-manager is the implementation of external cloud provider for OpenStack clusters. An external cloud provider is a kubernetes controller that runs cloud provider-specific loops required for the functioning of kubernetes. These loops were originally a part of the `kube-controller-manager`, but they were tightly coupling the `kube-controller-manager` to cloud-provider specific code. In order to free the kubernetes project of this dependency, the `cloud-controller-manager` was introduced.
 

@@ -1,16 +1,23 @@
-# Get started with octavia-ingress-controller for Kubernetes
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [What is an Ingress Controller?](#what-is-an-ingress-controller)
-- [Why octavia-ingress-controller](#why-octavia-ingress-controller)
-- [Requirements](#requirements)
-- [Deploy octavia-ingress-controller in the Kubernetes cluster](#deploy-octavia-ingress-controller-in-the-kubernetes-cluster)
-  - [Create service account and grant permissions](#create-service-account-and-grant-permissions)
-  - [Prepare octavia-ingress-controller configuration](#prepare-octavia-ingress-controller-configuration)
-  - [Deploy octavia-ingress-controller](#deploy-octavia-ingress-controller)
-- [Setting up HTTP Load Balancing with Ingress](#setting-up-http-load-balancing-with-ingress)
-  - [Create a backend service](#create-a-backend-service)
-  - [Create an Ingress resource](#create-an-ingress-resource)
-- [Enable TLS encryption](#enable-tls-encryption)
+- [Get started with octavia-ingress-controller for Kubernetes](#get-started-with-octavia-ingress-controller-for-kubernetes)
+  - [What is an Ingress Controller?](#what-is-an-ingress-controller)
+  - [Why octavia-ingress-controller](#why-octavia-ingress-controller)
+  - [Requirements](#requirements)
+  - [Deploy octavia-ingress-controller in the Kubernetes cluster](#deploy-octavia-ingress-controller-in-the-kubernetes-cluster)
+    - [Create service account and grant permissions](#create-service-account-and-grant-permissions)
+    - [Prepare octavia-ingress-controller configuration](#prepare-octavia-ingress-controller-configuration)
+    - [Deploy octavia-ingress-controller](#deploy-octavia-ingress-controller)
+  - [Setting up HTTP Load Balancing with Ingress](#setting-up-http-load-balancing-with-ingress)
+    - [Create a backend service](#create-a-backend-service)
+    - [Create an Ingress resource](#create-an-ingress-resource)
+  - [Enable TLS encryption](#enable-tls-encryption)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Get started with octavia-ingress-controller for Kubernetes
 
 This guide explains how to deploy and config the octavia-ingress-controller in Kubernetes cluster on top of OpenStack cloud.
 
