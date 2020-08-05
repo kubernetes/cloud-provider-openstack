@@ -152,38 +152,59 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `use-octavia`
   Whether or not to use Octavia for LoadBalancer type of Service implementation instead of using Neutron-LBaaS. Default: true
+  
 * `floating-network-id`
-  Optional. The external network used to create floating IP for the load balancer VIP.
+  Optional. The external network used to create floating IP for the load balancer VIP. If there are multiple external networks in the cloud, either this option must be set or user must specify `loadbalancer.openstack.org/floating-network-id` in the Service annotation.
+
 * `floating-subnet-id`
-  Optional. The subnet ID used to create floating IP for the load balancer's VIP. Floating subnet should belong to the floating network.
+  Optional. The external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-id`.
+
 * `lb-method`
   The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
+
 * `lb-provider`
   Optional. Used to specify the provider of the load balancer, e.g. "amphora" or "octavia".
+
 * `lb-version`
   Optional. If specified, only "v2" is supported.
+
 * `subnet-id`
-  ID of the Neutron subnet on which to create load balancer VIP.
+  ID of the Neutron subnet on which to create load balancer VIP, this ID is also used to create pool members.
+
 * `network-id`
   ID of the Neutron network on which to create load balancer VIP, not needed if `subnet-id` is set.
+
 * `manage-security-groups`
   If the Neutron security groups should be managed separately. Default: false
 
-  This option is not needed when using Octavia. The worker nodes and the Octavia amphorae are usually in the same subnet, so it's sufficient to config the port security group rules manually for worker nodes, to allow the traffic coming from the the subnet IP range to the node port range(i.e. 30000-32767).
+  This option is not supported for Octavia. The worker nodes and the Octavia amphorae are usually in the same subnet, so it's sufficient to config the port security group rules manually for worker nodes, to allow the traffic coming from the the subnet IP range to the node port range(i.e. 30000-32767).
+
 * `create-monitor`
   Indicates whether or not to create a health monitor for the service load balancer. Default: false
+
 * `monitor-delay`
   The time, in seconds, between sending probes to members of the load balancer. Default: 5
+
 * `monitor-max-retries`
   The number of successful checks before changing the operating status of the load balancer member to ONLINE. A valid value is from 1 to 10. Default: 1
+
 * `monitor-timeout`
   The maximum time, in seconds, that a monitor waits to connect backend before it times out. Default: 3
-* `node-security-group`
-  Deprecated.
+
 * `internal-lb`
   Determines whether or not to create an internal load balancer (no floating IP) by default. Default: false.
+
 * `cascade-delete`
   Determines whether or not to perform cascade deletion of load balancers. Default: true.
+
+* `LoadBalancerClass "ClassName"`
+  This is a config section including a set of config options. User can choose the `ClassName` by specifying the Service annotation `loadbalancer.openstack.org/class`. The following options are supported:
+
+  * floating-network-id. The same with `floating-network-id` option above.
+  * floating-subnet-id. The same with `floating-subnet-id` option above.
+  * network-id. The same with `network-id` option above.
+  * subnet-id. The same with `subnet-id` option above.
+
 ### Metadata
 
 * `search-order`
