@@ -101,6 +101,14 @@ by using the result of the above command.
 search-order = configDrive,metadataService
 ```
 
+> NOTE: If you are using OpenStack cloud with old version cinder api (v2),
+> considering use `bs-version=v2` to enable backward compatible ability.
+
+```
+[BlockStorage]
+bs-version=v3
+```
+
 > NOTE: if your openstack cloud has cert (which means you already has [ca-file](provider-configuration.md#global-optional-parameters) definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
 
 ```
