@@ -1640,11 +1640,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			listenerChanged := false
 			updateOpts := listeners.UpdateOpts{}
 
+			if connLimit != listener.ConnLimit {
+				updateOpts.ConnLimit = &connLimit
+				listenerChanged = true
+			}
+
 			if lbaas.opts.UseOctavia {
-				if connLimit != listener.ConnLimit {
-					updateOpts.ConnLimit = &connLimit
-					listenerChanged = true
-				}
 				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
 					if !cpoutil.StringListEqual(listenerAllowedCIDRs, listener.AllowedCIDRs) {
 						updateOpts.AllowedCIDRs = &listenerAllowedCIDRs
