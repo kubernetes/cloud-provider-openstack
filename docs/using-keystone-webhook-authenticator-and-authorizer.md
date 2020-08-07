@@ -212,16 +212,15 @@ EOF
 
 ### Prepare the service certificates
 
-For security reason, the k8s-keystone-auth service is running as an HTTPS
-service, so the TLS certificates need to be configured. For testing purpose, we
-are about to reuse the API server certificates, it's recommended to create new
-ones in production environment though.
+For security reasons, the k8s-keystone-auth service is running as an HTTPS
+service, so the TLS certificates need to be configured. This example uses
+a self-signed certificate, but for a production cluster it is important to use
+certificates signed by a trusted issuer.
 
-please refer to [secret](../examples/webhook/keystone-auth-certs-secret.yaml) for definition of secret.
-you need replace `keystone_cert_file` and `keystone_key_file`, for example, `/etc/kubernetes/pki/apiserver.crt`
-and `/etc/kubernetes/pki/apiserver.key` respectively.
+
 ```shell
-$ kubectl apply -f examples/webhook/keystone-auth-certs-secret.yaml
+$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj /CN=k8s-keystone-auth.kube-system/
+$ kubectl --namespace kube-system create secret tls keystone-auth-certs --cert=cert.pem --key=key.pem
 ```
 
 ### Create service account for k8s-keystone-auth
