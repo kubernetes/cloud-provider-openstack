@@ -436,12 +436,11 @@ and both as well, depending on your requirement.
 
 ### Configuration on K8S master for authentication and/or authorization
 
-- Create webhook config file. We reuse the folder `/etc/kubernetes/pki/`
-  because it's already mounted and accessible by API server pod in a
-  cluster that is set up by kubeadm.
+- Create the webhook config file.
 
     ```shell
-    cat <<EOF > /etc/kubernetes/pki/webhookconfig.yaml
+    mkdir /etc/kubernetes/webhooks
+    cat <<EOF > /etc/kubernetes/webhooks/webhookconfig.yaml
     ---
     apiVersion: v1
     kind: Config
@@ -468,14 +467,32 @@ and both as well, depending on your requirement.
   Authentication:
 
   ```
-  --authentication-token-webhook-config-file=/etc/kubernetes/pki/webhookconfig.yaml
+  --authentication-token-webhook-config-file=/etc/kubernetes/webhooks/webhookconfig.yaml
   ```
 
   Authorization (optional):
 
   ```
-  --authorization-webhook-config-file=/etc/kubernetes/pki/webhookconfig.yaml
+  --authorization-webhook-config-file=/etc/kubernetes/webhooks/webhookconfig.yaml
   --authorization-mode=Node,Webhook,RBAC
+  ```
+
+  Also mount the new webhooks directory:
+
+  ```
+  containers:
+  ...
+    volumeMounts:
+    ...
+    - mountPath: /etc/kubernetes/webhooks
+        name: webhooks
+        readOnly: true
+  volumes:
+  ...
+  - hostPath:
+      path: /etc/kubernetes/webhooks
+      type: DirectoryOrCreate
+    name: webhooks
   ```
 
 - Wait for the API server to restart successfully until you can see all the
