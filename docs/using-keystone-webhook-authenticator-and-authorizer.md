@@ -278,13 +278,15 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 - Authentication
 
   Get a token of an OpenStack user from the `demo` project, send
-  request to the k8s-keystone-auth service, in this example,
-  `10.109.16.219` is the cluster IP of k8s-keystone-auth service.
+  request to the k8s-keystone-auth service. Since this service is only exposed
+  within the cluster, run a temporary pod within the kube-system namespace to
+  access the webhook endpoint.
 
   ```shell
-  $ keystone_auth_service_addr=10.109.16.219
   $ token=...
-  $ cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
+  $ kubectl --namespace kube-system run --rm --restart=Never --attach=true \
+    --image curlimages/curl curl -- \
+    -ks -XPOST https://k8s-keystone-auth.kube-system:8443/webhook -d '
   {
     "apiVersion": "authentication.k8s.io/v1beta1",
     "kind": "TokenReview",
@@ -292,10 +294,9 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
       "creationTimestamp": null
     },
     "spec": {
-      "token": "$token"
+      "token": "'$token'"
     }
-  }
-  EOF
+  }'
   ```
 
   You should see the detailed information of the Keystone user from the
@@ -353,7 +354,9 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   does have `member` role associated:
 
   ```shell
-  cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
+  $ kubectl --namespace kube-system run --rm --restart=Never --attach=true \
+    --image curlimages/curl curl -- \
+    -ks -XPOST https://k8s-keystone-auth.kube-system:8443/webhook -d '
   {
     "apiVersion": "authorization.k8s.io/v1beta1",
     "kind": "SubjectAccessReview",
@@ -373,8 +376,7 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
           "alpha.kubernetes.io/identity/roles": ["load-balancer_member","member"]
       }
     }
-  }
-  EOF
+  }'
   ```
 
   Response:
@@ -392,7 +394,9 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   According to the policy definition, pod creation should fail:
 
   ```shell
-  cat <<EOF | curl -ks -XPOST -d @- https://${keystone_auth_service_addr}:8443/webhook | python -mjson.tool
+  $ kubectl --namespace kube-system run --rm --restart=Never --attach=true \
+    --image curlimages/curl curl -- \
+    -ks -XPOST https://k8s-keystone-auth.kube-system:8443/webhook -d '
   {
     "apiVersion": "authorization.k8s.io/v1beta1",
     "kind": "SubjectAccessReview",
@@ -412,8 +416,7 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
           "alpha.kubernetes.io/identity/roles": ["load-balancer_member","member"]
       }
     }
-  }
-  EOF
+  }'
   ```
 
   Response:
@@ -432,13 +435,15 @@ Now the k8s-keystone-auth service works as expected, we could go ahead to
 config kubernetes API server to use the k8s-keystone-auth service as a webhook
 service for both authentication and authorization. In fact, the
 k8s-keystone-auth service can be used for authentication or authorization only,
-and both as well, depending on your requirement.
+and both as well, depending on your requirement. In this example,
+`10.109.16.219` is the cluster IP of k8s-keystone-auth service.
 
 ### Configuration on K8S master for authentication and/or authorization
 
 - Create the webhook config file.
 
     ```shell
+    keystone_auth_service_addr=10.109.16.219
     mkdir /etc/kubernetes/webhooks
     cat <<EOF > /etc/kubernetes/webhooks/webhookconfig.yaml
     ---
