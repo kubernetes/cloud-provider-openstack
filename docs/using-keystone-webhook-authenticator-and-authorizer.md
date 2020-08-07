@@ -254,7 +254,7 @@ deployment manifest:
   environment.
 
 ```shell
-$ kubectl apply -f manifests/webhook/k8s-keystone-auth-pod.yaml
+$ kubectl apply -f examples/webhook/keystone-deployment.yaml
 $ kubectl apply -f examples/webhook/keystone-service.yaml
 ```
 
