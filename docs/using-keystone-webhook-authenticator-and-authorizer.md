@@ -55,8 +55,8 @@ running the k8s-keystone-auth service.
 k8s-keystone-auth service supports two versions of policy definition.
 Version 2 is recommended because of its better flexibility. However,
 both versions are described in this guide. You can see more information
-of version 2 in `Authorization policy definition(version 2)` section
-below.
+of version 2 in [Authorization policy definition(version
+2)](#authorization-policy-definitionversion-2).
 
 For testing purpose, in the following ConfigMap, we only allow the users in
 project `demo` with `member` role in OpenStack to query the Pods information
