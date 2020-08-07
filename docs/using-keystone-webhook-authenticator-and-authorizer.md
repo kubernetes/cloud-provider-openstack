@@ -646,7 +646,7 @@ To configure the client do the following:
 - Download the client-keystone-auth binary(maintained by Lingxian Kong), you can also build the binary by yourself.
 
     ```
-    curl -SL# https://api.nz-por-1.catalystcloud.io:8443/v1/AUTH_b23a5e41d1af4c20974bf58b4dff8e5a/lingxian-public/client-keystone-auth -o ~/client-keystone-auth
+    curl https://github.com/kubernetes/cloud-provider-openstack/releases/latest/download/client-keystone-auth -o ~/client-keystone-auth
     sudo chmod u+x ~/client-keystone-auth
     ```
 
