@@ -21,6 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
 	"k8s.io/klog/v2"
 )
 
@@ -57,7 +58,12 @@ func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) 
 }
 
 func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {
-	server, share, err := splitExportLocation(args.Location)
+	chosenExportLocation, err := manilautil.ChooseExportLocation(args.Locations)
+	if err != nil {
+		return nil, fmt.Errorf("failed to choose an export location: %v", err)
+	}
+
+	server, share, err := splitExportLocation(chosenExportLocation)
 
 	return map[string]string{
 		"server": server,
