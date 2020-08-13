@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
+	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
 	"k8s.io/klog/v2"
 )
 
@@ -104,7 +105,12 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 }
 
 func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {
-	monitors, rootPath, err := splitExportLocation(args.Location)
+	chosenExportLocation, err := manilautil.ChooseExportLocation(args.Locations)
+	if err != nil {
+		return nil, fmt.Errorf("failed to choose an export location: %v", err)
+	}
+
+	monitors, rootPath, err := splitExportLocation(chosenExportLocation)
 
 	return map[string]string{
 		"monitors":        monitors,
