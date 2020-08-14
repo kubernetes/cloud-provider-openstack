@@ -58,12 +58,12 @@ func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) 
 }
 
 func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {
-	chosenExportLocation, err := manilautil.ChooseExportLocation(args.Locations)
+	chosenExportLocationIdx, err := manilautil.FindExportLocation(args.Locations, manilautil.AnyExportLocation)
 	if err != nil {
 		return nil, fmt.Errorf("failed to choose an export location: %v", err)
 	}
 
-	server, share, err := splitExportLocation(chosenExportLocation)
+	server, share, err := splitExportLocation(&args.Locations[chosenExportLocationIdx])
 
 	return map[string]string{
 		"server": server,
