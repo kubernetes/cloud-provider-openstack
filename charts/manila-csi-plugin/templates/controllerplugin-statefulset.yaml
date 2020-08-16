@@ -74,6 +74,9 @@ spec:
             --with-topology
             --nodeaz={{ $.Values.csimanila.nodeAZ }}
             {{- end }}
+            {{- if $.Values.csimanila.runtimeConfig.enabled }}
+            --runtime-config-file=/runtimeconfig/runtimeconfig.json
+            {{- end }}
             --endpoint=$(CSI_ENDPOINT)
             --drivername=$(DRIVER_NAME)
             --share-protocol-selector=$(MANILA_SHARE_PROTO)
@@ -104,6 +107,11 @@ spec:
             - name: pod-mounts
               mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
+            {{- if $.Values.csimanila.runtimeConfig.enabled }}
+            - name: {{ .protocolSelector | lower }}-runtime-config-dir
+              mountPath: /runtimeconfig
+              readOnly: true
+            {{- end }}
           resources:
 {{ toYaml $.Values.controllerplugin.nodeplugin.resources | indent 12 }}
         {{- end }}
@@ -117,6 +125,11 @@ spec:
           hostPath:
             path: {{ .fwdNodePluginEndpoint.dir }}
             type: Directory
+        {{- if $.Values.csimanila.runtimeConfig.enabled }}
+        - name: {{ .protocolSelector | lower }}-runtime-config-dir
+          configMap:
+            name: manila-csi-runtimeconf-cm
+        {{- end }}
         {{- end }}
         - name: pod-mounts
           hostPath:

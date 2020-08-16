@@ -1,0 +1,9 @@
+{{- if .Values.csimanila.runtimeConfig.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manila-csi-runtimeconf-cm
+data:
+  runtimeconfig.json: |-
+{{ .Values.csimanila.runtimeConfig.jsonData | indent 4 }}
+{{- end }}

@@ -66,6 +66,9 @@ spec:
             '/bin/manila-csi-plugin
             --v=5
             --nodeid=$(NODE_ID)
+            {{- if $.Values.csimanila.runtimeConfig.enabled }}
+            --runtime-config-file=/runtimeconfig/runtimeconfig.json
+            {{- end }}
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             --with-topology
             --nodeaz={{ $.Values.csimanila.nodeAZ }}
@@ -94,6 +97,11 @@ spec:
               mountPath: /var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}
             - name: {{ .protocolSelector | lower }}-fwd-plugin-dir
               mountPath: {{ .fwdNodePluginEndpoint.dir }}
+            {{- if $.Values.csimanila.runtimeConfig.enabled }}
+            - name: {{ .protocolSelector | lower }}-runtime-config-dir
+              mountPath: /runtimeconfig
+              readOnly: true
+            {{- end }}
           resources:
 {{ toYaml $.Values.nodeplugin.nodeplugin.resources | indent 12 }}
         {{- end }}
@@ -111,6 +119,11 @@ spec:
           hostPath:
             path: {{ .fwdNodePluginEndpoint.dir }}
             type: DirectoryOrCreate
+        {{- if $.Values.csimanila.runtimeConfig.enabled }}
+        - name: {{ .protocolSelector | lower }}-runtime-config-dir
+          configMap:
+            name: manila-csi-runtimeconf-cm
+        {{- end }}
         {{- end }}
     {{- if .Values.nodeplugin.affinity -}}
       affinity:
