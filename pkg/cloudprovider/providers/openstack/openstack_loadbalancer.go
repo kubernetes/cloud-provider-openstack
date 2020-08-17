@@ -476,7 +476,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(service *corev1.Service, name, c
 
 		if lbClass != nil && lbClass.NetworkID != "" {
 			createOpts.VipNetworkID = lbClass.NetworkID
-		} else if lbaas.opts.NetworkID != "" {
+		} else if svcConf.lbNetworkID != "" {
 			createOpts.VipNetworkID = svcConf.lbNetworkID
 		} else {
 			klog.V(4).Infof("network-id parameter not passed, it will be inferred from subnet-id")
