@@ -19,6 +19,7 @@ package openstack
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies"
@@ -376,7 +377,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 }
 
 // CreatePolicyRules creates l7 policy and its rules for the listener
-func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path string) error {
+func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path string, port int) error {
 	log.WithFields(log.Fields{"lb": lbID, "listenerID": listenerID}).Debug("creating policy")
 
 	policy, err := l7policies.Create(os.Octavia, l7policies.CreateOpts{
@@ -399,11 +400,11 @@ func (os *OpenStack) CreatePolicyRules(lbID, listenerID, poolID, host, path stri
 	if host != "" {
 		log.WithFields(log.Fields{"type": l7policies.TypeHostName, "host": host, "policyID": policy.ID, "listenerID": listenerID}).Debug("creating policy rule")
 
-		// Create HOST_NAME type rule
+		// Create HOST_NAME type rule. Use REGEX type rule to support both host and host:port
 		_, err = l7policies.CreateRule(os.Octavia, policy.ID, l7policies.CreateRuleOpts{
 			RuleType:    l7policies.TypeHostName,
-			CompareType: l7policies.CompareTypeEqual,
-			Value:       host,
+			CompareType: l7policies.CompareTypeRegex,
+			Value:       fmt.Sprintf("^%s(:%d)?$", strings.ReplaceAll(host, ".", "\\."), port),
 		}).Extract()
 		if err != nil {
 			return fmt.Errorf("error creating l7 rule: %v", err)

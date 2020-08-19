@@ -667,6 +667,10 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 
 		secretRefs = append(secretRefs, secretRef)
 	}
+	port := 80
+	if len(secretRefs) > 0 {
+		port = 443
+	}
 
 	// Create listener
 	listener, err := c.osClient.EnsureListener(name, lb.ID, secretRefs)
@@ -746,7 +750,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 				return err
 			}
 
-			if err = c.osClient.CreatePolicyRules(lb.ID, listener.ID, *poolID, host, path.Path); err != nil {
+			if err = c.osClient.CreatePolicyRules(lb.ID, listener.ID, *poolID, host, path.Path, port); err != nil {
 				return err
 			}
 		}
