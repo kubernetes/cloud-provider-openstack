@@ -153,6 +153,10 @@ Request Body:
 - `loadbalancer.openstack.org/enable-health-monitor`
 
   Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
+  
+- `loadbalancer.openstack.org/flavor-id`
+
+  The id of the flavor that is used for creating the loadbalancer.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
