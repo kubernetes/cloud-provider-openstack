@@ -132,6 +132,7 @@ type LoadBalancerOpts struct {
 	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
 	InternalLB           bool                `gcfg:"internal-lb"`    // default false
 	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
+	FlavorID             string              `gcfg:"flavor-id"`
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID

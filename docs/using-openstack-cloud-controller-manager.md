@@ -196,6 +196,9 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `cascade-delete`
   Determines whether or not to perform cascade deletion of load balancers. Default: true.
+  
+* `flavor-id`
+  The id of the loadbalancer flavor to use. Uses octavia default if not set.
 
 * `LoadBalancerClass "ClassName"`
   This is a config section including a set of config options. User can choose the `ClassName` by specifying the Service annotation `loadbalancer.openstack.org/class`. The following options are supported:
