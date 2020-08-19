@@ -462,7 +462,10 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(service *corev1.Service, name, c
 		Name:        name,
 		Description: fmt.Sprintf("Kubernetes external service %s/%s from cluster %s", service.Namespace, service.Name, clusterName),
 		Provider:    lbaas.opts.LBProvider,
-		FlavorID:    svcConf.flavorID,
+	}
+
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors) {
+		createOpts.FlavorID = svcConf.flavorID
 	}
 
 	vipPort := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerPortID, "")
