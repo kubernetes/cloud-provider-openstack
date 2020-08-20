@@ -469,7 +469,10 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(service *corev1.Service, name, c
 		Name:        name,
 		Description: fmt.Sprintf("Kubernetes external service %s/%s from cluster %s", service.Namespace, service.Name, clusterName),
 		Provider:    lbaas.opts.LBProvider,
-		FlavorID:    svcConf.flavorID,
+	}
+
+	if svcConf.flavorID != "" {
+		createOpts.FlavorID = svcConf.flavorID
 	}
 
 	vipPort := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerPortID, "")
@@ -1223,7 +1226,6 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	svcConf.lbNetworkID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNetworkID, lbaas.opts.NetworkID)
 	svcConf.lbSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
-	svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
 	if lbaas.opts.SubnetID != "" {
 		svcConf.lbMemberSubnetID = lbaas.opts.SubnetID
 	} else {
@@ -1341,6 +1343,10 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		klog.Warning("LoadBalancerSourceRanges is ignored")
 	}
 	svcConf.allowedCIDR = listenerAllowedCIDRs
+
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors) {
+		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
+	}
 
 	enableHealthMonitor, err := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
 	if err != nil {
