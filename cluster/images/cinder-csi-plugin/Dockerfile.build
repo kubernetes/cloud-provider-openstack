@@ -1,3 +1,4 @@
+ARG REPO_LOCATION=docker.io/
 ARG DEBIAN_ARCH=amd64
 FROM us.gcr.io/k8s-artifacts-prod/build-image/debian-base-${DEBIAN_ARCH}:v2.1.0
 

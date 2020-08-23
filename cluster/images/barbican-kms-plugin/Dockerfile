@@ -10,10 +10,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG REPO_LOCATION=docker.io/
 ARG ALPINE_ARCH=amd64
 # We not using scratch because we need to keep the basic image information
 # from parent image
-FROM ${ALPINE_ARCH}/alpine:3.11
+FROM ${REPO_LOCATION}${ALPINE_ARCH}/alpine:3.11
 
 ARG ARCH=amd64
 

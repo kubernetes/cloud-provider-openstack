@@ -35,6 +35,7 @@ VERSION		?= $(shell git describe --exact-match 2> /dev/null || \
 			   git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 ALPINE_ARCH	:=
 DEBIAN_ARCH	:=
+REPO_LOCATION := docker.io/
 QEMUARCH	:=
 QEMUVERSION	:= "v4.2.0-4"
 GOARCH		:=
@@ -238,9 +239,9 @@ shell:
 	$(SHELL) -i
 
 push-manifest-%:
-	docker manifest create --amend $(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
-	@for arch in $(ARCHS); do docker manifest annotate --os $(IMAGE_OS) --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
-	docker manifest push --purge $(REGISTRY)/$*:${VERSION}
+	docker manifest create --amend $(REPO_LOCATION)$(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
+	@for arch in $(ARCHS); do docker manifest annotate --os $(IMAGE_OS) --arch $${arch} $(REPO_LOCATION)$(REGISTRY)/$*:${VERSION} $(REPO_LOCATION)$(REGISTRY)/$*-$${arch}:${VERSION}; done
+	docker manifest push --purge $(REPO_LOCATION)$(REGISTRY)/$*:${VERSION}
 
 push-all-manifest: $(addprefix push-manifest-,$(IMAGE_NAMES))
 
@@ -263,12 +264,12 @@ ifneq ($(ARCH),amd64)
 endif
 
 	cp $*-$(ARCH) $(TEMP_DIR)/$*
-	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
+	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --build-arg REPO_LOCATION=$(REPO_LOCATION) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
 	docker create --name build-$*-$(ARCH) build-$*-$(ARCH)
 	docker export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
 
 	@echo "build image $(REGISTRY)/$*-$(ARCH)"
-	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
+	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --build-arg REPO_LOCATION=$(REPO_LOCATION) --pull -t $(REPO_LOCATION)$(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
 
 	rm -rf $(TEMP_DIR)/$*
 	docker rm build-$*-$(ARCH)
@@ -282,7 +283,7 @@ push-image-%:
 ifneq ($(and $(DOCKER_USERNAME),$(DOCKER_PASSWORD)),)
 	@docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)"
 endif
-	docker push $(REGISTRY)/$*-$(ARCH):$(VERSION)
+	docker push $(REPO_LOCATION)$(REGISTRY)/$*-$(ARCH):$(VERSION)
 
 images: $(addprefix build-arch-image-,$(ARCH))
 
@@ -290,10 +291,10 @@ images-all-archs: $(addprefix build-arch-image-,$(ARCHS))
 
 build-arch-image-%:
 	@echo "Building images for ARCH=$*"
-	$(MAKE) ARCH=$* build-images
+	$(MAKE) REPO_LOCATION=$(REPO_LOCATION) ARCH=$* build-images
 
 upload-image-%:
-	$(MAKE) ARCH=$* build-images push-images
+	$(MAKE) REPO_LOCATION=$(REPO_LOCATION) ARCH=$* build-images push-images
 
 upload-images: $(addprefix upload-image-,$(ARCHS)) push-all-manifest
 

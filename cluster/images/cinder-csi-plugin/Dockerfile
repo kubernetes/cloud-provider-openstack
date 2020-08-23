@@ -10,6 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG REPO_LOCATION=docker.io/
 ARG DEBIAN_ARCH=amd64
 # We not using scratch because we need to keep the basic image information
 # from parent image
