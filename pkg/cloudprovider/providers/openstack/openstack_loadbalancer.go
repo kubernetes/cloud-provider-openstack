@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/containers"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
@@ -101,6 +102,7 @@ const (
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
+	ServiceAnnotationTlsContainerRef                 = "loadbalancer.openstack.org/default-tls-container-ref"
 )
 
 // LbaasV2 is a LoadBalancer implementation for Neutron LBaaS v2 API
@@ -127,6 +129,7 @@ type serviceConfig struct {
 	allowedCIDR          []string
 	enableMonitor        bool
 	flavorID             string
+	tlsContainerRef      string
 }
 
 type listenerKey struct {
@@ -1039,8 +1042,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 
 		if svcConf.enableProxyProtocol {
 			poolProto = v2pools.ProtocolPROXY
-		} else if svcConf.keepClientIP && poolProto != v2pools.ProtocolHTTP {
-			klog.V(4).Infof("Forcing to use %q protocol for pool because annotation %q is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+		} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
+			klog.V(4).Infof("Forcing to use %q protocol for pool", v2pools.ProtocolHTTP)
 			poolProto = v2pools.ProtocolHTTP
 		}
 
@@ -1105,30 +1108,37 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 		lbListeners[key] = &l
 	}
 
-	proto := toListenersProtocol(port.Protocol)
-	if svcConf.keepClientIP {
-		proto = listeners.ProtocolHTTP
+	protocolTerminatedHTTPS := listeners.Protocol("TERMINATED_HTTPS")
+	listenerPort := int(port.Port)
+	var listenerProtocol listeners.Protocol
+	if svcConf.tlsContainerRef != "" {
+		listenerProtocol = protocolTerminatedHTTPS
+	} else if svcConf.keepClientIP {
+		listenerProtocol = listeners.ProtocolHTTP
+	} else {
+		listenerProtocol = toListenersProtocol(port.Protocol)
 	}
+
 	listener, ok := lbListeners[listenerKey{
-		Protocol: proto,
-		Port:     int(port.Port),
+		Protocol: listenerProtocol,
+		Port:     listenerPort,
 	}]
 
 	if !ok {
-		listenerProtocol := listeners.Protocol(port.Protocol)
 		listenerCreateOpt := listeners.CreateOpts{
-			Protocol:             listenerProtocol,
-			ProtocolPort:         int(port.Port),
-			ConnLimit:            &svcConf.connLimit,
-			LoadbalancerID:       lbID,
-			TimeoutClientData:    &svcConf.timeoutClientData,
-			TimeoutMemberConnect: &svcConf.timeoutMemberConnect,
-			TimeoutMemberData:    &svcConf.timeoutMemberData,
-			TimeoutTCPInspect:    &svcConf.timeoutTCPInspect,
+			Protocol:               listenerProtocol,
+			ProtocolPort:           listenerPort,
+			ConnLimit:              &svcConf.connLimit,
+			LoadbalancerID:         lbID,
+			TimeoutClientData:      &svcConf.timeoutClientData,
+			TimeoutMemberConnect:   &svcConf.timeoutMemberConnect,
+			TimeoutMemberData:      &svcConf.timeoutMemberData,
+			TimeoutTCPInspect:      &svcConf.timeoutTCPInspect,
+			DefaultTlsContainerRef: svcConf.tlsContainerRef,
 		}
 
 		if svcConf.keepClientIP {
-			if listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
+			if listenerCreateOpt.Protocol != listeners.ProtocolHTTP || listenerCreateOpt.Protocol != protocolTerminatedHTTPS {
 				klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
 				listenerCreateOpt.Protocol = listeners.ProtocolHTTP
 			}
@@ -1139,7 +1149,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 			listenerCreateOpt.AllowedCIDRs = svcConf.allowedCIDR
 		}
 
-		klog.V(2).Infof("Creating listener for port %d using protocol %s", int(port.Port), listenerProtocol)
+		klog.V(2).Infof("Creating listener for port %d using protocol %s", listenerPort, listenerProtocol)
 
 		var err error
 		listener, err = openstackutil.CreateListener(lbaas.lb, lbID, listenerCreateOpt)
@@ -1164,6 +1174,10 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 			} else {
 				delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
 			}
+			listenerChanged = true
+		}
+		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
+			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
 			listenerChanged = true
 		}
 		if svcConf.timeoutClientData != listener.TimeoutClientData {
@@ -1220,6 +1234,25 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			return err
 		}
 		svcConf.internal = internal
+	}
+
+	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
+
+	if svcConf.tlsContainerRef != "" {
+		if lbaas.secret == nil {
+			return fmt.Errorf("failed to create TLS Terminated loadbalancer because openstack keymanager client is not "+
+				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
+		}
+
+		// check if container exists
+		// tls container ref has format: https://{keymanager_host}/v1/containers/{uuid}
+		slice := strings.Split(svcConf.tlsContainerRef, "/")
+		containerID := slice[len(slice)-1]
+		container, err := containers.Get(lbaas.secret, containerID).Extract()
+		if err != nil {
+			return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+		}
+		klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 	}
 
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)

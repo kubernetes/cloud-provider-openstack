@@ -208,6 +208,11 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   * network-id. The same with `network-id` option above.
   * subnet-id. The same with `subnet-id` option above.
 
+* `default-tls-container-ref`
+  Reference to tls container. This option works with Octavia, when this option is set then a TLS Terminated loadbalancer will be created by cloud provider.
+
+  Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
+
 ### Metadata
 
 * `search-order`
