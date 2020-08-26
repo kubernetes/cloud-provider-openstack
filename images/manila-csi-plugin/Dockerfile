@@ -1,9 +1,9 @@
-FROM openshift/origin-release:golang-1.13
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6
 COPY . /go/src/k8s.io/cloud-provider-openstack
 RUN cd /go/src/k8s.io/cloud-provider-openstack && \
     go build -o manila-csi-plugin cmd/manila-csi-plugin/main.go
 
-FROM registry.svc.ci.openshift.org/ocp/4.2:base
+FROM registry.svc.ci.openshift.org/ocp/4.6:base
 
 COPY --from=0 /go/src/k8s.io/cloud-provider-openstack/manila-csi-plugin /usr/bin/
 
