@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/storage/testpatterns"
@@ -39,11 +40,12 @@ func initCinderDriver(name string, manifests ...string) testsuites.TestDriver {
 				"xfs",
 			),
 			Capabilities: map[testsuites.Capability]bool{
-				testsuites.CapPersistence: true,
-				testsuites.CapFsGroup:     true,
-				testsuites.CapExec:        true,
-				testsuites.CapMultiPODs:   true,
-				testsuites.CapBlock:       true,
+				testsuites.CapPersistence:        true,
+				testsuites.CapFsGroup:            true,
+				testsuites.CapExec:               true,
+				testsuites.CapMultiPODs:          true,
+				testsuites.CapBlock:              true,
+				testsuites.CapSnapshotDataSource: true,
 			},
 		},
 		manifests: manifests,
@@ -66,6 +68,7 @@ var _ testsuites.TestDriver = &cinderDriver{}
 // var _ testsuites.PreprovisionedVolumeTestDriver = &cinderDriver{}
 // var _ testsuites.PreprovisionedPVTestDriver = &cinderDriver{}
 var _ testsuites.DynamicPVTestDriver = &cinderDriver{}
+var _ testsuites.SnapshottableTestDriver = &cinderDriver{}
 
 func (d *cinderDriver) GetDriverInfo() *testsuites.DriverInfo {
 	return &d.driverInfo
@@ -84,6 +87,14 @@ func (d *cinderDriver) GetDynamicProvisionStorageClass(config *testsuites.PerTes
 	suffix := fmt.Sprintf("%s-sc", d.driverInfo.Name)
 
 	return testsuites.GetStorageClass(provisioner, parameters, nil, ns, suffix)
+}
+
+func (d *cinderDriver) GetSnapshotClass(config *testsuites.PerTestConfig) *unstructured.Unstructured {
+	parameters := map[string]string{}
+	snapshotter := d.driverInfo.Name
+	suffix := fmt.Sprintf("%s-vsc", snapshotter)
+	ns := config.Framework.Namespace.Name
+	return testsuites.GetSnapshotClass(snapshotter, parameters, ns, suffix)
 }
 
 func (d *cinderDriver) GetClaimSize() string {
