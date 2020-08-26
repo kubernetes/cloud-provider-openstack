@@ -84,7 +84,7 @@ Implementation of openstack-cloud-controller-manager relies on several OpenStack
 | Load Balancing (Neutron-LBaaS) | v1, v2         | Yes        | No       |
 | Load Balancing (Octavia)       | v2             | No         | Yes      |
 
-> NOTE: Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](./using-cinder-csi-plugin.md).
+> NOTE: Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md).
 
 ### Global
 
