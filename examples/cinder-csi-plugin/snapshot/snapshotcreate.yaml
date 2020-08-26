@@ -1,9 +1,8 @@
-apiVersion: snapshot.storage.k8s.io/v1alpha1
+apiVersion: snapshot.storage.k8s.io/v1beta1
 kind: VolumeSnapshot
 metadata:
   name: new-snapshot-demo
 spec:
-  snapshotClassName: csi-cinder-snapclass
+  volumeSnapshotClassName: csi-cinder-snapclass
   source:
-    name: pvc-snapshot-demo
-    kind: PersistentVolumeClaim
+    persistentVolumeClaimName: pvc-snapshot-demo

@@ -81,7 +81,7 @@ You should make sure following similar pods are ready before proceed:
 
 ```
 NAME                                READY   STATUS    RESTARTS   AGE
-csi-cinder-controllerplugin         4/4     Running   0          29h
+csi-cinder-controllerplugin         5/5     Running   0          29h
 csi-cinder-nodeplugin               2/2     Running   0          46h
 ```
 
@@ -207,8 +207,10 @@ Note: `allowedTopologies` can be specified in storage class to restrict the topo
 
 Following prerequisite needed for volume snapshot feature to work.
 
-1. Enable `--feature-gates=VolumeSnapshotDataSource=true` in kube-apiserver
-2. Make sure, your csi deployment contains external-snapshotter sidecar container, external-snapshotter sidecar container will create three crd's for snapshot management VolumeSnapshot,VolumeSnapshotContent, and VolumeSnapshotClass. external-snapshotter is a part of `csi-cinder-controllerplugin`
+1. Download all yaml files from [snapshot crd](https://github.com/kubernetes-csi/external-snapshotter/tree/v2.1.1/config/crd)
+2. Apply all yaml files downloaded at step 1) by using `kubectl apply -f ` command, as currently there is no released yaml file from `external-snapshotter` community.
+3. Download all yaml files from [snapshot-controller](https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller) and optionally update all namespaces from `default` to `kube-system` in the yaml files.
+4. Apply all yaml files downloaded at step 3) by using `kubectl apply -f ` command.
 
 Supported parameters for VolumeSnapshotClass:
 * `force-create`: Support creating snapshot for a volume in in-use status.
