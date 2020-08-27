@@ -110,7 +110,7 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 		return nil, fmt.Errorf("failed to choose an export location: %v", err)
 	}
 
-	monitors, rootPath, err := splitExportLocation(&args.Locations[chosenExportLocationIdx])
+	monitors, rootPath, err := splitExportLocationPath(args.Locations[chosenExportLocationIdx].Path)
 
 	return map[string]string{
 		"monitors":        monitors,
