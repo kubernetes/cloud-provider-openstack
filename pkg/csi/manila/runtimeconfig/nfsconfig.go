@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,22 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package shareadapters
+package runtimeconfig
 
-import (
-	"fmt"
-	"strings"
-)
-
-func splitExportLocationPath(exportLocationPath string) (address, location string, err error) {
-	delimPos := strings.LastIndexByte(exportLocationPath, ':')
-	if delimPos <= 0 {
-		err = fmt.Errorf("failed to parse address and location from export location '%s'", exportLocationPath)
-		return
-	}
-
-	address = exportLocationPath[:delimPos]
-	location = exportLocationPath[delimPos+1:]
-
-	return
+type NfsConfig struct {
+	// When mounting an NFS share, select an export location with matching IP address.
+	// No match between this address and at least a single export location for this share
+	// will result in an error.
+	// Expects a CIDR-formatted address. If prefix is not provided,
+	// /32 or /128 prefix is assumed for IPv4 and IPv6 respectively.
+	MatchExportLocationAddress string `json:"matchExportLocationAddress,omitempty"`
 }

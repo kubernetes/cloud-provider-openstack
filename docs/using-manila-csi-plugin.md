@@ -10,6 +10,7 @@
     - [Node Service volume context](#node-service-volume-context)
     - [Secrets, authentication](#secrets-authentication)
     - [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
+    - [Runtime configuration file](#runtime-configuration-file)
   - [Deployment](#deployment)
     - [Kubernetes 1.15+](#kubernetes-115)
       - [Verifying the deployment](#verifying-the-deployment)
@@ -33,6 +34,7 @@ Option | Default value | Description
 `--drivername` | `manila.csi.openstack.org` | Name of this driver
 `--nodeid` | _none_ | ID of this node
 `--nodeaz` | _none_ | Availability zone of this node
+`--runtime-config-file` | _none_ | Path to the [runtime configuration file](#runtime-configuration-file)
 `--with-topology` | _none_ | CSI Manila is topology-aware. See [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning) for more info
 `--share-protocol-selector` | _none_ | Specifies which Manila share protocol to use for this instance of the driver. See [supported protocols](#share-protocol-support-matrix) for valid values.
 `--fwdendpoint` | _none_ | [CSI Node Plugin](https://github.com/container-storage-interface/spec/blob/master/spec.md#rpc-interface) endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in `share-protocol-selector`. Check out the [Deployment](#deployment) section to see why this is necessary.
@@ -119,6 +121,23 @@ Storage AZ does not influence
 ```
 
 [Enabling topology awareness in Kubernetes](#enabling-topology-awareness)
+
+### Runtime configuration file
+
+CSI Manila's runtime configuration file is a JSON document for modifying behavior of the driver at runtime.
+
+Schema:
+
+* Root object:
+  Attribute | Type | Description
+  ----------|------|------------
+  `nfs` | `NfsConfig` | Configuration for NFS shares. Optional.
+* `NfsConfig`:
+  Attribute | Type | Description
+  ----------|------|------------
+  `matchExportLocationAddress` | `string` | When mounting an NFS share, select an export location with matching IP address. No match between this address and at least a single export location for this share will result in an error. Expects a CIDR-formatted address. If prefix is not provided, /32 or /128 prefix is assumed for IPv4 and IPv6 respectively. Optional.
+
+In Kubernetes, you may store this configuration in a [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/) and expose it to CSI Manila pods as a [volume](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/#add-configmap-data-to-a-volume). Then enter the path to the file populated by the ConfigMap into `--runtime-config-file`. Demo ConfigMap is located in `examples/manila-csi-plugin/runtimeconfig-cm.yaml`. If you're deploying CSI Manila with Helm, setting `csimanila.runtimeConfig.enabled` to `true` will take care of the setup.
 
 ## Deployment
 
@@ -214,3 +233,4 @@ Manila share protocol | CSI Node Plugin
 ## For developers
 
 If you'd like to contribute to CSI Manila, check out `docs/developers-csi-manila.md` to get you started.
+

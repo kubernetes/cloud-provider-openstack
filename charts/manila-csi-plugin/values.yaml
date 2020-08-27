@@ -16,6 +16,15 @@ shareProtocols:
 csimanila:
   # Set topologyAwarenessEnabled to true to enable topology awareness
   topologyAwarenessEnabled: false
+  # Runtime configuration
+  runtimeConfig:
+    enabled: false
+    jsonData: |-
+      {
+        "nfs": {
+          "matchExportLocationAddress": "172.168.122.0/24"
+        }
+      }
   # Availability zone for each node. topologyAwarenessEnabled must be set to true for this option to have any effect.
   # If your Kubernetes cluster runs atop of Nova and want to use Nova AZs as AZs for the nodes of the cluster, uncomment the line below:
   # nodeAZ: "$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)"
