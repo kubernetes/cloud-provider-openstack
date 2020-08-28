@@ -5,12 +5,12 @@ csi:
   attacher:
     image:
       repository: quay.io/k8scsi/csi-attacher
-      tag: v2.1.1
+      tag: v2.2.0
       pullPolicy: IfNotPresent
   provisioner:
     image:
       repository: quay.io/k8scsi/csi-provisioner
-      tag: v1.4.0
+      tag: v1.6.0
       pullPolicy: IfNotPresent
   snapshotter:
     image:
@@ -30,7 +30,7 @@ csi:
   plugin:
     image:
       repository: docker.io/k8scloudprovider/cinder-csi-plugin
-      tag: v1.18.0
+      tag: latest
       pullPolicy: IfNotPresent
 
 storageClass:
