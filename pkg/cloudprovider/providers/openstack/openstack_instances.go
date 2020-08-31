@@ -29,6 +29,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
@@ -111,9 +112,10 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(i.compute, instanceID).Extract()
 
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return []v1.NodeAddress{}, err
 	}
 
@@ -143,8 +145,9 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 		return false, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	_, err = servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -168,8 +171,9 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 		return false, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return false, err
 	}
 
@@ -249,9 +253,10 @@ func (i *Instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 		return "", err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(i.compute, instanceID).Extract()
 
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return "", err
 	}
 

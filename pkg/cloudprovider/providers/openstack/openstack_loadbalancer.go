@@ -49,6 +49,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	klog "k8s.io/klog/v2"
 
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	netsets "k8s.io/cloud-provider-openstack/pkg/util/net/sets"
@@ -137,6 +138,7 @@ type listenerKey struct {
 func networkExtensions(client *gophercloud.ServiceClient) (map[string]bool, error) {
 	seen := make(map[string]bool)
 
+	mc := metrics.NewMetricContext("extension", "list")
 	pager := extensions.List(client)
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		exts, err := extensions.ExtractExtensions(page)
@@ -149,12 +151,13 @@ func networkExtensions(client *gophercloud.ServiceClient) (map[string]bool, erro
 		return true, nil
 	})
 
-	return seen, err
+	return seen, mc.ObserveRequest(err)
 }
 
 func getLoadBalancers(client *gophercloud.ServiceClient, opts loadbalancers.ListOpts) ([]loadbalancers.LoadBalancer, error) {
+	mc := metrics.NewMetricContext("loadbalancer", "list")
 	allPages, err := loadbalancers.List(client, opts).AllPages()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 	allLoadbalancers, err := loadbalancers.ExtractLoadBalancers(allPages)
@@ -290,10 +293,10 @@ func getSecurityGroupName(service *corev1.Service) string {
 }
 
 func getSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
-
-	pager := rules.List(client, opts)
-
 	var securityRules []rules.SecGroupRule
+
+	mc := metrics.NewMetricContext("security_group_rule", "list")
+	pager := rules.List(client, opts)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		ruleList, err := rules.ExtractRules(page)
@@ -304,7 +307,7 @@ func getSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpt
 		return true, nil
 	})
 
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -320,8 +323,9 @@ func waitLoadbalancerActiveProvisioningStatus(client *gophercloud.ServiceClient,
 
 	var provisioningStatus string
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		mc := metrics.NewMetricContext("loadbalancer", "get")
 		loadbalancer, err := loadbalancers.Get(client, loadbalancerID).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return false, err
 		}
 		provisioningStatus = loadbalancer.ProvisioningStatus
@@ -348,14 +352,15 @@ func waitLoadbalancerDeleted(client *gophercloud.ServiceClient, loadbalancerID s
 		Steps:    loadbalancerDeleteSteps,
 	}
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		mc := metrics.NewMetricContext("loadbalancer", "get")
 		_, err := loadbalancers.Get(client, loadbalancerID).Extract()
 		if err != nil {
 			if cpoerrors.IsNotFound(err) {
-				return true, nil
+				return true, mc.ObserveRequest(nil)
 			}
-			return false, err
+			return false, mc.ObserveRequest(err)
 		}
-		return false, nil
+		return false, mc.ObserveRequest(nil)
 	})
 
 	if err == wait.ErrWaitTimeout {
@@ -406,15 +411,15 @@ func createNodeSecurityGroup(client *gophercloud.ServiceClient, nodeSecurityGrou
 		EtherType:     rules.EtherType6,
 	}
 
+	mc := metrics.NewMetricContext("security_group_rule", "create")
 	_, err := rules.Create(client, v4NodeSecGroupRuleCreateOpts).Extract()
-
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return err
 	}
 
+	mc = metrics.NewMetricContext("security_group_rule", "create")
 	_, err = rules.Create(client, v6NodeSecGroupRuleCreateOpts).Extract()
-
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return err
 	}
 	return nil
@@ -451,8 +456,9 @@ func (lbaas *LbaasV2) createLoadBalancer(service *corev1.Service, name, clusterN
 		createOpts.VipAddress = loadBalancerIP
 	}
 
+	mc := metrics.NewMetricContext("loadbalancer", "create")
 	loadbalancer, err := loadbalancers.Create(lbaas.lb, createOpts).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
 	}
 
@@ -502,8 +508,9 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(service *corev1.Service, name, c
 		createOpts.VipAddress = loadBalancerIP
 	}
 
+	mc := metrics.NewMetricContext("loadbalancer", "create")
 	loadbalancer, err := loadbalancers.Create(lbaas.lb, createOpts).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
 	}
 
@@ -672,8 +679,9 @@ func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node) (str
 
 // getPorts gets all the filtered ports.
 func getPorts(network *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]neutronports.Port, error) {
+	mc := metrics.NewMetricContext("port", "list")
 	allPages, err := neutronports.List(network, listOpts).AllPages()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return []neutronports.Port{}, err
 	}
 	allPorts, err := neutronports.ExtractPorts(allPages)
@@ -702,12 +710,15 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 		for _, port := range allPorts {
 			newSGs := append(port.SecurityGroups, sg)
 			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+			mc := metrics.NewMetricContext("port", "update")
 			res := neutronports.Update(network, port.ID, updateOpts)
-			if res.Err != nil {
+			if mc.ObserveRequest(res.Err) != nil {
 				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 			}
 			// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
-			if err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr(); err != nil {
+			mc = metrics.NewMetricContext("port_tag", "add")
+			err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr()
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, res.Err)
 			}
 		}
@@ -736,12 +747,15 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 		// Update port security groups
 		newSGs := existingSGs.List()
 		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+		mc := metrics.NewMetricContext("port", "update")
 		res := neutronports.Update(network, port.ID, updateOpts)
-		if res.Err != nil {
+		if mc.ObserveRequest(res.Err) != nil {
 			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 		}
 		// Remove the security group ID tag from the port.
-		if err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr(); err != nil {
+		mc = metrics.NewMetricContext("port_tag", "delete")
+		err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
 		}
 	}
@@ -805,6 +819,7 @@ func getFloatingNetworkIDForLB(client *gophercloud.ServiceClient) (string, error
 		external.NetworkExternalExt
 	}
 
+	mc := metrics.NewMetricContext("network", "list")
 	err := networks.List(client, networks.ListOpts{}).EachPage(func(page pagination.Page) (bool, error) {
 		var externalNetwork []NetworkWithExternalExt
 		err := networks.ExtractNetworksInto(page, &externalNetwork)
@@ -825,21 +840,21 @@ func getFloatingNetworkIDForLB(client *gophercloud.ServiceClient) (string, error
 	})
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return "", ErrNotFound
+			return "", mc.ObserveRequest(ErrNotFound)
 		}
 
 		if err == ErrMultipleResults {
 			klog.V(4).Infof("find multiple external networks, pick the first one when there are no explicit configuration.")
-			return floatingNetworkIds[0], nil
+			return floatingNetworkIds[0], mc.ObserveRequest(nil)
 		}
-		return "", err
+		return "", mc.ObserveRequest(err)
 	}
 
 	if len(floatingNetworkIds) == 0 {
-		return "", ErrNotFound
+		return "", mc.ObserveRequest(ErrNotFound)
 	}
 
-	return floatingNetworkIds[0], nil
+	return floatingNetworkIds[0], mc.ObserveRequest(nil)
 }
 
 func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.Listener) error {
@@ -854,20 +869,26 @@ func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.List
 			klog.V(2).Infof("Deleting obsolete pool %s for listener %s", pool.ID, listener.ID)
 
 			// Delete pool automatically deletes all its members.
+			mc := metrics.NewMetricContext("loadbalancer_pool", "delete")
 			err = v2pools.Delete(lbaas.lb, pool.ID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
+				mc.ObserveRequest(err)
 				return fmt.Errorf("error deleting obsolete pool %s for listener %s: %v", pool.ID, listener.ID, err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, lbID)
 			if err != nil {
 				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting pool, current provisioning status %s", provisioningStatus)
 			}
 		}
 
+		mc := metrics.NewMetricContext("loadbalancer_listener", "delete")
 		err = listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
+			mc.ObserveRequest(err)
 			return fmt.Errorf("failed to delete obsolete listener %s: %v", listener.ID, err)
 		}
+		mc.ObserveRequest(nil)
 		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, lbID)
 		if err != nil {
 			return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting listener, current provisioning status %s", provisioningStatus)
@@ -916,8 +937,9 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 				floatUpdateOpts := floatingips.UpdateOpts{
 					PortID: &portID,
 				}
+				mc := metrics.NewMetricContext("floating_ip", "update")
 				floatIP, err = floatingips.Update(lbaas.network, floatingip.ID, floatUpdateOpts).Extract()
-				if err != nil {
+				if mc.ObserveRequest(err) != nil {
 					return "", fmt.Errorf("error updating LB floatingip %+v: %v", floatUpdateOpts, err)
 				}
 			} else {
@@ -945,8 +967,9 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 
 			klog.V(4).Infof("Creating floating ip with opts %+v", floatIPOpts)
 
+			mc := metrics.NewMetricContext("floating_ip", "create")
 			floatIP, err = floatingips.Create(lbaas.network, floatIPOpts).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return "", fmt.Errorf("error creating LB floatingip: %v", err)
 			}
 		} else {
@@ -971,6 +994,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool
 		if port.Protocol == corev1.ProtocolUDP {
 			monitorProtocol = "UDP-CONNECT"
 		}
+		mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "create")
 		monitor, err := v2monitors.Create(lbaas.lb, v2monitors.CreateOpts{
 			PoolID:     pool.ID,
 			Type:       monitorProtocol,
@@ -978,7 +1002,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool
 			Timeout:    int(lbaas.opts.MonitorTimeout.Duration.Seconds()),
 			MaxRetries: int(lbaas.opts.MonitorMaxRetries),
 		}).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to create healthmonitor for pool %s: %v", pool.ID, err)
 		}
 		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, lbID)
@@ -989,8 +1013,9 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool
 	} else if monitorID != "" && !svcConf.enableMonitor {
 		klog.Infof("Deleting health monitor %s for pool %s", monitorID, pool.ID)
 
+		mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "delete")
 		err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to delete health monitor %s for pool %s, error: %v", monitorID, pool.ID, err)
 		}
 	}
@@ -1063,8 +1088,9 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 
 		klog.V(2).Infof("Creating pool for listener %s using protocol %s", listener.ID, poolProto)
 
+		mc := metrics.NewMetricContext("loadbalancer_pool", "create")
 		pool, err = v2pools.Create(lbaas.lb, createOpt).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return nil, fmt.Errorf("error creating pool for listener %s: %v", listener.ID, err)
 		}
 
@@ -1296,8 +1322,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 		// check subnets belongs to network
 		if floatingNetworkID != "" && floatingSubnetID != "" {
+			mc := metrics.NewMetricContext("subnet", "get")
 			subnet, err := subnets.Get(lbaas.network, floatingSubnetID).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to find subnet %q: %v", floatingSubnetID, err)
 			}
 
@@ -1432,6 +1459,12 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 // EnsureLoadBalancer creates a new load balancer or updates the existing one.
 func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
+	mc := metrics.NewMetricContext("loadbalancer", "ensure")
+	status, err := lbaas.ensureLoadBalancer(ctx, clusterName, apiService, nodes)
+	return status, mc.ObserveReconcile(err)
+}
+
+func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
 	serviceName := fmt.Sprintf("%s/%s", apiService.Namespace, apiService.Name)
 	klog.V(4).Infof("EnsureLoadBalancer(%s, %s)", clusterName, serviceName)
 
@@ -1736,8 +1769,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 			klog.V(4).Infof("Creating pool for listener %s using protocol %s", listener.ID, poolProto)
 
+			mc := metrics.NewMetricContext("loadbalancer_pool", "create")
 			pool, err = v2pools.Create(lbaas.lb, createOpt).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return nil, fmt.Errorf("error creating pool for listener %s: %v", listener.ID, err)
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1767,13 +1801,14 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 
 			if !memberExists(members, addr, int(port.NodePort)) {
 				klog.V(4).Infof("Creating member for pool %s", pool.ID)
+				mc := metrics.NewMetricContext("loadbalancer_member", "create")
 				_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
 					Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, name)),
 					ProtocolPort: int(port.NodePort),
 					Address:      addr,
 					SubnetID:     lbaas.opts.SubnetID,
 				}).Extract()
-				if err != nil {
+				if mc.ObserveRequest(err) != nil {
 					return nil, fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
 				}
 
@@ -1792,10 +1827,13 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		// Delete obsolete members for this pool
 		for _, member := range members {
 			klog.V(4).Infof("Deleting obsolete member %s for pool %s address %s", member.ID, pool.ID, member.Address)
+			mc := metrics.NewMetricContext("loadbalancer_member", "delete")
 			err := v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
+				mc.ObserveRequest(err)
 				return nil, fmt.Errorf("error deleting obsolete member %s for pool %s address %s: %v", member.ID, pool.ID, member.Address, err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
@@ -1813,6 +1851,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			if port.Protocol == corev1.ProtocolUDP {
 				monitorProtocol = "UDP-CONNECT"
 			}
+			mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "create")
 			monitor, err := v2monitors.Create(lbaas.lb, v2monitors.CreateOpts{
 				Name:       cutString(fmt.Sprintf("monitor_%d_%s)", portIndex, name)),
 				PoolID:     pool.ID,
@@ -1821,7 +1860,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				Timeout:    int(lbaas.opts.MonitorTimeout.Duration.Seconds()),
 				MaxRetries: int(lbaas.opts.MonitorMaxRetries),
 			}).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return nil, fmt.Errorf("error creating LB pool healthmonitor: %v", err)
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -1831,8 +1870,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			monitorID = monitor.ID
 		} else if monitorID != "" && !enableHealthMonitor {
 			klog.Infof("Deleting health monitor %s for pool %s", monitorID, pool.ID)
+			mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "delete")
 			err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return nil, fmt.Errorf("failed to delete health monitor %s for pool %s, error: %v", monitorID, pool.ID, err)
 			}
 		}
@@ -1851,10 +1891,13 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			monitorID := pool.MonitorID
 			if monitorID != "" {
 				klog.V(4).Infof("Deleting obsolete monitor %s for pool %s", monitorID, pool.ID)
+				mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "delete")
 				err = v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
 				if err != nil && !cpoerrors.IsNotFound(err) {
+					mc.ObserveRequest(err)
 					return nil, fmt.Errorf("error deleting obsolete monitor %s for pool %s: %v", monitorID, pool.ID, err)
 				}
+				mc.ObserveRequest(nil)
 				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 				if err != nil {
 					return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting monitor, current provisioning status %s", provisioningStatus)
@@ -1868,10 +1911,13 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			if members != nil {
 				for _, member := range members {
 					klog.V(4).Infof("Deleting obsolete member %s for pool %s address %s", member.ID, pool.ID, member.Address)
+					mc := metrics.NewMetricContext("loadbalancer_member", "delete")
 					err := v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
 					if err != nil && !cpoerrors.IsNotFound(err) {
+						mc.ObserveRequest(err)
 						return nil, fmt.Errorf("error deleting obsolete member %s for pool %s address %s: %v", member.ID, pool.ID, member.Address, err)
 					}
+					mc.ObserveRequest(nil)
 					provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 					if err != nil {
 						return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
@@ -1880,20 +1926,26 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			}
 			klog.V(4).Infof("Deleting obsolete pool %s for listener %s", pool.ID, listener.ID)
 			// delete pool
+			mc := metrics.NewMetricContext("loadbalancer_pool", "delete")
 			err = v2pools.Delete(lbaas.lb, pool.ID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
+				mc.ObserveRequest(err)
 				return nil, fmt.Errorf("error deleting obsolete pool %s for listener %s: %v", pool.ID, listener.ID, err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting pool, current provisioning status %s", provisioningStatus)
 			}
 		}
 		// delete listener
+		mc := metrics.NewMetricContext("loadbalancer_listener", "delete")
 		err = listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
+			mc.ObserveRequest(err)
 			return nil, fmt.Errorf("error deleteting obsolete listener: %v", err)
 		}
+		mc.ObserveRequest(nil)
 		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 		if err != nil {
 			return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting listener, current provisioning status %s", provisioningStatus)
@@ -1934,8 +1986,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 					floatUpdateOpts := floatingips.UpdateOpts{
 						PortID: &portID,
 					}
+					mc := metrics.NewMetricContext("floating_ip", "update")
 					floatIP, err = floatingips.Update(lbaas.network, floatingip.ID, floatUpdateOpts).Extract()
-					if err != nil {
+					if mc.ObserveRequest(err) != nil {
 						return nil, fmt.Errorf("error updating LB floatingip %+v: %v", floatUpdateOpts, err)
 					}
 				} else {
@@ -1963,8 +2016,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 				}
 
 				klog.V(4).Infof("creating floating ip with opts %+v", floatIPOpts)
+				mc := metrics.NewMetricContext("floating_ip", "create")
 				floatIP, err = floatingips.Create(lbaas.network, floatIPOpts).Extract()
-				if err != nil {
+				if mc.ObserveRequest(err) != nil {
 					return nil, fmt.Errorf("error creating LB floatingip %+v: %v", floatIPOpts, err)
 				}
 			} else {
@@ -1997,8 +2051,9 @@ func (lbaas *LbaasV2) getSubnet(subnet string) (*subnets.Subnet, error) {
 		return nil, nil
 	}
 
+	mc := metrics.NewMetricContext("subnet", "list")
 	allPages, err := subnets.List(lbaas.network, subnets.ListOpts{Name: subnet}).AllPages()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error listing subnets: %v", err)
 	}
 	subs, err := subnets.ExtractSubnets(allPages)
@@ -2059,8 +2114,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 			Description: fmt.Sprintf("Security Group for %s/%s Service LoadBalancer in cluster %s", apiService.Namespace, apiService.Name, clusterName),
 		}
 
+		mc := metrics.NewMetricContext("security_group", "create")
 		lbSecGroup, err := groups.Create(lbaas.network, lbSecGroupCreateOpts).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to create Security Group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
 		lbSecGroupID = lbSecGroup.ID
@@ -2090,9 +2146,10 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 						EtherType:      ethertype,
 					}
 
+					mc := metrics.NewMetricContext("security_group_rule", "create")
 					_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
 
-					if err != nil {
+					if mc.ObserveRequest(err) != nil {
 						return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
 					}
 				}
@@ -2108,9 +2165,10 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 				EtherType:      rules.EtherType4,
 			}
 
+			mc := metrics.NewMetricContext("security_group_rule", "create")
 			_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
 
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
 			}
 
@@ -2124,8 +2182,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 				EtherType:      rules.EtherType6,
 			}
 
+			mc = metrics.NewMetricContext("security_group_rule", "create")
 			_, err = rules.Create(lbaas.network, lbSecGroupRuleCreateOpts).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("error occurred creating rule for SecGroup %s: %v", lbSecGroup.ID, err)
 			}
 
@@ -2149,8 +2208,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 			if !found {
 				port.SecurityGroups = append(port.SecurityGroups, lbSecGroup.ID)
 				updateOpts := neutronports.UpdateOpts{SecurityGroups: &port.SecurityGroups}
+				mc := metrics.NewMetricContext("port", "update")
 				res := neutronports.Update(lbaas.network, portID, updateOpts)
-				if res.Err != nil {
+				if mc.ObserveRequest(res.Err) != nil {
 					msg := fmt.Sprintf("Error occurred updating port %s for loadbalancer service %s/%s: %v", portID, apiService.Namespace, apiService.Name, res.Err)
 					return fmt.Errorf(msg)
 				}
@@ -2163,8 +2223,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 		// If Octavia is used, the VIP port security group is already taken good care of, we only need to allow ingress
 		// traffic from Octavia amphorae to the node port on the worker nodes.
 		if lbaas.opts.UseOctavia {
+			mc := metrics.NewMetricContext("subnet", "get")
 			subnet, err := subnets.Get(lbaas.network, lbaas.opts.SubnetID).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to find subnet %s from openstack: %v", lbaas.opts.SubnetID, err)
 			}
 
@@ -2195,7 +2256,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 				SecGroupID:     lbSecGroupID,
 				EtherType:      rules.EtherType4,
 			}
-			if _, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract(); err != nil {
+			mc = metrics.NewMetricContext("security_group_rule", "create")
+			_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to create rule for security group %s: %v", lbSecGroupID, err)
 			}
 
@@ -2332,6 +2395,12 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 
 // UpdateLoadBalancer updates hosts under the specified load balancer.
 func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
+	mc := metrics.NewMetricContext("loadbalancer", "update")
+	err := lbaas.updateLoadBalancer(ctx, clusterName, service, nodes)
+	return mc.ObserveReconcile(err)
+}
+
+func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
 	if lbaas.opts.UseOctavia {
 		return lbaas.updateOctaviaLoadBalancer(ctx, clusterName, service, nodes)
 	}
@@ -2440,13 +2509,14 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 				// Already exists, do not create member
 				continue
 			}
+			mc := metrics.NewMetricContext("loadbalancer_member", "create")
 			_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
 				Name:         cutString(fmt.Sprintf("member_%d_%s_%s_", portIndex, node.Name, loadbalancer.Name)),
 				Address:      addr,
 				ProtocolPort: int(port.NodePort),
 				SubnetID:     lbaas.opts.SubnetID,
 			}).Extract()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return err
 			}
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
@@ -2461,10 +2531,12 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 				// Still present, do not delete member
 				continue
 			}
+			mc := metrics.NewMetricContext("loadbalancer_member", "delete")
 			err = v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
-				return err
+				return mc.ObserveRequest(err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
@@ -2526,10 +2598,13 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1
 			}
 
 			for _, rule := range secGroupRules {
+				mc := metrics.NewMetricContext("security_group_rule", "delete")
 				res := rules.Delete(lbaas.network, rule.ID)
 				if res.Err != nil && !cpoerrors.IsNotFound(res.Err) {
+					mc.ObserveRequest(err)
 					return fmt.Errorf("error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
 				}
+				mc.ObserveRequest(nil)
 			}
 		}
 
@@ -2564,6 +2639,12 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1
 
 // EnsureLoadBalancerDeleted deletes the specified load balancer
 func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
+	mc := metrics.NewMetricContext("loadbalancer", "delete")
+	err := lbaas.ensureLoadBalancerDeleted(ctx, clusterName, service)
+	return mc.ObserveReconcile(err)
+}
+
+func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 	klog.V(4).Infof("EnsureLoadBalancerDeleted(%s, %s)", clusterName, serviceName)
 
@@ -2597,7 +2678,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 					return err
 				}
 				if matched {
-					if err := floatingips.Delete(lbaas.network, fip.ID).ExtractErr(); err != nil {
+					mc := metrics.NewMetricContext("floating_ip", "delete")
+					err := floatingips.Delete(lbaas.network, fip.ID).ExtractErr()
+					if mc.ObserveRequest(err) != nil {
 						return fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
 					}
 				}
@@ -2608,7 +2691,9 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 	// delete the loadbalancer and all its sub-resources.
 	if lbaas.opts.UseOctavia && lbaas.opts.CascadeDelete {
 		deleteOpts := loadbalancers.DeleteOpts{Cascade: true}
-		if err := loadbalancers.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr(); err != nil {
+		mc := metrics.NewMetricContext("loadbalancer", "delete")
+		err := loadbalancers.Delete(lbaas.lb, loadbalancer.ID, deleteOpts).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to delete loadbalancer %s: %v", loadbalancer.ID, err)
 		}
 	} else {
@@ -2637,10 +2722,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 		// delete all monitors
 		for _, monitorID := range monitorIDs {
+			mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "delete")
 			err := v2monitors.Delete(lbaas.lb, monitorID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
-				return err
+				return mc.ObserveRequest(err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting monitor, current provisioning status %s", provisioningStatus)
@@ -2656,10 +2743,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 			}
 			// delete all members for this pool
 			for _, member := range membersList {
+				mc := metrics.NewMetricContext("loadbalancer_member", "delete")
 				err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
 				if err != nil && !cpoerrors.IsNotFound(err) {
-					return err
+					return mc.ObserveRequest(err)
 				}
+				mc.ObserveRequest(nil)
 				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 				if err != nil {
 					return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
@@ -2667,10 +2756,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 			}
 
 			// delete pool
+			mc := metrics.NewMetricContext("loadbalancer_pool", "delete")
 			err = v2pools.Delete(lbaas.lb, poolID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
-				return err
+				return mc.ObserveRequest(err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting pool, current provisioning status %s", provisioningStatus)
@@ -2679,10 +2770,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 
 		// delete all listeners
 		for _, listener := range listenerList {
+			mc := metrics.NewMetricContext("loadbalancer_listener", "delete")
 			err := listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
 			if err != nil && !cpoerrors.IsNotFound(err) {
-				return err
+				return mc.ObserveRequest(err)
 			}
+			mc.ObserveRequest(nil)
 			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 			if err != nil {
 				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting listener, current provisioning status %s", provisioningStatus)
@@ -2690,10 +2783,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 		}
 
 		// delete loadbalancer
+		mc := metrics.NewMetricContext("loadbalancer", "delete")
 		err = loadbalancers.Delete(lbaas.lb, loadbalancer.ID, loadbalancers.DeleteOpts{}).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
-			return err
+			return mc.ObserveRequest(err)
 		}
+		mc.ObserveRequest(nil)
 		err = waitLoadbalancerDeleted(lbaas.lb, loadbalancer.ID)
 		if err != nil {
 			return fmt.Errorf("failed to delete loadbalancer: %v", err)
@@ -2731,10 +2826,12 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *co
 		}
 	}
 
+	mc := metrics.NewMetricContext("security_group", "delete")
 	lbSecGroup := groups.Delete(lbaas.network, lbSecGroupID)
 	if lbSecGroup.Err != nil && !cpoerrors.IsNotFound(lbSecGroup.Err) {
-		return lbSecGroup.Err
+		return mc.ObserveRequest(lbSecGroup.Err)
 	}
+	mc.ObserveRequest(nil)
 
 	if len(lbaas.opts.NodeSecurityGroupIDs) == 0 {
 		// Just happen when nodes have not Security Group, or should not happen
@@ -2757,10 +2854,13 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(clusterName string, service *co
 			}
 
 			for _, rule := range secGroupRules {
+				mc := metrics.NewMetricContext("security_group_rule", "delete")
 				res := rules.Delete(lbaas.network, rule.ID)
 				if res.Err != nil && !cpoerrors.IsNotFound(res.Err) {
+					mc.ObserveRequest(res.Err)
 					return fmt.Errorf("error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
 				}
+				mc.ObserveRequest(nil)
 			}
 		}
 	}
