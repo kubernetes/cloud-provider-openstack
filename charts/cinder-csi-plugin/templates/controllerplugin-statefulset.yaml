@@ -101,12 +101,12 @@ spec:
             - name: socket-dir
               mountPath: /csi
             - name: cacert
-              mountPath: /etc/kubernetes
+              mountPath: /etc/cacert
               readOnly: true
       volumes:
         - name: cacert
           hostPath:
-            path: /etc/kubernetes
+            path: /etc/cacert
             type: Directory
         - name: socket-dir
           emptyDir:
