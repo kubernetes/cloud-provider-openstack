@@ -187,7 +187,7 @@ type OpenStack struct {
 }
 
 type AuthOpts struct {
-	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID"`
+	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID|os-applicationCredentialSecret"`
 	UserID           string `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
 	Username         string `name:"os-userName" value:"optional" dependsOn:"os-password"`
 	Password         string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
