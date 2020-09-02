@@ -39,7 +39,6 @@ const (
 	operationFinishInitDelay = 1 * time.Second
 	operationFinishFactor    = 1.1
 	operationFinishSteps     = 15
-	instanceIDFile           = "/var/lib/cloud/data/instance-id"
 )
 
 type IMount interface {
