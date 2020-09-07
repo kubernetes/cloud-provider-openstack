@@ -50,8 +50,9 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 }
 
 // InstancesV2 returns an implementation of InstancesV2 for OpenStack.
+// TODO: Support InstancesV2 in the future.
 func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
-	return os.instances()
+	return nil, false
 }
 
 func (os *OpenStack) instances() (*Instances, bool) {
