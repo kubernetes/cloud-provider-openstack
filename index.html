@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!--Converted via md-to-html-->
+<html>
+ <head>
+ </head>
+ <body>
+  <h1>
+   Cloud Provider OpenStack Helm Chart Repository
+  </h1>
+  <h2>
+   Add repo
+  </h2>
+  <pre><code>helm repo add cpo https://kubernetes.github.io/cloud-provider-openstack
+</code></pre>
+  <pre><code>helm repo update
+</code></pre>
+  <h2>
+   Install Cinder CSI chart
+  </h2>
+  <pre><code>helm install cinder-csi cpo/openstack-cinder-csi
+</code></pre>
+  <h2>
+   Install Manila CSI chart
+  </h2>
+  <pre><code>helm install manila-csi cpo/openstack-manila-csi
+</code></pre>
+ </body>
+</html>
