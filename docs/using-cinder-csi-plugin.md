@@ -436,6 +436,25 @@ Following prerequisites needed for volume cloning to work :
 
 Sample yamls can be found [here](https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/cinder-csi-plugin/clone)
 
+### Multi-Attach Volumes
+
+To avail the multiattach feature of cinder, specify the ID/name of cinder volume type that includes an extra-spec capability setting of `multiattach=<is> True` in storage class parameters as shown below.
+
+> Note: This volume type must exist in cinder already (`openstack volume type list`)
+
+This should enable to attach a volume to multiple hosts/servers simultaneously.
+
+Example:
+
+```
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-sc-cinderplugin
+provisioner: cinder.csi.openstack.org
+parameters:
+  type: <multiattach-volume-type>
+
 ## Running Sanity Tests
 
 Sanity tests create a real instance of driver and fake cloud provider.

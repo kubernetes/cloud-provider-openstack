@@ -41,16 +41,18 @@ type controllerServer struct {
 }
 
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	klog.V(4).Infof("CreateVolume: called with args %+v", *req)
 
 	// Volume Name
 	volName := req.GetName()
+	volCapabilities := req.GetVolumeCapabilities()
 
 	if len(volName) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume request missing Volume Name")
+		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume Name")
 	}
 
-	if req.VolumeCapabilities == nil {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume request missing Volume capability")
+	if volCapabilities == nil {
+		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume capability")
 	}
 
 	// Volume Size - Default is 1 GiB
@@ -123,18 +125,20 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
+
 	if err != nil {
-		klog.V(3).Infof("Failed to CreateVolume: %v", err)
+		klog.Errorf("Failed to CreateVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume failed with error %v", err))
 
 	}
 
-	klog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
+	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
 	return getCreateVolumeResponse(vol), nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+	klog.V(4).Infof("DeleteVolume: called with args %+v", *req)
 
 	// Volume Delete
 	volID := req.GetVolumeId()
@@ -147,11 +151,11 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			klog.V(3).Infof("Volume %s is already deleted.", volID)
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		klog.V(3).Infof("Failed to DeleteVolume: %v", err)
+		klog.Errorf("Failed to DeleteVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteVolume failed with error %v", err))
 	}
 
-	klog.V(4).Infof("Delete volume %s", volID)
+	klog.V(4).Infof("DeleteVolume: Successfully deleted volume %s", volID)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
