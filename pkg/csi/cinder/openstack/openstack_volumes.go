@@ -59,6 +59,7 @@ func (os *OpenStack) CheckBlockStorageAPI() error {
 
 // CreateVolume creates a volume of given size
 func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
+
 	opts := &volumes.CreateOpts{
 		Name:             name,
 		Size:             size,
@@ -145,20 +146,31 @@ func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
 
 // AttachVolume attaches given cinder volume to the compute
 func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
+	computeServiceClient := os.compute
+
 	volume, err := os.GetVolume(volumeID)
 	if err != nil {
 		return "", err
 	}
 
-	if len(volume.Attachments) > 0 {
-		if instanceID == volume.Attachments[0].ServerID {
+	for _, att := range volume.Attachments {
+		if instanceID == att.ServerID {
 			klog.V(4).Infof("Disk %s is already attached to instance %s", volumeID, instanceID)
 			return volume.ID, nil
 		}
-		return "", fmt.Errorf("disk %s is attached to a different instance (%s)", volumeID, volume.Attachments[0].ServerID)
 	}
 
-	_, err = volumeattach.Create(os.compute, instanceID, &volumeattach.CreateOpts{
+	if volume.Multiattach {
+		// For multiattach volumes, supported compute api version is 2.60
+		// Init a local thread safe copy of the compute ServiceClient
+		computeServiceClient, err = openstack.NewComputeV2(os.compute.ProviderClient, os.epOpts)
+		if err != nil {
+			return "", err
+		}
+		computeServiceClient.Microversion = "2.60"
+	}
+
+	_, err = volumeattach.Create(computeServiceClient, instanceID, &volumeattach.CreateOpts{
 		VolumeID: volume.ID,
 	}).Extract()
 
@@ -209,21 +221,19 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 		return fmt.Errorf("can not detach volume %s, its status is %s", volume.Name, volume.Status)
 	}
 
-	if len(volume.Attachments) > 0 {
-		if volume.Attachments[0].ServerID != instanceID {
-			return fmt.Errorf("disk: %s is not attached to compute: %s", volume.Name, instanceID)
+	// Incase volume is of type multiattach, it could be attached to more than one instance
+	for _, att := range volume.Attachments {
+		if att.ServerID == instanceID {
+			err = volumeattach.Delete(os.compute, instanceID, volume.ID).ExtractErr()
+			if err != nil {
+				return fmt.Errorf("failed to detach volume %s from compute %s : %v", volume.ID, instanceID, err)
+			}
+			klog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
+			return nil
 		}
-		err = volumeattach.Delete(os.compute, instanceID, volume.ID).ExtractErr()
-		if err != nil {
-			return fmt.Errorf("failed to delete volume %s from compute %s attached %v", volume.ID, instanceID, err)
-		}
-		klog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
-
-	} else {
-		return fmt.Errorf("disk: %s has no attachments", volume.Name)
 	}
 
-	return nil
+	return fmt.Errorf("disk: %s has no attachments or not attached to compute %s", volume.ID, instanceID)
 }
 
 // WaitDiskDetached waits for detached
@@ -259,13 +269,15 @@ func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string,
 		return "", fmt.Errorf("can not get device path of volume %s, its status is %s ", volume.Name, volume.Status)
 	}
 
-	if len(volume.Attachments) > 0 && volume.Attachments[0].ServerID != "" {
-		if instanceID == volume.Attachments[0].ServerID {
-			return volume.Attachments[0].Device, nil
+	if len(volume.Attachments) > 0 {
+		for _, att := range volume.Attachments {
+			if att.ServerID == instanceID {
+				return att.Device, nil
+			}
 		}
-		return "", fmt.Errorf("disk %q is attached to a different compute: %q, should be detached before proceeding", volumeID, volume.Attachments[0].ServerID)
+		return "", fmt.Errorf("disk %q is not attached to compute: %q", volumeID, instanceID)
 	}
-	return "", fmt.Errorf("volume %s has no ServerId", volumeID)
+	return "", fmt.Errorf("volume %s has no Attachments", volumeID)
 }
 
 // ExpandVolume expands the volume to new size
@@ -315,11 +327,11 @@ func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
-	if len(volume.Attachments) > 0 {
-		return instanceID == volume.Attachments[0].ServerID, nil
+	for _, att := range volume.Attachments {
+		if att.ServerID == instanceID {
+			return true, nil
+		}
 	}
-
 	return false, nil
 }
 
