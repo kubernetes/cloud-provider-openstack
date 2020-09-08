@@ -94,6 +94,10 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   Required. Keystone service URL, e.g. http://128.110.154.166/identity
 * `ca-file`
   Optional. CA certificate bundle file for communication with Keystone service, this is required when using the https protocol in the Keystone service URL.
+* `cert-file`
+  Optional. Client certificate path used for the client TLS authentication.
+* `key-file`
+  Optional. Client private key path used for the client TLS authentication.
 * `username`
   Keystone user name. If you are using [Keystone application credential](https://docs.openstack.org/keystone/latest/user/application_credentials.html), this option is not required.
 * `password`
