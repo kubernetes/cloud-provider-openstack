@@ -46,6 +46,16 @@ const (
 
 // Instances returns an implementation of Instances for OpenStack.
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
+	return os.instances()
+}
+
+// InstancesV2 returns an implementation of InstancesV2 for OpenStack.
+// TODO: Support InstancesV2 in the future.
+func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	return nil, false
+}
+
+func (os *OpenStack) instances() (*Instances, bool) {
 	klog.V(4).Info("openstack.Instances() called")
 
 	compute, err := os.NewComputeV2()
@@ -120,7 +130,12 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 	return addresses, nil
 }
 
-// InstanceExistsByProviderID returns true if the instance with the given provider id still exist.
+// InstanceExists returns true if the instance for the given node exists.
+func (i *Instances) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
+	return i.InstanceExistsByProviderID(ctx, node.Spec.ProviderID)
+}
+
+// InstanceExistsByProviderID returns true if the instance with the given provider id still exists.
 // If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
 func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
@@ -139,7 +154,14 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 	return true, nil
 }
 
-// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes
+// InstanceShutdown returns true if the instances is in safe state to detach volumes.
+// It is the only state, where volumes can be detached immediately.
+func (i *Instances) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
+	return i.InstanceShutdownByProviderID(ctx, node.Spec.ProviderID)
+}
+
+// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes.
+// It is the only state, where volumes can be detached immediately.
 func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 	if err != nil {
@@ -156,6 +178,39 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 		return true, nil
 	}
 	return false, nil
+}
+
+// InstanceMetadata returns metadata of the specified instance.
+func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
+	instanceID, err := instanceIDFromProviderID(node.Spec.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+
+	srv, err := servers.Get(i.compute, instanceID).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	instanceType, err := srvInstanceType(srv)
+	if err != nil {
+		return nil, err
+	}
+
+	interfaces, err := getAttachedInterfacesByID(i.compute, srv.ID)
+	if err != nil {
+		return nil, err
+	}
+	addresses, err := nodeAddresses(srv, interfaces, i.networkingOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cloudprovider.InstanceMetadata{
+		ProviderID:    node.Spec.ProviderID,
+		InstanceType:  instanceType,
+		NodeAddresses: addresses,
+	}, nil
 }
 
 // InstanceID returns the kubelet's cloud provider ID.
