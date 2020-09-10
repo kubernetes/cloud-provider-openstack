@@ -233,6 +233,26 @@ func GetDevicePath(volumeID string) string {
 				return diskPaths[0]
 			}
 
+			// For Hyper-V the path_id is created with the pattern *-lun-<sysnum> where sysnum is
+			// the last number in the address.
+			// Ref: https://github.com/systemd/systemd/blob/v246/src/udev/udev-builtin-path_id.c#L375
+			adressParts := strings.Split(device.Address, ":")
+			if len(adressParts) > 0 {
+				diskId := adressParts[len(adressParts)-1]
+				diskPattern := fmt.Sprintf("/dev/disk/by-path/*-lun-%s", diskId)
+				diskPaths, err = filepath.Glob(diskPattern)
+				if err != nil {
+					klog.Errorf(
+						"could not retrieve disk path for volumeID: %q. Error filepath.Glob(%q): %v",
+						volumeID, diskPattern, err)
+					return ""
+				}
+			}
+
+			if len(diskPaths) == 1 {
+				return diskPaths[0]
+			}
+
 			klog.V(4).Infof("expecting to find one disk path for volumeID %q, found %d: %v",
 				volumeID, len(diskPaths), diskPaths)
 
