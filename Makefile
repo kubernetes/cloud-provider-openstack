@@ -27,7 +27,7 @@ GOX_PARALLEL ?= 3
 TARGETS		?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
 DIST_DIRS	= find * -type d -exec
 
-TEMP_DIR	:=$(shell mktemp -d)
+TEMP_DIR	:= $(shell mktemp -d)
 TAR_FILE	?= rootfs.tar
 
 GOOS		?= $(shell go env GOOS)
@@ -249,7 +249,6 @@ build-images: $(addprefix image-,$(IMAGE_NAMES))
 push-images: $(addprefix push-image-,$(IMAGE_NAMES))
 
 image-%: work
-	$(MAKE) $(addprefix build-cmd-,$*)
 ifeq ($(GOOS),linux)
 	cp -r cluster/images/$* $(TEMP_DIR)
 
@@ -261,9 +260,12 @@ ifneq ($(ARCH),amd64)
 	sed "/^FROM .*/a COPY qemu-$(QEMUARCH)-static /usr/bin/" $(TEMP_DIR)/$*/Dockerfile.build > $(TEMP_DIR)/$*/Dockerfile.build.tmp
 	mv $(TEMP_DIR)/$*/Dockerfile.build.tmp $(TEMP_DIR)/$*/Dockerfile.build
 endif
-
 	cp $*-$(ARCH) $(TEMP_DIR)/$*
-	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
+	cp go.mod $(TEMP_DIR)/$*
+	cp go.sum $(TEMP_DIR)/$*
+	cp -r cmd $(TEMP_DIR)/$*
+	cp -r pkg $(TEMP_DIR)/$*
+	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH)  --build-arg SOURCE=$(PWD) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
 	docker create --name build-$*-$(ARCH) build-$*-$(ARCH)
 	docker export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
 
