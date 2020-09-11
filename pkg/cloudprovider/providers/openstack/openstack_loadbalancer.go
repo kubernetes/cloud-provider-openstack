@@ -1100,9 +1100,9 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listeners.Listener, service *corev1.Service, port corev1.ServicePort, svcConf *serviceConfig) (*listeners.Listener, error) {
 	// Get all listeners by "port&protocol".
 	lbListeners := make(map[listenerKey]*listeners.Listener)
-	for _, l := range oldListeners {
+	for i, l := range oldListeners {
 		key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
-		lbListeners[key] = &l
+		lbListeners[key] = &oldListeners[i]
 	}
 
 	proto := toListenersProtocol(port.Protocol)
