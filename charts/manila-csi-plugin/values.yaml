@@ -31,7 +31,7 @@ csimanila:
   # Image spec
   image:
     repository: k8scloudprovider/manila-csi-plugin
-    tag: latest
+    tag: v1.19.0
     pullPolicy: IfNotPresent
 
 # DeamonSet deployment
