@@ -12,7 +12,7 @@
     - [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
     - [Runtime configuration file](#runtime-configuration-file)
   - [Deployment](#deployment)
-    - [Kubernetes 1.15+](#kubernetes-115)
+    - [Kubernetes 1.17+](#kubernetes-117)
       - [Verifying the deployment](#verifying-the-deployment)
       - [Enabling topology awareness](#enabling-topology-awareness)
   - [Share protocol support matrix](#share-protocol-support-matrix)
@@ -147,11 +147,11 @@ The CSI Manila driver deals with the Manila service only. All node-related opera
 
 A single instance of the driver may serve only a single Manila share protocol. To serve multiple share protocols, multiple deployments of the driver need to be made. In order to avoid deployment collisions, each instance of the driver should be named differently, e.g. `csi-manila-cephfs`, `csi-manila-nfs`.
 
-### Kubernetes 1.15+
-
-Snapshots require `VolumeSnapshotDataSource=true` feature gate.
+### Kubernetes 1.17+
 
 The deployment consists of two main components: Controller and Node plugins along with their respective RBACs. Controller plugin is deployed as a StatefulSet and runs CSI Manila, [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) and [external-snapshotter](https://github.com/kubernetes-csi/external-snapshotter). Node plugin is deployed as a DaemonSet and runs CSI Manila and [csi-node-driver-registrar](https://github.com/kubernetes-csi/node-driver-registrar).
+
+Note: Snapshotting feature now requires a separate snapshot controller and CRDs to be deployed in the cluster. Please follow the related official [installation instructions](https://github.com/kubernetes-csi/external-snapshotter/blob/master/README.md#usage) for [external-snapshotter](https://github.com/kubernetes-csi/external-snapshotter) before continuing.
 
 **Deploying with Helm**
 
