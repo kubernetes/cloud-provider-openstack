@@ -128,18 +128,23 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	capacity, ok := req.GetVolumeContext()["capacity"]
 	volumeCapability := req.GetVolumeCapability()
 
-	volAvailability, err := ns.Metadata.GetAvailabilityZone()
-	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
+	if !ok {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("nodePublishEphermeral: capacity not provided %s", volID))
 	}
 
-	size = 1 // default size is 1GB
-	if ok && strings.HasSuffix(capacity, "Gi") {
+	if strings.HasSuffix(capacity, "Gi") {
 		size, err = strconv.Atoi(strings.TrimSuffix(capacity, "Gi"))
 		if err != nil {
 			klog.V(3).Infof("Unable to parse capacity: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("Unable to parse capacity %v", err))
 		}
+	} else {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("nodePublishEphermeral: provided capacity %s does not have Gi as suffix", capacity))
+	}
+
+	volAvailability, err := ns.Metadata.GetAvailabilityZone()
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
 	}
 
 	// TODO: Add Volume type support
