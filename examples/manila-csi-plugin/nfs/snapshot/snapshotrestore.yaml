@@ -7,7 +7,7 @@ spec:
   dataSource:
     name: new-nfs-share-snap
     kind: VolumeSnapshot
-    apiGroup: snapshot.storage.k8s.io
+    apiGroup: snapshot.storage.k8s.io/1beta1
   accessModes:
     - ReadWriteMany
   resources:
