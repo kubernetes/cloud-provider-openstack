@@ -50,7 +50,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: snapshotter
-          image: "quay.io/k8scsi/csi-snapshotter:v1.2.2"
+          image: "quay.io/k8scsi/csi-snapshotter:v2.1.1"
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
