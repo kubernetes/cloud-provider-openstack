@@ -15,7 +15,7 @@ csi:
   snapshotter:
     image:
       repository: quay.io/k8scsi/csi-snapshotter
-      tag: v1.2.2
+      tag: v2.1.1
       pullPolicy: IfNotPresent
   resizer:
     image:
