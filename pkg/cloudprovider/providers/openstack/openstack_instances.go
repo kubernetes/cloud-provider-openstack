@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"k8s.io/klog/v2"
 
@@ -194,7 +195,7 @@ func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloud
 		return nil, err
 	}
 
-	instanceType, err := srvInstanceType(srv)
+	instanceType, err := srvInstanceType(i.compute, srv)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +259,7 @@ func (i *Instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 		return "", err
 	}
 
-	return srvInstanceType(server)
+	return srvInstanceType(i.compute, server)
 }
 
 // InstanceType returns the type of the specified instance.
@@ -269,16 +270,23 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 		return "", err
 	}
 
-	return srvInstanceType(&srv.Server)
+	return srvInstanceType(i.compute, &srv.Server)
 }
 
-func srvInstanceType(srv *servers.Server) (string, error) {
+func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (string, error) {
 	keys := []string{"name", "id", "original_name"}
 	for _, key := range keys {
 		val, found := srv.Flavor[key]
 		if found {
 			flavor, ok := val.(string)
 			if ok {
+				if key == "id" {
+					f, err := flavors.Get(client, flavor).Extract()
+					if err != nil {
+						return "", err
+					}
+					return f.Name, nil
+				}
 				return flavor, nil
 			}
 		}
