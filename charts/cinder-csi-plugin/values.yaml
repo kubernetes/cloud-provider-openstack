@@ -30,7 +30,7 @@ csi:
   plugin:
     image:
       repository: docker.io/k8scloudprovider/cinder-csi-plugin
-      tag: latest
+      tag: v1.19.0
       pullPolicy: IfNotPresent
 
 storageClass:
