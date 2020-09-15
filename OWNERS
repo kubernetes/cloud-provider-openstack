@@ -2,6 +2,8 @@
 
 approvers:
   - shiftstack-team
+  - cloud-team
+  - storage-team
 reviewers:
   - shiftstack-team
 component: "Installer"
