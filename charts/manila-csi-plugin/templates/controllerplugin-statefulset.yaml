@@ -65,7 +65,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag }}"
+          image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --v=5
