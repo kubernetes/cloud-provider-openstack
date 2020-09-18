@@ -253,15 +253,14 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 	if isWorkerNode {
 		for _, n := range nodes {
 			nodesToReplace := sets.NewString()
-			machineID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
-			if machineID == nil {
+			serverID := strings.TrimPrefix(n.KubeNode.Spec.ProviderID, "openstack:///")
+			if serverID == "" {
 				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
 				continue
 			}
-			serverID := machineID.String()
 
 			if err := provider.waitForServerDetachVolumes(serverID, 30*time.Second); err != nil {
-				log.Warningf("Failed to detach volumes from server %s, error: %v", serverID, err)
+				log.Warningf("Failed to shutdown the server %s, error: %v, continue handling...", serverID, err)
 			}
 
 			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
@@ -308,12 +307,11 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 		}
 
 		for _, n := range nodes {
-			id := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
-			if id == nil {
+			serverID := strings.TrimPrefix(n.KubeNode.Spec.ProviderID, "openstack:///")
+			if serverID == "" {
 				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
 				continue
 			}
-			serverID := id.String()
 
 			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
 				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
