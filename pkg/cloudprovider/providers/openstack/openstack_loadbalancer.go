@@ -1117,14 +1117,17 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 	if !ok {
 		listenerProtocol := listeners.Protocol(port.Protocol)
 		listenerCreateOpt := listeners.CreateOpts{
-			Protocol:             listenerProtocol,
-			ProtocolPort:         int(port.Port),
-			ConnLimit:            &svcConf.connLimit,
-			LoadbalancerID:       lbID,
-			TimeoutClientData:    &svcConf.timeoutClientData,
-			TimeoutMemberConnect: &svcConf.timeoutMemberConnect,
-			TimeoutMemberData:    &svcConf.timeoutMemberData,
-			TimeoutTCPInspect:    &svcConf.timeoutTCPInspect,
+			Protocol:       listenerProtocol,
+			ProtocolPort:   int(port.Port),
+			ConnLimit:      &svcConf.connLimit,
+			LoadbalancerID: lbID,
+		}
+
+		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+			listenerCreateOpt.TimeoutClientData = &svcConf.timeoutClientData
+			listenerCreateOpt.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
+			listenerCreateOpt.TimeoutMemberData = &svcConf.timeoutMemberData
+			listenerCreateOpt.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
 		}
 
 		if svcConf.keepClientIP {
@@ -1166,21 +1169,23 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 			}
 			listenerChanged = true
 		}
-		if svcConf.timeoutClientData != listener.TimeoutClientData {
-			updateOpts.TimeoutClientData = &svcConf.timeoutClientData
-			listenerChanged = true
-		}
-		if svcConf.timeoutMemberConnect != listener.TimeoutMemberConnect {
-			updateOpts.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
-			listenerChanged = true
-		}
-		if svcConf.timeoutMemberData != listener.TimeoutMemberData {
-			updateOpts.TimeoutMemberData = &svcConf.timeoutMemberData
-			listenerChanged = true
-		}
-		if svcConf.timeoutTCPInspect != listener.TimeoutTCPInspect {
-			updateOpts.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
-			listenerChanged = true
+		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+			if svcConf.timeoutClientData != listener.TimeoutClientData {
+				updateOpts.TimeoutClientData = &svcConf.timeoutClientData
+				listenerChanged = true
+			}
+			if svcConf.timeoutMemberConnect != listener.TimeoutMemberConnect {
+				updateOpts.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
+				listenerChanged = true
+			}
+			if svcConf.timeoutMemberData != listener.TimeoutMemberData {
+				updateOpts.TimeoutMemberData = &svcConf.timeoutMemberData
+				listenerChanged = true
+			}
+			if svcConf.timeoutTCPInspect != listener.TimeoutTCPInspect {
+				updateOpts.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
+				listenerChanged = true
+			}
 		}
 		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
 			if !cpoutil.StringListEqual(svcConf.allowedCIDR, listener.AllowedCIDRs) {
@@ -1326,10 +1331,12 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	svcConf.keepClientIP = keepClientIP
 	svcConf.enableProxyProtocol = useProxyProtocol
 
-	svcConf.timeoutClientData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
-	svcConf.timeoutMemberConnect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutMemberConnect, 5000)
-	svcConf.timeoutMemberData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutMemberData, 50000)
-	svcConf.timeoutTCPInspect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutTCPInspect, 0)
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+		svcConf.timeoutClientData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
+		svcConf.timeoutMemberConnect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutMemberConnect, 5000)
+		svcConf.timeoutMemberData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutMemberData, 50000)
+		svcConf.timeoutTCPInspect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutTCPInspect, 0)
+	}
 
 	var listenerAllowedCIDRs []string
 	sourceRanges, err := GetLoadBalancerSourceRanges(service)
@@ -1658,10 +1665,12 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
 				}
 
-				listenerCreateOpt.TimeoutClientData = &timeoutClientData
-				listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
-				listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
-				listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
+				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+					listenerCreateOpt.TimeoutClientData = &timeoutClientData
+					listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
+					listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
+					listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
+				}
 
 				if len(listenerAllowedCIDRs) > 0 {
 					listenerCreateOpt.AllowedCIDRs = listenerAllowedCIDRs
