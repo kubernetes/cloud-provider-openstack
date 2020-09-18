@@ -1665,12 +1665,10 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
 				}
 
-				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
-					listenerCreateOpt.TimeoutClientData = &timeoutClientData
-					listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
-					listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
-					listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
-				}
+				listenerCreateOpt.TimeoutClientData = &timeoutClientData
+				listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
+				listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
+				listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
 
 				if len(listenerAllowedCIDRs) > 0 {
 					listenerCreateOpt.AllowedCIDRs = listenerAllowedCIDRs
