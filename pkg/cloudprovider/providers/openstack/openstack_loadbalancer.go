@@ -138,7 +138,7 @@ type listenerKey struct {
 func networkExtensions(client *gophercloud.ServiceClient) (map[string]bool, error) {
 	seen := make(map[string]bool)
 
-	mc := metrics.NewMetricContext("extension", "list")
+	mc := metrics.NewMetricContext("network_extension", "list")
 	pager := extensions.List(client)
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		exts, err := extensions.ExtractExtensions(page)
