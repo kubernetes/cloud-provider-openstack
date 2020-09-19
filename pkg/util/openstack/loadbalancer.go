@@ -38,6 +38,7 @@ const (
 	OctaviaFeatureTags    = 0
 	OctaviaFeatureVIPACL  = 1
 	OctaviaFeatureFlavors = 2
+	OctaviaFeatureTimeout = 3
 
 	loadbalancerActiveInitDelay = 1 * time.Second
 	loadbalancerActiveFactor    = 1.2
@@ -108,6 +109,11 @@ func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int) b
 		}
 	case OctaviaFeatureFlavors:
 		verFlavors, _ := version.NewVersion("v2.6")
+		if currentVer.GreaterThanOrEqual(verFlavors) {
+			return true
+		}
+	case OctaviaFeatureTimeout:
+		verFlavors, _ := version.NewVersion("v2.1")
 		if currentVer.GreaterThanOrEqual(verFlavors) {
 			return true
 		}
