@@ -274,7 +274,7 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 }
 
 func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (string, error) {
-	keys := []string{"name", "id", "original_name"}
+	keys := []string{"original_name", "id"}
 	for _, key := range keys {
 		val, found := srv.Flavor[key]
 		if found {
@@ -282,10 +282,9 @@ func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (st
 			if ok {
 				if key == "id" {
 					f, err := flavors.Get(client, flavor).Extract()
-					if err != nil {
-						return "", err
+					if err == nil {
+						return f.Name, nil
 					}
-					return f.Name, nil
 				}
 				return flavor, nil
 			}
