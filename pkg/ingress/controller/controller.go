@@ -515,7 +515,7 @@ func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
 	lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 
 	// Delete Barbican secrets
-	if c.osClient.Barbican != nil {
+	if c.osClient.Barbican != nil && ing.Spec.TLS != nil {
 		nameFilter := fmt.Sprintf("kube_ingress_%s_%s_%s", c.config.ClusterName, ing.Namespace, ing.Name)
 		if err := openstackutil.DeleteSecrets(c.osClient.Barbican, nameFilter); err != nil {
 			return fmt.Errorf("failed to remove Barbican secrets: %v", err)
