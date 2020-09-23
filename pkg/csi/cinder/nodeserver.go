@@ -142,8 +142,13 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		}
 	}
 
-	// TODO: Add Volume type support
-	evol, err := ns.Cloud.CreateVolume(volName, size, "", volAvailability, "", "", &properties)
+	// Check type in given param, if not, use ""
+	volumeType, ok := req.GetVolumeContext()["type"]
+	if !ok {
+		volumeType = ""
+	}
+
+	evol, err := ns.Cloud.CreateVolume(volName, size, volumeType, volAvailability, "", "", &properties)
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)

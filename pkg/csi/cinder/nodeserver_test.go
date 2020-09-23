@@ -129,7 +129,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
-	omock.On("CreateVolume", fvolName, 2, "", "nova", "", "", &properties).Return(&FakeVol, nil)
+	omock.On("CreateVolume", fvolName, 2, "test", "nova", "", "", &properties).Return(&FakeVol, nil)
 
 	omock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
@@ -165,7 +165,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 		TargetPath:       FakeTargetPath,
 		VolumeCapability: stdVolCap,
 		Readonly:         false,
-		VolumeContext:    map[string]string{"capacity": "2Gi", "csi.storage.k8s.io/ephemeral": "true"},
+		VolumeContext:    map[string]string{"capacity": "2Gi", "csi.storage.k8s.io/ephemeral": "true", "type": "test"},
 	}
 
 	// Invoke NodePublishVolume
