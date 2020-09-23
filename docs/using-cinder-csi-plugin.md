@@ -410,7 +410,7 @@ $ kubectl create -f examples/cinder-csi-plugin/inline/inline-example.yaml
 
 3. Get the pod description, verify created volume in Volumes section.
 ```
-$ kubectl describe pod
+$ kubectl describe pod inline-pod
 
 Volumes:
   my-csi-volume:
@@ -425,6 +425,15 @@ Volumes:
     Optional:    false
 
 ```
+
+Other supported parameters in `volumeAttributes`:
+* `type`: The `volume type` defined in cinder.
+
+  ```
+  volumeAttributes:
+    capacity: 1Gi # default is 1Gi
+    type: magnumtype
+  ```
 
 ### Volume Cloning
 
