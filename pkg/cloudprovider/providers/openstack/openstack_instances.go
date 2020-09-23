@@ -64,8 +64,6 @@ func (os *OpenStack) instances() (*Instances, bool) {
 		return nil, false
 	}
 
-	klog.V(4).Info("Claiming to support Instances")
-
 	return &Instances{
 		compute:        compute,
 		opts:           os.metadataOpts,
