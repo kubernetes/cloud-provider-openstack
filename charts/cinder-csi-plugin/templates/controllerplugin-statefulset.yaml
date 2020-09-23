@@ -73,7 +73,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: cinder-csi-plugin
-          image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag }}"
+          image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
           args:
             - /bin/cinder-csi-plugin
@@ -95,13 +95,8 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-            - name: cacert
-              mountPath: /etc/cacert
-              readOnly: true
+            {{- .Values.csi.plugin.volumeMounts | toYaml | trimSuffix "\n" | nindent 12 }}
       volumes:
-        - name: cacert
-          hostPath:
-            path: /etc/cacert
-            type: Directory
         - name: socket-dir
           emptyDir:
+        {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
