@@ -54,7 +54,7 @@ import (
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
