@@ -281,8 +281,9 @@ func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (st
 			flavor, ok := val.(string)
 			if ok {
 				if key == "id" {
+					mc := metrics.NewMetricContext("flavor", "get")
 					f, err := flavors.Get(client, flavor).Extract()
-					if err == nil {
+					if mc.ObserveRequest(err) == nil {
 						return f.Name, nil
 					}
 				}
