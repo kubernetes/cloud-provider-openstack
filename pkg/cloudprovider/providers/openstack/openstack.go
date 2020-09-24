@@ -54,6 +54,7 @@ import (
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
@@ -290,7 +291,7 @@ func (l Logger) Printf(format string, args ...interface{}) {
 }
 
 func init() {
-	RegisterMetrics()
+	metrics.RegisterMetrics()
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
@@ -627,8 +628,9 @@ func (os *OpenStack) GetNodeNameByID(instanceID string) (types.NodeName, error) 
 		return nodeName, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(client, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nodeName, err
 	}
 	nodeName = mapServerToNodeName(server)
@@ -644,6 +646,7 @@ func mapServerToNodeName(server *servers.Server) types.NodeName {
 }
 
 func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuilder, handler func(*servers.Server) (bool, error)) error {
+	mc := metrics.NewMetricContext("server", "list")
 	pager := servers.List(client, opts)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
@@ -659,7 +662,7 @@ func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuild
 		}
 		return true, nil
 	})
-	return err
+	return mc.ObserveRequest(err)
 }
 
 func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
@@ -667,10 +670,11 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
 	}
 
-	pager := servers.List(client, opts)
-
 	var s []ServerAttributesExt
 	serverList := make([]ServerAttributesExt, 0, 1)
+
+	mc := metrics.NewMetricContext("server", "list")
+	pager := servers.List(client, opts)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		if err := servers.ExtractServersInto(page, &s); err != nil {
@@ -682,7 +686,7 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 		}
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -854,6 +858,7 @@ func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, ne
 func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID string) ([]attachinterfaces.Interface, error) {
 	var interfaces []attachinterfaces.Interface
 
+	mc := metrics.NewMetricContext("server_os_interface", "list")
 	pager := attachinterfaces.List(client, serviceID)
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		s, err := attachinterfaces.ExtractInterfaces(page)
@@ -863,7 +868,7 @@ func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID stri
 		interfaces = append(interfaces, s...)
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return interfaces, err
 	}
 
@@ -956,7 +961,9 @@ func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string)
 	}
 
 	var serverWithAttributesExt ServerAttributesExt
-	if err := servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt); err != nil {
+	mc := metrics.NewMetricContext("server", "get")
+	err = servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt)
+	if mc.ObserveRequest(err) != nil {
 		return cloudprovider.Zone{}, err
 	}
 
