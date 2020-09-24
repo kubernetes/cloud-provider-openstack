@@ -29,6 +29,7 @@ import (
 	"github.com/gophercloud/gophercloud/pagination"
 	version "github.com/hashicorp/go-version"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	klog "k8s.io/klog/v2"
 
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -65,8 +66,9 @@ func getOctaviaVersion(client *gophercloud.ServiceClient) (string, error) {
 	}
 
 	var defaultVer = "0.0"
+	mc := metrics.NewMetricContext("version", "list")
 	allPages, err := apiversions.List(client).AllPages()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return defaultVer, err
 	}
 	versions, err := apiversions.ExtractAPIVersions(allPages)
@@ -132,8 +134,9 @@ func waitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID st
 	}
 
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		mc := metrics.NewMetricContext("loadbalancer", "get")
 		loadbalancer, err := loadbalancers.Get(client, loadbalancerID).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			return false, err
 		}
 		if loadbalancer.ProvisioningStatus == activeStatus {
@@ -151,7 +154,9 @@ func waitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID st
 
 // UpdateListener updates a listener and wait for the lb active
 func UpdateListener(client *gophercloud.ServiceClient, lbID string, listenerID string, opts listeners.UpdateOpts) error {
-	if _, err := listeners.Update(client, listenerID, opts).Extract(); err != nil {
+	mc := metrics.NewMetricContext("loadbalancer_listener", "update")
+	_, err := listeners.Update(client, listenerID, opts).Extract()
+	if mc.ObserveRequest(err) != nil {
 		return err
 	}
 
@@ -164,8 +169,9 @@ func UpdateListener(client *gophercloud.ServiceClient, lbID string, listenerID s
 
 // CreateListener creates a new listener
 func CreateListener(client *gophercloud.ServiceClient, lbID string, opts listeners.CreateOpts) (*listeners.Listener, error) {
+	mc := metrics.NewMetricContext("loadbalancer_listener", "create")
 	listener, err := listeners.Create(client, opts).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -181,8 +187,9 @@ func GetLoadbalancerByName(client *gophercloud.ServiceClient, name string) (*loa
 	opts := loadbalancers.ListOpts{
 		Name: name,
 	}
+	mc := metrics.NewMetricContext("loadbalancer", "list")
 	allPages, err := loadbalancers.List(client, opts).AllPages()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 	loadbalancerList, err := loadbalancers.ExtractLoadBalancers(allPages)
@@ -206,6 +213,7 @@ func GetListenerByName(client *gophercloud.ServiceClient, name string, lbID stri
 		Name:           name,
 		LoadbalancerID: lbID,
 	}
+	mc := metrics.NewMetricContext("loadbalancer_listener", "list")
 	pager := listeners.List(client, opts)
 	var listenerList []listeners.Listener
 
@@ -220,7 +228,7 @@ func GetListenerByName(client *gophercloud.ServiceClient, name string, lbID stri
 		}
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
@@ -242,6 +250,7 @@ func GetPoolByName(client *gophercloud.ServiceClient, name string, lbID string) 
 		Name:           name,
 		LoadbalancerID: lbID,
 	}
+	mc := metrics.NewMetricContext("loadbalancer_pool", "list")
 	err := pools.List(client, opts).EachPage(func(page pagination.Page) (bool, error) {
 		v, err := pools.ExtractPools(page)
 		if err != nil {
@@ -253,7 +262,7 @@ func GetPoolByName(client *gophercloud.ServiceClient, name string, lbID string) 
 		}
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
@@ -272,6 +281,7 @@ func GetPoolByName(client *gophercloud.ServiceClient, name string, lbID string) 
 // GetPoolsByListener finds pool for a listener. A listener always has exactly one pool.
 func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID string) (*pools.Pool, error) {
 	listenerPools := make([]pools.Pool, 0, 1)
+	mc := metrics.NewMetricContext("loadbalancer_pool", "list")
 	err := pools.List(client, pools.ListOpts{LoadbalancerID: lbID}).EachPage(func(page pagination.Page) (bool, error) {
 		poolsList, err := pools.ExtractPools(page)
 		if err != nil {
@@ -289,7 +299,7 @@ func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID strin
 		}
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
@@ -305,18 +315,21 @@ func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID strin
 
 // DeleteLoadbalancer deletes a loadbalancer with all its child objects.
 func DeleteLoadbalancer(client *gophercloud.ServiceClient, lbID string) error {
+	mc := metrics.NewMetricContext("loadbalancer", "delete")
 	err := loadbalancers.Delete(client, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
 	if err != nil && !cpoerrors.IsNotFound(err) {
+		mc.ObserveRequest(err)
 		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
 	}
 
-	return nil
+	return mc.ObserveRequest(nil)
 }
 
 // GetMembersbyPool get all the members in the pool.
 func GetMembersbyPool(client *gophercloud.ServiceClient, poolID string) ([]pools.Member, error) {
 	var members []pools.Member
 
+	mc := metrics.NewMetricContext("loadbalancer_member", "list")
 	err := pools.ListMembers(client, poolID, pools.ListMembersOpts{}).EachPage(func(page pagination.Page) (bool, error) {
 		membersList, err := pools.ExtractMembers(page)
 		if err != nil {
@@ -326,7 +339,7 @@ func GetMembersbyPool(client *gophercloud.ServiceClient, poolID string) ([]pools
 
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 

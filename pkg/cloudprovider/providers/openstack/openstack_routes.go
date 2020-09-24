@@ -28,6 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	"k8s.io/klog/v2"
 )
 
@@ -82,8 +83,9 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 		return nil, err
 	}
 
+	mc := metrics.NewMetricContext("router", "get")
 	router, err := routers.Get(r.network, r.opts.RouterID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -108,19 +110,21 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, newRoutes []routers.Route) (func(), error) {
 	origRoutes := router.Routes // shallow copy
 
+	mc := metrics.NewMetricContext("router", "update")
 	_, err := routers.Update(network, router.ID, routers.UpdateOpts{
 		Routes: newRoutes,
 	}).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", router.ID)
+		mc := metrics.NewMetricContext("router", "update")
 		_, err := routers.Update(network, router.ID, routers.UpdateOpts{
 			Routes: origRoutes,
 		}).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			klog.Warningf("Unable to reset routes during error unwind: %v", err)
 		}
 	}
@@ -131,19 +135,21 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *neutronports.Port, newPairs []neutronports.AddressPair) (func(), error) {
 	origPairs := port.AllowedAddressPairs // shallow copy
 
+	mc := metrics.NewMetricContext("port", "update")
 	_, err := neutronports.Update(network, port.ID, neutronports.UpdateOpts{
 		AllowedAddressPairs: &newPairs,
 	}).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
 	unwinder := func() {
 		klog.V(4).Infof("Reverting allowed-address-pairs change to port %v", port.ID)
+		mc := metrics.NewMetricContext("port", "update")
 		_, err := neutronports.Update(network, port.ID, neutronports.UpdateOpts{
 			AllowedAddressPairs: &origPairs,
 		}).Extract()
-		if err != nil {
+		if mc.ObserveRequest(err) != nil {
 			klog.Warningf("Unable to reset allowed-address-pairs during error unwind: %v", err)
 		}
 	}
@@ -167,8 +173,9 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 
 	klog.V(4).Infof("Using nexthop %v for node %v", addr, route.TargetNode)
 
+	mc := metrics.NewMetricContext("router", "get")
 	router, err := routers.Get(r.network, r.opts.RouterID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return err
 	}
 
@@ -246,8 +253,9 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		}
 	}
 
+	mc := metrics.NewMetricContext("router", "get")
 	router, err := routers.Get(r.network, r.opts.RouterID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return err
 	}
 
@@ -335,8 +343,9 @@ func getPortIDByIP(compute *gophercloud.ServiceClient, targetNode types.NodeName
 }
 
 func getPortByID(client *gophercloud.ServiceClient, portID string) (*neutronports.Port, error) {
+	mc := metrics.NewMetricContext("port", "get")
 	targetPort, err := neutronports.Get(client, portID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
