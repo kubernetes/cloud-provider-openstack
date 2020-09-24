@@ -8,7 +8,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/golang/protobuf v1.4.2
-	github.com/gophercloud/gophercloud v0.11.1-0.20200518183226-7aec46f32c19
+	github.com/gophercloud/gophercloud v0.12.1-0.20200922152735-900f5ba8c05b
 	github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/go-version v1.2.0
@@ -36,7 +36,7 @@ require (
 	google.golang.org/grpc v1.27.0
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.19.0
 	k8s.io/apimachinery v0.19.0
 	k8s.io/apiserver v0.19.0

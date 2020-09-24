@@ -158,6 +158,10 @@ Request Body:
 
   The id of the flavor that is used for creating the loadbalancer.
 
+- `loadbalancer.openstack.org/availability-zone`
+
+  The name of the loadbalancer availability zone to use.
+
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.

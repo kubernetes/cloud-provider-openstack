@@ -133,6 +133,7 @@ type LoadBalancerOpts struct {
 	InternalLB           bool                `gcfg:"internal-lb"`    // default false
 	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
 	FlavorID             string              `gcfg:"flavor-id"`
+	AvailabilityZone     string              `gcfg:"availability-zone"`
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID

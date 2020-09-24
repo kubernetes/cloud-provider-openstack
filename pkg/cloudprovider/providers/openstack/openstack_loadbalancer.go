@@ -98,6 +98,7 @@ const (
 	ServiceAnnotationLoadBalancerTimeoutTCPInspect    = "loadbalancer.openstack.org/timeout-tcp-inspect"
 	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
 	ServiceAnnotationLoadBalancerFlavorID             = "loadbalancer.openstack.org/flavor-id"
+	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
@@ -127,6 +128,7 @@ type serviceConfig struct {
 	allowedCIDR          []string
 	enableMonitor        bool
 	flavorID             string
+	availabilityZone     string
 }
 
 type listenerKey struct {
@@ -473,6 +475,10 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(service *corev1.Service, name, c
 
 	if svcConf.flavorID != "" {
 		createOpts.FlavorID = svcConf.flavorID
+	}
+
+	if svcConf.availabilityZone != "" {
+		createOpts.AvailabilityZone = svcConf.availabilityZone
 	}
 
 	vipPort := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerPortID, "")
@@ -1353,6 +1359,13 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors) {
 		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
+	}
+
+	availabilityZone := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerAvailabilityZone, lbaas.opts.AvailabilityZone)
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureAvailabilityZones) {
+		svcConf.availabilityZone = availabilityZone
+	} else if availabilityZone != "" {
+		klog.Warning("LoadBalancer Availability Zones aren't supported. Please, upgrade Octavia API to version 2.14 or later (Ussuri release) to use them")
 	}
 
 	enableHealthMonitor, err := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)

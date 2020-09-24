@@ -204,6 +204,9 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `flavor-id`
   The id of the loadbalancer flavor to use. Uses octavia default if not set.
 
+* `availability-zone`
+  The name of the loadbalancer availability zone to use. Applicable if use-octavia is set to True and requires Octavia API version 2.14 or later (Ussuri release). The Octavia availability zone capabilities will not be used if the parameter is not set.
+
 * `LoadBalancerClass "ClassName"`
   This is a config section including a set of config options. User can choose the `ClassName` by specifying the Service annotation `loadbalancer.openstack.org/class`. The following options are supported:
 
