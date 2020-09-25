@@ -104,6 +104,8 @@ func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v
 // This method will not be called from the node that is requesting this ID. i.e. metadata service
 // and other local methods cannot be used here
 func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
+	klog.V(4).Infof("NodeAddressesByProviderID (%v) called", providerID)
+
 	instanceID, err := instanceIDFromProviderID(providerID)
 
 	if err != nil {
@@ -127,6 +129,7 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
+	klog.V(4).Infof("NodeAddressesByProviderID(%v) => %v", providerID, addresses)
 	return addresses, nil
 }
 
