@@ -23,6 +23,11 @@ csi:
       repository: quay.io/k8scsi/csi-resizer
       tag: v0.5.1
       pullPolicy: IfNotPresent
+  livenessprobe:
+    image:
+      repository: quay.io/k8scsi/livenessprobe
+      tag: v2.1.0
+      pullPolicy: IfNotPresent
   nodeDriverRegistrar:
     image:
       repository: quay.io/k8scsi/csi-node-driver-registrar

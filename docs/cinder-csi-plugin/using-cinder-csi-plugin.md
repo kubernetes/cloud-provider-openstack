@@ -119,8 +119,8 @@ You should make sure following similar pods are ready before proceed:
 ```
 $ kubectl get pods -n kube-system
 NAME                                READY   STATUS    RESTARTS   AGE
-csi-cinder-controllerplugin         5/5     Running   0          29h
-csi-cinder-nodeplugin               2/2     Running   0          46h
+csi-cinder-controllerplugin         6/6     Running   0          29h
+csi-cinder-nodeplugin               3/3     Running   0          46h
 ```
 
 To get information about CSI Drivers running in a cluster -
@@ -153,6 +153,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 * [Volume Snapshots](./features.md#volume-snapshots)
 * [Inline Volumes](./features.md#inline-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
+* [Liveness probe](./features.md#liveness-probe)
 
 ## Supported Parameters
 

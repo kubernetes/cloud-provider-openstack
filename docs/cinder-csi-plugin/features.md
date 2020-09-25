@@ -12,6 +12,7 @@
   - [Inline Volumes](#inline-volumes)
   - [Volume Cloning](#volume-cloning)
   - [Multi-Attach Volumes](#multi-attach-volumes)
+  - [Liveness probe](#liveness-probe)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -92,3 +93,9 @@ To avail the multiattach feature of cinder, specify the ID/name of cinder volume
 This volume type must exist in cinder already (`openstack volume type list`)
 
 This should enable to attach a volume to multiple hosts/servers simultaneously.
+
+## Liveness probe
+
+The [liveness probe](https://github.com/kubernetes-csi/livenessprobe) is a sidecar container that exposes an HTTP /healthz endpoint, which serves as kubelet's livenessProbe hook to monitor health of a CSI driver.
+
+Cinder CSI driver added liveness probe side container by default and refer to [manifest](../../manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml) and [charts](../../charts/cinder-csi-plugin) for more information.
