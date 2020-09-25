@@ -20,7 +20,9 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      # TODO (brtknr): Use a release tag when the change in the commit is
+      # released under a tag greater than v1.0.0.
       - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.0.0
+        uses: helm/chart-releaser-action@06d81fa7f63ab865cf0ed2045bde38529c392845
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
