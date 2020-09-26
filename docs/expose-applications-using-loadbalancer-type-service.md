@@ -160,7 +160,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/availability-zone`
 
-  The name of the loadbalancer availability zone to use.
+  The name of the loadbalancer availability zone to use. It is ignored if the Octavia version doesn't support availability zones yet.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
