@@ -30,8 +30,36 @@ csi:
   plugin:
     image:
       repository: docker.io/k8scloudprovider/cinder-csi-plugin
-      tag: v1.19.0
       pullPolicy: IfNotPresent
+      tag:  # defaults to .Chart.AppVersion
+    volumes:
+      - name: cacert
+        hostPath:
+          path: /etc/cacert
+      - name: cloud-config
+        hostPath:
+          path: /etc/kubernetes
+        # secret:
+        #   secretName: cinder-csi-cloud-config
+    volumeMounts:
+      - name: cacert
+        mountPath: /etc/cacert
+        readOnly: true
+      - name: cloud-config
+        mountPath: /etc/kubernetes
+        readOnly: true
+
+secret:
+#  name: cinder-csi-cloud-config
+#  data:
+#    cloud-config: |-
+#      [Global]
+#      auth-url=http://openstack-control-plane
+#      user-id=user-id
+#      password=password
+#      trust-id=trust-id
+#      region=RegionOne
+#      ca-file=/etc/cacert/ca-bundle.crt
 
 storageClass:
   enabled: true

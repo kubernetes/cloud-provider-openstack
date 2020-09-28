@@ -47,7 +47,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag }}"
+          image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
           args:
             - /bin/cinder-csi-plugin
@@ -73,14 +73,8 @@ spec:
             - name: pods-probe-dir
               mountPath: /dev
               mountPropagation: "HostToContainer"
-            - name: cacert
-              mountPath: /etc/cacert
-              readOnly: true
+            {{- .Values.csi.plugin.volumeMounts | toYaml | trimSuffix "\n" | nindent 12 }}
       volumes:
-        - name: cacert
-          hostPath:
-            path: /etc/cacert
-            type: Directory
         - name: socket-dir
           hostPath:
             path: /var/lib/kubelet/plugins/cinder.csi.openstack.org
@@ -101,3 +95,4 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}

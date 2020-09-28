@@ -1,3 +1,6 @@
+nameOverride: ""
+fullNameOverride: ""
+
 # Base name of the CSI Manila driver
 driverName: manila.csi.openstack.org
 
@@ -31,8 +34,8 @@ csimanila:
   # Image spec
   image:
     repository: k8scloudprovider/manila-csi-plugin
-    tag: v1.19.0
     pullPolicy: IfNotPresent
+    tag:  # defaults to .Chart.AppVersion
 
 # DeamonSet deployment
 nodeplugin:
@@ -79,6 +82,3 @@ controllerplugin:
   affinity: {}
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
-
-# Override the default app name using nameOverride
-# nameOverride: some-other-name
