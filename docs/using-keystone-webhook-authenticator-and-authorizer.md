@@ -45,12 +45,22 @@ by kubelet) or a normal kubernetes service.
 
 ### Prepare the authorization policy (optional)
 
-> The authorization feature is optional, you can choose to deploy k8s-keystone-auth webhook server for authentication only and rely on Kubernetes RBAC for authorization. See more details [here](./using-auth-data-synchronization.md). However, k8s-keystone-auth authorization provides more flexible configurations than Kubernetes native RBAC.
+> The authorization feature is optional, you can choose to deploy
+> k8s-keystone-auth webhook server for authentication only and rely on
+> Kubernetes RBAC for authorization. See more details
+> [here](./using-auth-data-synchronization.md). However, k8s-keystone-auth
+> authorization provides more flexible configurations than Kubernetes native
+> RBAC.
 
 The authorization policy can be specified using an existing ConfigMap name in
 the cluster, by doing this, the policy could be changed dynamically without the
 k8s-keystone-auth service restart. The ConfigMap needs to be created before
 running the k8s-keystone-auth service.
+
+> Sometimes after changing the authz policy, the new policy may not take effect
+> immediately because there is a config
+> `--authorization-webhook-cache-authorized-ttl` set in kube-api server(default
+> 5m).
 
 k8s-keystone-auth service supports two versions of policy definition.
 Version 2 is recommended because of its better flexibility. However,
@@ -262,13 +272,16 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 
 - Check k8s-keystone-auth webhook pod.
 
-  First we need check if the k8s-keystone-auth pod is up and running:
+  First check if the k8s-keystone-auth pod is up and running:
 
   ```shell
-  $ kubectl get pods --all-namespaces
-  NAMESPACE     NAME                        READY   STATUS    RESTARTS   AGE
-  kube-system   k8s-keystone-auth           1/1     Running   0          2m27s
-  kube-system   kube-dns-547db76c8f-6wf49   3/3     Running   0          7m42s
+  $ kubectl -n kube-system get deployment k8s-keystone-auth
+  NAME                READY   UP-TO-DATE   AVAILABLE   AGE
+  k8s-keystone-auth   2/2     2            2           94m
+  $ kubectl -n kube-system get svc
+  NAME                            TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                  AGE
+  k8s-keystone-auth-service       ClusterIP   10.103.122.254   <none>        8443/TCP                 9m50s
+  kube-dns                        ClusterIP   10.96.0.10       <none>        53/UDP,53/TCP,9153/TCP   67d
   ```
 
   Before we continue to config kube-apiserver, we could test the
@@ -283,10 +296,9 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   access the webhook endpoint.
 
   ```shell
-  $ token=...
-  $ kubectl --namespace kube-system run --rm --restart=Never --attach=true \
-    --image curlimages/curl curl -- \
-    -ks -XPOST https://k8s-keystone-auth.kube-system:8443/webhook -d '
+  $ token=... # Get token from Keystone
+  $ kubectl run curl --rm -it --restart=Never --image curlimages/curl -- \
+    -k -XPOST https://k8s-keystone-auth-service.kube-system:8443/webhook -d '
   {
     "apiVersion": "authentication.k8s.io/v1beta1",
     "kind": "TokenReview",
@@ -299,10 +311,11 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   }'
   ```
 
-  You should see the detailed information of the Keystone user from the
-  response if the service is configured correctly. You may notice that besides the user's Keystone group, the user's
-  project ID is also included in the *group* field, so the cluster admin could config RBAC *rolebindings* based on the
-  groups without involving the webhook authorization.
+  You should see the response from k8s-keystone-auth service if it is
+  configured correctly. You may notice that besides the user's Keystone group,
+  the user's project ID is also included in the *groups* field, so the cluster
+  admin could config RBAC *rolebindings* based on the groups without involving
+  the webhook authorization.
 
   ```shell
   {
@@ -348,15 +361,17 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 
 - Authorization (optional)
 
-  > Please skip this validation if you are using Kubernetes RBAC for authorization.
+  > Please skip this validation if you are using Kubernetes RBAC for 
+  > authorization.
 
-  From the above response,  we know the `demo` user in the `demo` project
-  does have `member` role associated:
+  From the above response,  we know the `demo` user in the `demo` project does
+  have `member` role associated, based on the authorization policy defined in
+  `examples/webhook/keystone-policy-configmap.yaml`, the user has read access
+  to the pods:
 
   ```shell
-  $ kubectl --namespace kube-system run --rm --restart=Never --attach=true \
-    --image curlimages/curl curl -- \
-    -ks -XPOST https://k8s-keystone-auth.kube-system:8443/webhook -d '
+  $ kubectl run curl --rm -it --restart=Never --image curlimages/curl -- \
+    -k -XPOST https://k8s-keystone-auth-service.kube-system:8443/webhook -d '
   {
     "apiVersion": "authorization.k8s.io/v1beta1",
     "kind": "SubjectAccessReview",
@@ -391,12 +406,11 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   }
   ```
 
-  According to the policy definition, pod creation should fail:
+  However, pod creation should fail:
 
   ```shell
-  $ kubectl --namespace kube-system run --rm --restart=Never --attach=true \
-    --image curlimages/curl curl -- \
-    -ks -XPOST https://k8s-keystone-auth.kube-system:8443/webhook -d '
+  $ kubectl run curl --rm -it --restart=Never --image curlimages/curl -- \
+    -k -XPOST https://k8s-keystone-auth-service.kube-system:8443/webhook -d '
   {
     "apiVersion": "authorization.k8s.io/v1beta1",
     "kind": "SubjectAccessReview",
@@ -479,7 +493,7 @@ and both as well, depending on your requirement. In this example,
 
   ```
   --authorization-webhook-config-file=/etc/kubernetes/webhooks/webhookconfig.yaml
-  --authorization-mode=Node,Webhook,RBAC
+  --authorization-mode=Node,RBAC,Webhook
   ```
 
   Also mount the new webhooks directory:
@@ -490,8 +504,8 @@ and both as well, depending on your requirement. In this example,
     volumeMounts:
     ...
     - mountPath: /etc/kubernetes/webhooks
-        name: webhooks
-        readOnly: true
+      name: webhooks
+      readOnly: true
   volumes:
   ...
   - hostPath:
@@ -665,10 +679,14 @@ with the ``client-keystone-auth`` binary.
 
 To configure the client do the following:
 
-- Download the client-keystone-auth binary(maintained by Lingxian Kong), you can also build the binary by yourself.
+- Download the client-keystone-auth binary from 
+  [cloud-provider-openstack release page](https://github.com/kubernetes/cloud-provider-openstack/releases).
+  In this example, we will download the latest version.
 
     ```
-    curl https://github.com/kubernetes/cloud-provider-openstack/releases/latest/download/client-keystone-auth -o ~/client-keystone-auth
+    repo=kubernetes/cloud-provider-openstack
+    version=$(curl --silent "https://api.github.com/repos/${repo}/releases/latest" | grep '"tag_name":' | awk -F '"' '{print $4}')
+    curl -L https://github.com/kubernetes/cloud-provider-openstack/releases//download/${version}/client-keystone-auth -o ~/client-keystone-auth
     sudo chmod u+x ~/client-keystone-auth
     ```
 
@@ -681,21 +699,20 @@ To configure the client do the following:
     ```
 
 - Config kubectl to use client-keystone-auth binary for the user
-  `openstackuser`. We assume `mycluster` is the cluster name defined in
-  `~/.kube/config`.
+  `openstackuser`. Replace `cluster_name` with your own cluster name.
 
     ```
-    sed -i '/user: {}/ d' ~/.kube/config
-    cat <<EOF >> ~/.kube/config
+    $ sed -i '/user: {}/ d' ~/.kube/config
+    $ cat <<EOF >> ~/.kube/config
       user:
         exec:
           command: "/home/ubuntu/client-keystone-auth"
           apiVersion: "client.authentication.k8s.io/v1beta1"
     EOF
-    kubectl config set-context --cluster=mycluster --user=openstackuser openstackuser@mycluster
+    $ kubectl config set-context --cluster=$cluster_name --user=openstackuser openstackuser@$cluster_name
     ```
 
-After running above commands, your kubeconfig file should be like below:
+Now, your kubeconfig file should look like below:
 
 ```
 apiVersion: v1
@@ -757,7 +774,7 @@ Next you have several ways to specify additional auth parameters:
 
 To test that everything works as expected try:
 ```
-kubectl get pods --context openstackuser@mycluster
+kubectl --context openstackuser@mycluster get pods
 ```
 
 In case you are using this Webhook just for the authentication, you should get
