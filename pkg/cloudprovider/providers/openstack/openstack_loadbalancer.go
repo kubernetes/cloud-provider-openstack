@@ -994,7 +994,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool
 	monitorID := pool.MonitorID
 
 	if monitorID == "" && svcConf.enableMonitor {
-		klog.V(4).Infof("Creating monitor for pool %s", pool.ID)
+		klog.V(2).Infof("Creating monitor for pool %s", pool.ID)
 
 		monitorProtocol := string(port.Protocol)
 		if port.Protocol == corev1.ProtocolUDP {
@@ -1182,7 +1182,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 			return nil, fmt.Errorf("failed to create listener for loadbalancer %s: %v", lbID, err)
 		}
 
-		klog.V(4).Infof("Listener %s created for loadbalancer %s", listener.ID, lbID)
+		klog.V(2).Infof("Listener %s created for loadbalancer %s", listener.ID, lbID)
 	} else {
 		listenerChanged := false
 		updateOpts := listeners.UpdateOpts{}
@@ -1422,7 +1422,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 		}
 
-		klog.V(2).Infof("Creating loadbalancer %s", name)
+		klog.V(2).Infof("Creating loadbalancer %s for Service %s", name, serviceName)
 		loadbalancer, err = lbaas.createOctaviaLoadBalancer(service, name, clusterName, svcConf)
 		if err != nil {
 			return nil, fmt.Errorf("error creating loadbalancer %s: %v", name, err)
@@ -2703,6 +2703,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 					if mc.ObserveRequest(err) != nil {
 						return fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
 					}
+					klog.V(2).Infof("Floating IP %s deleted for load balancer %s, Service: %s", fip.FloatingIP, loadbalancer.ID, serviceName)
 				}
 			}
 		}
@@ -2716,6 +2717,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to delete loadbalancer %s: %v", loadbalancer.ID, err)
 		}
+		klog.V(2).Infof("Load balancer %s deleted for Service %s", loadbalancer.ID, serviceName)
 	} else {
 		// get all listeners associated with this loadbalancer
 		listenerList, err := getListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
