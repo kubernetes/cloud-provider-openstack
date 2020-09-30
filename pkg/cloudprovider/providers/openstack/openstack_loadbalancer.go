@@ -2726,7 +2726,6 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		}
 
 		// get all pools (and health monitors) associated with this loadbalancer
-		var poolIDs []string
 		var monitorIDs []string
 		for _, listener := range listenerList {
 			pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
@@ -2734,7 +2733,6 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 			}
 			if pool != nil {
-				poolIDs = append(poolIDs, pool.ID)
 				// If create-monitor of cloud-config is false, pool has not monitor.
 				if pool.MonitorID != "" {
 					monitorIDs = append(monitorIDs, pool.MonitorID)
@@ -2756,52 +2754,9 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 			}
 		}
 
-		// delete all members and pools
-		for _, poolID := range poolIDs {
-			// get members for current pool
-			membersList, err := openstackutil.GetMembersbyPool(lbaas.lb, poolID)
-			if err != nil && !cpoerrors.IsNotFound(err) {
-				return fmt.Errorf("error getting pool members %s: %v", poolID, err)
-			}
-			// delete all members for this pool
-			for _, member := range membersList {
-				mc := metrics.NewMetricContext("loadbalancer_member", "delete")
-				err := v2pools.DeleteMember(lbaas.lb, poolID, member.ID).ExtractErr()
-				if err != nil && !cpoerrors.IsNotFound(err) {
-					return mc.ObserveRequest(err)
-				}
-				mc.ObserveRequest(nil)
-				provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-				if err != nil {
-					return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
-				}
-			}
-
-			// delete pool
-			mc := metrics.NewMetricContext("loadbalancer_pool", "delete")
-			err = v2pools.Delete(lbaas.lb, poolID).ExtractErr()
-			if err != nil && !cpoerrors.IsNotFound(err) {
-				return mc.ObserveRequest(err)
-			}
-			mc.ObserveRequest(nil)
-			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-			if err != nil {
-				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting pool, current provisioning status %s", provisioningStatus)
-			}
-		}
-
 		// delete all listeners
-		for _, listener := range listenerList {
-			mc := metrics.NewMetricContext("loadbalancer_listener", "delete")
-			err := listeners.Delete(lbaas.lb, listener.ID).ExtractErr()
-			if err != nil && !cpoerrors.IsNotFound(err) {
-				return mc.ObserveRequest(err)
-			}
-			mc.ObserveRequest(nil)
-			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-			if err != nil {
-				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting listener, current provisioning status %s", provisioningStatus)
-			}
+		if err := lbaas.deleteListeners(loadbalancer.ID, listenerList); err != nil {
+			return err
 		}
 
 		// delete loadbalancer
