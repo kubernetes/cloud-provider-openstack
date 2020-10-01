@@ -3,13 +3,16 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [CSI Cinder driver](#csi-cinder-driver)
-  - [Kubernetes](#kubernetes)
-    - [Compatibility](#compatibility)
-    - [Requirements](#requirements)
-    - [Example local-up-cluster.sh](#example-local-up-clustersh)
-    - [Deploy](#deploy)
-      - [Using the Helm chart](#using-the-helm-chart)
-      - [Using the manifests](#using-the-manifests)
+  - [CSI Compatibility](#csi-compatibility)
+  - [Downloads](#downloads)
+  - [Kubernetes Compatibility](#kubernetes-compatibility)
+  - [Driver Config](#driver-config)
+    - [Global](#global)
+    - [Block Storage](#block-storage)
+    - [Metadata](#metadata)
+  - [Driver Deployment](#driver-deployment)
+    - [Using the manifests](#using-the-manifests)
+    - [Using the Helm chart](#using-the-helm-chart)
     - [Example Nginx application usage](#example-nginx-application-usage)
     - [Enable Topology-aware dynamic provisioning for Cinder Volumes](#enable-topology-aware-dynamic-provisioning-for-cinder-volumes)
     - [Example Snapshot Create and Restore](#example-snapshot-create-and-restore)
@@ -41,114 +44,119 @@
 
 # CSI Cinder driver
 
-## Kubernetes
+The Cinder CSI Driver is a CSI Specification compliant driver used by Container Orchestrators to manage the lifecycle of Openstack Cinder Volumes.
 
-### Compatibility
+## CSI Compatibility
 
-CSI version | Cinder CSI Plugin Version | Kubernetes Version
-:------     | :------------             | :-----------
-v1.1.0 |  v1.0.0, v1.1.0  docker image: k8scloudprovider/cinder-csi-plugin:latest | v1.15+
-v1.0.0 |  v1.0.0  docker image: k8scloudprovider/cinder-csi-plugin:v1.14 | v1.13, v1.14
-v0.3.0 |  v0.3.0 docker image: k8scloudprovider/cinder-csi-plugin:1.13.x| v1.11, v1.12, v1.13
-v0.2.0 |  v0.2.0 docker image: k8scloudprovider/cinder-csi-plugin:v0.2.0 | v1.10, v1.9
-v0.1.0 |  v0.1.0 docker image: k8scloudprovider/cinder-csi-plugin:v0.1.0| v1.9
+This plugin is compatible with CSI versions v1.2.0 , v1.1.0, and v1.0.0
 
-For sidecar version compatibility , please refer compatibility matrix for each sidecar here -
-https://kubernetes-csi.github.io/docs/sidecar-containers.html
+## Downloads
 
-### Requirements
+Stable released version images of the plugin can be found at [DockerHub](https://hub.docker.com/r/k8scloudprovider/cinder-csi-plugin)
 
-```
-RUNTIME_CONFIG="storage.k8s.io/v1=true"
-```
-MountPropagation requires support for privileged containers. So, make sure privileged containers are enabled in the cluster.
+## Kubernetes Compatibility
 
-Check [kubernetes CSI Docs](https://kubernetes-csi.github.io/docs/) for flag details and latest update.
+For each kubernetes official release, there is a corresponding release of Cinder CSI driver which is compatible with k8s release. It is recommended to use the corresponding version w.r.t kubernetes.
 
-> NOTE: All following examples need to be used inside instance(s) provisoned by openstack, otherwise the attach action will fail due to fail to find instance ID from given openstack cloud.
+For sidecar version compatibility with kubernetes, please refer [CompatibilityMatrix](https://kubernetes-csi.github.io/docs/sidecar-containers.html) of each sidecar.
 
-### Example local-up-cluster.sh
+## Driver Config
 
-```ALLOW_PRIVILEGED=true RUNTIME_CONFIG="storage.k8s.io/v1=true" LOG_LEVEL=5 hack/local-up-cluster.sh```
+Implementation of `cinder-csi-plugin` relies on following OpenStack services.
 
-### Deploy
+| Service                        | API Version(s) | Deprecated | Required |
+|--------------------------------|----------------|------------|----------|
+| Identity (Keystone)            | v2             | Yes        | No       |
+| Identity (Keystone)            | v3             | No         | Yes      |
+| Compute (Nova)                 | v2             | No         | Yes      |
+| Block Storage (Cinder)         | v3             | No         | Yes      |
+
+
+For Driver configuration, parameters must be passed via configuration file specified in `$CLOUD_CONFIG` environment variable.
+The following sections are supported in configuration file.
+
+### Global
+For Cinder CSI Plugin to authenticate with Openstack Keystone, required parameters needs to be passed in [Global] section of the file. For all supported parameters, please refer [Global](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#global) section.
+
+### Block Storage
+These configuration options pertain to block storage and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
+
+* `node-volume-attach-limit`
+  Optional. To configure maximum volumes that can be attached to the node. Its default value is `256`.
+* `rescan-on-resize`
+  Optional. Set to `true`, to rescan block device and verify its size before expanding the filesystem. Not all hypervizors have a /sys/class/block/XXX/device/rescan location, therefore if you enable this option and your hypervizor doesn't support this, you'll get a warning log on resize event. It is recommended to disable this option in this case. Defaults to `false`
+
+### Metadata
+These configuration options pertain to metadata and should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.
+
+* `search-order`: This configuration key influences the way that the driver retrieves metadata relating to the instance (s) in which it runs. The default value of `configDrive,metadataService` results in the provider retrieving metadata relating to the instance from the config drive first if available and then the metadata service. Alternative values are:
+  * `configDrive` - Only retrieve instance metadata from the configuration
+    drive.
+  * `metadataService` - Only retrieve instance metadata from the metadata
+    service.
+  * `metadataService,configDrive` - Retrieve instance metadata from the metadata
+    service first if available, then the configuration drive.
+
+  Influencing this behavior may be desirable as the metadata on the configuration drive may grow stale over time, whereas the metadata service always provides the most up to date view. Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both.
+
+## Driver Deployment
 
 You can either use the manifests under `manifests/cinder-csi-plugin` or the Helm chart `charts/cinder-csi-plugin`.
 
-#### Using the Helm chart
+### Using the manifests
 
-> NOTE: This chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+All the manifests required for the deployment of the plugin are found at ```manifests/cinder-csi-plugin```
 
-To install the chart use the following command:
-```
-helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugin
-```
+Configuration file specified in `$CLOUD_CONFIG` is passed to cinder CSI driver via kubernetes `secret`. If the secret `cloud-config` is already created in the cluster, you can remove the file, `manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml` and directly proceed to the step of creating controller and node plugins.
 
-#### Using the manifests
+To create a secret:
 
-If you already created the `cloud-config` secret used by the [cloud-controller-manager](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#steps), remove the file ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` from [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin) and then jump directly to the `kubectl apply ...` command.
+* Encode your ```$CLOUD_CONFIG``` file content using base64.
 
-Encode your ```$CLOUD_CONFIG``` file content using base64.
+```$ base64 -w 0 $CLOUD_CONFIG```
 
-```base64 -w 0 $CLOUD_CONFIG```
-
-Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
+* Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
 
-> NOTE: In OpenStack, the compute instance uses either config drive or metadata service to retrieve instance-specific data. As the cluster administrator, you are able to config the order in the cloud config file for cinder-csi-plugin, the default configuration is as follows:
-```
-[Metadata]
-search-order = configDrive,metadataService
-```
+* Create the secret.
 
-> NOTE: if your openstack cloud has cert (which means you already has [ca-file](provider-configuration.md#global-optional-parameters) definition in cloud-config), please make sure that you also updated the volumes list of `cinder-csi-controllerplugin.yaml` and `cinder-csi-nodeplugin.yaml` to include the cacert. e.g following sample then mount the volume to the pod as well.
+``` $ kubectl create -f manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml```
 
-```
-volumes:
-...
-- name: cacert
-  hostPath:
-    path: /etc/cacert
-    type: Directory
-```
+This should create a secret name `cloud-config` in `kube-system` namespace.
 
-Then call following command by using existing [manifests](https://github.com/kubernetes/cloud-provider-openstack/tree/master/manifests/cinder-csi-plugin):
+Once the secret is created, Controller Plugin and Node Plugins can be deployed using respective manifests
 
-```kubectl -f manifests/cinder-csi-plugin apply```
+```$ kubectl -f manifests/cinder-csi-plugin/ apply```
 
 This creates a set of cluster roles, cluster role bindings, and statefulsets etc to communicate with openstack(cinder).
 For detailed list of created objects, explore the yaml files in the directory.
 You should make sure following similar pods are ready before proceed:
 
 ```
+$ kubectl get pods -n kube-system
 NAME                                READY   STATUS    RESTARTS   AGE
 csi-cinder-controllerplugin         5/5     Running   0          29h
 csi-cinder-nodeplugin               2/2     Running   0          46h
 ```
 
-you can get information about CSI Drivers running in a cluster, using **CSIDriver** object
+To get information about CSI Drivers running in a cluster -
 
 ```
 $ kubectl get csidrivers.storage.k8s.io
 NAME                       CREATED AT
 cinder.csi.openstack.org   2019-07-29T09:02:40Z
 
-$ kubectl describe csidrivers.storage.k8s.io
-Name:         cinder.csi.openstack.org
-Namespace:    
-Labels:       <none>
-Annotations:  <none>
-API Version:  storage.k8s.io/v1beta1
-Kind:         CSIDriver
-Metadata:
-  Creation Timestamp:  2019-07-29T09:02:40Z
-  Resource Version:    1891
-  Self Link:           /apis/storage.k8s.io/v1beta1/csidrivers/cinder.csi.openstack.org
-  UID:                 2bd1f3bf-3c41-46a8-b99b-5773cb5eacd3
-Spec:
-  Attach Required:    true
-  Pod Info On Mount:  false
-Events:               <none>
+```
+
+> NOTE: If using certs(`ca-file`), make sure to update the manifests (controller and node plugin) to mount the location of certs as volume onto container as well.
+
+### Using the Helm chart
+
+> NOTE: This chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+
+To install the chart, use the following command:
+```
+helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugin
 ```
 
 ### Example Nginx application usage
