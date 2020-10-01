@@ -67,14 +67,14 @@ controllerplugin:
   provisioner:
     image:
       repository: quay.io/k8scsi/csi-provisioner
-      tag: v1.4.0
+      tag: v2.0.2
       pullPolicy: IfNotPresent
     resources: {}
   # CSI external-snapshotter container spec
   snapshotter:
     image:
       repository: quay.io/k8scsi/csi-snapshotter
-      tag: v1.2.2
+      tag: v2.1.1
       pullPolicy: IfNotPresent
     resources: {}
   nodeSelector: {}
