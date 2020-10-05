@@ -103,6 +103,18 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 		return cfg, err
 	}
 
+	// Update the config with data from clouds.yaml if UseClouds is enabled
+	if cfg.Global.UseClouds {
+		if cfg.Global.CloudsFile != "" {
+			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
+		}
+		err = openstack_provider.ReadClouds(&cfg.Config)
+		if err != nil {
+			return cfg, err
+		}
+		klog.V(5).Infof("Credentials are loaded from %s:", cfg.Global.CloudsFile)
+	}
+
 	return cfg, nil
 }
 
