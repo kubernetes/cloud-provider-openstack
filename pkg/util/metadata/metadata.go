@@ -253,6 +253,21 @@ func GetDevicePath(volumeID string) string {
 				return diskPaths[0]
 			}
 
+			// Hyper-V gen1 can have same lun number on several disks
+			if len(diskPaths) > 1 {
+				// Remove root and metadata disks
+				gen1DiskPaths := []string{}
+				for _, diskPath := range diskPaths {
+					if !strings.Contains(diskPath, "00000000000088990000000000000000") &&
+						!strings.Contains(diskPath, "00000001000088990000000000000000") {
+						gen1DiskPaths = append(gen1DiskPaths, diskPath)
+					}
+				}
+				if len(gen1DiskPaths) == 1 {
+					return gen1DiskPaths[0]
+				}
+			}
+
 			klog.V(4).Infof("expecting to find one disk path for volumeID %q, found %d: %v",
 				volumeID, len(diskPaths), diskPaths)
 
@@ -261,6 +276,11 @@ func GetDevicePath(volumeID string) string {
 
 	klog.V(4).Infof("Could not retrieve device metadata for volumeID: %q", volumeID)
 	return ""
+}
+
+func removeBootAndMetadataDisks(diskPaths []string) []string {
+	newSlice := []string{}
+	return newSlice
 }
 
 // Get retrieves metadata from either config drive or metadata service.
