@@ -59,7 +59,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-snapshotter
-          image: quay.io/k8scsi/csi-snapshotter:v1.2.2
+          image: quay.io/k8scsi/csi-snapshotter:v2.1.1
           args:
             - "--csi-address=$(ADDRESS)"
           env:
@@ -82,7 +82,7 @@ spec:
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: cinder-csi-plugin
           image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
-          args :
+          args:
             - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"

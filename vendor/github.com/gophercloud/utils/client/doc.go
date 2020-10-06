@@ -62,8 +62,12 @@ Example usage with the custom logger:
 		log "github.com/sirupsen/logrus"
 	)
 
-	func myLog(format string, args ...interface{}) {
-		log.Debugf(format, args...)
+	type myLogger struct {
+		Prefix string
+	}
+
+	func (l myLogger) Printf(format string, args ...interface{}) {
+		log.Debugf("%s [DEBUG] "+format, append([]interface{}{l.Prefix}, args...)...)
 	}
 
 	func NewComputeV2Client() (*gophercloud.ServiceClient, error) {
@@ -81,7 +85,7 @@ Example usage with the custom logger:
 			provider.HTTPClient = http.Client{
 				Transport: &client.RoundTripper{
 					Rt:     &http.Transport{},
-					Logger: myLog,
+					Logger: &myLogger{Prefix: "myApp"},
 				},
 			}
 		}

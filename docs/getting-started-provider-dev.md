@@ -1,20 +1,29 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Getting Started with Cloud Provider OpenStack Development](#getting-started-with-cloud-provider-openstack-development)
+  - [Prerequisites](#prerequisites)
+    - [OpenStack Cloud](#openstack-cloud)
+    - [Docker](#docker)
+    - [Development tools](#development-tools)
+  - [Development](#development)
+    - [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
+      - [Building inside container](#building-inside-container)
+    - [Getting and Building Kubernetes](#getting-and-building-kubernetes)
+    - [Running the Cloud Provider](#running-the-cloud-provider)
+  - [Publish Container images](#publish-container-images)
+    - [Build and push images](#build-and-push-images)
+    - [Only Build Image](#only-build-image)
+  - [Troubleshooting](#troubleshooting)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Getting Started with Cloud Provider OpenStack Development
 
 This guide will help you get started with building a development environment for you
 to build and run a single node Kubernetes cluster with the OpenStack Cloud Provider
 enabled.
-
-## Contents
-
-* [Prerequisites](#prerequisites)
-  + [OpenStack Cloud](#openstack-cloud)
-  + [Docker](#docker)
-  + [Development tools](#development-tools)
-* [Development](#development)
-  + [Getting and Building Cloud Provider OpenStack](#getting-and-building-cloud-provider-openstack)
-  + [Getting and Building Kubernetes](#getting-and-building-kubernetes)
-  + [Running the Cloud Provider](#running-the-cloud-provider)
-* [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
@@ -24,8 +33,7 @@ To get started, you will need to set up your development environment.
 You will need access to an OpenStack cloud, either public or private. You can sign up
 for a public OpenStack Cloud through the [OpenStack Passport](https://www.openstack.org/passport)
 program, or you can install a small private development cloud with
-[DevStack](https://docs.openstack.org/devstack/latest/) or
-[Getting Started With OpenStack](https://github.com/hogepodge/getting-started-with-openstack).
+[DevStack](https://docs.openstack.org/devstack/latest/).
 
 Once you have obtained access to an OpenStack cloud, you will need to start a development
 VM. The rest of this guide assumes a CentOS 7 cloud image, but should be easily transferrable
@@ -56,55 +64,7 @@ development goals is to make this setup easier and more consistent.
 
 ### Docker
 
-Your cloud instance will need to have Docker installed. If you're ok with working from the latest
-release, it's simple enough to call the Get Docker script:
-
-```
-curl -sSL https://get.docker.io | bash
-```
-
-If you don't want to pipe a random script from the internet into your environment, you can
-install the latest version of Docker with this script.
-
-```
-sudo yum update -y
-sudo yum install -y -q epel-release yum-utils
-sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo yum-config-manager --enable docker-ce-edge
-sudo yum install -y -q docker-ce
-```
-
-However, the Kubernetes community still recommends that you run Docker v1.12. To install that version
-by hand you can use the following script.
-
-```
-sudo yum -y update
-sudo yum -y -q install yum-utils
-sudo yum-config-manager --add-repo https://yum.dockerproject.org/repo/main/centos/7
-sudo yum -y --nogpgcheck install docker-engine-1.12.6-1.el7.centos.x86_64
-```
-
-You'll want to set up Docker to use the same cgroup driver as Kubernetes
-
-```
-sed -i '/^ExecStart=\/usr\/bin\/dockerd$/ s/$/ --exec-opt native.cgroupdriver=systemd/' \
-       /usr/lib/systemd/system/docker.service
-```
-
-You may want to configure your environment to allow you to control Docker without sudo:
-
-```
-user="$(id -un 2\>/dev/null || true)"
-sudo usermod -aG docker centos
-```
-
-Regardless of how you install, enable start the service:
-
-```
-sudo systemctl daemon-reload
-sudo systemctl enable docker
-sudo systemctl start docker
-```
+Your cloud instance will need to have Docker installed. To install, please refer to [Docker Container runtime](https://kubernetes.io/docs/setup/production-environment/container-runtimes/#docker).
 
 ### Development tools
 

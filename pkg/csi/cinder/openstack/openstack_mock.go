@@ -209,26 +209,35 @@ func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error)
 }
 
 // ListSnapshots provides a mock function with given fields: limit, offset, filters
-func (_m *OpenStackMock) ListSnapshots(limit int, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
-	ret := _m.Called(limit, offset, filters)
+func (_m *OpenStackMock) ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error) {
+	ret := _m.Called(filters)
 
 	var r0 []snapshots.Snapshot
-	if rf, ok := ret.Get(0).(func(int, int, map[string]string) []snapshots.Snapshot); ok {
-		r0 = rf(limit, offset, filters)
+	if rf, ok := ret.Get(0).(func(map[string]string) []snapshots.Snapshot); ok {
+		r0 = rf(filters)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]snapshots.Snapshot)
 		}
 	}
+	var r1 string
 
-	var r1 error
-	if rf, ok := ret.Get(1).(func(int, int, map[string]string) error); ok {
-		r1 = rf(limit, offset, filters)
+	if rf, ok := ret.Get(1).(func(map[string]string) string); ok {
+		r1 = rf(filters)
 	} else {
-		r1 = ret.Error(1)
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(string)
+		}
 	}
 
-	return r0, r1
+	var r2 error
+	if rf, ok := ret.Get(2).(func(map[string]string) error); ok {
+		r2 = rf(filters)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // CreateSnapshot provides a mock function with given fields: name, volID, tags
@@ -269,24 +278,36 @@ func (_m *OpenStackMock) DeleteSnapshot(snapID string) error {
 }
 
 // ListVolumes provides a mock function without param
-func (_m *OpenStackMock) ListVolumes() ([]volumes.Volume, error) {
-	ret := _m.Called()
-	var vlist []volumes.Volume
+func (_m *OpenStackMock) ListVolumes(limit int, marker string) ([]volumes.Volume, string, error) {
+	ret := _m.Called(limit, marker)
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
+	var r0 []volumes.Volume
+	if rf, ok := ret.Get(0).(func(int, string) []volumes.Volume); ok {
+		r0 = rf(limit, marker)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]volumes.Volume)
+		}
 	}
 
-	return vlist, r0
-}
+	var r1 string
 
-func (_m *OpenStackMock) GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error) {
-	var slist []snapshots.Snapshot
-	slist = append(slist, fakeSnapshot)
-	return slist, nil
+	if rf, ok := ret.Get(1).(func(int, string) string); ok {
+		r1 = rf(limit, marker)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(string)
+		}
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(int, string) error); ok {
+		r2 = rf(limit, marker)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 func (_m *OpenStackMock) GetAvailabilityZone() (string, error) {

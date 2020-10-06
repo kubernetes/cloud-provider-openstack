@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -55,10 +54,10 @@ import (
 	netutil "k8s.io/apimachinery/pkg/util/net"
 	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
-	v1helper "k8s.io/cloud-provider-openstack/pkg/apis/core/v1/helper"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -132,7 +131,10 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
 	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
 	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
-	InternalLB           bool                `gcfg:"internal-lb"` // default false
+	InternalLB           bool                `gcfg:"internal-lb"`    // default false
+	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
+	FlavorID             string              `gcfg:"flavor-id"`
+	AvailabilityZone     string              `gcfg:"availability-zone"`
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -187,21 +189,25 @@ type OpenStack struct {
 }
 
 type AuthOpts struct {
-	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID"`
+	AuthURL          string `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID|os-applicationCredentialSecret|os-clientCertPath"`
 	UserID           string `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
 	Username         string `name:"os-userName" value:"optional" dependsOn:"os-password"`
 	Password         string `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
-	TenantID         string `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password"`
-	TenantName       string `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password"`
+	TenantID         string `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password|os-clientCertPath"`
+	TenantName       string `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password|os-clientCertPath"`
 	TrustID          string `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
-	DomainID         string `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password"`
-	DomainName       string `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password"`
+	DomainID         string `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password|os-clientCertPath"`
+	DomainName       string `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password|os-clientCertPath"`
 	TenantDomainID   string `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
 	TenantDomainName string `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
 	UserDomainID     string `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
 	UserDomainName   string `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
 	Region           string `name:"os-region"`
 	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
+
+	// TLS client auth
+	CertFile string `gcfg:"cert-file" mapstructure:"cert-file" name:"os-clientCertPath" value:"optional" dependsOn:"os-clientKeyPath"`
+	KeyFile  string `gcfg:"key-file" mapstructure:"key-file" name:"os-clientKeyPath" value:"optional" dependsOn:"os-clientCertPath"`
 
 	// Manila only options
 	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
@@ -245,6 +251,8 @@ func LogCfg(cfg Config) {
 	klog.V(5).Infof("UserDomainName: %s", cfg.Global.UserDomainName)
 	klog.V(5).Infof("Region: %s", cfg.Global.Region)
 	klog.V(5).Infof("CAFile: %s", cfg.Global.CAFile)
+	klog.V(5).Infof("CertFile: %s", cfg.Global.CertFile)
+	klog.V(5).Infof("KeyFile: %s", cfg.Global.KeyFile)
 	klog.V(5).Infof("UseClouds: %t", cfg.Global.UseClouds)
 	klog.V(5).Infof("CloudsFile: %s", cfg.Global.CloudsFile)
 	klog.V(5).Infof("Cloud: %s", cfg.Global.Cloud)
@@ -255,7 +263,7 @@ func LogCfg(cfg Config) {
 type Logger struct{}
 
 func (l Logger) Printf(format string, args ...interface{}) {
-	debugger := klog.V(6)
+	debugger := klog.V(6).Enabled()
 
 	// extra check in case, when verbosity has been changed dynamically
 	if debugger {
@@ -284,16 +292,17 @@ func (l Logger) Printf(format string, args ...interface{}) {
 }
 
 func init() {
-	RegisterMetrics()
+	metrics.RegisterMetrics()
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
 		if err != nil {
+			klog.Warningf("failed to read config: %v", err)
 			return nil, err
 		}
 		cloud, err := NewOpenStack(cfg)
 		if err != nil {
-			klog.V(1).Infof("New openstack client created failed with config")
+			klog.Warningf("New openstack client created failed with config: %v", err)
 		}
 		return cloud, err
 	})
@@ -378,8 +387,12 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorDelay = MyDuration{5 * time.Second}
 	cfg.LoadBalancer.MonitorTimeout = MyDuration{3 * time.Second}
 	cfg.LoadBalancer.MonitorMaxRetries = 1
+	cfg.LoadBalancer.CascadeDelete = true
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
+	if err != nil {
+		return Config{}, err
+	}
 
 	klog.V(5).Infof("Config, loaded from the config file:")
 	LogCfg(cfg)
@@ -437,6 +450,8 @@ func ReadClouds(cfg *Config) error {
 	cfg.Global.UserDomainName = replaceEmpty(cfg.Global.UserDomainName, cloud.AuthInfo.UserDomainName)
 	cfg.Global.Region = replaceEmpty(cfg.Global.Region, cloud.RegionName)
 	cfg.Global.CAFile = replaceEmpty(cfg.Global.CAFile, cloud.CACertFile)
+	cfg.Global.CertFile = replaceEmpty(cfg.Global.CertFile, cloud.ClientCertFile)
+	cfg.Global.KeyFile = replaceEmpty(cfg.Global.KeyFile, cloud.ClientKeyFile)
 	cfg.Global.ApplicationCredentialID = replaceEmpty(cfg.Global.ApplicationCredentialID, cloud.AuthInfo.ApplicationCredentialID)
 	cfg.Global.ApplicationCredentialName = replaceEmpty(cfg.Global.ApplicationCredentialName, cloud.AuthInfo.ApplicationCredentialName)
 	cfg.Global.ApplicationCredentialSecret = replaceEmpty(cfg.Global.ApplicationCredentialSecret, cloud.AuthInfo.ApplicationCredentialSecret)
@@ -521,9 +536,18 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		config.RootCAs = caPool
 	}
 
+	// configure TLS client auth
+	if cfg.CertFile != "" && cfg.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("error loading TLS key pair: %s", err)
+		}
+		config.Certificates = []tls.Certificate{cert}
+	}
+
 	provider.HTTPClient.Transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 
-	if klog.V(6) {
+	if klog.V(6).Enabled() {
 		provider.HTTPClient.Transport = &client.RoundTripper{
 			Rt:     provider.HTTPClient.Transport,
 			Logger: &Logger{},
@@ -605,8 +629,9 @@ func (os *OpenStack) GetNodeNameByID(instanceID string) (types.NodeName, error) 
 		return nodeName, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(client, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nodeName, err
 	}
 	nodeName = mapServerToNodeName(server)
@@ -622,6 +647,7 @@ func mapServerToNodeName(server *servers.Server) types.NodeName {
 }
 
 func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuilder, handler func(*servers.Server) (bool, error)) error {
+	mc := metrics.NewMetricContext("server", "list")
 	pager := servers.List(client, opts)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
@@ -637,7 +663,7 @@ func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuild
 		}
 		return true, nil
 	})
-	return err
+	return mc.ObserveRequest(err)
 }
 
 func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
@@ -645,10 +671,11 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
 	}
 
-	pager := servers.List(client, opts)
-
 	var s []ServerAttributesExt
 	serverList := make([]ServerAttributesExt, 0, 1)
+
+	mc := metrics.NewMetricContext("server", "list")
+	pager := servers.List(client, opts)
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		if err := servers.ExtractServersInto(page, &s); err != nil {
@@ -660,7 +687,7 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 		}
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -685,7 +712,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 			if iface.PortState == "ACTIVE" {
 				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
 				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-					v1helper.AddToNodeAddresses(&addrs,
+					AddToNodeAddresses(&addrs,
 						v1.NodeAddress{
 							Type:    v1.NodeInternalIP,
 							Address: fixedIP.IPAddress,
@@ -698,7 +725,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 
 	// process public IP addresses
 	if srv.AccessIPv4 != "" {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv4,
@@ -707,7 +734,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	}
 
 	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeExternalIP,
 				Address: srv.AccessIPv6,
@@ -716,7 +743,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	}
 
 	if srv.Metadata[TypeHostName] != "" {
-		v1helper.AddToNodeAddresses(&addrs,
+		AddToNodeAddresses(&addrs,
 			v1.NodeAddress{
 				Type:    v1.NodeHostName,
 				Address: srv.Metadata[TypeHostName],
@@ -745,20 +772,34 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 	for _, network := range networks {
 		for _, props := range addresses[network] {
 			var addressType v1.NodeAddressType
-			if props.IPType == "floating" || util.Contains(networkingOpts.PublicNetworkName, network) {
+			if props.IPType == "floating" {
 				addressType = v1.NodeExternalIP
+			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
+				addressType = v1.NodeExternalIP
+				// removing already added address to avoid listing it as both ExternalIP and InternalIP
+				// may happen due to listing "private" network as "public" in CCM's config
+				RemoveFromNodeAddresses(&addrs,
+					v1.NodeAddress{
+						Address: props.Addr,
+					},
+				)
 			} else {
 				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
+					RemoveFromNodeAddresses(&addrs,
+						v1.NodeAddress{
+							Address: props.Addr,
+						},
+					)
 					continue
 				}
 			}
 
 			isIPv6 := net.ParseIP(props.Addr).To4() == nil
 			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-				v1helper.AddToNodeAddresses(&addrs,
+				AddToNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Type:    addressType,
 						Address: props.Addr,
@@ -818,6 +859,7 @@ func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, ne
 func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID string) ([]attachinterfaces.Interface, error) {
 	var interfaces []attachinterfaces.Interface
 
+	mc := metrics.NewMetricContext("server_os_interface", "list")
 	pager := attachinterfaces.List(client, serviceID)
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		s, err := attachinterfaces.ExtractInterfaces(page)
@@ -827,7 +869,7 @@ func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID stri
 		interfaces = append(interfaces, s...)
 		return true, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return interfaces, err
 	}
 
@@ -844,11 +886,6 @@ func (os *OpenStack) ProviderName() string {
 	return ProviderName
 }
 
-// ScrubDNS filters DNS settings for pods.
-func (os *OpenStack) ScrubDNS(nameServers, searches []string) ([]string, []string) {
-	return nameServers, searches
-}
-
 // HasClusterID returns true if the cluster has a clusterID
 func (os *OpenStack) HasClusterID() bool {
 	return true
@@ -858,23 +895,21 @@ func (os *OpenStack) HasClusterID() bool {
 func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	klog.V(4).Info("openstack.LoadBalancer() called")
 
-	if reflect.DeepEqual(os.lbOpts, LoadBalancerOpts{}) {
-		klog.V(4).Info("LoadBalancer section is empty/not defined in cloud-config")
-		return nil, false
-	}
-
 	network, err := os.NewNetworkV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
 	compute, err := os.NewComputeV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
 		return nil, false
 	}
 
 	lb, err := os.NewLoadBalancerV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack LoadBalancer client: %v", err)
 		return nil, false
 	}
 
@@ -927,7 +962,9 @@ func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string)
 	}
 
 	var serverWithAttributesExt ServerAttributesExt
-	if err := servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt); err != nil {
+	mc := metrics.NewMetricContext("server", "get")
+	err = servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt)
+	if mc.ObserveRequest(err) != nil {
 		return cloudprovider.Zone{}, err
 	}
 
@@ -970,6 +1007,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	network, err := os.NewNetworkV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
@@ -986,6 +1024,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	compute, err := os.NewComputeV2()
 	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
 		return nil, false
 	}
 
@@ -997,53 +1036,6 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	klog.V(1).Info("Claiming to support Routes")
 	return r, true
-}
-
-func (os *OpenStack) volumeService(forceVersion string) (volumeService, error) {
-	bsVersion := ""
-	if forceVersion == "" {
-		bsVersion = os.bsOpts.BSVersion
-	} else {
-		bsVersion = forceVersion
-	}
-
-	switch bsVersion {
-	case "v2":
-		sClient, err := os.NewBlockStorageV2()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V2")
-		return &VolumesV2{sClient, os.bsOpts}, nil
-	case "v3":
-		sClient, err := os.NewBlockStorageV3()
-		if err != nil {
-			return nil, err
-		}
-		klog.V(3).Info("Using Blockstorage API V3")
-		return &VolumesV3{sClient, os.bsOpts}, nil
-	case "auto":
-		// Currently kubernetes support Cinder v1 / Cinder v2 / Cinder v3.
-		// Choose Cinder v3 firstly, if kubernetes can't initialize cinder v3 client, try to initialize cinder v2 client.
-		// If kubernetes can't initialize cinder v2 client, try to initialize cinder v1 client.
-		// Return appropriate message when kubernetes can't initialize them.
-		if sClient, err := os.NewBlockStorageV3(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V3")
-			return &VolumesV3{sClient, os.bsOpts}, nil
-		}
-
-		if sClient, err := os.NewBlockStorageV2(); err == nil {
-			klog.V(3).Info("Using Blockstorage API V2")
-			return &VolumesV2{sClient, os.bsOpts}, nil
-		}
-
-		errTxt := "BlockStorage API version autodetection failed. " +
-			"Please set it explicitly in cloud.conf in section [BlockStorage] with key `bs-version`"
-		return nil, errors.New(errTxt)
-	default:
-		errTxt := fmt.Sprintf("Config error: unrecognised bs-version \"%v\"", os.bsOpts.BSVersion)
-		return nil, errors.New(errTxt)
-	}
 }
 
 func checkMetadataSearchOrder(order string) error {

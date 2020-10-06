@@ -30,7 +30,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 type controllerServer struct {

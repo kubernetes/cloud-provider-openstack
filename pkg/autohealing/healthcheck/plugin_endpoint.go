@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	log "k8s.io/klog"
+	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/utils"
 )
@@ -60,6 +60,11 @@ type EndpointCheck struct {
 
 	// (Optional) Token to use in the request header. Default: read from TokenPath file
 	Token string `mapstructure:"token"`
+}
+
+// GetName returns name of the health check
+func (check *EndpointCheck) GetName() string {
+	return "EndpointCheck"
 }
 
 // IsMasterSupported checks if the health check plugin supports master node.

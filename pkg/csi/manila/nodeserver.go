@@ -28,9 +28,8 @@ import (
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
-	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 type nodeServer struct {
@@ -97,13 +96,6 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 			volID, share.ID, share.Status)
 	}
 
-	// Choose an export location for this share
-
-	chosenExportLocation, err := manilautil.GetChosenExportLocation(share.ID, manilaClient)
-	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "failed to resolve export location for volume %s: %v", volID, err)
-	}
-
 	// Get the access right for this share
 
 	accessRights, err := manilaClient.GetAccessRights(share.ID)
@@ -124,11 +116,19 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 			shareOpts.ShareAccessID, volID, share.ID)
 	}
 
+	// Retrieve list of all export locations for this share.
+	// Share adapter will try to choose the correct one for mounting.
+
+	availableExportLocations, err := manilaClient.GetExportLocations(share.ID)
+	if err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "failed to list export locations for volume %s: %v", volID, err)
+	}
+
 	// Build volume context for fwd plugin
 
 	sa := getShareAdapter(ns.d.shareProto)
 
-	volumeContext, err = sa.BuildVolumeContext(&shareadapters.VolumeContextArgs{Location: chosenExportLocation, Options: shareOpts})
+	volumeContext, err = sa.BuildVolumeContext(&shareadapters.VolumeContextArgs{Locations: availableExportLocations, Options: shareOpts})
 	if err != nil {
 		return nil, nil, status.Errorf(codes.InvalidArgument, "failed to build volume context for volume %s: %v", volID, err)
 	}

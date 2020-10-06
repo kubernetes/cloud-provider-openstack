@@ -1,3 +1,17 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [CSI Manila developer's guide](#csi-manila-developers-guide)
+  - [Running CSI Sanity tests](#running-csi-sanity-tests)
+  - [Share adapters](#share-adapters)
+    - [Adding support for more share protocols](#adding-support-for-more-share-protocols)
+    - [Passing volume options to share adapters](#passing-volume-options-to-share-adapters)
+  - [Service capabilities](#service-capabilities)
+  - [Notes on design...](#notes-on-design)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # CSI Manila developer's guide
 
 ## Running CSI Sanity tests

@@ -18,7 +18,7 @@ package healthcheck
 
 import (
 	apiv1 "k8s.io/api/core/v1"
-	log "k8s.io/klog"
+	log "k8s.io/klog/v2"
 )
 
 var (
@@ -29,8 +29,9 @@ type registerPlugin func(config interface{}) (HealthCheck, error)
 
 // NodeInfo is a wrapper of Node, may contains more information in future.
 type NodeInfo struct {
-	KubeNode apiv1.Node
-	IsWorker bool
+	KubeNode    apiv1.Node
+	IsWorker    bool
+	FailedCheck string
 }
 
 type HealthCheck interface {
@@ -42,6 +43,9 @@ type HealthCheck interface {
 
 	// IsWorkerSupported checks if the health check plugin supports worker node.
 	IsWorkerSupported() bool
+
+	// GetName returns name of the health check plugin
+	GetName() string
 }
 
 // NodeController is to avoid circle reference.
@@ -76,6 +80,7 @@ func CheckNodes(checkers []HealthCheck, nodes []NodeInfo, controller NodeControl
 	for _, node := range nodes {
 		for _, checker := range checkers {
 			if !checker.Check(node, controller) {
+				node.FailedCheck = checker.GetName()
 				unhealthyNodes = append(unhealthyNodes, node)
 				break
 			}

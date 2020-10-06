@@ -29,8 +29,11 @@ type GrantAccessArgs struct {
 }
 
 type VolumeContextArgs struct {
-	Location *shares.ExportLocation
-	Options  *options.NodeVolumeContext
+	// Share adapters are responsible for choosing
+	// an export location when building a volume context.
+	Locations []shares.ExportLocation
+
+	Options *options.NodeVolumeContext
 }
 
 type SecretArgs struct {

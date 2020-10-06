@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,16 +26,19 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/startstop"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clusters"
+	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/nodegroups"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources"
 	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks"
+	"github.com/gophercloud/gophercloud/pagination"
 	uuid "github.com/pborman/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	log "k8s.io/klog"
+	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
@@ -160,6 +164,61 @@ func (provider OpenStackCloudProvider) waitForServerPoweredOff(serverID string, 
 	return err
 }
 
+// waitForClusterStatus checks periodically to see if the cluster has entered a given status.
+// Returns when the status is observed or the timeout is reached.
+func (provider OpenStackCloudProvider) waitForClusterComplete(clusterID string, timeout time.Duration) error {
+	log.V(2).Infof("Waiting for cluster %s in complete status", clusterID)
+
+	err := wait.Poll(3*time.Second, timeout,
+		func() (bool, error) {
+			cluster, err := clusters.Get(provider.Magnum, clusterID).Extract()
+			log.V(5).Infof("Cluster %s in status %s", clusterID, cluster.Status)
+			if err != nil {
+				return false, err
+			}
+			if strings.HasSuffix(cluster.Status, "_COMPLETE") {
+				return true, nil
+			}
+			return false, nil
+		})
+	return err
+}
+
+func (provider OpenStackCloudProvider) waitForServerDetachVolumes(serverID string, timeout time.Duration) error {
+	err := volumeattach.List(provider.Nova, serverID).EachPage(func(page pagination.Page) (bool, error) {
+		attachments, err := volumeattach.ExtractVolumeAttachments(page)
+		if err != nil {
+			return false, err
+		}
+		for _, attachment := range attachments {
+			log.Infof("detaching volume %s for instance %s", attachment.VolumeID, serverID)
+			err := volumeattach.Delete(provider.Nova, serverID, attachment.ID).ExtractErr()
+			if err != nil {
+				return false, fmt.Errorf("failed to detach volume %s from instance %s", attachment.VolumeID, serverID)
+			}
+		}
+		return true, err
+	})
+	if err != nil {
+		return err
+	}
+	err = wait.Poll(3*time.Second, timeout,
+		func() (bool, error) {
+			server, err := servers.Get(provider.Nova, serverID).Extract()
+			if err != nil {
+				return false, err
+			}
+
+			if len(server.AttachedVolumes) == 0 {
+				return true, nil
+			}
+
+			return false, nil
+		})
+
+	return err
+}
+
 // For master nodes: Soft deletes the VMs, marks the heat resource "unhealthy" then trigger Heat stack update in order to rebuild
 // the VMs. The information this function needs:
 //     - Nova VM IDs
@@ -170,17 +229,30 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 		return nil
 	}
 
+	masters := []healthcheck.NodeInfo{}
+	workers := []healthcheck.NodeInfo{}
+
 	clusterName := provider.Config.ClusterName
+	isWorkerNode := nodes[0].IsWorker
+	if isWorkerNode {
+		workers = nodes
+	} else {
+		masters = nodes
+	}
+
+	err := provider.UpdateHealthStatus(masters, workers)
+	if err != nil {
+		return fmt.Errorf("Failed to update the helath status of cluster %s, error: %v", clusterName, err)
+	}
+
 	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to get the cluster %s, error: %v", clusterName, err)
 	}
 
-	isWorkerNode := nodes[0].IsWorker
-
 	if isWorkerNode {
-		nodesToReplace := sets.NewString()
 		for _, n := range nodes {
+			nodesToReplace := sets.NewString()
 			machineID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
 			if machineID == nil {
 				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
@@ -188,26 +260,40 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 			}
 			serverID := machineID.String()
 
+			if err := provider.waitForServerDetachVolumes(serverID, 30*time.Second); err != nil {
+				log.Warningf("Failed to detach volumes from server %s, error: %v", serverID, err)
+			}
+
 			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
 				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
 			}
 
 			nodesToReplace.Insert(serverID)
+			ng, err := provider.getNodeGroup(clusterName, n)
+			ngName := "default-worker"
+			ngNodeCount := &cluster.NodeCount
+			if err == nil {
+				ngName = ng.Name
+				ngNodeCount = &ng.NodeCount
+			}
+
+			opts := clusters.ResizeOpts{
+				NodeGroup:     ngName,
+				NodeCount:     ngNodeCount,
+				NodesToRemove: nodesToReplace.List(),
+			}
+
+			clusters.Resize(provider.Magnum, clusterName, opts)
+			// Wait 10 seconds to make sure Magnum has already got the request
+			// to avoid sending all of the resize API calls at the same time.
+			time.Sleep(10 * time.Second)
+			// TODO: Ignore the result value until https://github.com/gophercloud/gophercloud/pull/1649 is merged.
+			//if ret.Err != nil {
+			//	return fmt.Errorf("failed to resize cluster %s, error: %v", clusterName, ret.Err)
+			//}
+
+			log.Infof("Cluster %s resized", clusterName)
 		}
-
-		opts := clusters.ResizeOpts{
-			NodeGroup:     "node",
-			NodeCount:     &cluster.NodeCount,
-			NodesToRemove: nodesToReplace.List(),
-		}
-
-		clusters.Resize(provider.Magnum, clusterName, opts)
-		// TODO: Ignore the result value until https://github.com/gophercloud/gophercloud/pull/1649 is merged.
-		//if ret.Err != nil {
-		//	return fmt.Errorf("failed to resize cluster %s, error: %v", clusterName, ret.Err)
-		//}
-
-		log.Infof("Cluster %s resized", clusterName)
 	} else {
 		clusterStackName, err := provider.getStackName(cluster.StackID)
 		if err != nil {
@@ -262,6 +348,97 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 	return nil
 }
 
+func (provider OpenStackCloudProvider) getNodeGroup(clusterName string, node healthcheck.NodeInfo) (nodegroups.NodeGroup, error) {
+	var ng nodegroups.NodeGroup
+
+	ngPages, err := nodegroups.List(provider.Magnum, clusterName, nodegroups.ListOpts{}).AllPages()
+	if err == nil {
+		ngs, err := nodegroups.ExtractNodeGroups(ngPages)
+		if err != nil {
+			log.Warningf("Failed to get node group for cluster %s, error: %v", clusterName, err)
+			return ng, err
+		}
+		for _, ng := range ngs {
+			ngInfo, err := nodegroups.Get(provider.Magnum, clusterName, ng.UUID).Extract()
+			if err != nil {
+				log.Warningf("Failed to get node group for cluster %s, error: %v", clusterName, err)
+				return ng, err
+			}
+			log.Infof("Got node addresses %v, node group's node addresses %v ", node.KubeNode.Status.Addresses, ngInfo.NodeAddresses)
+			for _, na := range node.KubeNode.Status.Addresses {
+				for _, nodeAddress := range ngInfo.NodeAddresses {
+					if na.Address == nodeAddress {
+						log.Infof("Got matched node group %s", ngInfo.Name)
+						return *ngInfo, nil
+					}
+				}
+			}
+		}
+	}
+
+	return ng, fmt.Errorf("failed to find node group")
+}
+
+// UpdateHealthStatus can update the cluster health status to reflect the
+// real-time health status of the k8s cluster.
+func (provider OpenStackCloudProvider) UpdateHealthStatus(masters []healthcheck.NodeInfo, workers []healthcheck.NodeInfo) error {
+	log.Infof("start to update cluster health status.")
+	clusterName := provider.Config.ClusterName
+
+	healthStatus := "UNHEALTHY"
+	healthStatusReasonMap := make(map[string]string)
+	healthStatusReasonMap["updated_at"] = time.Now().String()
+
+	if len(masters) == 0 && len(workers) == 0 {
+		// No unhealthy node passed in means the cluster is healthy
+		healthStatus = "HEALTHY"
+		healthStatusReasonMap["api"] = "ok"
+		healthStatusReasonMap["nodes"] = "ok"
+	} else {
+		if len(workers) > 0 {
+			for _, n := range workers {
+				// TODO: Need to figure out a way to reflect the detailed error information
+				healthStatusReasonMap[n.KubeNode.Name+"."+n.FailedCheck] = "error"
+			}
+		} else {
+			// TODO: Need to figure out a way to reflect detailed error information
+			healthStatusReasonMap["api"] = "error"
+		}
+	}
+
+	jsonDumps, err := json.Marshal(healthStatusReasonMap)
+	if err != nil {
+		return fmt.Errorf("failed to build health status reason for cluster %s, error: %v", clusterName, err)
+	}
+	healthStatusReason := strings.Replace(string(jsonDumps), "\"", "'", -1)
+
+	updateOpts := []clusters.UpdateOptsBuilder{
+		clusters.UpdateOpts{
+			Op:    clusters.ReplaceOp,
+			Path:  "/health_status",
+			Value: healthStatus,
+		},
+		clusters.UpdateOpts{
+			Op:    clusters.ReplaceOp,
+			Path:  "/health_status_reason",
+			Value: healthStatusReason,
+		},
+	}
+
+	log.Infof("updating cluster health status as %s for reason %s.", healthStatus, healthStatusReason)
+	res := clusters.Update(provider.Magnum, clusterName, updateOpts)
+
+	if res.Err != nil {
+		return fmt.Errorf("failed to update the health status of cluster %s error: %v", clusterName, res.Err)
+	}
+
+	if err := provider.waitForClusterComplete(clusterName, 30*time.Second); err != nil {
+		log.Warningf("failed to wait the cluster %s in complete status, error: %v", clusterName, err)
+	}
+
+	return nil
+}
+
 // Enabled decides if the repair should be triggered.
 // There are  two conditions that we disable the repair:
 // - The cluster admin disables the auto healing via OpenStack API.
@@ -271,7 +448,11 @@ func (provider OpenStackCloudProvider) Enabled() bool {
 
 	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
 	if err != nil {
-		log.Warningf("Failed to get the cluster %s, error: %v", clusterName, err)
+		log.Warningf("failed to get the cluster %s, error: %v", clusterName, err)
+		return false
+	}
+
+	if !strings.HasSuffix(cluster.Status, "_COMPLETE") {
 		return false
 	}
 

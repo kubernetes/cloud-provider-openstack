@@ -1,0 +1,1 @@
+Use the following storageClass csi-cinder-sc-retain and csi-cinder-sc-delete only for RWO volumes.

@@ -6,7 +6,7 @@ This Repository hosts various plugins relevant to OpenStack and Kubernetes Integ
 
 * [OpenStack Cloud Controller Manager](/docs/using-openstack-cloud-controller-manager.md/)
 * [Octavia Ingress Controller](/docs/using-octavia-ingress-controller.md/)
-* [Cinder CSI Plugin](/docs/using-cinder-csi-plugin.md/)
+* [Cinder CSI Plugin](/docs/cinder-csi-plugin/using-cinder-csi-plugin.md/)
 * [Keystone Webhook Authentication Authorization](/docs/using-keystone-webhook-authenticator-and-authorizer.md/)
 * [Client Keystone](/docs/using-client-keystone-auth.md/)
 * [Manila CSI Plugin](/docs/using-manila-csi-plugin.md/)

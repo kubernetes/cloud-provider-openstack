@@ -28,7 +28,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/util/resizefs"
 	utilpath "k8s.io/utils/path"
 
@@ -42,7 +42,7 @@ import (
 type nodeServer struct {
 	Driver   *CinderDriver
 	Mount    mount.IMount
-	Metadata openstack.IMetadata
+	Metadata metadata.IMetadata
 	Cloud    openstack.IOpenStack
 }
 
@@ -108,7 +108,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			}
 		}
 		// Mount
-		err = m.GetBaseMounter().Mount(source, targetPath, fsType, mountOptions)
+		err = m.Mounter().Mount(source, targetPath, fsType, mountOptions)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -128,7 +128,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	capacity, ok := req.GetVolumeContext()["capacity"]
 	volumeCapability := req.GetVolumeCapability()
 
-	volAvailability, err := getAvailabilityZoneMetadataService(ns.Metadata)
+	volAvailability, err := ns.Metadata.GetAvailabilityZone()
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
 	}
@@ -142,8 +142,13 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		}
 	}
 
-	// TODO: Add Volume type support
-	evol, err := ns.Cloud.CreateVolume(volName, size, "", volAvailability, "", "", &properties)
+	// Check type in given param, if not, use ""
+	volumeType, ok := req.GetVolumeContext()["type"]
+	if !ok {
+		volumeType = ""
+	}
+
+	evol, err := ns.Cloud.CreateVolume(volName, size, volumeType, volAvailability, "", "", &properties)
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)
@@ -154,7 +159,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 
 	// attach volume
 	// for attach volume we need to have information about node.
-	nodeID, err := getNodeID(ns.Mount, ns.Metadata, ns.Cloud.GetMetadataOpts().SearchOrder)
+	nodeID, err := ns.Metadata.GetInstanceID()
 	if err != nil {
 		klog.V(3).Infof("Ephermal Volume Attach: Failed to get Instance ID: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to get Instance ID: %v", err))
@@ -200,7 +205,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 			options = append(options, mountFlags...)
 		}
 		// Mount
-		err = m.GetBaseMounter().FormatAndMount(devicePath, targetPath, fsType, nil)
+		err = m.Mounter().FormatAndMount(devicePath, targetPath, fsType, nil)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -239,7 +244,7 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 		return nil, status.Errorf(codes.Internal, "Error in making file %v", err)
 	}
 
-	if err := m.GetBaseMounter().Mount(source, targetPath, "", mountOptions); err != nil {
+	if err := m.Mounter().Mount(source, targetPath, "", mountOptions); err != nil {
 		if removeErr := os.Remove(targetPath); removeErr != nil {
 			return nil, status.Errorf(codes.Internal, "Could not remove mount target %q: %v", targetPath, err)
 		}
@@ -255,10 +260,10 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 	if len(targetPath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume Target Path must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[NodeUnpublishVolume] Target Path must be provided")
 	}
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "NodeUnpublishVolume volumeID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[NodeUnpublishVolume] volumeID must be provided")
 	}
 
 	ephemeralVolume := false
@@ -288,21 +293,9 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		}
 	}
 
-	m := ns.Mount
-	notMnt, err := m.IsLikelyNotMountPointDetach(targetPath)
-	if err != nil && !mount.IsCorruptedMnt(err) {
-		klog.V(4).Infof("NodeUnpublishVolume: unable to unmount volume: %v", err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	if notMnt && !mount.IsCorruptedMnt(err) {
-		// the volume is not mounted at all. There is no need for retrying to unmount.
-		klog.V(4).Infoln("NodeUnpublishVolume: skipping... not mounted any more")
-		return &csi.NodeUnpublishVolumeResponse{}, nil
-	}
-
-	err = m.UnmountPath(targetPath)
+	err = ns.Mount.UnmountPath(targetPath)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "Unmount of targetpath %s failed with error %v", targetPath, err)
 	}
 
 	if ephemeralVolume {
@@ -401,7 +394,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			options = append(options, mountFlags...)
 		}
 		// Mount
-		err = m.GetBaseMounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -432,22 +425,9 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
-	m := ns.Mount
-
-	notMnt, err := m.IsLikelyNotMountPointDetach(stagingTargetPath)
-	if err != nil && !mount.IsCorruptedMnt(err) {
-		klog.V(4).Infof("NodeUnstageVolume: unable to unmount volume: %v", err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	if notMnt && !mount.IsCorruptedMnt(err) {
-		// the volume is not mounted at all. There is no need for retrying to unmount.
-		klog.V(4).Infoln("NodeUnstageVolume: skipping... not mounted any more")
-		return &csi.NodeUnstageVolumeResponse{}, nil
-	}
-
-	err = m.UnmountPath(stagingTargetPath)
+	err = ns.Mount.UnmountPath(stagingTargetPath)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "Unmount of targetPath %s failed with error %v", stagingTargetPath, err)
 	}
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
@@ -455,14 +435,14 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 
-	nodeID, err := getNodeID(ns.Mount, ns.Metadata, ns.Cloud.GetMetadataOpts().SearchOrder)
+	nodeID, err := ns.Metadata.GetInstanceID()
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeGetInfo failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[NodeGetInfo] unable to retrieve instance id of node %v", err))
 	}
 
-	zone, err := getAvailabilityZoneMetadataService(ns.Metadata)
+	zone, err := ns.Metadata.GetAvailabilityZone()
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("retrieving availability zone from MetaData service failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[NodeGetInfo] Unable to retrieve availability zone of node %v", err))
 	}
 	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
 
@@ -496,14 +476,13 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 		return nil, status.Error(codes.InvalidArgument, "Volume path not provided")
 	}
 
-	exists, err := ns.Mount.PathExists(volumePath)
+	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, req.VolumePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to check whether volumePath exists: %s", err)
 	}
 	if !exists {
 		return nil, status.Errorf(codes.NotFound, "target: %s not found", volumePath)
 	}
-
 	stats, err := ns.Mount.GetDeviceStats(volumePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get stats by path: %s", err)
@@ -538,7 +517,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	volumePath := req.GetVolumePath()
 
 	args := []string{"-o", "source", "--noheadings", "--target", volumePath}
-	output, err := ns.Mount.GetBaseMounter().Exec.Command("findmnt", args...).CombinedOutput()
+	output, err := ns.Mount.Mounter().Exec.Command("findmnt", args...).CombinedOutput()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not determine device path: %v", err)
 
@@ -557,7 +536,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 		}
 	}
 
-	r := resizefs.NewResizeFs(ns.Mount.GetBaseMounter())
+	r := resizefs.NewResizeFs(ns.Mount.Mounter())
 	if _, err := r.Resize(devicePath, volumePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 	}
@@ -574,61 +553,4 @@ func getDevicePath(volumeID string, m mount.IMount) (string, error) {
 
 	return devicePath, nil
 
-}
-
-func getNodeIDMountProvider(m mount.IMount) (string, error) {
-	nodeID, err := m.GetInstanceID()
-	if err != nil {
-		klog.V(3).Infof("Failed to GetInstanceID: %v", err)
-		return "", err
-	}
-	klog.V(5).Infof("getNodeIDMountProvider return node id %s", nodeID)
-
-	return nodeID, nil
-}
-
-func getNodeIDMetdataService(m openstack.IMetadata) (string, error) {
-
-	nodeID, err := m.GetInstanceID()
-	if err != nil {
-		return "", err
-	}
-	klog.V(5).Infof("getNodeIDMetdataService return node id %s", nodeID)
-	return nodeID, nil
-}
-
-func getAvailabilityZoneMetadataService(m openstack.IMetadata) (string, error) {
-
-	zone, err := m.GetAvailabilityZone()
-	if err != nil {
-		return "", err
-	}
-	return zone, nil
-}
-
-func getNodeID(mount mount.IMount, iMetadata openstack.IMetadata, order string) (string, error) {
-	elements := strings.Split(order, ",")
-
-	var nodeID string
-	var err error
-	for _, id := range elements {
-		id = strings.TrimSpace(id)
-		switch id {
-		case metadata.ConfigDriveID:
-			nodeID, err = getNodeIDMountProvider(mount)
-		case metadata.MetadataID:
-			nodeID, err = getNodeIDMetdataService(iMetadata)
-		default:
-			err = fmt.Errorf("%s is not a valid metadata search order option. Supported options are %s and %s", id, metadata.ConfigDriveID, metadata.MetadataID)
-		}
-		if err == nil {
-			break
-		}
-	}
-
-	if err != nil {
-		klog.Errorf("Failed to GetInstanceID from config drive or metadata service: %v", err)
-		return "", err
-	}
-	return nodeID, nil
 }

@@ -57,11 +57,12 @@ func TestCreateVolume(t *testing.T) {
 		Name: FakeVolName,
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
-				AccessType: &csi.VolumeCapability_Mount{
-					Mount: &csi.VolumeCapability_MountVolume{},
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 				},
 			},
 		},
+
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
@@ -109,8 +110,8 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 		Name: FakeVolName,
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
-				AccessType: &csi.VolumeCapability_Mount{
-					Mount: &csi.VolumeCapability_MountVolume{},
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 				},
 			},
 		},
@@ -157,8 +158,8 @@ func TestCreateVolumeFromSourceVolume(t *testing.T) {
 		Name: FakeVolName,
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
-				AccessType: &csi.VolumeCapability_Mount{
-					Mount: &csi.VolumeCapability_MountVolume{},
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 				},
 			},
 		},
@@ -195,8 +196,8 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 		Name: "fake-duplicate",
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
-				AccessType: &csi.VolumeCapability_Mount{
-					Mount: &csi.VolumeCapability_MountVolume{},
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 				},
 			},
 		},
@@ -257,10 +258,14 @@ func TestControllerPublishVolume(t *testing.T) {
 
 	// Fake request
 	fakeReq := &csi.ControllerPublishVolumeRequest{
-		VolumeId:         FakeVolID,
-		NodeId:           FakeNodeID,
-		VolumeCapability: nil,
-		Readonly:         false,
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+		Readonly: false,
 	}
 
 	// Expected Result
@@ -312,15 +317,35 @@ func TestControllerUnpublishVolume(t *testing.T) {
 
 func TestListVolumes(t *testing.T) {
 
-	osmock.On("ListVolumes").Return(nil)
+	osmock.On("ListVolumes", 2, FakeVolID).Return(FakeVolListMultiple, "", nil)
 
 	// Init assert
 	assert := assert.New(t)
 
-	fakeReq := &csi.ListVolumesRequest{}
+	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: FakeVolID}
 
 	// Expected Result
-	expectedRes := &csi.ListVolumesResponse{}
+	expectedRes := &csi.ListVolumesResponse{
+		Entries: []*csi.ListVolumesResponse_Entry{
+			{
+				Volume: &csi.Volume{
+					VolumeId:      FakeVol1.ID,
+					CapacityBytes: int64(FakeVol1.Size * 1024 * 1024 * 1024),
+				},
+				Status: &csi.ListVolumesResponse_VolumeStatus{
+					PublishedNodeIds: []string{FakeNodeID},
+				},
+			},
+			{
+				Volume: &csi.Volume{
+					VolumeId:      FakeVol3.ID,
+					CapacityBytes: int64(FakeVol3.Size * 1024 * 1024 * 1024),
+				},
+				Status: &csi.ListVolumesResponse_VolumeStatus{},
+			},
+		},
+		NextToken: "",
+	}
 
 	// Invoke ListVolumes
 	actualRes, err := fakeCs.ListVolumes(FakeCtx, fakeReq)
@@ -335,7 +360,8 @@ func TestListVolumes(t *testing.T) {
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
 
-	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, "", &map[string]string{"tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{"tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
 	// Init assert
@@ -389,14 +415,10 @@ func TestDeleteSnapshot(t *testing.T) {
 
 func TestListSnapshots(t *testing.T) {
 
-	osmock.On("ListSnapshots", 0, 0, map[string]string{}).Return(FakeSnapshotsRes, nil)
-
-	// Init assert
+	osmock.On("ListSnapshots", map[string]string{"Limit": "1", "Marker": FakeVolID, "Status": "available"}).Return(FakeSnapshotsRes, "", nil)
 	assert := assert.New(t)
 
-	fakeReq := &csi.ListSnapshotsRequest{}
-
-	// Invoke ListVolumes
+	fakeReq := &csi.ListSnapshotsRequest{MaxEntries: 1, StartingToken: FakeVolID}
 	actualRes, err := fakeCs.ListSnapshots(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to ListSnapshots: %v", err)
@@ -404,7 +426,6 @@ func TestListSnapshots(t *testing.T) {
 
 	// Assert
 	assert.Equal(FakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
-
 	assert.NotNil(FakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
 }
 

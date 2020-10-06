@@ -32,22 +32,23 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/healthz"
+	"k8s.io/apiserver/pkg/util/feature"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"
+	nodecontroller "k8s.io/cloud-provider/controllers/node"
+	nodelifecyclecontroller "k8s.io/cloud-provider/controllers/nodelifecycle"
+	routecontroller "k8s.io/cloud-provider/controllers/route"
+	servicecontroller "k8s.io/cloud-provider/controllers/service"
 	"k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
 	_ "k8s.io/component-base/metrics/prometheus/restclient" // for client metric registration
 	_ "k8s.io/component-base/metrics/prometheus/version"    // for version metric registration
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app"
 	cloudcontrollerconfig "k8s.io/kubernetes/cmd/cloud-controller-manager/app/config"
 	"k8s.io/kubernetes/cmd/cloud-controller-manager/app/options"
-	cloudcontrollers "k8s.io/kubernetes/pkg/controller/cloud"
-	routecontroller "k8s.io/kubernetes/pkg/controller/route"
-	servicecontroller "k8s.io/kubernetes/pkg/controller/service"
 	_ "k8s.io/kubernetes/pkg/features" // add the kubernetes feature gates
-	utilflag "k8s.io/kubernetes/pkg/util/flag"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -98,7 +99,7 @@ the cloud specific control loops shipped with Kubernetes.`,
 				version.PrintVersionAndExit()
 			}
 
-			utilflag.PrintFlags(cmd.Flags())
+			flag.PrintFlags(cmd.Flags())
 
 			c, err := s.Config(KnownControllers(), ControllersDisabledByDefault.List())
 			if err != nil {
@@ -168,7 +169,7 @@ func newControllerInitializers() map[string]initFunc {
 
 func startCloudNodeController(ctx *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface, stopCh <-chan struct{}) (http.Handler, bool, error) {
 	// Start the CloudNodeController
-	nodeController, err := cloudcontrollers.NewCloudNodeController(
+	nodeController, err := nodecontroller.NewCloudNodeController(
 		ctx.SharedInformers.Core().V1().Nodes(),
 		// cloud node controller uses existing cluster role from node-controller
 		ctx.ClientBuilder.ClientOrDie("node-controller"),
@@ -187,7 +188,7 @@ func startCloudNodeController(ctx *cloudcontrollerconfig.CompletedConfig, cloud 
 
 func startCloudNodeLifecycleController(ctx *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface, stopCh <-chan struct{}) (http.Handler, bool, error) {
 	// Start the cloudNodeLifecycleController
-	cloudNodeLifecycleController, err := cloudcontrollers.NewCloudNodeLifecycleController(
+	cloudNodeLifecycleController, err := nodelifecyclecontroller.NewCloudNodeLifecycleController(
 		ctx.SharedInformers.Core().V1().Nodes(),
 		// cloud node lifecycle controller uses existing cluster role from node-controller
 		ctx.ClientBuilder.ClientOrDie("node-controller"),
@@ -212,6 +213,7 @@ func startServiceController(ctx *cloudcontrollerconfig.CompletedConfig, cloud cl
 		ctx.SharedInformers.Core().V1().Services(),
 		ctx.SharedInformers.Core().V1().Nodes(),
 		ctx.ComponentConfig.KubeCloudShared.ClusterName,
+		feature.DefaultFeatureGate,
 	)
 	if err != nil {
 		// This error shouldn't fail. It lives like this as a legacy.

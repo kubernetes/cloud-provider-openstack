@@ -49,7 +49,7 @@ spec:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
-          args :
+          args:
             - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -70,9 +70,6 @@ spec:
             - name: kubelet-dir
               mountPath: /var/lib/kubelet
               mountPropagation: "Bidirectional"
-            - name: pods-cloud-data
-              mountPath: /var/lib/cloud/data
-              readOnly: true
             - name: pods-probe-dir
               mountPath: /dev
               mountPropagation: "HostToContainer"
@@ -91,10 +88,6 @@ spec:
         - name: kubelet-dir
           hostPath:
             path: /var/lib/kubelet
-            type: Directory
-        - name: pods-cloud-data
-          hostPath:
-            path: /var/lib/cloud/data
             type: Directory
         - name: pods-probe-dir
           hostPath:

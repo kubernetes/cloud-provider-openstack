@@ -22,20 +22,20 @@ spec:
           args:
             - ./bin/k8s-keystone-auth
             - --tls-cert-file
-            - /etc/kubernetes/pki/cert-file
+            - /etc/pki/tls.crt
             - --tls-private-key-file
-            - /etc/kubernetes/pki/key-file
+            - /etc/pki/tls.key
             - --policy-configmap-name
             - k8s-auth-policy
             - --keystone-url
             - {{ keystone_server_url }}
           volumeMounts:
-            - mountPath: /etc/kubernetes/pki
-              name: k8s-certs
+            - mountPath: /etc/pki
+              name: certs
               readOnly: true
           ports:
             - containerPort: 8443
       volumes:
-      - name: k8s-certs
+      - name: certs
         secret:
           secretName: keystone-auth-certs

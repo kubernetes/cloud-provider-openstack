@@ -23,8 +23,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
-	"k8s.io/klog"
+	"k8s.io/cloud-provider-openstack/pkg/version"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -33,13 +35,15 @@ const (
 )
 
 var (
-	version = "1.2.0"
+	specVersion = "1.2.0"
+	// we used to use spec version as driver version, now separate them
+	Version = "1.2.1"
 )
 
 type CinderDriver struct {
 	name        string
 	nodeID      string
-	version     string
+	fqVersion   string //Fully qualified version in format {Version}@{CPO version}
 	endpoint    string
 	cloudconfig string
 	cluster     string
@@ -54,14 +58,17 @@ type CinderDriver struct {
 }
 
 func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
-	klog.Infof("Driver: %v version: %v", driverName, version)
 
 	d := &CinderDriver{}
 	d.name = driverName
 	d.nodeID = nodeID
-	d.version = version
+	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
 	d.endpoint = endpoint
 	d.cluster = cluster
+
+	klog.Info("Driver: ", d.name)
+	klog.Info("Driver version: ", d.fqVersion)
+	klog.Info("CSI Spec version: ", specVersion)
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{
@@ -72,6 +79,7 @@ func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
 			csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
 			csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 			csi.ControllerServiceCapability_RPC_CLONE_VOLUME,
+			csi.ControllerServiceCapability_RPC_LIST_VOLUMES_PUBLISHED_NODES,
 		})
 	d.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 
@@ -135,7 +143,7 @@ func (d *CinderDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_
 	return d.vcap
 }
 
-func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata openstack.IMetadata) {
+func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {
 
 	d.ids = NewIdentityServer(d)
 	d.cs = NewControllerServer(d, cloud)

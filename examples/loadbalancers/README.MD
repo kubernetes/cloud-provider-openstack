@@ -38,7 +38,7 @@ metadata:
   name: external-http-nginx-service
   annotations:
     service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
-    loadbalancer.openstack.org/floating-network-id: "9be23551-38e2-4d27-b5ea-ea2ea1321bd6"  
+    loadbalancer.openstack.org/floating-network-id: "9be23551-38e2-4d27-b5ea-ea2ea1321bd6"
 spec:
   selector:
     app: nginx
@@ -111,7 +111,7 @@ apiVersion: v1
 metadata:
   name: internal-http-nginx-service
   annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"  
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
 spec:
   selector:
     app: nginx
