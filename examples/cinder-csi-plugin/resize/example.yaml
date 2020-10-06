@@ -25,7 +25,7 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nginx 
+  name: nginx
 spec:
   containers:
   - image: nginx
@@ -36,7 +36,7 @@ spec:
       protocol: TCP
     volumeMounts:
       - mountPath: /var/lib/www/html
-        name: csi-data-cinderplugin 
+        name: csi-data-cinderplugin
   volumes:
   - name: csi-data-cinderplugin
     persistentVolumeClaim:

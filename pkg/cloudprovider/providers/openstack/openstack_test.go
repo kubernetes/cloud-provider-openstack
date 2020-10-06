@@ -32,12 +32,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/spf13/pflag"
-
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/wait"
+
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -94,39 +91,6 @@ func ConfigFromEnv() Config {
 	cfg.LoadBalancer.InternalLB = false
 
 	return cfg
-}
-
-func WaitForVolumeStatus(t *testing.T, os *OpenStack, volumeName string, status string) {
-	backoff := wait.Backoff{
-		Duration: volumeStatusInitDelay,
-		Factor:   volumeStatusFactor,
-		Steps:    volumeStatusSteps,
-	}
-	start := time.Now().Second()
-	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		getVol, err := os.getVolume(volumeName)
-		if err != nil {
-			return false, err
-		}
-		if getVol.Status == status {
-			t.Logf("Volume (%s) status changed to %s after %v seconds\n",
-				volumeName,
-				status,
-				time.Now().Second()-start)
-			return true, nil
-		}
-		return false, nil
-	})
-	if err == wait.ErrWaitTimeout {
-		t.Logf("Volume (%s) status did not change to %s after %v seconds\n",
-			volumeName,
-			status,
-			time.Now().Second()-start)
-		return
-	}
-	if err != nil {
-		t.Fatalf("Cannot get existing Cinder volume (%s): %v", volumeName, err)
-	}
 }
 
 func TestReadConfig(t *testing.T) {
@@ -608,6 +572,82 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 	}
 }
 
+func TestNodeAddressesCustomPublicNetworkWithIntersectingFixedIP(t *testing.T) {
+	srv := servers.Server{
+		Status:     "ACTIVE",
+		HostID:     "29d3c8c896a45aa4c34e52247875d7fefc3d94bbcc9f622b5d204362",
+		AccessIPv4: "50.56.176.99",
+		AccessIPv6: "2001:4800:790e:510:be76:4eff:fe04:82a8",
+		Addresses: map[string]interface{}{
+			"private": []interface{}{
+				map[string]interface{}{
+					"OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:7c:1b:2b",
+					"version":                 float64(4),
+					"addr":                    "10.0.0.32",
+					"OS-EXT-IPS:type":         "fixed",
+				},
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "10.0.0.31",
+					// No OS-EXT-IPS:type
+				},
+			},
+			"pub-net": []interface{}{
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "50.56.176.36",
+				},
+				map[string]interface{}{
+					"version": float64(6),
+					"addr":    "2001:4800:780e:510:be76:4eff:fe04:84a8",
+				},
+			},
+		},
+	}
+
+	networkingOpts := NetworkingOpts{
+		PublicNetworkName: []string{"pub-net"},
+	}
+
+	interfaces := []attachinterfaces.Interface{
+		{
+			PortState: "ACTIVE",
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+				// intersects with one of pub-net's addresses, shouldn't be counted as an InternalIP
+				{
+					IPAddress: "50.56.176.36",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	if err != nil {
+		t.Fatalf("nodeAddresses returned error: %v", err)
+	}
+
+	t.Logf("addresses are %v", addrs)
+
+	want := []v1.NodeAddress{
+		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
+	}
+
+	if !reflect.DeepEqual(want, addrs) {
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
+	}
+}
+
 func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 	srv := servers.Server{
 		Status:     "ACTIVE",
@@ -681,6 +721,88 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 	want := []v1.NodeAddress{
 		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.64"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+	}
+
+	if !reflect.DeepEqual(want, addrs) {
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
+	}
+}
+
+func TestNodeAddressesOneInternalNetwork(t *testing.T) {
+	srv := servers.Server{
+		Status:     "ACTIVE",
+		HostID:     "29d3c8c896a45aa4c34e52247875d7fefc3d94bbcc9f622b5d204362",
+		AccessIPv4: "50.56.176.99",
+		AccessIPv6: "2001:4800:790e:510:be76:4eff:fe04:82a8",
+		Addresses: map[string]interface{}{
+			"private": []interface{}{
+				map[string]interface{}{
+					"OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:7c:1b:2b",
+					"version":                 float64(4),
+					"addr":                    "10.0.0.32",
+					"OS-EXT-IPS:type":         "fixed",
+				},
+				map[string]interface{}{
+					"version":         float64(4),
+					"addr":            "50.56.176.36",
+					"OS-EXT-IPS:type": "floating",
+				},
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "10.0.0.31",
+					// No OS-EXT-IPS:type
+				},
+			},
+			"also-private": []interface{}{
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "10.0.0.64",
+					// No OS-EXT-IPS:type
+				},
+			},
+			"pub-net": []interface{}{
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "50.56.176.35",
+				},
+				map[string]interface{}{
+					"version": float64(6),
+					"addr":    "2001:4800:780e:510:be76:4eff:fe04:84a8",
+				},
+			},
+		},
+	}
+
+	networkingOpts := NetworkingOpts{
+		InternalNetworkName: []string{"also-private"},
+	}
+
+	interfaces := []attachinterfaces.Interface{
+		{
+			PortState: "ACTIVE",
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	if err != nil {
+		t.Fatalf("nodeAddresses returned error: %v", err)
+	}
+
+	t.Logf("addresses are %v", addrs)
+
+	want := []v1.NodeAddress{
 		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
 		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
 		{Type: v1.NodeInternalIP, Address: "10.0.0.64"},
@@ -846,76 +968,6 @@ func TestZones(t *testing.T) {
 }
 
 var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
-
-func TestVolumes(t *testing.T) {
-	cfg := ConfigFromEnv()
-	testConfigFromEnv(t, &cfg)
-
-	os, err := NewOpenStack(cfg)
-	if err != nil {
-		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
-	}
-
-	tags := map[string]string{
-		"test": "value",
-	}
-	vol, _, _, _, err := os.CreateVolume("kubernetes-test-volume-"+rand.String(10), 1, "", "", &tags)
-	if err != nil {
-		t.Fatalf("Cannot create a new Cinder volume: %v", err)
-	}
-	t.Logf("Volume (%s) created\n", vol)
-
-	WaitForVolumeStatus(t, os, vol, volumeAvailableStatus)
-
-	id, err := os.InstanceID()
-	if err != nil {
-		t.Logf("Cannot find instance id: %v - perhaps you are running this test outside a VM launched by OpenStack", err)
-	} else {
-		diskID, err := os.AttachDisk(id, vol)
-		if err != nil {
-			t.Fatalf("Cannot AttachDisk Cinder volume %s: %v", vol, err)
-		}
-		t.Logf("Volume (%s) attached, disk ID: %s\n", vol, diskID)
-
-		WaitForVolumeStatus(t, os, vol, volumeInUseStatus)
-
-		devicePath, err := os.GetDevicePath(diskID)
-		if err != nil {
-			t.Fatalf("Cannot GetDevicePath for Cinder volume %s: %v", vol, err)
-		}
-		if diskPathRegexp.FindString(devicePath) == "" {
-			t.Fatalf("GetDevicePath returned and unexpected path for Cinder volume %s, returned %s", vol, devicePath)
-		}
-		t.Logf("Volume (%s) found at path: %s\n", vol, devicePath)
-
-		err = os.DetachDisk(id, vol)
-		if err != nil {
-			t.Fatalf("Cannot DetachDisk Cinder volume %s: %v", vol, err)
-		}
-		t.Logf("Volume (%s) detached\n", vol)
-
-		WaitForVolumeStatus(t, os, vol, volumeAvailableStatus)
-	}
-
-	expectedVolSize := resource.MustParse("2Gi")
-	newVolSize, err := os.ExpandVolume(vol, resource.MustParse("1Gi"), expectedVolSize)
-	if err != nil {
-		t.Fatalf("Cannot expand a Cinder volume: %v", err)
-	}
-	if newVolSize != expectedVolSize {
-		t.Logf("Expected: %v but got: %v ", expectedVolSize, newVolSize)
-	}
-	t.Logf("Volume expanded to (%v) \n", newVolSize)
-
-	WaitForVolumeStatus(t, os, vol, volumeAvailableStatus)
-
-	err = os.DeleteVolume(vol)
-	if err != nil {
-		t.Fatalf("Cannot delete Cinder volume %s: %v", vol, err)
-	}
-	t.Logf("Volume (%s) deleted\n", vol)
-
-}
 
 func TestInstanceIDFromProviderID(t *testing.T) {
 	testCases := []struct {

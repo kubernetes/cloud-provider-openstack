@@ -17,7 +17,7 @@ provisioner: nfs.manila.csi.openstack.org
 parameters:
   type: default
   availability: manila-zone-1
-  
+
   csi.storage.k8s.io/provisioner-secret-name: csi-manila-secrets
   csi.storage.k8s.io/provisioner-secret-namespace: default
   csi.storage.k8s.io/node-stage-secret-name: csi-manila-secrets

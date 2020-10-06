@@ -6,6 +6,8 @@
 
 GIT_HOST = k8s.io
 
+CONTAINER_ENGINE ?= docker
+
 PWD := $(shell pwd)
 BASE_DIR := $(shell basename $(PWD))
 # Keep an existing GOPATH, make a private one if it is undefined
@@ -102,6 +104,10 @@ cinder-csi-plugin: work $(SOURCES)
 		-o cinder-csi-plugin \
 		cmd/cinder-csi-plugin/main.go
 
+# This target is for supporting CI jobs of release-1.17 branch. We should delete this target once 1.17 support is dropped and change the cinder-csi-plugin related CI jobs to use target image-cinder-csi-plugin
+image-csi-plugin:
+	$(MAKE) image-cinder-csi-plugin
+
 manila-csi-plugin: work $(SOURCES)
 	CGO_ENABLED=0 GOOS=$(GOOS) go build \
 		-ldflags $(LDFLAGS) \
@@ -123,7 +129,7 @@ ifeq ($(GOOS),linux)
 	cp -r cluster/images/openstack-cloud-controller-manager $(TEMP_DIR)
 	cp openstack-cloud-controller-manager-$(ARCH) $(TEMP_DIR)/openstack-cloud-controller-manager
 	cp $(TEMP_DIR)/openstack-cloud-controller-manager/Dockerfile.build $(TEMP_DIR)/openstack-cloud-controller-manager/Dockerfile
-	docker build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) $(TEMP_DIR)/openstack-cloud-controller-manager
+	$(CONTAINER_ENGINE) build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) $(TEMP_DIR)/openstack-cloud-controller-manager
 	rm -rf $(TEMP_DIR)/openstack-cloud-controller-manager
 else
 	$(error Please set GOOS=linux for building the image)
@@ -146,16 +152,16 @@ test: unit functional
 check: work fmt vet lint import-boss
 
 unit: work
-	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}' | sed -e '/test/ {N; d;}') $(TESTARGS)
+	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
 
 test-cinder-csi-sanity: work
-	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/cinder/sanity/
+	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/cinder
 
 test-manila-csi-sanity: work
-	go test $(GIT_HOST)/$(BASE_DIR)/pkg/csi/manila/sanity/
+	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
 
 fmt:
 	hack/verify-gofmt.sh
@@ -234,9 +240,9 @@ shell:
 	$(SHELL) -i
 
 push-manifest-%:
-	docker manifest create --amend $(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
-	@for arch in $(ARCHS); do docker manifest annotate --os $(IMAGE_OS) --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
-	docker manifest push --purge $(REGISTRY)/$*:${VERSION}
+	$(CONTAINER_ENGINE) manifest create --amend $(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
+	@for arch in $(ARCHS); do $(CONTAINER_ENGINE) manifest annotate --os $(IMAGE_OS) --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
+	$(CONTAINER_ENGINE) manifest push --purge $(REGISTRY)/$*:${VERSION}
 
 push-all-manifest: $(addprefix push-manifest-,$(IMAGE_NAMES))
 
@@ -250,7 +256,7 @@ ifeq ($(GOOS),linux)
 	cp -r cluster/images/$* $(TEMP_DIR)
 
 ifneq ($(ARCH),amd64)
-	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+	$(CONTAINER_ENGINE) run --rm --privileged multiarch/qemu-user-static --reset -p yes
 	curl -sSL https://github.com/multiarch/qemu-user-static/releases/download/$(QEMUVERSION)/x86_64_qemu-$(QEMUARCH)-static.tar.gz | tar -xz -C $(TEMP_DIR)/$*
 	@# Ensure we don't get surprised by umask settings
 	chmod 0755 $(TEMP_DIR)/$*/qemu-$(QEMUARCH)-static
@@ -259,16 +265,16 @@ ifneq ($(ARCH),amd64)
 endif
 
 	cp $*-$(ARCH) $(TEMP_DIR)/$*
-	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
-	docker create --name build-$*-$(ARCH) build-$*-$(ARCH)
-	docker export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
+	$(CONTAINER_ENGINE) build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
+	$(CONTAINER_ENGINE) create --name build-$*-$(ARCH) build-$*-$(ARCH)
+	$(CONTAINER_ENGINE) export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
 
 	@echo "build image $(REGISTRY)/$*-$(ARCH)"
-	docker build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
+	$(CONTAINER_ENGINE) build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
 
 	rm -rf $(TEMP_DIR)/$*
-	docker rm build-$*-$(ARCH)
-	docker rmi build-$*-$(ARCH)
+	$(CONTAINER_ENGINE) rm build-$*-$(ARCH)
+	$(CONTAINER_ENGINE) rmi build-$*-$(ARCH)
 else
 	$(error Please set GOOS=linux for building the image)
 endif
@@ -276,9 +282,9 @@ endif
 push-image-%:
 	@echo "push image $*-$(ARCH) to $(REGISTRY)"
 ifneq ($(and $(DOCKER_USERNAME),$(DOCKER_PASSWORD)),)
-	@docker login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)"
+	@$(CONTAINER_ENGINE) login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)"
 endif
-	docker push $(REGISTRY)/$*-$(ARCH):$(VERSION)
+	$(CONTAINER_ENGINE) push $(REGISTRY)/$*-$(ARCH):$(VERSION)
 
 images: $(addprefix build-arch-image-,$(ARCH))
 

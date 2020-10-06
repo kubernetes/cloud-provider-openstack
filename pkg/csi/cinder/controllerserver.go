@@ -18,21 +18,21 @@ package cinder
 
 import (
 	"fmt"
-
-	"github.com/golang/protobuf/ptypes"
+	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
-	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
-	"k8s.io/cloud-provider-openstack/pkg/volume/util"
 
-	"k8s.io/klog"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	"k8s.io/klog/v2"
 )
 
 type controllerServer struct {
@@ -41,16 +41,18 @@ type controllerServer struct {
 }
 
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	klog.V(4).Infof("CreateVolume: called with args %+v", *req)
 
 	// Volume Name
 	volName := req.GetName()
+	volCapabilities := req.GetVolumeCapabilities()
 
 	if len(volName) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume request missing Volume Name")
+		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume Name")
 	}
 
-	if req.VolumeCapabilities == nil {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume request missing Volume capability")
+	if volCapabilities == nil {
+		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume capability")
 	}
 
 	// Volume Size - Default is 1 GiB
@@ -102,25 +104,41 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	if content != nil && content.GetSnapshot() != nil {
 		snapshotID = content.GetSnapshot().GetSnapshotId()
+		_, err := cloud.GetSnapshotByID(snapshotID)
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				return nil, status.Errorf(codes.NotFound, "VolumeContentSource Snapshot %s not found", snapshotID)
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to retrieve the snapshot %s: %v", snapshotID, err)
+		}
 	}
 
 	if content != nil && content.GetVolume() != nil {
 		sourcevolID = content.GetVolume().GetVolumeId()
+		_, err := cloud.GetVolume(sourcevolID)
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				return nil, status.Errorf(codes.NotFound, "Source Volume %s not found", sourcevolID)
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to retrieve the source volume %s: %v", sourcevolID, err)
+		}
 	}
 
 	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
+
 	if err != nil {
-		klog.V(3).Infof("Failed to CreateVolume: %v", err)
+		klog.Errorf("Failed to CreateVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume failed with error %v", err))
 
 	}
 
-	klog.V(4).Infof("Create volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
+	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
 	return getCreateVolumeResponse(vol), nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+	klog.V(4).Infof("DeleteVolume: called with args %+v", *req)
 
 	// Volume Delete
 	volID := req.GetVolumeId()
@@ -133,11 +151,11 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 			klog.V(3).Infof("Volume %s is already deleted.", volID)
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		klog.V(3).Infof("Failed to DeleteVolume: %v", err)
+		klog.Errorf("Failed to DeleteVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteVolume failed with error %v", err))
 	}
 
-	klog.V(4).Infof("Delete volume %s", volID)
+	klog.V(4).Infof("DeleteVolume: Successfully deleted volume %s", volID)
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -147,51 +165,54 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	// Volume Attach
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
+	volumeCapability := req.GetVolumeCapability()
 
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Volume ID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume ID must be provided")
 	}
-
 	if len(instanceID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerPublishVolume Instance ID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Instance ID must be provided")
+	}
+	if volumeCapability == nil {
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume capability must be provided")
 	}
 
 	_, err := cs.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerPublishVolume Volume not found")
+			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Volume %s not found", volumeID)
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume get volume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] get volume failed with error %v", err))
 	}
 
 	_, err = cs.Cloud.GetInstanceByID(instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Error(codes.NotFound, "ControllerPublishVolume Instance not found")
+			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Instance %s not found", instanceID)
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume GetInstanceByID failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] GetInstanceByID failed with error %v", err))
 	}
 
 	_, err = cs.Cloud.AttachVolume(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to AttachVolume: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume Attach Volume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] Attach Volume failed with error %v", err))
 
 	}
 
 	err = cs.Cloud.WaitDiskAttached(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to WaitDiskAttached: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] failed to attach volume: %v", err))
 	}
 
 	devicePath, err := cs.Cloud.GetAttachmentDiskPath(instanceID, volumeID)
 	if err != nil {
 		klog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] failed to get device path of attached volume : %v", err))
 	}
 
-	klog.V(4).Infof("ControllerPublishVolume %s on %s", volumeID, instanceID)
+	klog.V(4).Infof("ControllerPublishVolume %s on %s is successful", volumeID, instanceID)
 
 	// Publish Volume Info
 	pvInfo := map[string]string{}
@@ -209,7 +230,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	volumeID := req.GetVolumeId()
 
 	if len(volumeID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "ControllerUnpublishVolume Volume ID must be provided")
+		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] Volume ID must be provided")
 	}
 	_, err := cs.Cloud.GetInstanceByID(instanceID)
 	if err != nil {
@@ -217,7 +238,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because node %s does not exist", volumeID, instanceID)
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
-		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume GetInstanceByID failed with error %v", err))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerUnpublishVolume] GetInstanceByID failed with error %v", err))
 	}
 
 	err = cs.Cloud.DetachVolume(instanceID, volumeID)
@@ -247,9 +268,18 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 
-	vlist, err := cs.Cloud.ListVolumes()
+	if req.MaxEntries < 0 {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf(
+			"[ListVolumes] Invalid max entries request %v, must not be negative ", req.MaxEntries))
+	}
+	maxEntries := int(req.MaxEntries)
+
+	vlist, nextPageToken, err := cs.Cloud.ListVolumes(maxEntries, req.StartingToken)
 	if err != nil {
 		klog.V(3).Infof("Failed to ListVolumes: %v", err)
+		if cpoerrors.IsInvalidError(err) {
+			return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: %v", err)
+		}
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ListVolumes failed with error %v", err))
 	}
 
@@ -261,16 +291,24 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 				CapacityBytes: int64(v.Size * 1024 * 1024 * 1024),
 			},
 		}
+
+		status := &csi.ListVolumesResponse_VolumeStatus{}
+		for _, attachment := range v.Attachments {
+			status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
+		}
+		ventry.Status = status
+
 		ventries = append(ventries, &ventry)
 	}
 	return &csi.ListVolumesResponse{
-		Entries: ventries,
+		Entries:   ventries,
+		NextToken: nextPageToken,
 	}, nil
 }
 
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	name := req.Name
-	volumeId := req.SourceVolumeId
+	volumeId := req.GetSourceVolumeId()
 
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
@@ -281,7 +319,9 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Verify a snapshot with the provided name doesn't already exist for this tenant
-	snapshots, err := cs.Cloud.GetSnapshotByNameAndVolumeID(name, volumeId)
+	filters := map[string]string{}
+	filters["Name"] = name
+	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 	}
@@ -335,7 +375,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 
-	id := req.SnapshotId
+	id := req.GetSnapshotId()
 
 	if id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot ID must be provided in DeleteSnapshot request")
@@ -356,11 +396,15 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 
 func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 
-	if len(req.GetSnapshotId()) != 0 {
-		snap, err := cs.Cloud.GetSnapshotByID(req.SnapshotId)
+	snapshotID := req.GetSnapshotId()
+	if len(snapshotID) != 0 {
+		snap, err := cs.Cloud.GetSnapshotByID(snapshotID)
 		if err != nil {
-			klog.V(3).Infof("Failed to Get snapshot: %v", err)
-			return &csi.ListSnapshotsResponse{}, nil
+			if cpoerrors.IsNotFound(err) {
+				klog.V(3).Infof("Snapshot %s not found", snapshotID)
+				return &csi.ListSnapshotsResponse{}, nil
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to GetSnapshot %s : %v", snapshotID, err)
 		}
 
 		ctime, err := ptypes.TimestampProto(snap.CreatedAt)
@@ -382,35 +426,35 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 
 	}
 
-	// FIXME: honor the limit, offset and filters later
 	filters := map[string]string{}
 
-	var vlist []snapshots.Snapshot
+	var slist []snapshots.Snapshot
 	var err error
+	var nextPageToken string
 
+	// Add the filters
 	if len(req.GetSourceVolumeId()) != 0 {
-		vlist, err = cs.Cloud.GetSnapshotByNameAndVolumeID("", req.GetSourceVolumeId())
-		if err != nil {
-			klog.V(3).Infof("Failed to ListSnapshots: %v", err)
-			return nil, status.Error(codes.Internal, fmt.Sprintf("ListSnapshots get snapshot failed with error %v", err))
-		}
+		filters["VolumeID"] = req.GetSourceVolumeId()
 	} else {
-		vlist, err = cs.Cloud.ListSnapshots(int(req.MaxEntries), 0, filters)
-		if err != nil {
-			klog.V(3).Infof("Failed to ListSnapshots: %v", err)
-			return nil, status.Error(codes.Internal, fmt.Sprintf("ListSnapshots get snapshot failed with error %v", err))
-
-		}
-
+		filters["Limit"] = strconv.Itoa(int(req.MaxEntries))
+		filters["Marker"] = req.StartingToken
 	}
 
-	var ventries []*csi.ListSnapshotsResponse_Entry
-	for _, v := range vlist {
+	// Only retrieve snapshots that are available
+	filters["Status"] = "available"
+	slist, nextPageToken, err = cs.Cloud.ListSnapshots(filters)
+	if err != nil {
+		klog.V(3).Infof("Failed to ListSnapshots: %v", err)
+		return nil, status.Errorf(codes.Internal, "ListSnapshots failed with error %v", err)
+	}
+
+	var sentries []*csi.ListSnapshotsResponse_Entry
+	for _, v := range slist {
 		ctime, err := ptypes.TimestampProto(v.CreatedAt)
 		if err != nil {
 			klog.Errorf("Error to convert time to timestamp: %v", err)
 		}
-		ventry := csi.ListSnapshotsResponse_Entry{
+		sentry := csi.ListSnapshotsResponse_Entry{
 			Snapshot: &csi.Snapshot{
 				SizeBytes:      int64(v.Size * 1024 * 1024 * 1024),
 				SnapshotId:     v.ID,
@@ -419,10 +463,11 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 				ReadyToUse:     true,
 			},
 		}
-		ventries = append(ventries, &ventry)
+		sentries = append(sentries, &sentry)
 	}
 	return &csi.ListSnapshotsResponse{
-		Entries: ventries,
+		Entries:   sentries,
+		NextToken: nextPageToken,
 	}, nil
 
 }

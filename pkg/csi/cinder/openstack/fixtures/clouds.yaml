@@ -1,0 +1,12 @@
+clouds:
+    openstack:
+      auth:
+        auth_url: "https://169.254.169.254/identity/v3"
+        username: "user"
+        password: "pass"
+        project_id: "c869168a828847f39f7f06edd7305637"
+        domain_id: "2a73b8f597c04551a0fdc8e95544be8a"
+      region_name: "RegionOne"
+      cacert: "fake-ca.crt"
+      interface: "public"
+      identity_api_version: 3

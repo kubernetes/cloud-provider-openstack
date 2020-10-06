@@ -81,12 +81,14 @@ var FakeVol3 = volumes.Volume{
 	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
 	Name:             "fake-3",
 	Status:           "available",
+	Size:             2,
 	AvailabilityZone: "",
 }
 var FakeSnapshotRes = snapshots.Snapshot{
 	ID:       FakeSnapshotID,
 	Name:     "fake-snapshot",
 	VolumeID: FakeVolID,
+	Size:     1,
 }
 
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
@@ -94,6 +96,7 @@ var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
 var FakeVolListMultiple = []volumes.Volume{FakeVol1, FakeVol3}
 var FakeVolList = []volumes.Volume{FakeVol1}
 var FakeVolListEmpty = []volumes.Volume{}
+var FakeSnapshotListEmpty = []snapshots.Snapshot{}
 
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
 

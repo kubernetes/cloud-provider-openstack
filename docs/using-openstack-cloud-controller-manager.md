@@ -1,15 +1,22 @@
-# Get started with external openstack-cloud-controller-manager in Kubernetes
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm](#deploy-a-kubernetes-cluster-with-openstack-cloud-controller-manager-using-kubeadm)
-  - [Prerequisites](#prerequisites)
-  - [Steps](#steps)
-- [Migrating from in-tree openstack cloud provider to external openstack-cloud-controller-manager](#migrating-from-in-tree-openstack-cloud-provider-to-external-openstack-cloud-controller-manager)
-- [Config openstack-cloud-controller-manager](#config-openstack-cloud-controller-manager)
-  - [Global](#global)
-  - [Networking](#networking)
-  - [Load Balancer](#load-balancer)
-  - [Metadata](#metadata)
-- [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+- [Get started with external openstack-cloud-controller-manager in Kubernetes](#get-started-with-external-openstack-cloud-controller-manager-in-kubernetes)
+  - [Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm](#deploy-a-kubernetes-cluster-with-openstack-cloud-controller-manager-using-kubeadm)
+    - [Prerequisites](#prerequisites)
+    - [Steps](#steps)
+  - [Migrating from in-tree openstack cloud provider to external openstack-cloud-controller-manager](#migrating-from-in-tree-openstack-cloud-provider-to-external-openstack-cloud-controller-manager)
+  - [Config openstack-cloud-controller-manager](#config-openstack-cloud-controller-manager)
+    - [Global](#global)
+    - [Networking](#networking)
+    - [Load Balancer](#load-balancer)
+    - [Metadata](#metadata)
+  - [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Get started with external openstack-cloud-controller-manager in Kubernetes
 
 External cloud providers were introduced as an Alpha feature in Kubernetes release 1.6. openstack-cloud-controller-manager is the implementation of external cloud provider for OpenStack clusters. An external cloud provider is a kubernetes controller that runs cloud provider-specific loops required for the functioning of kubernetes. These loops were originally a part of the `kube-controller-manager`, but they were tightly coupling the `kube-controller-manager` to cloud-provider specific code. In order to free the kubernetes project of this dependency, the `cloud-controller-manager` was introduced.
 
@@ -21,7 +28,7 @@ For more information about cloud-controller-manager, please see:
 - <https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager>
 - <https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/>
 
-**NOTE: Now, the openstack-cloud-controller-manager implementation is based on OpenStack Octavia, Neutron-LBaaS has been deprecated in OpenStack since Queens release and no longer maintained in openstack-cloud-controller-manager. So make sure to use Octavia if upgrade to the latest openstack-cloud-controller-manager docker image.** 
+**NOTE: Now, the openstack-cloud-controller-manager implementation is based on OpenStack Octavia, Neutron-LBaaS has been deprecated in OpenStack since Queens release and no longer maintained in openstack-cloud-controller-manager. So make sure to use Octavia if upgrade to the latest openstack-cloud-controller-manager docker image.**
 
 ## Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm
 
@@ -43,7 +50,7 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
 
 - Bootstrap worker nodes. You need to set `--cloud-provider=external` for kubelet service before running `kubeadm join`.
 
-- Create a secret containing the cloud configuration. You can find an example config file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config). Save the configuration to a file named *cloud.conf*, then:
+- Create a secret containing the cloud configuration. You can find an example config file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config). If you have certs you need put the cert file into folder `/etc/ssl/certs/` and update `ca-file` in the configuration file, refer to `ca-file` option [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#global) for further information. After that, Save the configuration to a file named *cloud.conf*, then:
 
     ```shell
     kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
@@ -77,7 +84,7 @@ Implementation of openstack-cloud-controller-manager relies on several OpenStack
 | Load Balancing (Neutron-LBaaS) | v1, v2         | Yes        | No       |
 | Load Balancing (Octavia)       | v2             | No         | Yes      |
 
-> NOTE: Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](./using-cinder-csi-plugin.md).
+> NOTE: Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md).
 
 ### Global
 
@@ -87,6 +94,10 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   Required. Keystone service URL, e.g. http://128.110.154.166/identity
 * `ca-file`
   Optional. CA certificate bundle file for communication with Keystone service, this is required when using the https protocol in the Keystone service URL.
+* `cert-file`
+  Optional. Client certificate path used for the client TLS authentication.
+* `key-file`
+  Optional. Client private key path used for the client TLS authentication.
 * `username`
   Keystone user name. If you are using [Keystone application credential](https://docs.openstack.org/keystone/latest/user/application_credentials.html), this option is not required.
 * `password`
@@ -98,7 +109,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `domain-name`
   Keystone user domain name, not required if `domain-id` is set.
 * `tenant-id`
-  Keystone project ID. When using Keystone V3 - which changed the identifier `tenant` to `project` - the `tenant-id` value is automatically mapped to the project construct in the API. 
+  Keystone project ID. When using Keystone V3 - which changed the identifier `tenant` to `project` - the `tenant-id` value is automatically mapped to the project construct in the API.
 
   `tenant-id` is not needed when using `trust-id` or [Keystone application credential](https://docs.openstack.org/keystone/latest/user/application_credentials.html)
 * `tenant-name`
@@ -107,7 +118,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   Keystone project domain ID.
 * `tenant-domain-name`
   Keystone project domain name.
-* `user-domain-id`: 
+* `user-domain-id`
   Keystone user domain ID.
 * `user-domain-name`
   Keystone user domain name.
@@ -145,34 +156,64 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `use-octavia`
   Whether or not to use Octavia for LoadBalancer type of Service implementation instead of using Neutron-LBaaS. Default: true
+  
 * `floating-network-id`
-  Optional. The external network used to create floating IP for the load balancer VIP.
+  Optional. The external network used to create floating IP for the load balancer VIP. If there are multiple external networks in the cloud, either this option must be set or user must specify `loadbalancer.openstack.org/floating-network-id` in the Service annotation.
+
+* `floating-subnet-id`
+  Optional. The external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-id`.
+
 * `lb-method`
   The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
+
 * `lb-provider`
   Optional. Used to specify the provider of the load balancer, e.g. "amphora" or "octavia".
+
 * `lb-version`
   Optional. If specified, only "v2" is supported.
+
 * `subnet-id`
-  ID of the Neutron subnet on which to create load balancer VIP.
+  ID of the Neutron subnet on which to create load balancer VIP, this ID is also used to create pool members.
+
 * `network-id`
   ID of the Neutron network on which to create load balancer VIP, not needed if `subnet-id` is set.
+
 * `manage-security-groups`
   If the Neutron security groups should be managed separately. Default: false
 
-  This option is not needed when using Octavia. The worker nodes and the Octavia amphorae are usually in the same subnet, so it's sufficient to config the port security group rules manually for worker nodes, to allow the traffic coming from the the subnet IP range to the node port range(i.e. 30000-32767).
+  This option is not supported for Octavia. The worker nodes and the Octavia amphorae are usually in the same subnet, so it's sufficient to config the port security group rules manually for worker nodes, to allow the traffic coming from the the subnet IP range to the node port range(i.e. 30000-32767).
+
 * `create-monitor`
   Indicates whether or not to create a health monitor for the service load balancer. Default: false
+
 * `monitor-delay`
   The time, in seconds, between sending probes to members of the load balancer. Default: 5
+
 * `monitor-max-retries`
   The number of successful checks before changing the operating status of the load balancer member to ONLINE. A valid value is from 1 to 10. Default: 1
+
 * `monitor-timeout`
   The maximum time, in seconds, that a monitor waits to connect backend before it times out. Default: 3
-* `node-security-group`
-  Deprecated.
+
 * `internal-lb`
   Determines whether or not to create an internal load balancer (no floating IP) by default. Default: false.
+
+* `cascade-delete`
+  Determines whether or not to perform cascade deletion of load balancers. Default: true.
+  
+* `flavor-id`
+  The id of the loadbalancer flavor to use. Uses octavia default if not set.
+
+* `availability-zone`
+  The name of the loadbalancer availability zone to use. It is applicable if use-octavia is set to True and requires Octavia API version 2.14 or later (Ussuri release). The Octavia availability zone capabilities will not be used if it is not set. The parameter will be ignored if the Octavia version doesn't support availability zones yet.
+
+* `LoadBalancerClass "ClassName"`
+  This is a config section including a set of config options. User can choose the `ClassName` by specifying the Service annotation `loadbalancer.openstack.org/class`. The following options are supported:
+
+  * floating-network-id. The same with `floating-network-id` option above.
+  * floating-subnet-id. The same with `floating-subnet-id` option above.
+  * network-id. The same with `network-id` option above.
+  * subnet-id. The same with `subnet-id` option above.
 
 ### Metadata
 
@@ -182,7 +223,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   * `metadataService` - Only retrieve instance metadata from the metadata service.
   * `metadataService,configDrive` - Retrieve instance metadata from the metadata service first if available, then the configuration drive.
 
-  Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both. Especially, the metadata on the config drive may grow stale over time, whereas the metadata service always provides the most up to date data. 
+  Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both. Especially, the metadata on the config drive may grow stale over time, whereas the metadata service always provides the most up to date data.
 
 ## Exposing applications using services of LoadBalancer type
 

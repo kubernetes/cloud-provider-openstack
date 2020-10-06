@@ -18,7 +18,7 @@ package cloudprovider
 
 import (
 	"k8s.io/client-go/kubernetes"
-	log "k8s.io/klog"
+	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
@@ -32,6 +32,9 @@ var (
 type CloudProvider interface {
 	// GetName returns the cloud provider name.
 	GetName() string
+
+	// Update cluster health status.
+	UpdateHealthStatus([]healthcheck.NodeInfo, []healthcheck.NodeInfo) error
 
 	// Repair triggers the node repair process in the cloud.
 	Repair([]healthcheck.NodeInfo) error

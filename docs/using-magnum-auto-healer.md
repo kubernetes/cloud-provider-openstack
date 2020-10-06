@@ -1,12 +1,19 @@
-# Using magnum-auto-healer
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [What is magnum-auto-healer](#what-is-magnum-auto-healer)
-- [magnum-auto-healer Design](#magnum-auto-healer-design)
-- [Deploying and testing magnum-auto-healer](#deploying-and-testing-magnum-auto-healer)
-  - [Prerequisites](#prerequisites)
-  - [Deploy magnum-auto-healer](#deploy-magnum-auto-healer)
-  - [Testing magnum-auto-healer](#testing-magnum-auto-healer)
-  - [magnum-auto-healer video demo](#magnum-auto-healer-video-demo)
+- [Using magnum-auto-healer](#using-magnum-auto-healer)
+  - [What is magnum-auto-healer](#what-is-magnum-auto-healer)
+  - [magnum-auto-healer Design](#magnum-auto-healer-design)
+  - [Deploying and testing magnum-auto-healer](#deploying-and-testing-magnum-auto-healer)
+    - [Prerequisites](#prerequisites)
+    - [Deploy magnum-auto-healer](#deploy-magnum-auto-healer)
+    - [Testing magnum-auto-healer](#testing-magnum-auto-healer)
+    - [magnum-auto-healer video demo](#magnum-auto-healer-video-demo)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Using magnum-auto-healer
 
 ## What is magnum-auto-healer
 

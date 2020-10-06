@@ -28,8 +28,9 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
 	"k8s.io/component-base/logs"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -37,6 +38,7 @@ var (
 	driverName            string
 	nodeID                string
 	nodeAZ                string
+	runtimeConfigFile     string
 	withTopology          bool
 	protoSelector         string
 	fwdEndpoint           string
@@ -145,6 +147,8 @@ func main() {
 				klog.Fatalf("driver initialization failed: %v", err)
 			}
 
+			runtimeconfig.RuntimeConfigFilename = runtimeConfigFile
+
 			d.Run()
 		},
 	}
@@ -159,6 +163,8 @@ func main() {
 	cmd.MarkPersistentFlagRequired("nodeid")
 
 	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
+
+	cmd.PersistentFlags().StringVar(&runtimeConfigFile, "runtime-config-file", "", "path to the runtime configuration file")
 
 	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", false, "cluster is topology-aware")
 

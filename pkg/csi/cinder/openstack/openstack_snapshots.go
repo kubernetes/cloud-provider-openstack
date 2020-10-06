@@ -20,11 +20,13 @@ package openstack
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -34,15 +36,31 @@ const (
 	snapReadySteps      = 10
 
 	snapshotDescription = "Created by OpenStack Cinder CSI driver"
+	snapshotForceCreate = "force-create"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
 // returns the resultant gophercloud Snapshot Item upon success
 func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
+
+	force := false
+	// if no flag given, then force will be false by default
+	// if flag it given , check it
+	if item, ok := (*tags)[snapshotForceCreate]; ok {
+		var err error
+		force, err = strconv.ParseBool(item)
+		if err != nil {
+			klog.V(5).Infof("Make force create flag to false due to: %v", err)
+		}
+
+		delete(*tags, snapshotForceCreate)
+	}
+	// Force the creation of snapshot even the Volume is in in-use state
 	opts := &snapshots.CreateOpts{
 		VolumeID:    volID,
 		Name:        name,
 		Description: snapshotDescription,
+		Force:       force,
 	}
 	if tags != nil {
 		opts.Metadata = *tags
@@ -61,42 +79,48 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 // ListSnapshots retrieves a list of active snapshots from Cinder for the corresponding Tenant.  We also
 // provide the ability to provide limit and offset to enable the consumer to provide accurate pagination.
 // In addition the filters argument provides a mechanism for passing in valid filter strings to the list
-// operation.  Valid filter keys are:  Name, Status, VolumeID (TenantID has no effect)
-func (os *OpenStack) ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error) {
-	// FIXME: honor the limit, offset and filters later
-	opts := snapshots.ListOpts{Status: snapshotReadyStatus}
+// operation.  Valid filter keys are:  Name, Status, VolumeID, Limit, Marker (TenantID has no effect)
+func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error) {
+	// Build the Opts
+	opts := snapshots.ListOpts{}
+	nextPageToken := ""
+
+	for key, val := range filters {
+		switch key {
+		case "Status":
+			opts.Status = val
+		case "Name":
+			opts.Name = val
+		case "VolumeID":
+			opts.VolumeID = val
+		case "Marker":
+			opts.Marker = val
+		case "Limit":
+			opts.Limit, _ = strconv.Atoi(val)
+		default:
+			klog.V(3).Infof("Not a valid filter key %s", key)
+		}
+	}
+
 	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
 	if err != nil {
-		klog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
-		return nil, err
+		klog.V(3).Infof("Failed to retrieve snapshots: %v", err)
+		return nil, nextPageToken, err
 	}
 	snaps, err := snapshots.ExtractSnapshots(pages)
 	if err != nil {
-		klog.V(3).Infof("Failed to extract snapshot pages from Cinder: %v", err)
-		return nil, err
+		klog.V(3).Infof("Failed to extract snapshot pages: %v", err)
+		return nil, nextPageToken, err
 	}
-	// There's little value in rewrapping these gophercloud types into yet another abstraction/type, instead just
-	// return the gophercloud item
-	return snaps, nil
 
-}
+	nextPageURL, err := pages.NextPageURL()
+	if err != nil && nextPageURL != "" {
+		if queryParams, nerr := url.ParseQuery(nextPageURL); nerr != nil {
+			nextPageToken = queryParams.Get("marker")
+		}
+	}
+	return snaps, nextPageToken, nil
 
-// GetSnapshotByNameAndVolumeID returns a list of snapshot references with the specified name and volume ID
-func (os *OpenStack) GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error) {
-	opts := snapshots.ListOpts{Name: n, VolumeID: volumeId}
-	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
-	if err != nil {
-		klog.V(3).Infof("Failed to retrieve snapshots from Cinder: %v", err)
-		return nil, err
-	}
-	snaps, err := snapshots.ExtractSnapshots(pages)
-	if err != nil {
-		klog.V(3).Infof("Failed to extract snapshot pages from Cinder: %v", err)
-		return nil, err
-	}
-	// There's little value in rewrapping these gophercloud types into yet another abstraction/type, instead just
-	// return the gophercloud item
-	return snaps, nil
 }
 
 // DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend

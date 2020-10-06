@@ -23,12 +23,14 @@ import (
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
@@ -46,6 +48,16 @@ const (
 
 // Instances returns an implementation of Instances for OpenStack.
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
+	return os.instances()
+}
+
+// InstancesV2 returns an implementation of InstancesV2 for OpenStack.
+// TODO: Support InstancesV2 in the future.
+func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	return nil, false
+}
+
+func (os *OpenStack) instances() (*Instances, bool) {
 	klog.V(4).Info("openstack.Instances() called")
 
 	compute, err := os.NewComputeV2()
@@ -53,8 +65,6 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 		klog.Errorf("unable to access compute v2 API : %v", err)
 		return nil, false
 	}
-
-	klog.V(4).Info("Claiming to support Instances")
 
 	return &Instances{
 		compute:        compute,
@@ -95,15 +105,18 @@ func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v
 // This method will not be called from the node that is requesting this ID. i.e. metadata service
 // and other local methods cannot be used here
 func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
+	klog.V(4).Infof("NodeAddressesByProviderID (%v) called", providerID)
+
 	instanceID, err := instanceIDFromProviderID(providerID)
 
 	if err != nil {
 		return []v1.NodeAddress{}, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(i.compute, instanceID).Extract()
 
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return []v1.NodeAddress{}, err
 	}
 
@@ -117,10 +130,16 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
+	klog.V(4).Infof("NodeAddressesByProviderID(%v) => %v", providerID, addresses)
 	return addresses, nil
 }
 
-// InstanceExistsByProviderID returns true if the instance with the given provider id still exist.
+// InstanceExists returns true if the instance for the given node exists.
+func (i *Instances) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
+	return i.InstanceExistsByProviderID(ctx, node.Spec.ProviderID)
+}
+
+// InstanceExistsByProviderID returns true if the instance with the given provider id still exists.
 // If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
 func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
@@ -128,8 +147,9 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 		return false, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	_, err = servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -139,15 +159,23 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 	return true, nil
 }
 
-// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes
+// InstanceShutdown returns true if the instances is in safe state to detach volumes.
+// It is the only state, where volumes can be detached immediately.
+func (i *Instances) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
+	return i.InstanceShutdownByProviderID(ctx, node.Spec.ProviderID)
+}
+
+// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes.
+// It is the only state, where volumes can be detached immediately.
 func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 	if err != nil {
 		return false, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return false, err
 	}
 
@@ -156,6 +184,39 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 		return true, nil
 	}
 	return false, nil
+}
+
+// InstanceMetadata returns metadata of the specified instance.
+func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
+	instanceID, err := instanceIDFromProviderID(node.Spec.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+
+	srv, err := servers.Get(i.compute, instanceID).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	instanceType, err := srvInstanceType(i.compute, srv)
+	if err != nil {
+		return nil, err
+	}
+
+	interfaces, err := getAttachedInterfacesByID(i.compute, srv.ID)
+	if err != nil {
+		return nil, err
+	}
+	addresses, err := nodeAddresses(srv, interfaces, i.networkingOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cloudprovider.InstanceMetadata{
+		ProviderID:    node.Spec.ProviderID,
+		InstanceType:  instanceType,
+		NodeAddresses: addresses,
+	}, nil
 }
 
 // InstanceID returns the kubelet's cloud provider ID.
@@ -194,13 +255,14 @@ func (i *Instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 		return "", err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(i.compute, instanceID).Extract()
 
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return "", err
 	}
 
-	return srvInstanceType(server)
+	return srvInstanceType(i.compute, server)
 }
 
 // InstanceType returns the type of the specified instance.
@@ -211,16 +273,23 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 		return "", err
 	}
 
-	return srvInstanceType(&srv.Server)
+	return srvInstanceType(i.compute, &srv.Server)
 }
 
-func srvInstanceType(srv *servers.Server) (string, error) {
-	keys := []string{"name", "id", "original_name"}
+func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (string, error) {
+	keys := []string{"original_name", "id"}
 	for _, key := range keys {
 		val, found := srv.Flavor[key]
 		if found {
 			flavor, ok := val.(string)
 			if ok {
+				if key == "id" {
+					mc := metrics.NewMetricContext("flavor", "get")
+					f, err := flavors.Get(client, flavor).Extract()
+					if mc.ObserveRequest(err) == nil {
+						return f.Name, nil
+					}
+				}
 				return flavor, nil
 			}
 		}
@@ -246,4 +315,40 @@ func instanceIDFromProviderID(providerID string) (instanceID string, err error) 
 		return "", fmt.Errorf("ProviderID \"%s\" didn't match expected format \"openstack:///InstanceID\"", providerID)
 	}
 	return matches[1], nil
+}
+
+// AddToNodeAddresses appends the NodeAddresses to the passed-by-pointer slice,
+// only if they do not already exist
+func AddToNodeAddresses(addresses *[]v1.NodeAddress, addAddresses ...v1.NodeAddress) {
+	for _, add := range addAddresses {
+		exists := false
+		for _, existing := range *addresses {
+			if existing.Address == add.Address && existing.Type == add.Type {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			*addresses = append(*addresses, add)
+		}
+	}
+}
+
+// RemoveFromNodeAddresses removes the NodeAddresses from the passed-by-pointer
+// slice if they already exist.
+func RemoveFromNodeAddresses(addresses *[]v1.NodeAddress, removeAddresses ...v1.NodeAddress) {
+	var indexesToRemove []int
+	for _, remove := range removeAddresses {
+		for i := len(*addresses) - 1; i >= 0; i-- {
+			existing := (*addresses)[i]
+			if existing.Address == remove.Address && (existing.Type == remove.Type || remove.Type == "") {
+				indexesToRemove = append(indexesToRemove, i)
+			}
+		}
+	}
+	for _, i := range indexesToRemove {
+		if i < len(*addresses) {
+			*addresses = append((*addresses)[:i], (*addresses)[i+1:]...)
+		}
+	}
 }

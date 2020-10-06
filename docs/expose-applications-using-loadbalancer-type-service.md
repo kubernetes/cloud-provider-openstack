@@ -1,12 +1,19 @@
-# Exposing applications using services of LoadBalancer type
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Creating a Service of LoadBalancer type](#creating-a-service-of-loadbalancer-type)
-- [Supported Features](#supported-features)
-  - [Service annotations](#service-annotations)
-  - [Switching between Floating Subnets by using preconfigured Classes](#switching-between-floating-subnets-by-using-preconfigured-classes)
-  - [Creating Service by specifying a floating IP](#creating-service-by-specifying-a-floating-ip)
-  - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
-- [Issues](#issues)
+- [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+  - [Creating a Service of LoadBalancer type](#creating-a-service-of-loadbalancer-type)
+  - [Supported Features](#supported-features)
+    - [Service annotations](#service-annotations)
+    - [Switching between Floating Subnets by using preconfigured Classes](#switching-between-floating-subnets-by-using-preconfigured-classes)
+    - [Creating Service by specifying a floating IP](#creating-service-by-specifying-a-floating-ip)
+    - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
+  - [Issues](#issues)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Exposing applications using services of LoadBalancer type
 
 This page shows how to create Services of LoadBalancer type in Kubernetes cluster which is running inside OpenStack. For an explanation of the Service concept and a discussion of the various types of Services, see [Services](https://kubernetes.io/docs/concepts/services-networking/service/).
 
@@ -85,15 +92,15 @@ Request Body:
 
 - `loadbalancer.openstack.org/floating-subnet`
 
-  A public network can have several subnets. This annotation is one of subnets' name.
+  A public network can have several subnets. This annotation is the name of subnet belonging to the floating network. This annotation is optional.
 
 - `loadbalancer.openstack.org/floating-subnet-id`
 
-  This annotation is one of subnets' id in a public network.
+  This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet`.
 
 - `loadbalancer.openstack.org/class`
 
-  The name of a preconfigured class in the config file. The annotation of floating-subnet-id and floating-network-id won't work if you use class annotation. See the section below for how it works.
+  The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
 
 - `loadbalancer.openstack.org/subnet-id`
 
@@ -109,7 +116,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/connection-limit`
 
-  The maximum number of connections per second allowed for the listener. Positive integer or -1 for unlimited (default).
+  The maximum number of connections per second allowed for the listener. Positive integer or -1 for unlimited (default). This annotation supports update operation.
 
 - `loadbalancer.openstack.org/keep-floatingip`
 
@@ -141,11 +148,19 @@ Request Body:
 
 - `service.beta.kubernetes.io/openstack-internal-load-balancer`
 
-  If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is 'false'.
+  If 'true', the loadbalancer VIP won't be associated with a floating IP. Default is 'false'. This annotation is ignored if only internal Service is allowed to create in the cluster.
 
 - `loadbalancer.openstack.org/enable-health-monitor`
 
   Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
+  
+- `loadbalancer.openstack.org/flavor-id`
+
+  The id of the flavor that is used for creating the loadbalancer.
+
+- `loadbalancer.openstack.org/availability-zone`
+
+  The name of the loadbalancer availability zone to use. It is ignored if the Octavia version doesn't support availability zones yet.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
@@ -250,6 +265,8 @@ spec:
       port: 80
       targetPort: 8080
 ```
+
+`loadBalancerSourceRanges` field supports to be updated.
 
 ## Issues
 

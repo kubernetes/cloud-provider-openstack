@@ -34,7 +34,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
-	log "k8s.io/klog"
+	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
 	_ "k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/register"
@@ -63,6 +63,11 @@ const (
 	// LabelNodeRoleMaster specifies that a node is a master
 	// Related discussion: https://github.com/kubernetes/kubernetes/pull/39112
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+)
+
+var (
+	masterUnhealthyNodes []healthcheck.NodeInfo
+	workerUnhealthyNodes []healthcheck.NodeInfo
 )
 
 // Event holds the context of an event
@@ -340,6 +345,8 @@ func (c *Controller) startMasterMonitor(wg *sync.WaitGroup) {
 		return
 	}
 
+	masterUnhealthyNodes = append(masterUnhealthyNodes, unhealthyNodes...)
+
 	c.repairNodes(unhealthyNodes)
 
 	if len(unhealthyNodes) == 0 {
@@ -362,6 +369,8 @@ func (c *Controller) startWorkerMonitor(wg *sync.WaitGroup) {
 		return
 	}
 
+	workerUnhealthyNodes = append(workerUnhealthyNodes, unhealthyNodes...)
+
 	c.repairNodes(unhealthyNodes)
 
 	if len(unhealthyNodes) == 0 {
@@ -380,6 +389,8 @@ func (c *Controller) Start(ctx context.Context) {
 
 	var wg sync.WaitGroup
 	for {
+		masterUnhealthyNodes = []healthcheck.NodeInfo{}
+		workerUnhealthyNodes = []healthcheck.NodeInfo{}
 		select {
 		case <-ticker.C:
 			if c.config.MasterMonitorEnabled {
@@ -392,6 +403,7 @@ func (c *Controller) Start(ctx context.Context) {
 			}
 
 			wg.Wait()
+			c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
 		}
 	}
 }

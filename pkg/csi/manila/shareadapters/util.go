@@ -19,19 +19,17 @@ package shareadapters
 import (
 	"fmt"
 	"strings"
-
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 )
 
-func splitExportLocation(loc *shares.ExportLocation) (address, location string, err error) {
-	delimPos := strings.LastIndexByte(loc.Path, ':')
+func splitExportLocationPath(exportLocationPath string) (address, location string, err error) {
+	delimPos := strings.LastIndexByte(exportLocationPath, ':')
 	if delimPos <= 0 {
-		err = fmt.Errorf("failed to parse address and location from export location '%s'", loc.Path)
+		err = fmt.Errorf("failed to parse address and location from export location '%s'", exportLocationPath)
 		return
 	}
 
-	address = loc.Path[:delimPos]
-	location = loc.Path[delimPos+1:]
+	address = exportLocationPath[:delimPos]
+	location = exportLocationPath[delimPos+1:]
 
 	return
 }

@@ -34,6 +34,7 @@ var fakeTenantID = "c869168a828847f39f7f06edd7305637"
 var fakeDomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 var fakeRegion = "RegionOne"
 var fakeCAfile = "fake-ca.crt"
+var fakeCloudName = "openstack"
 
 // Test GetConfigFromFile
 func TestGetConfigFromFile(t *testing.T) {
@@ -72,6 +73,59 @@ rescan-on-resize=true`
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
+	expectedOpts.BlockStorage.RescanOnResize = true
+
+	// Invoke GetConfigFromFile
+	actualAuthOpts, err := GetConfigFromFile(fakeFileName)
+	if err != nil {
+		t.Errorf("failed to GetConfigFromFile: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedOpts, actualAuthOpts)
+}
+
+func TestGetConfigFromFileWithUseClouds(t *testing.T) {
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Errorf("failed to find current working directory: %v", err)
+	}
+
+	// init file
+	var fakeFileContent = `
+[Global]
+use-clouds = true
+clouds-file = ` + wd + `/fixtures/clouds.yaml
+cloud = ` + fakeCloudName + `
+[BlockStorage]
+rescan-on-resize=true`
+
+	f, err := os.Create(fakeFileName)
+	if err != nil {
+		t.Errorf("failed to create file: %v", err)
+	}
+
+	_, err = f.WriteString(fakeFileContent)
+	f.Close()
+	if err != nil {
+		t.Errorf("failed to write file: %v", err)
+	}
+	defer os.Remove(fakeFileName)
+
+	// Init assert
+	assert := assert.New(t)
+	expectedOpts := Config{}
+	expectedOpts.Global.Username = fakeUserName
+	expectedOpts.Global.Password = fakePassword
+	expectedOpts.Global.DomainID = fakeDomainID
+	expectedOpts.Global.AuthURL = fakeAuthUrl
+	expectedOpts.Global.CAFile = fakeCAfile
+	expectedOpts.Global.TenantID = fakeTenantID
+	expectedOpts.Global.Region = fakeRegion
+	expectedOpts.Global.UseClouds = true
+	expectedOpts.Global.CloudsFile = wd + "/fixtures/clouds.yaml"
+	expectedOpts.Global.Cloud = fakeCloudName
 	expectedOpts.BlockStorage.RescanOnResize = true
 
 	// Invoke GetConfigFromFile

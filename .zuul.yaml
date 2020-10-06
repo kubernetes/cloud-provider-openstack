@@ -56,6 +56,7 @@
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-cinder:
             files:
+              - cluster/images/cinder-csi-plugin/.*
               - cmd/cinder-csi-plugin/.*
               - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
@@ -80,11 +81,32 @@
               - manifests/cinder-csi-plugin/.* 
               - pkg/csi/cinder/.*
               - pkg/util/.*
-              - test/.*
+              - tests/e2e/csi/cinder/.*
               - cmd/tests/.*
               - go.mod$
               - go.sum$
               - Makefile$
+            irrelevant-files:
+              - docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+    cloud-provider-openstack-sanity-test-csi-cinder:
+      jobs:
+        - cloud-provider-openstack-sanity-test-csi-cinder:
+            files:
+              - cmd/cinder-csi-plugin/.*
+              - pkg/csi/cinder/.*
+              - pkg/util/.*
+              - tests/sanity/cinder/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
+            irrelevant-files:
+              - docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-multinode-csi-migration-test:
       jobs:
         - cloud-provider-openstack-multinode-csi-migration-test:

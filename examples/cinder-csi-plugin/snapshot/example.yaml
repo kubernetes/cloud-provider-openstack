@@ -6,11 +6,14 @@ provisioner: cinder.csi.openstack.org
 
 ---
 
-apiVersion: snapshot.storage.k8s.io/v1alpha1
+apiVersion: snapshot.storage.k8s.io/v1beta1
 kind: VolumeSnapshotClass
 metadata:
   name: csi-cinder-snapclass
-snapshotter: cinder.csi.openstack.org
+driver: cinder.csi.openstack.org
+deletionPolicy: Delete
+parameters:
+  force-create: "false"
 
 ---
 

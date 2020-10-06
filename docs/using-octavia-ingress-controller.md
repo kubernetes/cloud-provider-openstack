@@ -1,16 +1,23 @@
-# Get started with octavia-ingress-controller for Kubernetes
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [What is an Ingress Controller?](#what-is-an-ingress-controller)
-- [Why octavia-ingress-controller](#why-octavia-ingress-controller)
-- [Requirements](#requirements)
-- [Deploy octavia-ingress-controller in the Kubernetes cluster](#deploy-octavia-ingress-controller-in-the-kubernetes-cluster)
-  - [Create service account and grant permissions](#create-service-account-and-grant-permissions)
-  - [Prepare octavia-ingress-controller configuration](#prepare-octavia-ingress-controller-configuration)
-  - [Deploy octavia-ingress-controller](#deploy-octavia-ingress-controller)
-- [Setting up HTTP Load Balancing with Ingress](#setting-up-http-load-balancing-with-ingress)
-  - [Create a backend service](#create-a-backend-service)
-  - [Create an Ingress resource](#create-an-ingress-resource)
-- [Enable TLS encryption](#enable-tls-encryption)
+- [Get started with octavia-ingress-controller for Kubernetes](#get-started-with-octavia-ingress-controller-for-kubernetes)
+  - [What is an Ingress Controller?](#what-is-an-ingress-controller)
+  - [Why octavia-ingress-controller](#why-octavia-ingress-controller)
+  - [Requirements](#requirements)
+  - [Deploy octavia-ingress-controller in the Kubernetes cluster](#deploy-octavia-ingress-controller-in-the-kubernetes-cluster)
+    - [Create service account and grant permissions](#create-service-account-and-grant-permissions)
+    - [Prepare octavia-ingress-controller configuration](#prepare-octavia-ingress-controller-configuration)
+    - [Deploy octavia-ingress-controller](#deploy-octavia-ingress-controller)
+  - [Setting up HTTP Load Balancing with Ingress](#setting-up-http-load-balancing-with-ingress)
+    - [Create a backend service](#create-a-backend-service)
+    - [Create an Ingress resource](#create-an-ingress-resource)
+  - [Enable TLS encryption](#enable-tls-encryption)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Get started with octavia-ingress-controller for Kubernetes
 
 This guide explains how to deploy and config the octavia-ingress-controller in Kubernetes cluster on top of OpenStack cloud.
 
@@ -203,28 +210,52 @@ Wait until the StatefulSet is up and running.
 ## Setting up HTTP Load Balancing with Ingress
 
 ### Create a backend service
-Create a simple service(echo hostname) that is listening on a HTTP server on port 8080.
+Create a simple web service that is listening on a HTTP server on port 8080.
 
 ```bash
-$ kubectl run hostname --image=lingxiankong/alpine-test --port=8080
-$ kubectl expose deployment hostname --type=NodePort --target-port=8080
+$ cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+name: webserver
+namespace: default
+labels:
+  app: webserver
+spec:
+replicas: 1
+selector:
+  matchLabels:
+    app: webserver
+template:
+  metadata:
+    labels:
+      app: webserver
+  spec:
+    containers:
+    - name: webserver
+      image: lingxiankong/alpine-test
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 8080
+EOF
+$ kubectl expose deployment webserver --type=NodePort --target-port=8080
 $ kubectl get svc
-NAME                TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
-hostname            NodePort    10.106.36.88   <none>        8080:32066/TCP   33s
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE
+webserver    NodePort    10.105.129.150   <none>        8080:32461/TCP   9h
 ```
 
-When you create a Service of type NodePort, Kubernetes makes your Service available on a randomly selected high port number (e.g. 32066) on all the nodes in your cluster. Generally the Kubernetes nodes are not externally accessible by default, creating this Service does not make your application accessible from the Internet. However, we could verify the service using its `CLUSTER-IP` on Kubernetes master node:
+When you create a Service of type NodePort, Kubernetes makes your Service available on a randomly selected high port number (e.g. 32461) on all the nodes in your cluster. Generally the Kubernetes nodes are not externally accessible by default, creating this Service does not make your application accessible from the Internet. However, we could verify the service using its `CLUSTER-IP` on Kubernetes master node:
 
 ```bash
-$ curl http://10.106.36.88:8080
-hostname-698fd44fc8-jptl2
+$ curl http://10.105.129.150:8080
+webserver-58fcfb75fb-dz5kn
 ```
 
 Next, we create an Ingress resource to make your HTTP web server application publicly accessible.
 
 ### Create an Ingress resource
 
-The following command defines an Ingress resource that forwards traffic that requests `http://api.sample.com/ping` to the `hostname` Service:
+The following command defines an Ingress resource that forwards traffic that requests `http://foo.bar.com/ping` to the webserver:
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -237,38 +268,38 @@ metadata:
     octavia.ingress.kubernetes.io/internal: "false"
 spec:
   rules:
-  - host: api.sample.com
+  - host: foo.bar.com
     http:
       paths:
       - path: /ping
         backend:
-          serviceName: hostname
+          serviceName: webserver
           servicePort: 8080
 EOF
 ```
 
-Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running inside the cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `hostname` NodePort Service you exposed.
+Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running inside the cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `webserver` NodePort Service you exposed.
 
-> If you don't want your Ingress to be accessible from the public internet, you could change the annotation `octavia.ingress.kubernetes.io/internal` to true.
+> If you don't want your Ingress to be accessible from the public internet, you could set the annotation `octavia.ingress.kubernetes.io/internal` to true.
 
 Verify that Ingress Resource has been created. Please note that the IP address for the Ingress Resource will not be defined right away (wait for the ADDRESS field to get populated):
 
 ```bash
 $ kubectl get ing
-NAME                   HOSTS            ADDRESS   PORTS     AGE
-test-octavia-ingress   api.sample.com             80        12s
+NAME                   CLASS    HOSTS         ADDRESS   PORTS   AGE
+test-octavia-ingress   <none>   foo.bar.com             80      12s
 $ # Wait until the ingress gets an IP address
 $ kubectl get ing
-NAME                   HOSTS            ADDRESS      PORTS     AGE
-test-octavia-ingress   api.sample.com   172.24.4.9   80        9m
+NAME                   CLASS    HOSTS         ADDRESS          PORTS   AGE
+test-octavia-ingress   <none>   foo.bar.com   103.197.62.239   80      25s
 ```
 
 For testing purpose, you can log into a host that could connect to the floating IP, you should be able to access the backend service by sending HTTP request to the domain name specified in the Ingress resource:
 
 ```shell
-$ IPADDRESS=172.24.4.9
-$ curl -H "Host: api.sample.com" http://$IPADDRESS/ping
-hostname-698fd44fc8-jptl2
+$ IPADDRESS=103.197.62.239
+$ curl -H "Host: foo.bar.com" http://$IPADDRESS/ping
+webserver-58fcfb75fb-dz5kn
 ```
 
 ## Enable TLS encryption
@@ -276,7 +307,7 @@ hostname-698fd44fc8-jptl2
 In the example below, we are going generate TLS certificates and keys for the
 Ingress and enable the more secure HTTPS protocol.
 
-1. Generate server TLS certificate and key for www.example.com using a
+1. Generate server TLS certificate and key for foo.bar.com using a
     self-signed CA. When generating certificates using the script, just use
     simple password e.g. 1234, the passphrase is removed from the private key
     in the end. In production, it's recommended to use [Let's
@@ -292,7 +323,7 @@ Ingress and enable the more secure HTTPS protocol.
       0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
     100   966  100   966    0     0   1588      0 --:--:-- --:--:-- --:--:--  1588
     $ bash gen_certs.sh
-    Enter your server domain [www.example.com]:
+    Enter your server domain [foo.bar.com]:
     Create CA cert(self-signed) and key...
     Create server key...
     Enter pass phrase for .key:
@@ -307,15 +338,15 @@ Ingress and enable the more secure HTTPS protocol.
     -rw-rw-r-- 1 stack stack 1346 Feb 14 15:38 ca.crt
     -rw------- 1 stack stack 1704 Feb 14 15:38 ca.key
     -rw-rw-r-- 1 stack stack  966 Feb 14 15:38 gen_certs.sh
-    -rw-rw-r-- 1 stack stack 1038 Feb 14 15:38 www.example.com.crt
-    -rw-rw-r-- 1 stack stack  672 Feb 14 15:38 www.example.com.csr
-    -rw------- 1 stack stack  887 Feb 14 15:38 www.example.com.key
+    -rw-rw-r-- 1 stack stack 1038 Feb 14 15:38 foo.bar.com.crt
+    -rw-rw-r-- 1 stack stack  672 Feb 14 15:38 foo.bar.com.csr
+    -rw------- 1 stack stack  887 Feb 14 15:38 foo.bar.com.key
     ```
 
 1. Create Kubernetes secret using the certificates created.
 
     ```shell script
-    kubectl create secret tls tls-secret --cert www.example.com.crt --key www.example.com.key
+    kubectl create secret tls tls-secret --cert foo.bar.com.crt --key foo.bar.com.key
     ```
 
 1. Create a TLS Ingress and wait for it's allocated the IP address.
@@ -337,25 +368,25 @@ Ingress and enable the more secure HTTPS protocol.
       tls:
         - secretName: tls-secret
       rules:
-        - host: www.example.com
+        - host: foo.bar.com
           http:
             paths:
-            - path: /hostname
+            - path: /ping
               backend:
-                serviceName: hostname
+                serviceName: webserver
                 servicePort: 8080
     EOF
     $ kubectl get ing
     NAME                   HOSTS             ADDRESS        PORTS     AGE
-    test-octavia-ingress   www.example.com   172.24.5.178   80, 443   2m55s
+    test-octavia-ingress   foo.bar.com       172.24.5.178   80, 443   2m55s
     ```
 
 1. Verify we could send HTTPS request to the Ingress address.
 
     ```shell script
     $ ip=172.24.5.178
-    $ curl --cacert ca.crt --resolve www.example.com:443:$ip https://www.example.com/hostname
-    hostname-544845f9c6-t9tnv
+    $ curl --cacert ca.crt --resolve foo.bar.com:443:$ip https://foo.bar.com/ping
+    webserver-58fcfb75fb-dz5kn
     ```
 
 > NOTE: octavia-ingress-controller currently doesn't support to integrate with

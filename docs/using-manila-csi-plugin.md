@@ -1,21 +1,28 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [CSI Manila driver](#csi-manila-driver)
+          - [Table of contents](#table-of-contents)
+  - [Configuration](#configuration)
+    - [Command line arguments](#command-line-arguments)
+    - [Controller Service volume parameters](#controller-service-volume-parameters)
+    - [Node Service volume context](#node-service-volume-context)
+    - [Secrets, authentication](#secrets-authentication)
+    - [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
+    - [Runtime configuration file](#runtime-configuration-file)
+  - [Deployment](#deployment)
+    - [Kubernetes 1.17+](#kubernetes-117)
+      - [Verifying the deployment](#verifying-the-deployment)
+      - [Enabling topology awareness](#enabling-topology-awareness)
+  - [Share protocol support matrix](#share-protocol-support-matrix)
+  - [For developers](#for-developers)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # CSI Manila driver
 
 The CSI Manila driver is able to create and mount OpenStack Manila shares. Snapshots and recovering shares from snapshots is supported as well (support for CephFS snapshots will be added soon).
-
-###### Table of contents
-
-* [Configuration](#configuration)
-  * [Command line arguments](#command-line-arguments)
-  * [Controller Service volume parameters](#controller-service-volume-parameters)
-  * [Node Service volume context](#node-service-volume-context)
-  * [Secrets, authentication](#secrets-authentication)
-  * [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning)
-* [Deployment](#deployment)
-  * [Kubernetes 1.15+](#kubernetes-115)
-    * [Verifying the deployment](#verifying-the-deployment)
-    * [Enabling topology awareness](#enabling-topology-awareness)
-* [Share protocol support matrix](#share-protocol-support-matrix)
-* [For developers](#for-developers)
 
 ## Configuration
 
@@ -27,6 +34,7 @@ Option | Default value | Description
 `--drivername` | `manila.csi.openstack.org` | Name of this driver
 `--nodeid` | _none_ | ID of this node
 `--nodeaz` | _none_ | Availability zone of this node
+`--runtime-config-file` | _none_ | Path to the [runtime configuration file](#runtime-configuration-file)
 `--with-topology` | _none_ | CSI Manila is topology-aware. See [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning) for more info
 `--share-protocol-selector` | _none_ | Specifies which Manila share protocol to use for this instance of the driver. See [supported protocols](#share-protocol-support-matrix) for valid values.
 `--fwdendpoint` | _none_ | [CSI Node Plugin](https://github.com/container-storage-interface/spec/blob/master/spec.md#rpc-interface) endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in `share-protocol-selector`. Check out the [Deployment](#deployment) section to see why this is necessary.
@@ -72,6 +80,8 @@ Mandatory secrets for _trustee authentication:_ `os-trustID`, `os-trusteeID`, `o
 
 Optionally, a custom certificate may be sourced via `os-certAuthorityPath` (path to a PEM file inside the plugin container). By default, the usual TLS verification is performed. To override this behavior and accept insecure certificates, set `os-TLSInsecure` to `true` (defaults to `false`).
 
+For a client TLS authentication use both `os-clientCertPath` and `os-clientKeyPath` (paths to TLS keypair PEM files inside the plugin container).
+
 ### Topology-aware dynamic provisioning
 
 Topology-aware dynamic provisioning makes it possible to reliably provision and use shares that are _not_ equally accessible from all compute nodes due to storage topology constraints.
@@ -114,25 +124,42 @@ Storage AZ does not influence
 
 [Enabling topology awareness in Kubernetes](#enabling-topology-awareness)
 
+### Runtime configuration file
+
+CSI Manila's runtime configuration file is a JSON document for modifying behavior of the driver at runtime.
+
+Schema:
+
+* Root object:
+  Attribute | Type | Description
+  ----------|------|------------
+  `nfs` | `NfsConfig` | Configuration for NFS shares. Optional.
+* `NfsConfig`:
+  Attribute | Type | Description
+  ----------|------|------------
+  `matchExportLocationAddress` | `string` | When mounting an NFS share, select an export location with matching IP address. No match between this address and at least a single export location for this share will result in an error. Expects a CIDR-formatted address. If prefix is not provided, /32 or /128 prefix is assumed for IPv4 and IPv6 respectively. Optional.
+
+In Kubernetes, you may store this configuration in a [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/) and expose it to CSI Manila pods as a [volume](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/#add-configmap-data-to-a-volume). Then enter the path to the file populated by the ConfigMap into `--runtime-config-file`. Demo ConfigMap is located in `examples/manila-csi-plugin/runtimeconfig-cm.yaml`. If you're deploying CSI Manila with Helm, setting `csimanila.runtimeConfig.enabled` to `true` will take care of the setup.
+
 ## Deployment
 
 The CSI Manila driver deals with the Manila service only. All node-related operations (attachments, mounts) are performed by a dedicated CSI Node Plugin, to which all Node Service RPCs are forwarded. This means that the operator is expected to already have a working deployment of that dedicated CSI Node Plugin.
 
 A single instance of the driver may serve only a single Manila share protocol. To serve multiple share protocols, multiple deployments of the driver need to be made. In order to avoid deployment collisions, each instance of the driver should be named differently, e.g. `csi-manila-cephfs`, `csi-manila-nfs`.
 
-### Kubernetes 1.15+
-
-Snapshots require `VolumeSnapshotDataSource=true` feature gate.
+### Kubernetes 1.17+
 
 The deployment consists of two main components: Controller and Node plugins along with their respective RBACs. Controller plugin is deployed as a StatefulSet and runs CSI Manila, [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) and [external-snapshotter](https://github.com/kubernetes-csi/external-snapshotter). Node plugin is deployed as a DaemonSet and runs CSI Manila and [csi-node-driver-registrar](https://github.com/kubernetes-csi/node-driver-registrar).
+
+Note: Snapshotting feature now requires a separate snapshot controller and CRDs to be deployed in the cluster. Please follow the related official [installation instructions](https://github.com/kubernetes-csi/external-snapshotter/blob/master/README.md#usage) for [external-snapshotter](https://github.com/kubernetes-csi/external-snapshotter) before continuing.
 
 **Deploying with Helm**
 
 This is the preferred way of deployment because it greatly simplifies the difficulties with managing multiple share protocols.
 
-CSI Manila Helm chart is located in `examples/manila-csi-plugin/helm-deployment`.
+CSI Manila Helm chart is located in `charts/manila-csi-plugin`.
 
-First, modify `values.yaml` to suite your environment, and then simply install the Helm chart with `$ helm install helm-deployment`.
+First, modify `values.yaml` to suite your environment, and then simply install the Helm chart with `$ helm install ./charts/manila-csi-plugin`.
 
 Note that the release name generated by `helm install` may not be suitable due to their length. The chart generates object names with the release name included in them, which may cause the names to exceed 63 characters and result in chart installation failure. You may use `--name` flag to set the release name manually. See [helm installation docs](https://helm.sh/docs/helm/#helm-install) for more info. Alternatively, you may also use `nameOverride` or `fullnameOverride` variables in `values.yaml` to override the respective names.  
 
@@ -208,3 +235,4 @@ Manila share protocol | CSI Node Plugin
 ## For developers
 
 If you'd like to contribute to CSI Manila, check out `docs/developers-csi-manila.md` to get you started.
+

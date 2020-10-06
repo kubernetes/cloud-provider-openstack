@@ -1,9 +1,16 @@
-# Authentication synchronization between Keystone and Kubernetes
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
-- [Overview](#overview)
-- [Configuration](#configuration)
-- [Example of sync config file](#example-of-sync-config-file)
-- [Full example using Keystone for Authentication and Kubernetes RBAC for Authorization](#full-example-using-keystone-for-authentication-and-kubernetes-rbac-for-authorization)
+- [Authentication synchronization between Keystone and Kubernetes](#authentication-synchronization-between-keystone-and-kubernetes)
+  - [Overview](#overview)
+  - [Configuration](#configuration)
+  - [Example of sync config file](#example-of-sync-config-file)
+  - [Full example using Keystone for Authentication and Kubernetes RBAC for Authorization](#full-example-using-keystone-for-authentication-and-kubernetes-rbac-for-authorization)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Authentication synchronization between Keystone and Kubernetes
 
 ## Overview
 

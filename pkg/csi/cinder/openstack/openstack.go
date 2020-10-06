@@ -29,7 +29,7 @@ import (
 	gcfg "gopkg.in/gcfg.v1"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	md "k8s.io/cloud-provider-openstack/pkg/util/metadata"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // userAgentData is used to add extra information to the gophercloud user-agent
@@ -45,7 +45,7 @@ type IOpenStack interface {
 	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
-	ListVolumes() ([]volumes.Volume, error)
+	ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error)
 	WaitDiskAttached(instanceID string, volumeID string) error
 	DetachVolume(instanceID, volumeID string) error
 	WaitDiskDetached(instanceID string, volumeID string) error
@@ -53,9 +53,8 @@ type IOpenStack interface {
 	GetVolume(volumeID string) (*volumes.Volume, error)
 	GetVolumesByName(name string) ([]volumes.Volume, error)
 	CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error)
-	ListSnapshots(limit, offset int, filters map[string]string) ([]snapshots.Snapshot, error)
+	ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error)
 	DeleteSnapshot(snapID string) error
-	GetSnapshotByNameAndVolumeID(n string, volumeId string) ([]snapshots.Snapshot, error)
 	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
 	WaitSnapshotReady(snapshotID string) error
 	GetInstanceByID(instanceID string) (*servers.Server, error)
@@ -102,6 +101,18 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 	if err != nil {
 		klog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
 		return cfg, err
+	}
+
+	// Update the config with data from clouds.yaml if UseClouds is enabled
+	if cfg.Global.UseClouds {
+		if cfg.Global.CloudsFile != "" {
+			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
+		}
+		err = openstack_provider.ReadClouds(&cfg.Config)
+		if err != nil {
+			return cfg, err
+		}
+		klog.V(5).Infof("Credentials are loaded from %s:", cfg.Global.CloudsFile)
 	}
 
 	return cfg, nil
@@ -178,4 +189,9 @@ func GetOpenStackProvider() (IOpenStack, error) {
 	}
 
 	return OsInstance, nil
+}
+
+// GetMetadataOpts returns metadataopts
+func (os *OpenStack) GetMetadataOpts() openstack_provider.MetadataOpts {
+	return os.metadataOpts
 }
