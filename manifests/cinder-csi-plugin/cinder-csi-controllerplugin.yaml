@@ -62,6 +62,7 @@ spec:
           image: quay.io/k8scsi/csi-snapshotter:v2.1.1
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--timeout=3m"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -73,6 +74,7 @@ spec:
           image: quay.io/k8scsi/csi-resizer:v0.4.0
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--timeout=3m"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
