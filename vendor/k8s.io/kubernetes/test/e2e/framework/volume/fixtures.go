@@ -44,6 +44,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -143,7 +144,7 @@ type Test struct {
 }
 
 // NewNFSServer is a NFS-specific wrapper for CreateStorageServer.
-func NewNFSServer(cs clientset.Interface, namespace string, args []string) (config TestConfig, pod *v1.Pod, ip string) {
+func NewNFSServer(cs clientset.Interface, namespace string, args []string) (config TestConfig, pod *v1.Pod, host string) {
 	config = TestConfig{
 		Namespace:          namespace,
 		Prefix:             "nfs",
@@ -155,8 +156,11 @@ func NewNFSServer(cs clientset.Interface, namespace string, args []string) (conf
 	if len(args) > 0 {
 		config.ServerArgs = args
 	}
-	pod, ip = CreateStorageServer(cs, config)
-	return config, pod, ip
+	pod, host = CreateStorageServer(cs, config)
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	return config, pod, host
 }
 
 // NewGlusterfsServer is a GlusterFS-specific wrapper for CreateStorageServer. Also creates the gluster endpoints object.
@@ -168,6 +172,23 @@ func NewGlusterfsServer(cs clientset.Interface, namespace string) (config TestCo
 		ServerPorts: []int{24007, 24008, 49152},
 	}
 	pod, ip = CreateStorageServer(cs, config)
+
+	service := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: config.Prefix + "-server",
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Protocol: v1.ProtocolTCP,
+					Port:     24007,
+				},
+			},
+		},
+	}
+
+	_, err := cs.CoreV1().Services(namespace).Create(context.TODO(), service, metav1.CreateOptions{})
+	framework.ExpectNoError(err, "failed to create service for Gluster server")
 
 	ginkgo.By("creating Gluster endpoints")
 	endpoints := &v1.Endpoints{
@@ -195,7 +216,7 @@ func NewGlusterfsServer(cs clientset.Interface, namespace string) (config TestCo
 			},
 		},
 	}
-	_, err := cs.CoreV1().Endpoints(namespace).Create(context.TODO(), endpoints, metav1.CreateOptions{})
+	_, err = cs.CoreV1().Endpoints(namespace).Create(context.TODO(), endpoints, metav1.CreateOptions{})
 	framework.ExpectNoError(err, "failed to create endpoints for Gluster server")
 
 	return config, pod, ip
