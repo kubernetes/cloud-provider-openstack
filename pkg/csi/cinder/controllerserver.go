@@ -81,6 +81,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volumes, err := cloud.GetVolumesByName(volName)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to check existing Volume")
 	}
 
 	if len(volumes) == 1 {
@@ -324,6 +325,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to check existing Snapshot")
 	}
 	var snap *ossnapshots.Snapshot
 
