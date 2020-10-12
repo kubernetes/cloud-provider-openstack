@@ -121,7 +121,6 @@ Use openstack command to verify:
 ```
 $ openstack volume snapshot list
 
-$
 ```
 
 ## ControllerPublish a volume
