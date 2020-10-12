@@ -547,7 +547,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.OutOfRange, "After round-up, volume size exceeds the limit specified")
 	}
 
-	_, err := cs.Cloud.GetVolume(volumeID)
+	volume, err := cs.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, "Volume not found")
@@ -555,7 +555,16 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
-	err = cs.Cloud.ExpandVolume(volumeID, volSizeGB)
+	if volume.Size >= volSizeGB {
+		// a volume was already resized
+		klog.V(2).Infof("Volume %q has been already expanded to %d, requested %d", volumeID, volume.Size, volSizeGB)
+		return &csi.ControllerExpandVolumeResponse{
+			CapacityBytes:         int64(volume.Size * 1024 * 1024 * 1024),
+			NodeExpansionRequired: true,
+		}, nil
+	}
+
+	err = cs.Cloud.ExpandVolume(volumeID, volume.Status, volSizeGB)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, fmt.Sprintf("Could not resize volume %q to size %v: %v", volumeID, volSizeGB, err))
 	}
