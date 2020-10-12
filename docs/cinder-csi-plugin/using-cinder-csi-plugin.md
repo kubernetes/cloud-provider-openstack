@@ -169,14 +169,14 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 To build the plugin, run
 
 ```
-export ARCH=amd64 # Defaults to amd64
+$ export ARCH=amd64 # Defaults to amd64
 $ make build-cmd-cinder-csi-plugin
 ``` 
 
 To build cinder-csi-plugin image
 
 ```
-export ARCH=amd64 # Defaults to amd64
+$ export ARCH=amd64 # Defaults to amd64
 $ make image-cinder-csi-plugin
 ``` 
 
@@ -205,5 +205,5 @@ Starting from Kubernetes 1.18, CSI migration is supported as beta feature. If yo
 
 * The CSI Migration feature for Cinder, when enabled, shims all plugin operations from the existing in-tree plugin to the `cinder.csi.openstack.org` CSI Driver. 
 * In order to use this feature, the Openstack Cinder CSI Driver must be installed on the cluster.
-* To turn on the migration, set CSIMigration and CSIMigrationOpenstack feature gates to true for kube-controller-manager and kubelet.
+* To turn on the migration, set `CSIMigration` and `CSIMigrationOpenstack` feature gates to true for kube-controller-manager and kubelet.
 * For more info, please refer [Migrate to CCM with CSI Migration](../migrate-to-ccm-with-csimigration.md#migrate-from-in-tree-cloud-provider-to-openstack-cloud-controller-manager-and-enable-csimigration) guide
