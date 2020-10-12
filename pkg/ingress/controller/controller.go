@@ -32,7 +32,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
-	nwv1beta1 "k8s.io/api/networking/v1beta1"
+	nwv1 "k8s.io/api/networking/v1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -43,12 +43,12 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	extlisters "k8s.io/client-go/listers/networking/v1beta1"
+	nwlisters "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
@@ -120,7 +120,7 @@ type Controller struct {
 	queue               workqueue.RateLimitingInterface
 	informer            informers.SharedInformerFactory
 	recorder            record.EventRecorder
-	ingressLister       extlisters.IngressLister
+	ingressLister       nwlisters.IngressLister
 	ingressListerSynced cache.InformerSynced
 	serviceLister       corelisters.ServiceLister
 	serviceListerSynced cache.InformerSynced
@@ -135,7 +135,7 @@ type Controller struct {
 // IsValid returns true if the given Ingress either doesn't specify
 // the ingress.class annotation, or it's set to the configured in the
 // ingress controller.
-func IsValid(ing *nwv1beta1.Ingress) bool {
+func IsValid(ing *nwv1.Ingress) bool {
 	ingress, ok := ing.GetAnnotations()[IngressKey]
 	if !ok {
 		log.WithFields(log.Fields{
@@ -272,10 +272,10 @@ func NewController(conf config.Config) *Controller {
 		kubeClient:          kubeClient,
 	}
 
-	ingInformer := kubeInformerFactory.Networking().V1beta1().Ingresses()
+	ingInformer := kubeInformerFactory.Networking().V1().Ingresses()
 	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			addIng := obj.(*nwv1beta1.Ingress)
+			addIng := obj.(*nwv1.Ingress)
 			key := fmt.Sprintf("%s/%s", addIng.Namespace, addIng.Name)
 
 			if !IsValid(addIng) {
@@ -287,8 +287,8 @@ func NewController(conf config.Config) *Controller {
 			controller.queue.AddRateLimited(Event{Obj: addIng, Type: CreateEvent})
 		},
 		UpdateFunc: func(old, new interface{}) {
-			newIng := new.(*nwv1beta1.Ingress)
-			oldIng := old.(*nwv1beta1.Ingress)
+			newIng := new.(*nwv1.Ingress)
+			oldIng := old.(*nwv1.Ingress)
 			if newIng.ResourceVersion == oldIng.ResourceVersion {
 				// Periodic resync will send update events for all known Ingresses.
 				// Two different versions of the same Ingress will always have different RVs.
@@ -312,7 +312,7 @@ func NewController(conf config.Config) *Controller {
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			delIng, ok := obj.(*nwv1beta1.Ingress)
+			delIng, ok := obj.(*nwv1.Ingress)
 			if !ok {
 				// If we reached here it means the ingress was deleted but its final state is unrecorded.
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -320,7 +320,7 @@ func NewController(conf config.Config) *Controller {
 					log.Errorf("couldn't get object from tombstone %#v", obj)
 					return
 				}
-				delIng, ok = tombstone.Obj.(*nwv1beta1.Ingress)
+				delIng, ok = tombstone.Obj.(*nwv1.Ingress)
 				if !ok {
 					log.Errorf("Tombstone contained object that is not an Ingress: %#v", obj)
 					return
@@ -402,10 +402,10 @@ func (c *Controller) nodeSyncLoop() {
 		return
 	}
 
-	ings := new(nwv1beta1.IngressList)
+	ings := new(nwv1.IngressList)
 	// NOTE(lingxiankong): only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
-	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(context.TODO(), opts); err != nil {
+	if ings, err = c.kubeClient.NetworkingV1().Ingresses("").List(context.TODO(), opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
 	}
@@ -474,7 +474,7 @@ func (c *Controller) processNextItem() bool {
 }
 
 func (c *Controller) processItem(event Event) error {
-	ing := event.Obj.(*nwv1beta1.Ingress)
+	ing := event.Obj.(*nwv1.Ingress)
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 
 	switch event.Type {
@@ -510,7 +510,7 @@ func (c *Controller) processItem(event Event) error {
 	return nil
 }
 
-func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
+func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 	lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 
@@ -616,7 +616,7 @@ func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretNam
 	return openstackutil.EnsureSecret(c.osClient.Barbican, toSecretName, "application/octet-stream", encoded)
 }
 
-func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
+func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	ingName := ing.ObjectMeta.Name
 	ingNamespace := ing.ObjectMeta.Namespace
 	clusterName := c.config.ClusterName
@@ -685,9 +685,19 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 	}
 
 	// Add default pool for the listener if 'backend' is defined
-	if ing.Spec.Backend != nil {
-		serviceName := fmt.Sprintf("%s/%s", ingNamespace, ing.Spec.Backend.ServiceName)
-		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
+	if ing.Spec.DefaultBackend != nil {
+		serviceName := fmt.Sprintf("%s/%s", ingNamespace, ing.Spec.DefaultBackend.Service.Name)
+
+		var portInfo intstr.IntOrString
+		if ing.Spec.DefaultBackend.Service.Port.Name != "" {
+			portInfo.Type = intstr.String
+			portInfo.StrVal = ing.Spec.DefaultBackend.Service.Port.Name
+		} else {
+			portInfo.Type = intstr.Int
+			portInfo.IntVal = ing.Spec.DefaultBackend.Service.Port.Number
+		}
+
+		nodePort, err := c.getServiceNodePort(serviceName, portInfo)
 		if err != nil {
 			return err
 		}
@@ -735,10 +745,18 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 
 		for _, path := range rule.HTTP.Paths {
 			// make the pool name unique in the load balancer
-			poolName := utils.Hash(fmt.Sprintf("%s+%s", path.Backend.ServiceName, path.Backend.ServicePort.String()))
+			poolName := utils.Hash(fmt.Sprintf("%s+%s", path.Backend.Service.Name, path.Backend.Service.Port.String()))
 
-			serviceName := fmt.Sprintf("%s/%s", ingNamespace, path.Backend.ServiceName)
-			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort)
+			serviceName := fmt.Sprintf("%s/%s", ingNamespace, path.Backend.Service.Name)
+			var portInfo intstr.IntOrString
+			if path.Backend.Service.Port.Name != "" {
+				portInfo.Type = intstr.String
+				portInfo.StrVal = path.Backend.Service.Port.Name
+			} else {
+				portInfo.Type = intstr.Int
+				portInfo.IntVal = path.Backend.Service.Port.Number
+			}
+			nodePort, err := c.getServiceNodePort(serviceName, portInfo)
 			if err != nil {
 				return err
 			}
@@ -808,13 +826,13 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress) error {
 	return nil
 }
 
-func (c *Controller) updateIngressStatus(ing *nwv1beta1.Ingress, vip string) (*nwv1beta1.Ingress, error) {
+func (c *Controller) updateIngressStatus(ing *nwv1.Ingress, vip string) (*nwv1.Ingress, error) {
 	newState := new(apiv1.LoadBalancerStatus)
 	newState.Ingress = []apiv1.LoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	newObj, err := c.kubeClient.NetworkingV1beta1().Ingresses(newIng.Namespace).UpdateStatus(context.TODO(), newIng, apimetav1.UpdateOptions{})
+	newObj, err := c.kubeClient.NetworkingV1().Ingresses(newIng.Namespace).UpdateStatus(context.TODO(), newIng, apimetav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -837,6 +855,8 @@ func (c *Controller) getService(key string) (*apiv1.Service, error) {
 }
 
 func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (int, error) {
+	log.WithFields(log.Fields{"service": name, "port": port.String()}).Debug("getting service nodeport")
+
 	svc, err := c.getService(name)
 	if err != nil {
 		return 0, err
@@ -856,7 +876,7 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 	}
 
 	if nodePort == 0 {
-		return 0, fmt.Errorf("failed to find service node port")
+		return 0, fmt.Errorf("failed to find nodeport for service %s", name)
 	}
 
 	return nodePort, nil
@@ -864,7 +884,7 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 
 // getStringFromIngressAnnotation searches a given Ingress for a specific annotationKey and either returns the
 // annotation's value or a specified defaultSetting
-func getStringFromIngressAnnotation(ingress *nwv1beta1.Ingress, annotationKey string, defaultValue string) string {
+func getStringFromIngressAnnotation(ingress *nwv1.Ingress, annotationKey string, defaultValue string) string {
 	if annotationValue, ok := ingress.Annotations[annotationKey]; ok {
 		return annotationValue
 	}
