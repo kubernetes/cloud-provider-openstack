@@ -1,5 +1,6 @@
 nameOverride: ""
 fullnameOverride: ""
+timeout: 3m
 
 csi:
   attacher:

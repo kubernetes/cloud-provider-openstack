@@ -31,7 +31,7 @@ spec:
           imagePullPolicy: {{ .Values.csi.attacher.image.pullPolicy }}
           args:
             - "--csi-address=$(ADDRESS)"
-            - "--timeout=3m"
+            - "--timeout={{ .Values.timeout }}"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -43,7 +43,7 @@ spec:
           imagePullPolicy: {{ .Values.csi.provisioner.image.pullPolicy }}
           args:
             - "--csi-address=$(ADDRESS)"
-            - "--timeout=3m"
+            - "--timeout={{ .Values.timeout }}"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -55,6 +55,7 @@ spec:
           imagePullPolicy: {{ .Values.csi.snapshotter.image.pullPolicy }}
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--timeout={{ .Values.timeout }}"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -66,6 +67,7 @@ spec:
           imagePullPolicy: {{ .Values.csi.resizer.image.pullPolicy }}
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--csiTimeout={{ .Values.timeout }}"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
