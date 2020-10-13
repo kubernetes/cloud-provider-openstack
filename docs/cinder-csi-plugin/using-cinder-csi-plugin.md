@@ -15,7 +15,7 @@
     - [Using the Helm chart](#using-the-helm-chart)
   - [Supported Features](#supported-features)
   - [Supported Parameters](#supported-parameters)
-  - [Local Developement](#local-developement)
+  - [Local Development](#local-development)
     - [Build](#build)
     - [Testing](#testing)
       - [Unit Tests](#unit-tests)
@@ -162,7 +162,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 | Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes| 
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |
 
-## Local Developement
+## Local Development
 
 ### Build
 
