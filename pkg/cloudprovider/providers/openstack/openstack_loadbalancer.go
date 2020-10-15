@@ -44,6 +44,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
@@ -58,6 +59,7 @@ import (
 // this timeout is used for waiting until the Loadbalancer provisioning status goes to ACTIVE state.
 const (
 	defaultLoadBalancerSourceRanges = "0.0.0.0/0"
+	defaultProxyHostnameSuffix      = "nip.io"
 	// loadbalancerActive* is configuration of exponential backoff for
 	// going into ACTIVE loadbalancer provisioning status. Starting with 1
 	// seconds, multiplying by 1.2 with each step and taking 19 steps at maximum
@@ -87,6 +89,7 @@ const (
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
+	ServiceAnnotationLoadBalancerProxyHostnameSuffix  = "loadbalancer.openstack.org/proxy-protocol-hostname-suffix"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
 	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
@@ -892,6 +895,11 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		}
 	}
 
+	useProxyProtocol, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
+	if err != nil {
+		return nil, err
+	}
+
 	if !lbaas.opts.UseOctavia {
 		// Check for TCP protocol on each port
 		for _, port := range ports {
@@ -1053,10 +1061,6 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 			// Use the protocol of the listerner
 			poolProto := v2pools.Protocol(listener.Protocol)
 
-			useProxyProtocol, err := getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
-			if err != nil {
-				return nil, err
-			}
 			if useProxyProtocol && keepClientIP {
 				return nil, fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 			}
@@ -1335,6 +1339,25 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 		status.Ingress = []corev1.LoadBalancerIngress{{IP: floatIP.FloatingIP}}
 	} else {
 		status.Ingress = []corev1.LoadBalancerIngress{{IP: loadbalancer.VipAddress}}
+	}
+
+	// If the load balancer is using the PROXY protocol, expose its IP address via
+	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
+	// This is a workaround for kubernetes#66607 that imitates a similar patch done
+	// on the Digital Ocean cloud provider.
+	if useProxyProtocol {
+		// By default, the universal nip.io service is used to provide a valid domain that is guaranteed
+		// to resolve to the LB's IP address. This can be changed via the following (optional) annotation.
+		hostnameSuffix := getStringFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyHostnameSuffix,
+			defaultProxyHostnameSuffix)
+		hostnameSuffix = strings.TrimPrefix(hostnameSuffix, ".")
+		hostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, hostnameSuffix)
+		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: hostname}}
+		if errs := validation.IsDNS1123Subdomain(hostnameSuffix); len(errs) > 0 {
+			joinedErrors := strings.Join(errs, ",")
+			return status, fmt.Errorf("invalid value \"%s\" for annotation %s: %s", hostnameSuffix,
+				ServiceAnnotationLoadBalancerProxyHostnameSuffix, joinedErrors)
+		}
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
