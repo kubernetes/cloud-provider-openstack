@@ -30,7 +30,6 @@
       jobs:
         - cloud-provider-openstack-format:
             irrelevant-files:
-              - ^docs/.*$
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
