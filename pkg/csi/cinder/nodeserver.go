@@ -46,6 +46,7 @@ type nodeServer struct {
 	Cloud    openstack.IOpenStack
 }
 
+// test
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	klog.V(4).Infof("NodePublishVolume: called with args %+v", *req)
 
