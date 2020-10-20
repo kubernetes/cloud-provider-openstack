@@ -13,6 +13,7 @@
     - [Load Balancer](#load-balancer)
     - [Metadata](#metadata)
   - [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+  - [Metrics](#metrics)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -228,3 +229,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 ## Exposing applications using services of LoadBalancer type
 
 Refer to [Exposing applications using services of LoadBalancer type](./expose-applications-using-loadbalancer-type-service.md)
+
+## Metrics
+
+Refer to [Metrics for openstack-cloud-controller-manager](./metrics.md)
