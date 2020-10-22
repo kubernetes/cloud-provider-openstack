@@ -135,15 +135,15 @@ spec:
           hostPath:
             path: /var/lib/kubelet/pods
             type: Directory
-    {{- if .Values.controllerplugin.affinity -}}
+{{ if .Values.controllerplugin.affinity }}
       affinity:
-{{ toYaml .Values.controllerplugin.affinity . | indent 8 }}
-    {{- end -}}
-    {{- if .Values.controllerplugin.nodeSelector -}}
+{{ toYaml .Values.controllerplugin.affinity | indent 8 }}
+{{ end }}
+{{ if .Values.controllerplugin.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.controllerplugin.nodeSelector | indent 8 }}
-    {{- end -}}
-    {{- if .Values.controllerplugin.tolerations -}}
+{{ end }}
+{{ if .Values.controllerplugin.tolerations }}
       tolerations:
 {{ toYaml .Values.controllerplugin.tolerations | indent 8 }}
-    {{- end -}}
+{{ end }}
