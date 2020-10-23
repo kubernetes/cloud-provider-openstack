@@ -1441,8 +1441,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		return nil, fmt.Errorf("failed to get listeners for load balancer %s: %v", loadbalancer.Name, err)
 	}
 
+	// Copy elements from oldListeners to a new slice which doesn't change during the iteration.
+	listenersCopy := make([]listeners.Listener, len(oldListeners))
+	copy(listenersCopy, oldListeners)
 	for _, port := range service.Spec.Ports {
-		listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, oldListeners, service, port, svcConf)
+		listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, listenersCopy, service, port, svcConf)
 		if err != nil {
 			return nil, err
 		}
