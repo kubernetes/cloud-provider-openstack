@@ -1033,32 +1033,8 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool
 	return nil
 }
 
-// Make sure the pool is created for the Service, nodes are added as pool members.
+// Make sure the pool is created for the Service
 func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listener, service *corev1.Service, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) (*v2pools.Pool, error) {
-	var members []v2pools.BatchUpdateMemberOpts
-	newMembers := sets.NewString()
-
-	for _, node := range nodes {
-		addr, err := nodeAddressForLB(node)
-		if err != nil {
-			if err == ErrNotFound {
-				// Node failure, do not create member
-				klog.Warningf("Failed to get the address of node %s for creating member: %v", node.Name, err)
-				continue
-			} else {
-				return nil, fmt.Errorf("error getting address of node %s: %v", node.Name, err)
-			}
-		}
-
-		member := v2pools.BatchUpdateMemberOpts{
-			Address:      addr,
-			ProtocolPort: int(port.NodePort),
-			Name:         &node.Name,
-			SubnetID:     &svcConf.lbMemberSubnetID,
-		}
-		members = append(members, member)
-		newMembers.Insert(fmt.Sprintf("%s-%d", addr, member.ProtocolPort))
-	}
 
 	pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
 	if err != nil && err != openstackutil.ErrNotFound {
@@ -1108,24 +1084,67 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 
 	klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
 
-	curMembers := sets.NewString()
+	return pool, nil
+}
+
+// Make sure nodes are added as pool members
+func (lbaas *LbaasV2) ensureOctaviaPoolMembers(loadbalancer *loadbalancers.LoadBalancer, nodes []*corev1.Node, nodePort int, pool *v2pools.Pool, svcConf *serviceConfig) error {
+
 	poolMembers, err := openstackutil.GetMembersbyPool(lbaas.lb, pool.ID)
 	if err != nil {
 		klog.Errorf("failed to get members in the pool %s: %v", pool.ID, err)
 	}
+
+	// Compose Set of member (addresses) that _should_ exist
+	addrs := make(map[string]*corev1.Node)
+	for _, node := range nodes {
+		addr, err := nodeAddressForLB(node)
+		if err != nil {
+			if err == ErrNotFound {
+				// Node failure, do not create member
+				klog.Warningf("Failed to get the address of node %s for creating member: %v", node.Name, err)
+				continue
+			} else {
+				return fmt.Errorf("error getting address of node %s: %v", node.Name, err)
+			}
+		}
+		addrs[addr] = node
+	}
+
+	if !lbaas.opts.BatchMemberUpdate {
+		return lbaas.ensurePoolMembers(poolMembers, addrs, nodePort, *pool, loadbalancer)
+	}
+
+	var members []v2pools.BatchUpdateMemberOpts
+	newMembers := sets.NewString()
+
+	// Add any new members for this port
+	for addr, node := range addrs {
+		member := v2pools.BatchUpdateMemberOpts{
+			Address:      addr,
+			ProtocolPort: nodePort,
+			Name:         &node.Name,
+			SubnetID:     &svcConf.lbMemberSubnetID,
+		}
+		members = append(members, member)
+		newMembers.Insert(fmt.Sprintf("%s-%d", addr, member.ProtocolPort))
+
+	}
+
+	curMembers := sets.NewString()
 	for _, m := range poolMembers {
 		curMembers.Insert(fmt.Sprintf("%s-%d", m.Address, m.ProtocolPort))
 	}
 
 	if !curMembers.Equal(newMembers) {
 		klog.V(2).Infof("Updating %d members for pool %s", len(members), pool.ID)
-		if err := openstackutil.BatchUpdatePoolMembers(lbaas.lb, lbID, pool.ID, members); err != nil {
-			return nil, err
+		if err := openstackutil.BatchUpdatePoolMembers(lbaas.lb, loadbalancer.ID, pool.ID, members); err != nil {
+			return err
 		}
 		klog.V(2).Infof("Successfully updated %d members for pool %s", len(members), pool.ID)
 	}
 
-	return pool, nil
+	return nil
 }
 
 // Make sure the listener is created for Service
@@ -1456,6 +1475,10 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, listener, service, port, nodes, svcConf)
 		if err != nil {
+			return nil, err
+		}
+
+		if err := lbaas.ensureOctaviaPoolMembers(loadbalancer, nodes, int(port.NodePort), pool, svcConf); err != nil {
 			return nil, err
 		}
 
@@ -1826,7 +1849,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 				klog.V(4).Infof("Creating member for pool %s", pool.ID)
 				mc := metrics.NewMetricContext("loadbalancer_member", "create")
 				_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
-					Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, name)),
+					Name:         node.Name,
 					ProtocolPort: int(port.NodePort),
 					Address:      addr,
 					SubnetID:     lbaas.opts.SubnetID,
@@ -2407,7 +2430,12 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, &listener, service, port, nodes, svcConf)
+		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, &listener, service, port, nodes, svcConf)
+		if err != nil {
+			return err
+		}
+
+		err = lbaas.ensureOctaviaPoolMembers(loadbalancer, nodes, int(port.NodePort), pool, svcConf)
 		if err != nil {
 			return err
 		}
@@ -2421,6 +2449,56 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 	mc := metrics.NewMetricContext("loadbalancer", "update")
 	err := lbaas.updateLoadBalancer(ctx, clusterName, service, nodes)
 	return mc.ObserveReconcile(err)
+}
+
+func (lbaas *LbaasV2) ensurePoolMembers(currentMembers []v2pools.Member, addrs map[string]*corev1.Node, nodePort int, pool v2pools.Pool, loadbalancer *loadbalancers.LoadBalancer) error {
+
+	members := make(map[string]v2pools.Member)
+	for _, member := range currentMembers {
+		members[member.Address] = member
+	}
+
+	// Add any new members for this port
+	for addr, node := range addrs {
+		if _, ok := members[addr]; ok && members[addr].ProtocolPort == nodePort {
+			// Already exists, do not create member
+			continue
+		}
+		mc := metrics.NewMetricContext("loadbalancer_member", "create")
+		_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
+			Name:         node.Name,
+			Address:      addr,
+			ProtocolPort: nodePort,
+			SubnetID:     lbaas.opts.SubnetID,
+		}).Extract()
+		if mc.ObserveRequest(err) != nil {
+			return err
+		}
+		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+		if err != nil {
+			return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after creating member, current provisioning status %s", provisioningStatus)
+		}
+	}
+
+	// Remove any old members for this port
+	for _, member := range members {
+		if _, ok := addrs[member.Address]; ok && member.ProtocolPort == nodePort {
+			// Still present, do not delete member
+			continue
+		}
+		mc := metrics.NewMetricContext("loadbalancer_member", "delete")
+		err := v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
+		if err != nil && !cpoerrors.IsNotFound(err) {
+			return mc.ObserveRequest(err)
+		}
+		mc.ObserveRequest(nil)
+		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
+		if err != nil {
+			return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
+		}
+	}
+
+	return nil
 }
 
 func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
@@ -2500,7 +2578,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 	}
 
 	// Check for adding/removing members associated with each port
-	for portIndex, port := range ports {
+	for _, port := range ports {
 		// Get listener associated with this port
 		listener, ok := lbListeners[portKey{
 			Protocol: toListenersProtocol(port.Protocol),
@@ -2521,49 +2599,11 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 		if err != nil {
 			return fmt.Errorf("error getting pool members %s: %v", pool.ID, err)
 		}
-		members := make(map[string]v2pools.Member)
-		for _, member := range getMembers {
-			members[member.Address] = member
-		}
 
-		// Add any new members for this port
-		for addr, node := range addrs {
-			if _, ok := members[addr]; ok && members[addr].ProtocolPort == int(port.NodePort) {
-				// Already exists, do not create member
-				continue
-			}
-			mc := metrics.NewMetricContext("loadbalancer_member", "create")
-			_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
-				Name:         cutString(fmt.Sprintf("member_%d_%s_%s_", portIndex, node.Name, loadbalancer.Name)),
-				Address:      addr,
-				ProtocolPort: int(port.NodePort),
-				SubnetID:     lbaas.opts.SubnetID,
-			}).Extract()
-			if mc.ObserveRequest(err) != nil {
-				return err
-			}
-			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-			if err != nil {
-				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after creating member, current provisioning status %s", provisioningStatus)
-			}
-		}
-
-		// Remove any old members for this port
-		for _, member := range members {
-			if _, ok := addrs[member.Address]; ok && member.ProtocolPort == int(port.NodePort) {
-				// Still present, do not delete member
-				continue
-			}
-			mc := metrics.NewMetricContext("loadbalancer_member", "delete")
-			err = v2pools.DeleteMember(lbaas.lb, pool.ID, member.ID).ExtractErr()
-			if err != nil && !cpoerrors.IsNotFound(err) {
-				return mc.ObserveRequest(err)
-			}
-			mc.ObserveRequest(nil)
-			provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
-			if err != nil {
-				return fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting member, current provisioning status %s", provisioningStatus)
-			}
+		//ensure members
+		err = lbaas.ensurePoolMembers(getMembers, addrs, int(port.NodePort), pool, loadbalancer)
+		if err != nil {
+			return fmt.Errorf("error ensuring pool members %s: %v", pool.ID, err)
 		}
 	}
 

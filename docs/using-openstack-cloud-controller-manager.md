@@ -201,7 +201,10 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `cascade-delete`
   Determines whether or not to perform cascade deletion of load balancers. Default: true.
-  
+
+* `batch-member-update`
+  Determines whether or not to perform batch update of pool members. Default: true.
+
 * `flavor-id`
   The id of the loadbalancer flavor to use. Uses octavia default if not set.
 

@@ -135,6 +135,7 @@ type LoadBalancerOpts struct {
 	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
 	FlavorID             string              `gcfg:"flavor-id"`
 	AvailabilityZone     string              `gcfg:"availability-zone"`
+	BatchMemberUpdate    bool                `gcfg:"batch-member-update"` // applicable for octavia
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -388,6 +389,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorTimeout = MyDuration{3 * time.Second}
 	cfg.LoadBalancer.MonitorMaxRetries = 1
 	cfg.LoadBalancer.CascadeDelete = true
+	cfg.LoadBalancer.BatchMemberUpdate = true
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
