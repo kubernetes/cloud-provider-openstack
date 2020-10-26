@@ -125,15 +125,12 @@ spec:
             name: manila-csi-runtimeconf-cm
         {{- end }}
         {{- end }}
-{{ if .Values.nodeplugin.affinity }}
-      affinity:
-{{ toYaml .Values.nodeplugin.affinity | indent 8 }}
-{{ end }}
-{{ if .Values.nodeplugin.nodeSelector }}
-      nodeSelector:
-{{ toYaml .Values.nodeplugin.nodeSelector | indent 8 }}
-{{ end }}
-{{ if .Values.nodeplugin.tolerations }}
-      tolerations:
-{{ toYaml .Values.nodeplugin.tolerations | indent 8 }}
-{{ end }}
+    {{- if .Values.nodeplugin.affinity }}
+      affinity: {{ toYaml .Values.nodeplugin.affinity | nindent 8 }}
+    {{- end }}
+    {{- if .Values.nodeplugin.nodeSelector }}
+      nodeSelector: {{ toYaml .Values.nodeplugin.nodeSelector | nindent 8 }}
+    {{- end }}
+    {{- if .Values.nodeplugin.tolerations }}
+      tolerations: {{ toYaml .Values.nodeplugin.tolerations | nindent 8 }}
+    {{- end }}
