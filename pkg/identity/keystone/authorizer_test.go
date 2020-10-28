@@ -309,6 +309,18 @@ func TestAuthorizerVersion2(t *testing.T) {
 			Roles:       {"clusteradmin"},
 		},
 	}
+	testuser1 := &user.DefaultInfo{
+		Name:   "test1",
+		Groups: []string{"group"},
+	}
+	testuser2 := &user.DefaultInfo{
+		Name:   "test2",
+		Groups: []string{"group"},
+		Extra: map[string][]string{
+			ProjectName: {"demo"},
+			Roles:       {"testuser"},
+		},
+	}
 
 	// Test developer
 	attrs := authorizer.AttributesRecord{User: developer, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "pods"}
@@ -375,6 +387,28 @@ func TestAuthorizerVersion2(t *testing.T) {
 	th.AssertEquals(t, authorizer.DecisionDeny, decision)
 
 	attrs = authorizer.AttributesRecord{User: clusteradmin, ResourceRequest: false, Verb: "get", Path: "/healthz"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	// testuser1 without the extra info
+	attrs = authorizer.AttributesRecord{User: testuser1, ResourceRequest: true, Verb: "get", Namespace: "", Resource: "namespaces"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: testuser1, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "pods"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	// testuser2 request Namespace resource and Non-namespace resources
+	attrs = authorizer.AttributesRecord{User: testuser2, ResourceRequest: true, Verb: "get", Namespace: "", Resource: "namespaces"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionAllow, decision)
+
+	attrs = authorizer.AttributesRecord{User: testuser2, ResourceRequest: true, Verb: "get", Namespace: "", Resource: "pods"}
+	decision, _, _ = a.Authorize(attrs)
+	th.AssertEquals(t, authorizer.DecisionDeny, decision)
+
+	attrs = authorizer.AttributesRecord{User: testuser2, ResourceRequest: true, Verb: "get", Namespace: "default", Resource: "pods"}
 	decision, _, _ = a.Authorize(attrs)
 	th.AssertEquals(t, authorizer.DecisionAllow, decision)
 }
