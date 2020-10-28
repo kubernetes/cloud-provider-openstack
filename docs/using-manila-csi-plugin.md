@@ -48,7 +48,7 @@ Parameter | Required | Description
 `type` | _yes_ | Manila [share type](https://wiki.openstack.org/wiki/Manila/Concepts#share_type)
 `shareNetworkID` | _no_ | Manila [share network ID](https://wiki.openstack.org/wiki/Manila/Concepts#share_network)
 `availability` | _no_ | Manila availability zone of the provisioned share. If none is provided, the default Manila zone will be used. Note that this parameter is opaque to the CO and does not influence placement of workloads that will consume this share, meaning they may be scheduled onto any node of the cluster. If the specified Manila AZ is not equally accessible from all compute nodes of the cluster, use [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning).
-`appendShareMetadata` | _no_ | Append user-defined metadata to the provisioned share. Must be a string with a valid JSON object. The object must consist of key-value pairs of type string. Example: `"{..., \"key\": \"value\"}"`.
+`appendShareMetadata` | _no_ | Append user-defined metadata to the provisioned share. If not empty, this field must be a string with a valid JSON object. The object must consist of key-value pairs of type string. Example: `"{..., \"key\": \"value\"}"`.
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `nfs-shareClient` | _no_ | Relevant for NFS Manila shares. Specifies what address has access to the NFS share. Defaults to `0.0.0.0/0`, i.e. anyone. 
 
