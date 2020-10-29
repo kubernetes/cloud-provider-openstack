@@ -73,6 +73,8 @@ If you are already running a Kubernetes cluster (installed by kubeadm) but using
 
 [![asciicast](https://asciinema.org/a/303399.svg)](https://asciinema.org/a/303399?speed=2)
 
+Also, checkout the guide on [Migrate to CCM](./migrate-to-ccm-with-csimigration.md)
+
 ## Config openstack-cloud-controller-manager
 
 Implementation of openstack-cloud-controller-manager relies on several OpenStack services.

@@ -235,5 +235,5 @@ Manila share protocol | CSI Node Plugin
 
 ## For developers
 
-If you'd like to contribute to CSI Manila, check out `docs/developers-csi-manila.md` to get you started.
+If you'd like to contribute to CSI Manila, check out `docs/manila-csi-plugin/developers-csi-manila.md` to get you started.
 
