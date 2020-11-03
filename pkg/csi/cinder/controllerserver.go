@@ -66,7 +66,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volType := req.GetParameters()["type"]
 
 	var volAvailability string
-	if req.GetAccessibilityRequirements() != nil {
+	// only check volume topo when it's enabled
+	if cs.Driver.withTypology && req.GetAccessibilityRequirements() != nil {
 		volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
 	}
 

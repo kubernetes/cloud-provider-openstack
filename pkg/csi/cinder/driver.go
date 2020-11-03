@@ -41,12 +41,13 @@ var (
 )
 
 type CinderDriver struct {
-	name        string
-	nodeID      string
-	fqVersion   string //Fully qualified version in format {Version}@{CPO version}
-	endpoint    string
-	cloudconfig string
-	cluster     string
+	name         string
+	nodeID       string
+	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
+	endpoint     string
+	cloudconfig  string
+	cluster      string
+	withTypology bool
 
 	ids *identityServer
 	cs  *controllerServer
@@ -57,7 +58,7 @@ type CinderDriver struct {
 	nscap []*csi.NodeServiceCapability
 }
 
-func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
+func NewDriver(nodeID, endpoint, cluster string, withTypo bool) *CinderDriver {
 
 	d := &CinderDriver{}
 	d.name = driverName
@@ -65,6 +66,7 @@ func NewDriver(nodeID, endpoint, cluster string) *CinderDriver {
 	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
 	d.endpoint = endpoint
 	d.cluster = cluster
+	d.withTypology = withTypo
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)

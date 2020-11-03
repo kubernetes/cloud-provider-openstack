@@ -25,7 +25,7 @@ func TestDriver(t *testing.T) {
 	cluster := "kubernetes"
 	nodeID := "fake-node"
 
-	d := cinder.NewDriver(nodeID, endpoint, cluster)
+	d := cinder.NewDriver(nodeID, endpoint, cluster, true)
 	fakecloudprovider := getfakecloud()
 	openstack.OsInstance = fakecloudprovider
 

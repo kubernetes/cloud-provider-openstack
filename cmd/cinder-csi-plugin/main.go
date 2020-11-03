@@ -32,10 +32,11 @@ import (
 )
 
 var (
-	endpoint    string
-	nodeID      string
-	cloudconfig string
-	cluster     string
+	withTopology bool
+	endpoint     string
+	nodeID       string
+	cloudconfig  string
+	cluster      string
 )
 
 func init() {
@@ -85,6 +86,9 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
+	// default topology is enabled
+	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", true, "cluster is topology-aware")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	logs.InitLogs()
@@ -100,7 +104,7 @@ func main() {
 
 func handle() {
 
-	d := cinder.NewDriver(nodeID, endpoint, cluster)
+	d := cinder.NewDriver(nodeID, endpoint, cluster, withTopology)
 	// Initiliaze cloud
 	openstack.InitOpenStackProvider(cloudconfig)
 	cloud, err := openstack.GetOpenStackProvider()
