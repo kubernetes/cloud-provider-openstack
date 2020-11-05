@@ -11,7 +11,7 @@ metadata:
 spec:
   containers:
     - name: openstack-cloud-controller-manager
-      image: docker.io/k8scloudprovider/openstack-cloud-controller-manager:v1.19.0
+      image: docker.io/k8scloudprovider/openstack-cloud-controller-manager:v1.19.2
       args:
         - /bin/openstack-cloud-controller-manager
         - --v=1
