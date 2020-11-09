@@ -209,7 +209,6 @@ type AuthOpts struct {
 	CertFile string `gcfg:"cert-file" mapstructure:"cert-file" name:"os-clientCertPath" value:"optional" dependsOn:"os-clientKeyPath"`
 	KeyFile  string `gcfg:"key-file" mapstructure:"key-file" name:"os-clientKeyPath" value:"optional" dependsOn:"os-clientCertPath"`
 
-	// Manila only options
 	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
 	// backward compatibility with the manila-csi-plugin
 	CAFileContents  string `name:"os-certAuthority" value:"optional"`
