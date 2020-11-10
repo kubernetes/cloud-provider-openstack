@@ -143,6 +143,8 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   The name of an application credential to authenticate with. If `application-credential-id` is not set, the user name and domain need to be set.
 * `application-credential-secret`
   The secret of an application credential to authenticate with.
+* `os-TLSInsecure`
+  If set to `true`, then the server’s certificate will not be verified. Default is `false`.
 
 ###  Networking
 
