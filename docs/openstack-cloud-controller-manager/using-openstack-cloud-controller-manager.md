@@ -51,7 +51,7 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
 
 - Bootstrap worker nodes. You need to set `--cloud-provider=external` for kubelet service before running `kubeadm join`.
 
-- Create a secret containing the cloud configuration. You can find an example config file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config). If you have certs you need put the cert file into folder `/etc/ssl/certs/` and update `ca-file` in the configuration file, refer to `ca-file` option [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#global) for further information. After that, Save the configuration to a file named *cloud.conf*, then:
+- Create a secret containing the cloud configuration. You can find an example config file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config). If you have certs you need put the cert file into folder `/etc/ssl/certs/` and update `ca-file` in the configuration file, refer to `ca-file` option [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) for further information. After that, Save the configuration to a file named *cloud.conf*, then:
 
     ```shell
     kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
@@ -236,4 +236,4 @@ Refer to [Exposing applications using services of LoadBalancer type](./expose-ap
 
 ## Metrics
 
-Refer to [Metrics for openstack-cloud-controller-manager](./metrics.md)
+Refer to [Metrics for openstack-cloud-controller-manager](../metrics.md)
