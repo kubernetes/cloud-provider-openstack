@@ -71,10 +71,10 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
         - name: csi-resizer
-          image: k8s.gcr.io/sig-storage/csi-resizer:v0.5.1
+          image: k8s.gcr.io/sig-storage/csi-resizer:v1.1.0
           args:
             - "--csi-address=$(ADDRESS)"
-            - "--csiTimeout=3m"
+            - "--timeout=3m"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
