@@ -75,6 +75,7 @@ type OpenStack struct {
 type BlockStorageOpts struct {
 	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
 	RescanOnResize        bool  `gcfg:"rescan-on-resize"`
+	IgnoreVolumeAZ        bool  `gcfg:"ignore-volume-az"`
 }
 
 type Config struct {
