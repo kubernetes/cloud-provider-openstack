@@ -118,6 +118,12 @@
               - go.sum$
               - Makefile$
               - .zuul.yaml$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$ 
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:
@@ -148,6 +154,7 @@
               - go.mod$
               - go.sum$
               - Makefile$
+              - ^.gitignore$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
