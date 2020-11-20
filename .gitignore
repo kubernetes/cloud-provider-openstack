@@ -156,3 +156,5 @@ zz_generated.openapi.go
 /snap
 /prime
 *.snap
+
+test

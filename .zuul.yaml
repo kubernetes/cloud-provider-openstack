@@ -153,7 +153,6 @@
               - ^.*\.md$
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
