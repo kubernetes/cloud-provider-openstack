@@ -254,7 +254,7 @@ func (cloud *cloud) GetInstanceByID(instanceID string) (*servers.Server, error) 
 	return inst, nil
 }
 
-func (cloud *cloud) ExpandVolume(volumeID string, size int) error {
+func (cloud *cloud) ExpandVolume(volumeID string, status string, size int) error {
 	return nil
 }
 

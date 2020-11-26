@@ -58,7 +58,7 @@ type IOpenStack interface {
 	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
 	WaitSnapshotReady(snapshotID string) error
 	GetInstanceByID(instanceID string) (*servers.Server, error)
-	ExpandVolume(volumeID string, size int) error
+	ExpandVolume(volumeID string, status string, size int) error
 	GetMaxVolLimit() int64
 	GetMetadataOpts() openstack_provider.MetadataOpts
 	GetBlockStorageOpts() BlockStorageOpts
@@ -75,6 +75,7 @@ type OpenStack struct {
 type BlockStorageOpts struct {
 	NodeVolumeAttachLimit int64 `gcfg:"node-volume-attach-limit"`
 	RescanOnResize        bool  `gcfg:"rescan-on-resize"`
+	IgnoreVolumeAZ        bool  `gcfg:"ignore-volume-az"`
 }
 
 type Config struct {

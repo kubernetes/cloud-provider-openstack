@@ -18,7 +18,7 @@ spec:
         - --cloud-config=$(CLOUD_CONFIG)
         - --cloud-provider=openstack
         - --use-service-account-credentials=true
-        - --address=127.0.0.1
+        - --bind-address=127.0.0.1
       volumeMounts:
         - mountPath: /etc/kubernetes/pki
           name: k8s-certs

@@ -108,7 +108,8 @@ data:
     openstack:
       auth-url: ${auth_url}
       domain-name: ${domain-name}
-      username: ${user_id}
+      username: ${user_name}
+      # user-id: ${user_id}
       password: ${password}
       project-id: ${project_id}
       region: ${region}
@@ -212,31 +213,31 @@ Wait until the StatefulSet is up and running.
 ### Create a backend service
 Create a simple web service that is listening on a HTTP server on port 8080.
 
-```bash
+```shell
 $ cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-name: webserver
-namespace: default
-labels:
-  app: webserver
-spec:
-replicas: 1
-selector:
-  matchLabels:
+  name: webserver
+  namespace: default
+  labels:
     app: webserver
-template:
-  metadata:
-    labels:
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
       app: webserver
-  spec:
-    containers:
-    - name: webserver
-      image: lingxiankong/alpine-test
-      imagePullPolicy: IfNotPresent
-      ports:
-        - containerPort: 8080
+  template:
+    metadata:
+      labels:
+        app: webserver
+    spec:
+      containers:
+      - name: webserver
+        image: lingxiankong/alpine-test
+        imagePullPolicy: IfNotPresent
+        ports:
+          - containerPort: 8080
 EOF
 $ kubectl expose deployment webserver --type=NodePort --target-port=8080
 $ kubectl get svc
@@ -246,8 +247,9 @@ webserver    NodePort    10.105.129.150   <none>        8080:32461/TCP   9h
 
 When you create a Service of type NodePort, Kubernetes makes your Service available on a randomly selected high port number (e.g. 32461) on all the nodes in your cluster. Generally the Kubernetes nodes are not externally accessible by default, creating this Service does not make your application accessible from the Internet. However, we could verify the service using its `CLUSTER-IP` on Kubernetes master node:
 
-```bash
-$ curl http://10.105.129.150:8080
+```shell
+$ ip=10.105.129.150
+$ curl http://$ip:8080
 webserver-58fcfb75fb-dz5kn
 ```
 
@@ -257,9 +259,9 @@ Next, we create an Ingress resource to make your HTTP web server application pub
 
 The following command defines an Ingress resource that forwards traffic that requests `http://foo.bar.com/ping` to the webserver:
 
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: networking.k8s.io/v1beta1
+```shell
+$ cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: test-octavia-ingress
@@ -272,15 +274,18 @@ spec:
     http:
       paths:
       - path: /ping
+        pathType: Exact
         backend:
-          serviceName: webserver
-          servicePort: 8080
+          service:
+            name: webserver
+            port:
+              number: 8080
 EOF
 ```
 
 Kubernetes creates an Ingress resource on your cluster. The octavia-ingress-controller service running inside the cluster is responsible for creating/maintaining the corresponding resources in Octavia to route all external HTTP traffic (on port 80) to the `webserver` NodePort Service you exposed.
 
-> If you don't want your Ingress to be accessible from the public internet, you could set the annotation `octavia.ingress.kubernetes.io/internal` to true.
+> If you don't want your Ingress to be accessible from the public internet, you should set the annotation `octavia.ingress.kubernetes.io/internal` to true.
 
 Verify that Ingress Resource has been created. Please note that the IP address for the Ingress Resource will not be defined right away (wait for the ADDRESS field to get populated):
 
@@ -297,8 +302,8 @@ test-octavia-ingress   <none>   foo.bar.com   103.197.62.239   80      25s
 For testing purpose, you can log into a host that could connect to the floating IP, you should be able to access the backend service by sending HTTP request to the domain name specified in the Ingress resource:
 
 ```shell
-$ IPADDRESS=103.197.62.239
-$ curl -H "Host: foo.bar.com" http://$IPADDRESS/ping
+$ ip=103.197.62.239
+$ curl -H "Host: foo.bar.com" http://$ip/ping
 webserver-58fcfb75fb-dz5kn
 ```
 
@@ -349,12 +354,59 @@ Ingress and enable the more secure HTTPS protocol.
     kubectl create secret tls tls-secret --cert foo.bar.com.crt --key foo.bar.com.key
     ```
 
-1. Create a TLS Ingress and wait for it's allocated the IP address.
+3. Create a default backend service for the ingress. The service type should be NodePort so that it is accessible to the ingress.
+
+    ```shell
+    $ cat <<EOF | kubectl apply -f -
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: default-http-backend
+      labels:
+        app: default-http-backend
+      namespace: default
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: default-http-backend
+      template:
+        metadata:
+          labels:
+            app: default-http-backend
+        spec:
+          containers:
+          - name: default-http-backend
+            # Any image is permissible as long as:
+            # 1. It serves a 404 page at /
+            # 2. It serves 200 on a /healthz endpoint
+            image: k8s.gcr.io/defaultbackend-amd64:1.5
+            ports:
+            - containerPort: 8080
+    ---
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: default-http-backend
+      namespace: default
+      labels:
+        app: default-http-backend
+    spec:
+      type: NodePort
+      ports:
+      - port: 80
+        targetPort: 8080
+      selector:
+        app: default-http-backend
+    EOF
+    ```
+
+4. Create a TLS Ingress and wait for it's allocated the IP address.
 
     ```shell script
-    cat <<EOF | kubectl apply -f -
+    $ cat <<EOF | kubectl apply -f -
     ---
-    apiVersion: networking.k8s.io/v1beta1
+    apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
       name: test-octavia-ingress
@@ -362,9 +414,11 @@ Ingress and enable the more secure HTTPS protocol.
         kubernetes.io/ingress.class: "openstack"
         octavia.ingress.kubernetes.io/internal: "false"
     spec:
-      backend:
-        serviceName: default-http-backend
-        servicePort: 80
+      defaultBackend:
+        service:
+          name: default-http-backend
+          port:
+            number: 80
       tls:
         - secretName: tls-secret
       rules:
@@ -372,9 +426,12 @@ Ingress and enable the more secure HTTPS protocol.
           http:
             paths:
             - path: /ping
+              pathType: Exact
               backend:
-                serviceName: webserver
-                servicePort: 8080
+                service:
+                  name: webserver
+                  port:
+                    number: 8080
     EOF
     $ kubectl get ing
     NAME                   HOSTS             ADDRESS        PORTS     AGE
@@ -390,5 +447,5 @@ Ingress and enable the more secure HTTPS protocol.
     ```
 
 > NOTE: octavia-ingress-controller currently doesn't support to integrate with
-`cert-manager` to create the non-existing secret dynamically. Could be improved
-in the future.
+> `cert-manager` to create the non-existing secret dynamically. Could be improved
+> in the future.
