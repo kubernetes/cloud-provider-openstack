@@ -196,6 +196,8 @@ type AuthOpts struct {
 	TenantID         string `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password|os-clientCertPath"`
 	TenantName       string `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password|os-clientCertPath"`
 	TrustID          string `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
+	TrusteeID        string `gcfg:"trustee-id" mapstructure:"trustee-id" name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
+	TrusteePassword  string `gcfg:"trustee-password" mapstructure:"trustee-password" name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
 	DomainID         string `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password|os-clientCertPath"`
 	DomainName       string `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password|os-clientCertPath"`
 	TenantDomainID   string `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
@@ -204,17 +206,14 @@ type AuthOpts struct {
 	UserDomainName   string `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
 	Region           string `name:"os-region"`
 	CAFile           string `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
+	TLSInsecure      string `gcfg:"tls-insecure" mapstructure:"tls-insecure" name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
 
 	// TLS client auth
 	CertFile string `gcfg:"cert-file" mapstructure:"cert-file" name:"os-clientCertPath" value:"optional" dependsOn:"os-clientKeyPath"`
 	KeyFile  string `gcfg:"key-file" mapstructure:"key-file" name:"os-clientKeyPath" value:"optional" dependsOn:"os-clientCertPath"`
 
-	// Manila only options
-	TLSInsecure string `name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
 	// backward compatibility with the manila-csi-plugin
-	CAFileContents  string `name:"os-certAuthority" value:"optional"`
-	TrusteeID       string `name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
-	TrusteePassword string `name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
+	CAFileContents string `name:"os-certAuthority" value:"optional"`
 
 	UseClouds  bool   `gcfg:"use-clouds" mapstructure:"use-clouds" name:"os-useClouds" value:"optional"`
 	CloudsFile string `gcfg:"clouds-file,omitempty" mapstructure:"clouds-file,omitempty" name:"os-cloudsFile" value:"optional"`

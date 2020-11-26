@@ -360,12 +360,12 @@ func (_m *OpenStackMock) GetInstanceByID(instanceID string) (*servers.Server, er
 }
 
 // ExpandVolume provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) ExpandVolume(volumeID string, size int) error {
-	ret := _m.Called(volumeID, size)
+func (_m *OpenStackMock) ExpandVolume(volumeID string, status string, size int) error {
+	ret := _m.Called(volumeID, status, size)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, int) error); ok {
-		r0 = rf(volumeID, size)
+	if rf, ok := ret.Get(0).(func(string, string, int) error); ok {
+		r0 = rf(volumeID, status, size)
 	} else {
 		r0 = ret.Error(0)
 	}

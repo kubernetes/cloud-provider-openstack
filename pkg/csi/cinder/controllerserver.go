@@ -66,30 +66,34 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volType := req.GetParameters()["type"]
 
 	var volAvailability string
-	if req.GetAccessibilityRequirements() != nil {
-		volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
-	}
+
+	// First check if volAvailability is already specified, if not get preferred from Topology
+	// Required, incase vol AZ is different from node AZ
+	volAvailability = req.GetParameters()["availability"]
 
 	if len(volAvailability) == 0 {
-		// Volume Availability - Default is nova
-		volAvailability = req.GetParameters()["availability"]
+		// Check from Topology
+		if req.GetAccessibilityRequirements() != nil {
+			volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
+		}
 	}
 
 	cloud := cs.Cloud
+	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
 
 	// Verify a volume with the provided name doesn't already exist for this tenant
 	volumes, err := cloud.GetVolumesByName(volName)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to get volumes")
 	}
 
 	if len(volumes) == 1 {
 		if volSizeGB != volumes[0].Size {
 			return nil, status.Error(codes.AlreadyExists, "Volume Already exists with same name and different capacity")
 		}
-
 		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", volumes[0].ID, volumes[0].AvailabilityZone, volumes[0].Size)
-		return getCreateVolumeResponse(&volumes[0]), nil
+		return getCreateVolumeResponse(&volumes[0], ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
 	} else if len(volumes) > 1 {
 		klog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, status.Error(codes.Internal, "Multiple volumes reported by Cinder with same name")
@@ -134,7 +138,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
-	return getCreateVolumeResponse(vol), nil
+	return getCreateVolumeResponse(vol, ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
@@ -324,6 +328,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
 	if err != nil {
 		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
+		return nil, status.Error(codes.Internal, "Failed to get snapshots")
 	}
 	var snap *ossnapshots.Snapshot
 
@@ -547,7 +552,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.OutOfRange, "After round-up, volume size exceeds the limit specified")
 	}
 
-	_, err := cs.Cloud.GetVolume(volumeID)
+	volume, err := cs.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, "Volume not found")
@@ -555,7 +560,16 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Error(codes.Internal, fmt.Sprintf("GetVolume failed with error %v", err))
 	}
 
-	err = cs.Cloud.ExpandVolume(volumeID, volSizeGB)
+	if volume.Size >= volSizeGB {
+		// a volume was already resized
+		klog.V(2).Infof("Volume %q has been already expanded to %d, requested %d", volumeID, volume.Size, volSizeGB)
+		return &csi.ControllerExpandVolumeResponse{
+			CapacityBytes:         int64(volume.Size * 1024 * 1024 * 1024),
+			NodeExpansionRequired: true,
+		}, nil
+	}
+
+	err = cs.Cloud.ExpandVolume(volumeID, volume.Status, volSizeGB)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, fmt.Sprintf("Could not resize volume %q to size %v: %v", volumeID, volSizeGB, err))
 	}
@@ -585,7 +599,7 @@ func getAZFromTopology(requirement *csi.TopologyRequirement) string {
 	return ""
 }
 
-func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
+func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
 
 	var volsrc *csi.VolumeContentSource
 
@@ -609,16 +623,27 @@ func getCreateVolumeResponse(vol *volumes.Volume) *csi.CreateVolumeResponse {
 		}
 	}
 
+	var accessibleTopology []*csi.Topology
+	// If ignore-volume-az is true , dont set the accessible topology to volume az,
+	// use from preferred topologies instead.
+	if ignoreVolumeAZ {
+		if accessibleTopologyReq != nil {
+			accessibleTopology = accessibleTopologyReq.GetPreferred()
+		}
+	} else {
+		accessibleTopology = []*csi.Topology{
+			{
+				Segments: map[string]string{topologyKey: vol.AvailabilityZone},
+			},
+		}
+	}
+
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      vol.ID,
-			CapacityBytes: int64(vol.Size * 1024 * 1024 * 1024),
-			AccessibleTopology: []*csi.Topology{
-				{
-					Segments: map[string]string{topologyKey: vol.AvailabilityZone},
-				},
-			},
-			ContentSource: volsrc,
+			VolumeId:           vol.ID,
+			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
+			AccessibleTopology: accessibleTopology,
+			ContentSource:      volsrc,
 		},
 	}
 

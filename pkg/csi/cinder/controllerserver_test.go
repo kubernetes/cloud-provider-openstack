@@ -431,8 +431,8 @@ func TestListSnapshots(t *testing.T) {
 
 func TestControllerExpandVolume(t *testing.T) {
 
-	// ExpandVolume(volumeID string, size int)
-	osmock.On("ExpandVolume", FakeVolName, 5).Return(nil)
+	// ExpandVolume(volumeID string, status string, size int)
+	osmock.On("ExpandVolume", FakeVolName, openstack.VolumeAvailableStatus, 5).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)

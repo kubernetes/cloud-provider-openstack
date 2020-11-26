@@ -13,6 +13,7 @@
     - [Load Balancer](#load-balancer)
     - [Metadata](#metadata)
   - [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
+  - [Metrics](#metrics)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -50,7 +51,7 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
 
 - Bootstrap worker nodes. You need to set `--cloud-provider=external` for kubelet service before running `kubeadm join`.
 
-- Create a secret containing the cloud configuration. You can find an example config file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config). If you have certs you need put the cert file into folder `/etc/ssl/certs/` and update `ca-file` in the configuration file, refer to `ca-file` option [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/using-openstack-cloud-controller-manager.md#global) for further information. After that, Save the configuration to a file named *cloud.conf*, then:
+- Create a secret containing the cloud configuration. You can find an example config file in [`manifests/controller-manager/cloud-config`](https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-config). If you have certs you need put the cert file into folder `/etc/ssl/certs/` and update `ca-file` in the configuration file, refer to `ca-file` option [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) for further information. After that, Save the configuration to a file named *cloud.conf*, then:
 
     ```shell
     kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
@@ -71,6 +72,8 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
 If you are already running a Kubernetes cluster (installed by kubeadm) but using in-tree openstack cloud provider, switching to openstack-cloud-controller-manager is easy by following the steps in the demo below.
 
 [![asciicast](https://asciinema.org/a/303399.svg)](https://asciinema.org/a/303399?speed=2)
+
+Also, checkout the guide on [Migrate to CCM](./migrate-to-ccm-with-csimigration.md)
 
 ## Config openstack-cloud-controller-manager
 
@@ -124,6 +127,10 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   Keystone user domain name.
 * `trust-id`
   Keystone trust ID. A trust represents a user's (the trustor) authorization to delegate roles to another user (the trustee), and optionally allow the trustee to impersonate the trustor. Available trusts are found under the `/v3/OS-TRUST/trusts` endpoint of the Keystone API.
+* `trustee-id`
+  Keystone trustee user ID.
+* `trustee-password`
+  Keystone trustee user password.
 * `use-clouds`
   Set this option to `true` to get authorization credentials from a clouds.yaml file. Options explicitly set in this section are prioritized over values read from clouds.yaml, the file path can be set in `clouds-file` option. Otherwise, the following order is applied:
   1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
@@ -140,6 +147,8 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   The name of an application credential to authenticate with. If `application-credential-id` is not set, the user name and domain need to be set.
 * `application-credential-secret`
   The secret of an application credential to authenticate with.
+* `tls-insecure`
+  If set to `true`, then the server’s certificate will not be verified. Default is `false`.
 
 ###  Networking
 
@@ -228,3 +237,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 ## Exposing applications using services of LoadBalancer type
 
 Refer to [Exposing applications using services of LoadBalancer type](./expose-applications-using-loadbalancer-type-service.md)
+
+## Metrics
+
+Refer to [Metrics for openstack-cloud-controller-manager](../metrics.md)
