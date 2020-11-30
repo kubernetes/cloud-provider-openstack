@@ -35,6 +35,8 @@ spec:
               readOnly: true
           ports:
             - containerPort: 8443
+          securityContext:
+            runAsUser: 65534
       volumes:
       - name: certs
         secret:
