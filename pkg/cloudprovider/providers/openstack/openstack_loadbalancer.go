@@ -2534,7 +2534,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 			}
 			mc := metrics.NewMetricContext("loadbalancer_member", "create")
 			_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
-				Name:         cutString(fmt.Sprintf("member_%d_%s_%s_", portIndex, node.Name, loadbalancer.Name)),
+				Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, loadbalancer.Name)),
 				Address:      addr,
 				ProtocolPort: int(port.NodePort),
 				SubnetID:     lbaas.opts.SubnetID,
