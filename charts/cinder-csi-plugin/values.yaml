@@ -72,3 +72,12 @@ storageClass:
   retain:
     isDefault: false
     allowVolumeExpansion: true
+
+priorityClassName:
+  controllerPlugin: ""
+  nodePlugin: ""
+
+podSecurityPolicy:
+  enabled: false
+  existingPolicyName: ""
+  create: false

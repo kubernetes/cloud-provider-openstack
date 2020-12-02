@@ -25,6 +25,9 @@ spec:
         {{- include "cinder-csi.controllerplugin.labels" . | nindent 8 }}
     spec:
       serviceAccount: csi-cinder-controller-sa
+{{- if .Values.priorityClassName.controllerPlugin }}
+      priorityClassName: {{ .Values.priorityClassName.controllerPlugin }}
+{{- end }}
       containers:
         - name: csi-attacher
           image: "{{ .Values.csi.attacher.image.repository }}:{{ .Values.csi.attacher.image.tag }}"

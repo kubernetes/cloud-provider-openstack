@@ -17,6 +17,9 @@ spec:
         - operator: Exists
       serviceAccount: csi-cinder-node-sa
       hostNetwork: true
+{{- if .Values.priorityClassName.nodePlugin }}
+      priorityClassName: {{ .Values.priorityClassName.nodePlugin }}
+{{- end }}
       containers:
         - name: node-driver-registrar
           image: "{{ .Values.csi.nodeDriverRegistrar.image.repository }}:{{ .Values.csi.nodeDriverRegistrar.image.tag }}"
