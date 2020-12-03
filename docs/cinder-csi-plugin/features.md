@@ -67,10 +67,10 @@ This feature enables creating volume snapshots and restore volume from snapshot.
 
 ## Inline Volumes
 
-This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts. 
+This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts.
 
 * As of Kubernetes v1.16 this feature is beta so enabled by default. 
-* To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes. 
+* To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes.
 * `podInfoOnMount` must be `true` to use this feature.
 * For usage, refer [sample app](./examples.md#deploy-app-using-inline-volumes)
 
@@ -83,7 +83,7 @@ Prerequisites:
 * source and destination PVCs must be in the same namespace.
 * Cloning is only supported within the same Storage Class. Destination volume must be the same storage class as the source
 
-For example, refer [sample app](https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/cinder-csi-plugin/clone)
+For example, refer [sample app](../../examples/cinder-csi-plugin/clone)
 
 ## Multi-Attach Volumes
 

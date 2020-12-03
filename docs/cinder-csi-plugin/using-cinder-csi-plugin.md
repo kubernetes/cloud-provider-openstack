@@ -58,7 +58,7 @@ For Driver configuration, parameters must be passed via configuration file speci
 The following sections are supported in configuration file.
 
 ### Global 
-For Cinder CSI Plugin to authenticate with Openstack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
+For Cinder CSI Plugin to authenticate with Openstack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](../openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
 
 ### Block Storage
 These configuration options pertain to block storage and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
@@ -153,6 +153,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 * [Volume Snapshots](./features.md#volume-snapshots)
 * [Inline Volumes](./features.md#inline-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
+* [Liveness probe](./features.md#liveness-probe)
 
 ## Supported Parameters
 
