@@ -3,7 +3,6 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [CSI Manila driver](#csi-manila-driver)
-          - [Table of contents](#table-of-contents)
   - [Configuration](#configuration)
     - [Command line arguments](#command-line-arguments)
     - [Controller Service volume parameters](#controller-service-volume-parameters)

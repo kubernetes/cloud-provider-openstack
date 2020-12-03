@@ -3,7 +3,7 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [OpenStack Barbican KMS Plugin](#openstack-barbican-kms-plugin)
-  - [Installation Steps:](#installation-steps)
+  - [Installation Steps](#installation-steps)
     - [Verify](#verify)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -17,7 +17,7 @@ It is recommended to read following kubernetes documents
 * [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted)  
 * [Using a KMS provider for data encryption](https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/)
 
-## Installation Steps:
+## Installation Steps
 The following installation steps assumes that you have a Kubernetes cluster(v1.10+) running on OpenStack Cloud.
 
 1. Create 256bit(32 byte) cbc key and store in barbican
