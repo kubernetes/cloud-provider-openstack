@@ -172,10 +172,10 @@ func (provider OpenStackCloudProvider) waitForClusterComplete(clusterID string, 
 	err := wait.Poll(3*time.Second, timeout,
 		func() (bool, error) {
 			cluster, err := clusters.Get(provider.Magnum, clusterID).Extract()
-			log.V(5).Infof("Cluster %s in status %s", clusterID, cluster.Status)
 			if err != nil {
 				return false, err
 			}
+			log.V(5).Infof("Cluster %s in status %s", clusterID, cluster.Status)
 			if strings.HasSuffix(cluster.Status, "_COMPLETE") {
 				return true, nil
 			}
