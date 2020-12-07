@@ -352,7 +352,9 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 			continue
 		}
 
+		nodeName := node.Name
 		member := pools.BatchUpdateMemberOpts{
+			Name:         &nodeName,
 			Address:      addr,
 			ProtocolPort: *nodePort,
 		}
