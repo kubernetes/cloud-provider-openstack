@@ -44,6 +44,13 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
+        - name: liveness-probe
+          image: quay.io/k8scsi/livenessprobe:v2.1.0
+          args:
+            - --csi-address=/csi/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
         - name: cinder-csi-plugin
           securityContext:
             privileged: true
@@ -66,6 +73,19 @@ spec:
             - name: CLOUD_CONFIG
               value: /etc/config/cloud.conf
           imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 9808
+              name: healthz
+              protocol: TCP
+          # The probe
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
