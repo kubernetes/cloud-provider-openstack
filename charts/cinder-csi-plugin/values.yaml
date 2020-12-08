@@ -78,6 +78,12 @@ priorityClassName:
   nodePlugin: ""
 
 podSecurityPolicy:
+  # Setting this to true will create a role and rolebinding granting the service accounts access to use the selected pod security policy
   enabled: false
+
+  # Leave empty if you want the helm chart to create a pod security policy for you (and set create to true)
+  # If not empty this should be the name of a pre-existing pod security policy resource deployed in the cluster (and set create to false)
   existingPolicyName: ""
+
+  # Whether the helm chart should create a pod security policy
   create: false
