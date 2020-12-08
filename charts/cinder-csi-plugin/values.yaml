@@ -5,32 +5,32 @@ timeout: 3m
 csi:
   attacher:
     image:
-      repository: quay.io/k8scsi/csi-attacher
+      repository: k8s.gcr.io/sig-storage/csi-attacher
       tag: v2.2.1
       pullPolicy: IfNotPresent
   provisioner:
     image:
-      repository: quay.io/k8scsi/csi-provisioner
+      repository: k8s.gcr.io/sig-storage/csi-provisioner
       tag: v1.6.1
       pullPolicy: IfNotPresent
   snapshotter:
     image:
-      repository: quay.io/k8scsi/csi-snapshotter
+      repository: k8s.gcr.io/sig-storage/csi-snapshotter
       tag: v2.1.2
       pullPolicy: IfNotPresent
   resizer:
     image:
-      repository: quay.io/k8scsi/csi-resizer
+      repository: k8s.gcr.io/sig-storage/csi-resizer
       tag: v0.5.1
       pullPolicy: IfNotPresent
   livenessprobe:
     image:
-      repository: quay.io/k8scsi/livenessprobe
+      repository: k8s.gcr.io/sig-storage/livenessprobe
       tag: v2.1.0
       pullPolicy: IfNotPresent
   nodeDriverRegistrar:
     image:
-      repository: quay.io/k8scsi/csi-node-driver-registrar
+      repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
       tag: v1.3.0
       pullPolicy: IfNotPresent
   plugin:
