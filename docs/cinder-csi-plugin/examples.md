@@ -8,7 +8,7 @@
   - [Volume Expansion Example](#volume-expansion-example)
   - [Using Block Volume](#using-block-volume)
   - [Snapshot Create and Restore](#snapshot-create-and-restore)
-  - [Disaster recovery of PV and PVC](#disasterörecovery-of-pv-and-pvc)
+  - [Disaster recovery of PV and PVC](#disaster-recovery-of-pv-and-pvc)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
