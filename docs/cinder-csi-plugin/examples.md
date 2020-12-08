@@ -338,6 +338,7 @@ spec:
 ```
 cat recover-pvc.yaml
 ```
+```
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
