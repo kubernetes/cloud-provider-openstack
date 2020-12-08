@@ -8,7 +8,7 @@
   - [Volume Expansion Example](#volume-expansion-example)
   - [Using Block Volume](#using-block-volume)
   - [Snapshot Create and Restore](#snapshot-create-and-restore)
-  - [Disaster recovery of PV/PVC](#disasterörecovery-of-pv-pvc)
+  - [Disaster recovery of PV and PVC](#disasterörecovery-of-pv-and-pvc)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -256,7 +256,7 @@ $ openstack volume list
 | bf8f9ae9-87b4-42bb-b74c-ba4645634be6 | pvc-4699fa78-4149-4772-b900-9536891fe200 | available |    1 |                                                 |
 ```
 
-## Disaster recovery of PV/PVC
+## Disaster recovery of PV and PVC
 
 This example assume your Kubernetes cluster is crashed, but your volumes
 are still available in the OpenStack cloud:
