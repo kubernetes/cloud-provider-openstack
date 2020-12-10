@@ -295,7 +295,10 @@ $ openstack volume show e129824a-16fa-486d-a8c7-482945a626ff
 +--------------------------------+-----------------------------------------------------------------+
 ```
 
-You can recover the volume to a PV/PVC under the same name/id in a new cluster:
+You can recover the volume to a PV/PVC under the same name/id in a new cluster.
+Useful to have a backup of the PV/PVC manifest (e.g. etcd backup, rancher-backup,
+kube-backup), otherwise write a new one in combination of the origin OpenStack
+Cinder VolumeID:
 
 ```
 $ kubectl apply -f recover-pv.yaml
