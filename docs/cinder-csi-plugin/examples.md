@@ -18,7 +18,7 @@ All following examples need to be used inside instance(s) provisoned by openstac
 ## Dynamic Volume Provisioning
 
 For dynamic provisoning , create StorageClass, PersistentVolumeClaim and pod to consume it. 
-Checkout [sample app](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/nginx.yaml) definition fore reference.
+Checkout [sample app](../../examples/cinder-csi-plugin/nginx.yaml) definition fore reference.
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
 
@@ -101,10 +101,10 @@ index.html  lost+found
 
 ## Deploy app using Inline volumes
 
-Sample App definition on using Inline volumes can be found at [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/inline/inline-example.yaml)
+Sample App definition on using Inline volumes can be found at [here](../../examples/cinder-csi-plugin/inline/inline-example.yaml)
 
 Prerequisites:
-* Deploy CSI Driver, with both volumeLifecycleModes enabled as specified [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml)
+* Deploy CSI Driver, with both volumeLifecycleModes enabled as specified [here](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml)
 
 Create a pod with inline volume
 ```
@@ -130,7 +130,7 @@ Volumes:
 
 ## Volume Expansion Example
 
-Sample App definition for volume resize could be found [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/resize/example.yaml)
+Sample App definition for volume resize could be found [here](../../examples/cinder-csi-plugin/resize/example.yaml)
 
 Deploy the sample app 
 ```
@@ -181,7 +181,7 @@ Filesystem      Size  Used Avail Use% Mounted on
 
 ## Using Block Volume 
 
-Sample App definition of pod consuming block volume can be found [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/block/block.yaml)
+Sample App definition of pod consuming block volume can be found [here](../../examples/cinder-csi-plugin/block/block.yaml)
 
 Deploy the same app  
 ```
@@ -202,7 +202,7 @@ brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
 
 ## Snapshot Create and Restore
 
-Sample App definition using snapshots can be found [here](https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/cinder-csi-plugin/snapshot)
+Sample App definition using snapshots can be found [here](../../examples/cinder-csi-plugin/snapshot)
 
 Deploy app , Create Storage Class, Snapshot Class and PVC
 ```
