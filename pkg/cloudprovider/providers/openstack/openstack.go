@@ -86,6 +86,9 @@ var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
 // userAgentData is used to add extra information to the gophercloud user-agent
 var userAgentData []string
 
+// supportedLBProvider map is used to define LoadBalancer providers that we support
+var supportedLBProvider = []string{"amphora", "octavia"}
+
 // AddExtraFlags is called by the main package to add component specific command line flags
 func AddExtraFlags(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
@@ -410,6 +413,10 @@ func ReadConfig(config io.Reader) (Config, error) {
 	// Set the default values for search order if not set
 	if cfg.Metadata.SearchOrder == "" {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
+	}
+
+	if !util.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
+		return Config{}, fmt.Errorf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
 	}
 
 	return cfg, err
