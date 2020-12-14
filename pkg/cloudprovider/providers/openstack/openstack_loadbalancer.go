@@ -725,7 +725,7 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 			mc = metrics.NewMetricContext("port_tag", "add")
 			err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr()
 			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, res.Err)
+				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, err)
 			}
 		}
 	}
