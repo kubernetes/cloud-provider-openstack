@@ -130,27 +130,39 @@ Request Body:
 
   If 'true', the loadbalancer pool protocol will be set as `PROXY`. Default is 'false'.
 
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/x-forwarded-for`
 
   If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request. Please note that the cloud provider will force the creation of an Octavia listener of type `HTTP` if this option is set. Only applies when using Octavia.
 
   This annotation also works in conjunction with the `loadbalancer.openstack.org/default-tls-container-ref` annotation. In this case the cloud provider will create an Octavia listener of type `TERMINATED_HTTPS` instead of an `HTTP` listener.
 
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/timeout-client-data`
 
   Frontend client inactivity timeout in milliseconds for the load balancer.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
 - `loadbalancer.openstack.org/timeout-member-connect`
 
   Backend member connection timeout in milliseconds for the load balancer.
 
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/timeout-member-data`
 
   Backend member inactivity timeout in milliseconds for the load balancer.
 
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/timeout-tcp-inspect`
 
   Time to wait for additional TCP packets for content inspection in milliseconds for the load balancer.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
 - `service.beta.kubernetes.io/openstack-internal-load-balancer`
 
@@ -159,19 +171,27 @@ Request Body:
 - `loadbalancer.openstack.org/enable-health-monitor`
 
   Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
   
 - `loadbalancer.openstack.org/flavor-id`
 
   The id of the flavor that is used for creating the loadbalancer.
 
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/availability-zone`
 
   The name of the loadbalancer availability zone to use. It is ignored if the Octavia version doesn't support availability zones yet.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
 - `loadbalancer.openstack.org/default-tls-container-ref`
 
   Reference to a tls container. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type `TERMINATED_HTTPS` for a TLS Terminated loadbalancer.
   Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 

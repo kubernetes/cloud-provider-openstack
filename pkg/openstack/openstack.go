@@ -75,7 +75,7 @@ var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
 var userAgentData []string
 
 // supportedLBProvider map is used to define LoadBalancer providers that we support
-var supportedLBProvider = []string{"amphora", "octavia"}
+var supportedLBProvider = []string{"amphora", "octavia", "ovn"}
 
 // AddExtraFlags is called by the main package to add component specific command line flags
 func AddExtraFlags(fs *pflag.FlagSet) {

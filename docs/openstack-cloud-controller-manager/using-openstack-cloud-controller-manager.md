@@ -253,6 +253,10 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
   Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
 
+NOTE:
+
+* When using `ovn` provider service has limited scope - `create_monitor` is not supported and only supported `lb-method` is `SOURCE_IP`.
+
 ### Metadata
 
 * `search-order`
