@@ -46,7 +46,7 @@ For usage, refer [sample app](./examples.md#using-block-volume)
 ## Volume Expansion
 
 Driver supports both `Offline` and `Online` resize of cinder volumes. Cinder online resize support is available since cinder 3.42 microversion. 
-The same should be supported by underlying Openstack Cloud to avail the feature.
+The same should be supported by underlying OpenStack Cloud to avail the feature.
 
 * As of kubernetes v1.16, Volume Expansion is a beta feature and enabled by default.
 * Make sure to set `allowVolumeExpansion` to `true` in Storage class spec.
