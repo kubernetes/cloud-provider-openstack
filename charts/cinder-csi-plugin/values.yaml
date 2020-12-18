@@ -42,11 +42,6 @@ csi:
       - name: cacert
         hostPath:
           path: /etc/cacert
-      - name: cloud-config
-        hostPath:
-          path: /etc/kubernetes
-        # secret:
-        #   secretName: cinder-csi-cloud-config
     volumeMounts:
       - name: cacert
         mountPath: /etc/cacert
@@ -56,6 +51,8 @@ csi:
         readOnly: true
 
 secret:
+  use: false
+  create: false
 #  name: cinder-csi-cloud-config
 #  data:
 #    cloud-config: |-

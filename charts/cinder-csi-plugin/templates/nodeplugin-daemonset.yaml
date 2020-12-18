@@ -118,4 +118,12 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        - name: cloud-config
+        {{- if .Values.secret.use }}
+          secret:
+            secretName: {{ .Values.secret.name }}
+        {{- else }}
+          hostPath:
+            path: /etc/kubernetes
+        {{- end }}
         {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
