@@ -27,7 +27,7 @@ provided by [k8s-keystone-auth binary](./using-keystone-webhook-authenticator-an
 
 ## Example use case
 
-In a hypothetical use case, an organization would run an external service that exchanges Openstack Keystone
+In a hypothetical use case, an organization would run an external service that exchanges OpenStack Keystone
 credentials for user specific, signed tokens. The service would also be capable of responding to [webhook token
 authenticator](https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication) requests to
 validate the tokens. Users would be required to install a credential plugin on their workstation.

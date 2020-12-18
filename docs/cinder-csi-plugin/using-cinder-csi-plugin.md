@@ -26,7 +26,7 @@
 
 # CSI Cinder driver
 
-The Cinder CSI Driver is a CSI Specification compliant driver used by Container Orchestrators to manage the lifecycle of Openstack Cinder Volumes.
+The Cinder CSI Driver is a CSI Specification compliant driver used by Container Orchestrators to manage the lifecycle of OpenStack Cinder Volumes.
 
 ## CSI Compatibility
 
@@ -58,7 +58,7 @@ For Driver configuration, parameters must be passed via configuration file speci
 The following sections are supported in configuration file.
 
 ### Global 
-For Cinder CSI Plugin to authenticate with Openstack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](../openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
+For Cinder CSI Plugin to authenticate with OpenStack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](../openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
 
 ### Block Storage
 These configuration options pertain to block storage and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
@@ -207,6 +207,6 @@ Optionally, to test the driver csc tool could be used. please refer, [usage guid
 Starting from Kubernetes 1.18, CSI migration is supported as beta feature. If you have persistence volumes that are created with in-tree `kubernetes.io/cinder` plugin, you could migrate to use `cinder.csi.openstack.org` Container Storage Interface (CSI) Driver. 
 
 * The CSI Migration feature for Cinder, when enabled, shims all plugin operations from the existing in-tree plugin to the `cinder.csi.openstack.org` CSI Driver. 
-* In order to use this feature, the Openstack Cinder CSI Driver must be installed on the cluster.
+* In order to use this feature, the OpenStack Cinder CSI Driver must be installed on the cluster.
 * To turn on the migration, set `CSIMigration` and `CSIMigrationOpenstack` feature gates to true for kube-controller-manager and kubelet.
 * For more info, please refer [Migrate to CCM with CSI Migration](../openstack-cloud-controller-manager/migrate-to-ccm-with-csimigration.md#migrate-from-in-tree-cloud-provider-to-openstack-cloud-controller-manager-and-enable-csimigration) guide
