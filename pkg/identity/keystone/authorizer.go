@@ -124,6 +124,11 @@ func resourcePermissionAllowed(permissionSpec map[string][]string, attr authoriz
 		nsDef := strings.ToLower(strings.TrimSpace(keyList[0]))
 		resDef := strings.ToLower(strings.TrimSpace(keyList[1]))
 
+		// When request without namespace, only policy which nsDef is equal to "*" could be executed.
+		if nsDef != "*" && ns == "" {
+			continue
+		}
+
 		allowedNamespaces, err := getAllowed(nsDef, ns)
 		if err != nil {
 			continue
@@ -317,6 +322,11 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 		for _, role := range val {
 			userRoles.Insert(role)
 		}
+	}
+
+	// When the user.Extra does not exist, it means that the keytone user authentication has failed, and the authorization verification should not pass.
+	if user.GetExtra() == nil {
+		return authorizer.DecisionDeny, "No auth info found.", nil
 	}
 
 	// We support both project name and project ID.
