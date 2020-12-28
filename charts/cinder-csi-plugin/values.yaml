@@ -51,7 +51,7 @@ csi:
         readOnly: true
 
 secret:
-  use: false
+  enabled: false
   create: false
 #  name: cinder-csi-cloud-config
 #  data:
