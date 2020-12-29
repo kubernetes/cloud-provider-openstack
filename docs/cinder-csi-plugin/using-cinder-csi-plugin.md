@@ -141,7 +141,7 @@ cinder.csi.openstack.org   2019-07-29T09:02:40Z
 You can specify a K8S Secret for `cloud-config` :
 ```
 secret:
-  use: true
+  enabled: true
   name: yousecretname
 ```
 
@@ -149,7 +149,7 @@ You can also tell Helm to create the K8S Secret :
 
 ```
 secret:
-  use: true
+  enabled: true
   name: cinder-csi-cloud-config
   data:
     cloud-config: |-
