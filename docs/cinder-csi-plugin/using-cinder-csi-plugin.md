@@ -95,9 +95,9 @@ Configuration file specified in `$CLOUD_CONFIG` is passed to cinder CSI driver v
 
 To create a secret:
 
-* Encode your ```$CLOUD_CONFIG``` file content using base64.
+* Encode your `$CLOUD_CONFIG` file content using base64.
 
-```$ base64 -w 0 $CLOUD_CONFIG```
+`$ base64 -w 0 $CLOUD_CONFIG`
 
 * Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
@@ -136,7 +136,26 @@ cinder.csi.openstack.org   2019-07-29T09:02:40Z
 
 ### Using the Helm chart
 
-> NOTE: This chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+> NOTE: With default values, this chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+
+You can specify a K8S Secret for `cloud-config` :
+```
+secret:
+  use: true
+  name: yousecretname
+```
+
+You can also tell Helm to create the K8S Secret :
+
+```
+secret:
+  use: true
+  name: cinder-csi-cloud-config
+  data:
+    cloud-config: |-
+      ...
+```
+
 
 To install the chart, use the following command:
 ```
