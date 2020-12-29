@@ -119,7 +119,7 @@ spec:
             path: /dev
             type: Directory
         - name: cloud-config
-        {{- if .Values.secret.use }}
+        {{- if .Values.secret.enabled }}
           secret:
             secretName: {{ .Values.secret.name }}
         {{- else }}

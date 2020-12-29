@@ -126,7 +126,7 @@ spec:
         - name: socket-dir
           emptyDir:
         - name: cloud-config
-        {{- if .Values.secret.use }}
+        {{- if .Values.secret.enabled }}
           secret:
             secretName: {{ .Values.secret.name }}
         {{- else }}
