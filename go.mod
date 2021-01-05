@@ -8,7 +8,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/golang/protobuf v1.4.3
-	github.com/gophercloud/gophercloud v0.12.1-0.20200922152735-900f5ba8c05b
+	github.com/gophercloud/gophercloud v0.15.1-0.20210105012856-e34a44dc6580
 	github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.2.0

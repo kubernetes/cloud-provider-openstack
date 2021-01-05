@@ -112,7 +112,7 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 
 	mc := metrics.NewMetricContext("router", "update")
 	_, err := routers.Update(network, router.ID, routers.UpdateOpts{
-		Routes: newRoutes,
+		Routes: &newRoutes,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 		klog.V(4).Infof("Reverting routes change to router %v", router.ID)
 		mc := metrics.NewMetricContext("router", "update")
 		_, err := routers.Update(network, router.ID, routers.UpdateOpts{
-			Routes: origRoutes,
+			Routes: &origRoutes,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
 			klog.Warningf("Unable to reset routes during error unwind: %v", err)
