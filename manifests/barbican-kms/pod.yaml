@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
     - name: barbican-kms
-      image: docker.io/k8scloudprovider/barbican-kms-plugin:latest
+      image: docker.io/k8scloudprovider/barbican-kms-plugin:v1.20.0
       args:
         - "--socketpath=/kms/kms.sock"
         - "--cloud-config=/etc/kubernetes/cloud-config"
