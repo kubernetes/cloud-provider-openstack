@@ -416,7 +416,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	}
 
 	if !util.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
-		return Config{}, fmt.Errorf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
+		klog.Warningf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
 	}
 
 	return cfg, err

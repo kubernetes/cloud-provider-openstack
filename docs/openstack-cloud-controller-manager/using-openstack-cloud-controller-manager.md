@@ -176,7 +176,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
 
 * `lb-provider`
-  Optional. Used to specify the provider of the load balancer, e.g. "amphora" or "octavia".
+  Optional. Used to specify the provider of the load balancer, e.g. "amphora" or "octavia". Only "amphora" or "octavia" provider are officially tested, other provider will cause a warning log.
 
 * `lb-version`
   Optional. If specified, only "v2" is supported.
