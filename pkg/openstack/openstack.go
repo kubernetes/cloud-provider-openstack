@@ -92,33 +92,35 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	LBVersion            string              `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
-	UseOctavia           bool                `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
-	SubnetID             string              `gcfg:"subnet-id"`           // overrides autodetection.
-	NetworkID            string              `gcfg:"network-id"`          // If specified, will create virtual ip from a subnet in network which has available IP addresses
-	FloatingNetworkID    string              `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`  // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
-	LBClasses            map[string]*LBClass // Predefined named Floating networks and subnets
-	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
-	LBProvider           string              `gcfg:"lb-provider"`
-	CreateMonitor        bool                `gcfg:"create-monitor"`
-	MonitorDelay         util.MyDuration     `gcfg:"monitor-delay"`
-	MonitorTimeout       util.MyDuration     `gcfg:"monitor-timeout"`
-	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
-	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
-	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
-	InternalLB           bool                `gcfg:"internal-lb"`    // default false
-	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
-	FlavorID             string              `gcfg:"flavor-id"`
-	AvailabilityZone     string              `gcfg:"availability-zone"`
+	LBVersion             string              `gcfg:"lb-version"`              // overrides autodetection. Only support v2.
+	UseOctavia            bool                `gcfg:"use-octavia"`             // uses Octavia V2 service catalog endpoint
+	SubnetID              string              `gcfg:"subnet-id"`               // overrides autodetection.
+	NetworkID             string              `gcfg:"network-id"`              // If specified, will create virtual ip from a subnet in network which has available IP addresses
+	FloatingNetworkID     string              `gcfg:"floating-network-id"`     // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID      string              `gcfg:"floating-subnet-id"`      // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	FloatingSubnetPattern string              `gcfg:"floating-subnet-pattern"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	LBClasses             map[string]*LBClass // Predefined named Floating networks and subnets
+	LBMethod              string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
+	LBProvider            string              `gcfg:"lb-provider"`
+	CreateMonitor         bool                `gcfg:"create-monitor"`
+	MonitorDelay          util.MyDuration     `gcfg:"monitor-delay"`
+	MonitorTimeout        util.MyDuration     `gcfg:"monitor-timeout"`
+	MonitorMaxRetries     uint                `gcfg:"monitor-max-retries"`
+	ManageSecurityGroups  bool                `gcfg:"manage-security-groups"`
+	NodeSecurityGroupIDs  []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	InternalLB            bool                `gcfg:"internal-lb"`    // default false
+	CascadeDelete         bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
+	FlavorID              string              `gcfg:"flavor-id"`
+	AvailabilityZone      string              `gcfg:"availability-zone"`
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
 type LBClass struct {
-	FloatingNetworkID string `gcfg:"floating-network-id,omitempty"`
-	FloatingSubnetID  string `gcfg:"floating-subnet-id,omitempty"`
-	SubnetID          string `gcfg:"subnet-id,omitempty"`
-	NetworkID         string `gcfg:"network-id,omitempty"`
+	FloatingNetworkID     string `gcfg:"floating-network-id,omitempty"`
+	FloatingSubnetID      string `gcfg:"floating-subnet-id,omitempty"`
+	FloatingSubnetPattern string `gcfg:"floating-subnet-pattern,omitempty"`
+	SubnetID              string `gcfg:"subnet-id,omitempty"`
+	NetworkID             string `gcfg:"network-id,omitempty"`
 }
 
 // BlockStorageOpts is used to talk to Cinder service

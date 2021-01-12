@@ -3,6 +3,7 @@ module k8s.io/cloud-provider-openstack
 go 1.15
 
 require (
+	github.com/MichaelTJones/walk v0.0.0-20161122175330-4748e29d5718 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
@@ -17,6 +18,7 @@ require (
 	github.com/kubernetes-csi/csi-lib-utils v0.6.1
 	github.com/kubernetes-csi/csi-test v2.2.0+incompatible
 	github.com/kubernetes-csi/csi-test/v3 v3.1.0
+	github.com/mgutz/str v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/onsi/ginkgo v1.12.0
@@ -33,6 +35,7 @@ require (
 	golang.org/x/sys v0.0.0-20201112073958-5cba982894dd
 	google.golang.org/grpc v1.27.1
 	gopkg.in/gcfg.v1 v1.2.3
+	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.0
