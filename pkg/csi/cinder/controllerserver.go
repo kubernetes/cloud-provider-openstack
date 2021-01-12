@@ -55,6 +55,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume capability")
 	}
 
+	for _, cap := range volCapabilities {
+		if cap.GetAccessMode().GetMode() != cs.Driver.vcap[0].Mode {
+			return nil, status.Errorf(codes.InvalidArgument, "[CreateVolume] requested Volume capabilty not supported: %s", cap.GetAccessMode().GetMode())
+		}
+	}
+
 	// Volume Size - Default is 1 GiB
 	volSizeBytes := int64(1 * 1024 * 1024 * 1024)
 	if req.GetCapacityRange() != nil {
