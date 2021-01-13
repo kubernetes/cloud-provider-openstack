@@ -154,9 +154,9 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
@@ -171,9 +171,9 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
