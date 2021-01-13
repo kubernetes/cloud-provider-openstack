@@ -26,6 +26,7 @@ function install_prereqs {
     $BASE_DIR/tools/test-setup.sh
 
     install_package nfs-common
+    install_package golang-cfssl
 }
 
 
