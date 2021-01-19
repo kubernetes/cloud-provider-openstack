@@ -47,10 +47,11 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-provisioner
-          image: k8s.gcr.io/sig-storage/csi-provisioner:v1.6.1
+          image: k8s.gcr.io/sig-storage/csi-provisioner:v2.1.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
+            - "--default-fstype=ext4"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
