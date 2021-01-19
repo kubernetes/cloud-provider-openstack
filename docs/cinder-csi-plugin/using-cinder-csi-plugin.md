@@ -14,6 +14,7 @@
     - [Using the manifests](#using-the-manifests)
     - [Using the Helm chart](#using-the-helm-chart)
   - [Supported Features](#supported-features)
+  - [Sidecar Compatibility](#sidecar-compatibility)
   - [Supported Parameters](#supported-parameters)
   - [Local Development](#local-development)
     - [Build](#build)
@@ -173,6 +174,10 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 * [Inline Volumes](./features.md#inline-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
 * [Liveness probe](./features.md#liveness-probe)
+
+## Sidecar Compatibility
+
+* [Set file type in provisioner](./sidecarcompatibility.md#set-file-type-in-provisioner)
 
 ## Supported Parameters
 
