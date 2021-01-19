@@ -290,5 +290,5 @@ func (m *metadataService) GetAvailabilityZone() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return md.AvailabilityZone, nil
+	return strings.ReplaceAll(md.AvailabilityZone, " ", "-"), nil
 }
