@@ -84,24 +84,25 @@ const (
 	annotationXForwardedFor = "X-Forwarded-For"
 
 	// ServiceAnnotationLoadBalancerInternal defines whether or not to create an internal loadbalancer. Default: false.
-	ServiceAnnotationLoadBalancerInternal              = "service.beta.kubernetes.io/openstack-internal-load-balancer"
-	ServiceAnnotationLoadBalancerConnLimit             = "loadbalancer.openstack.org/connection-limit"
-	ServiceAnnotationLoadBalancerFloatingNetworkID     = "loadbalancer.openstack.org/floating-network-id"
-	ServiceAnnotationLoadBalancerFloatingSubnet        = "loadbalancer.openstack.org/floating-subnet"
-	ServiceAnnotationLoadBalancerFloatingSubnetID      = "loadbalancer.openstack.org/floating-subnet-id"
-	ServiceAnnotationLoadBalancerClass                 = "loadbalancer.openstack.org/class"
-	ServiceAnnotationLoadBalancerKeepFloatingIP        = "loadbalancer.openstack.org/keep-floatingip"
-	ServiceAnnotationLoadBalancerPortID                = "loadbalancer.openstack.org/port-id"
-	ServiceAnnotationLoadBalancerProxyEnabled          = "loadbalancer.openstack.org/proxy-protocol"
-	ServiceAnnotationLoadBalancerSubnetID              = "loadbalancer.openstack.org/subnet-id"
-	ServiceAnnotationLoadBalancerNetworkID             = "loadbalancer.openstack.org/network-id"
-	ServiceAnnotationLoadBalancerTimeoutClientData     = "loadbalancer.openstack.org/timeout-client-data"
-	ServiceAnnotationLoadBalancerTimeoutMemberConnect  = "loadbalancer.openstack.org/timeout-member-connect"
-	ServiceAnnotationLoadBalancerTimeoutMemberData     = "loadbalancer.openstack.org/timeout-member-data"
-	ServiceAnnotationLoadBalancerTimeoutTCPInspect     = "loadbalancer.openstack.org/timeout-tcp-inspect"
-	ServiceAnnotationLoadBalancerXForwardedFor         = "loadbalancer.openstack.org/x-forwarded-for"
-	ServiceAnnotationLoadBalancerFlavorID              = "loadbalancer.openstack.org/flavor-id"
-	ServiceAnnotationLoadBalancerAvailabilityZone      = "loadbalancer.openstack.org/availability-zone"
+	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
+	ServiceAnnotationLoadBalancerConnLimit            = "loadbalancer.openstack.org/connection-limit"
+	ServiceAnnotationLoadBalancerFloatingNetworkID    = "loadbalancer.openstack.org/floating-network-id"
+	ServiceAnnotationLoadBalancerFloatingSubnet       = "loadbalancer.openstack.org/floating-subnet"
+	ServiceAnnotationLoadBalancerFloatingSubnetID     = "loadbalancer.openstack.org/floating-subnet-id"
+	ServiceAnnotationLoadBalancerFloatingSubnetTag    = "loadbalancer.openstack.org/floating-subnet-tag"
+	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
+	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
+	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
+	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
+	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
+	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
+	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
+	ServiceAnnotationLoadBalancerTimeoutMemberConnect = "loadbalancer.openstack.org/timeout-member-connect"
+	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
+	ServiceAnnotationLoadBalancerTimeoutTCPInspect    = "loadbalancer.openstack.org/timeout-tcp-inspect"
+	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
+	ServiceAnnotationLoadBalancerFlavorID             = "loadbalancer.openstack.org/flavor-id"
+	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
@@ -118,8 +119,113 @@ type LbaasV2 struct {
 // the first subnet matching the name pattern with an allocatable floating ip
 // will be selected.
 type floatingSubnetSpec struct {
-	lbPublicSubnetID      string
-	lbPublicSubnetPattern string
+	subnetID  string
+	subnet    string
+	subnetTag string
+}
+
+// matcher matches a subnet
+type matcher func(subnet *subnets.Subnet) bool
+
+// negate returns a negated matches for a given one
+func negate(f matcher) matcher { return func(s *subnets.Subnet) bool { return !f(s) } }
+
+func andMatcher(a, b matcher) matcher {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	return func(s *subnets.Subnet) bool {
+		return a(s) && b(s)
+	}
+}
+
+// reexpNameMatcher creates a subnet matcher matching a subnet by name for a given regexp.
+func regexpNameMatcher(r *regexp.Regexp) matcher {
+	return func(s *subnets.Subnet) bool { return r.FindString(s.Name) == s.Name }
+}
+
+// subnetNameMatcher creates a subnet matcher matching a subnet by name for a given glob
+// or regexp
+func subnetNameMatcher(pat string) (matcher, error) {
+	// try to create floating IP in matching subnets
+	var match matcher
+	not := false
+	if strings.HasPrefix(pat, "!") {
+		not = true
+		pat = pat[1:]
+	}
+	if strings.HasPrefix(pat, "~") {
+		rexp, err := regexp.Compile(pat[1:])
+		if err != nil {
+			return nil, fmt.Errorf("invalid subnet regexp pattern %q: %s", pat[1:], err)
+		}
+		match = regexpNameMatcher(rexp)
+	} else {
+		match = regexpNameMatcher(glob.Globexp(pat))
+	}
+	if not {
+		match = negate(match)
+	}
+	return match, nil
+}
+
+// subnetTagMatcher matches a subnet by a given tag spec
+func subnetTagMatcher(tag string) matcher {
+	// try to create floating IP in matching subnets
+	var match matcher
+	not := false
+	if strings.HasPrefix(tag, "!") {
+		not = true
+		tag = tag[1:]
+	}
+
+	match = func(s *subnets.Subnet) bool {
+		for _, t := range s.Tags {
+			if t == tag {
+				return true
+			}
+		}
+		return false
+	}
+	if not {
+		match = negate(match)
+	}
+	return match
+}
+
+func (s *floatingSubnetSpec) Configured() bool {
+	if s != nil && (s.subnetID != "" || s.MatcherConfigured()) {
+		return true
+	}
+	return false
+}
+
+func (s *floatingSubnetSpec) MatcherConfigured() bool {
+	if s != nil && s.subnetID == "" && (s.subnet != "" || s.subnetTag != "") {
+		return true
+	}
+	return false
+}
+
+func (s *floatingSubnetSpec) Matcher() (matcher, error) {
+	if !s.MatcherConfigured() {
+		return nil, nil
+	}
+	var match matcher
+	var err error
+	if s.subnet != "" {
+		match, err = subnetNameMatcher(s.subnet)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if s.subnetTag != "" {
+		match = andMatcher(match, subnetTagMatcher(s.subnetTag))
+	}
+	return match, nil
 }
 
 // serviceConfig contains configurations for creating a Service.
@@ -928,8 +1034,9 @@ func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.Creat
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
 	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
+	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
-		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
+		return floatIP, fmt.Errorf("error creating LB floatingip: %s", err)
 	}
 	return floatIP, err
 }
@@ -996,21 +1103,23 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 				Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", serviceName, clusterName),
 			}
 
-			if svcConf.lbPublicSubnetSpec != nil &&
-				svcConf.lbPublicSubnetSpec.lbPublicSubnetID == "" &&
-				svcConf.lbPublicSubnetSpec.lbPublicSubnetPattern != "" && loadBalancerIP == "" {
-
+			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.MatcherConfigured() {
 				var found_subnet subnets.Subnet
 
 				subnets, err := lbaas.listSubnetsForNetwork(svcConf.lbPublicNetworkID)
 				if err != nil {
 					return "", err
 				}
+
 				// try to create floating IP in matching subnets
-				pat := glob.Globexp(svcConf.lbPublicSubnetSpec.lbPublicSubnetPattern)
+				match, err := svcConf.lbPublicSubnetSpec.Matcher()
+				if err != nil {
+					return "", err
+				}
 				found := false
 				for _, subnet := range subnets {
-					if pat.Match([]byte(subnet.Name)) {
+					klog.V(4).Infof("matching subnet %s(s)[%v]", subnet.Name, subnet.ID, subnet.Tags)
+					if match(&subnet) {
 						found = true
 						floatIPOpts.SubnetID = subnet.ID
 						floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
@@ -1023,17 +1132,17 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 				}
 				if !found {
 					return "", fmt.Errorf("no subnet matching pattern %q found for network %s",
-						svcConf.lbPublicSubnetSpec.lbPublicSubnetPattern, svcConf.lbPublicNetworkID)
+						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID)
 				}
 				if err != nil {
 					return "", fmt.Errorf("no free subnet matching pattern %q found for network %s (last error %s)",
-						svcConf.lbPublicSubnetSpec.lbPublicSubnetPattern, svcConf.lbPublicNetworkID, err)
+						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID, err)
 				} else {
 					klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, found_subnet.Name, found_subnet.ID)
 				}
 			} else {
 				if svcConf.lbPublicSubnetSpec != nil {
-					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.lbPublicSubnetID
+					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
 				}
 				floatIPOpts.FloatingIP = loadBalancerIP
 				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts)
@@ -1346,8 +1455,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	if !svcConf.internal {
 		var lbClass *LBClass
 		var floatingNetworkID string
-		var floatingSubnetID string
-		var floatingSubnetPattern string
+		var floatingSubnet floatingSubnetSpec
 
 		klog.V(4).Infof("Ensure an external loadbalancer service")
 
@@ -1362,9 +1470,10 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 			// Get floating network id and floating subnet id from loadbalancer class
 			floatingNetworkID = lbClass.FloatingNetworkID
-			floatingSubnetID = lbClass.FloatingSubnetID
-			if floatingSubnetID == "" {
-				floatingSubnetPattern = lbClass.FloatingSubnetPattern
+			floatingSubnet.subnetID = lbClass.FloatingSubnetID
+			if floatingSubnet.subnetID == "" {
+				floatingSubnet.subnet = lbClass.FloatingSubnet
+				floatingSubnet.subnetTag = lbClass.FloatingSubnetTag
 			}
 		}
 
@@ -1379,33 +1488,34 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 
-		if floatingSubnetID == "" && floatingSubnetPattern == "" {
-			floatingSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID, lbaas.opts.FloatingSubnetID)
+		if !floatingSubnet.Configured() {
+			floatingSubnet.subnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID, lbaas.opts.FloatingSubnetID)
 
-			if floatingSubnetID == "" {
-				floatingSubnetPattern = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet, lbaas.opts.FloatingSubnetPattern)
+			if floatingSubnet.subnetID == "" {
+				floatingSubnet.subnet = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet, lbaas.opts.FloatingSubnet)
+				floatingSubnet.subnetTag = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTag, lbaas.opts.FloatingSubnetTag)
 			}
 		}
 
 		// check subnets belongs to network
-		if floatingNetworkID != "" && floatingSubnetID != "" {
+		if floatingNetworkID != "" && floatingSubnet.subnetID != "" {
 			mc := metrics.NewMetricContext("subnet", "get")
-			subnet, err := subnets.Get(lbaas.network, floatingSubnetID).Extract()
+			subnet, err := subnets.Get(lbaas.network, floatingSubnet.subnetID).Extract()
 			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to find subnet %q: %v", floatingSubnetID, err)
+				return fmt.Errorf("failed to find subnet %q: %v", floatingSubnet.subnetID, err)
 			}
 
 			if subnet.NetworkID != floatingNetworkID {
-				return fmt.Errorf("floating IP subnet %q doesn't belong to the network %q", floatingSubnetID, subnet.NetworkID)
+				return fmt.Errorf("floating IP subnet %q doesn't belong to the network %q", floatingSubnet.subnetID, subnet.NetworkID)
 			}
 		}
 
 		svcConf.lbPublicNetworkID = floatingNetworkID
-		if floatingSubnetID != "" || floatingSubnetPattern != "" {
-			svcConf.lbPublicSubnetSpec = &floatingSubnetSpec{
-				lbPublicSubnetPattern: floatingSubnetPattern,
-				lbPublicSubnetID:      floatingSubnetID,
-			}
+		if floatingSubnet.Configured() {
+			klog.V(4).Infof("Using subnet spec %+v for %s", floatingSubnet, serviceName)
+			svcConf.lbPublicSubnetSpec = &floatingSubnet
+		} else {
+			klog.V(4).Infof("no subnet spec found for %s", serviceName)
 		}
 	} else {
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
@@ -2978,4 +3088,39 @@ func GetLoadBalancerSourceRanges(service *corev1.Service) (netsets.IPNet, error)
 		}
 	}
 	return ipnets, nil
+}
+
+// PreserveGopherError preserves the error details delivered with the response
+// that are explicity omitted by dedicated error types.
+// error types from provider_client.go
+func PreserveGopherError(rawError error) error {
+	if rawError == nil {
+		return nil
+	}
+	var details []byte
+	switch e := rawError.(type) {
+	case gophercloud.ErrDefault400:
+	case gophercloud.ErrDefault401:
+		details = e.Body
+	case gophercloud.ErrDefault403:
+	case gophercloud.ErrDefault404:
+		details = e.Body
+	case gophercloud.ErrDefault405:
+		details = e.Body
+	case gophercloud.ErrDefault408:
+		details = e.Body
+	case gophercloud.ErrDefault429:
+		details = e.Body
+	case gophercloud.ErrDefault500:
+		details = e.Body
+	case gophercloud.ErrDefault503:
+		details = e.Body
+	default:
+		return rawError
+	}
+
+	if details != nil {
+		return fmt.Errorf("%s: %s", rawError, details)
+	}
+	return rawError
 }
