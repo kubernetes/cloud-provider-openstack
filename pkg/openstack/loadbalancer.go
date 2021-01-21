@@ -738,6 +738,18 @@ func getStringFromServiceAnnotation(service *corev1.Service, annotationKey strin
 	return defaultSetting
 }
 
+//queryStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
+func queryStringFromServiceAnnotation(service *corev1.Service, annotationKey string) string {
+	if annotationValue, ok := service.Annotations[annotationKey]; ok {
+		//if there is an annotation for this setting, set the "setting" var to it
+		// annotationValue can be empty, it is working as designed
+		// it makes possible for instance provisioning loadbalancer without floatingip
+		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, annotationValue)
+		return annotationValue
+	}
+	return ""
+}
+
 //getIntFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's integer value or a specified defaultSetting
 func getIntFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting int) int {
 	klog.V(4).Infof("getIntFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
@@ -1489,11 +1501,26 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		}
 
 		if !floatingSubnet.Configured() {
-			floatingSubnet.subnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID, lbaas.opts.FloatingSubnetID)
+			annos := floatingSubnetSpec{}
+			annos.subnetID = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID)
+			if annos.subnetID == "" {
+				annos.subnet = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet)
+				annos.subnetTag = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTag)
+			}
+			if annos.Configured() {
+				floatingSubnet = annos
+			}
+		}
 
+		// apply defaults from CCM config
+		if floatingNetworkID == "" {
+			floatingNetworkID = lbaas.opts.FloatingNetworkID
+		}
+		if !floatingSubnet.Configured() {
+			floatingSubnet.subnetID = lbaas.opts.FloatingSubnetID
 			if floatingSubnet.subnetID == "" {
-				floatingSubnet.subnet = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet, lbaas.opts.FloatingSubnet)
-				floatingSubnet.subnetTag = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTag, lbaas.opts.FloatingSubnetTag)
+				floatingSubnet.subnetTag = lbaas.opts.FloatingSubnetTag
+				floatingSubnet.subnet = lbaas.opts.FloatingSubnet
 			}
 		}
 
