@@ -945,7 +945,10 @@ func TestZones(t *testing.T) {
 		provider: &gophercloud.ProviderClient{
 			IdentityBase: "http://auth.url/",
 		},
-		region: "myRegion",
+		epOpts: &gophercloud.EndpointOpts{
+			Region:       "myRegion",
+			Availability: gophercloud.AvailabilityPublic,
+		},
 	}
 
 	z, ok := os.Zones()

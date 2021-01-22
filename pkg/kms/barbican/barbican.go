@@ -4,7 +4,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 type BarbicanService interface {
@@ -17,7 +17,7 @@ type KMSOpts struct {
 
 //Config to read config options
 type Config struct {
-	Global     openstack_provider.AuthOpts
+	Global     client.AuthOpts
 	KeyManager KMSOpts
 }
 
@@ -28,13 +28,14 @@ type Barbican struct {
 
 // NewBarbicanClient creates new BarbicanClient
 func NewBarbicanClient(cfg Config) (*gophercloud.ServiceClient, error) {
-	provider, err := openstack_provider.NewOpenStackClient(&cfg.Global, "barbican-kms-plugin")
+	provider, err := client.NewOpenStackClient(&cfg.Global, "barbican-kms-plugin")
 	if err != nil {
 		return nil, err
 	}
 
 	return openstack.NewKeyManagerV1(provider, gophercloud.EndpointOpts{
-		Region: cfg.Global.Region,
+		Region:       cfg.Global.Region,
+		Availability: cfg.Global.EndpointType,
 	})
 }
 

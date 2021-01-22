@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	md "k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog/v2"
@@ -84,7 +85,7 @@ type Config struct {
 }
 
 func logcfg(cfg Config) {
-	openstack_provider.LogCfg(cfg.Config)
+	client.LogCfg(cfg.Config.Global)
 	klog.Infof("Block storage opts: %v", cfg.BlockStorage)
 }
 
@@ -109,7 +110,7 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 		if cfg.Global.CloudsFile != "" {
 			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
 		}
-		err = openstack_provider.ReadClouds(&cfg.Config)
+		err = client.ReadClouds(&cfg.Config.Global)
 		if err != nil {
 			return cfg, err
 		}
@@ -140,13 +141,14 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 	}
 	logcfg(cfg)
 
-	provider, err := openstack_provider.NewOpenStackClient(&cfg.Config.Global, "cinder-csi-plugin", userAgentData...)
+	provider, err := client.NewOpenStackClient(&cfg.Config.Global, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
 
 	epOpts := gophercloud.EndpointOpts{
-		Region: cfg.Global.Region,
+		Region:       cfg.Global.Region,
+		Availability: cfg.Global.EndpointType,
 	}
 
 	// Init Nova ServiceClient
