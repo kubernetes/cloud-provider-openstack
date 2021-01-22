@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
@@ -28,8 +29,8 @@ func TestMatchSubnet(t *testing.T) {
 	subnet := subnets.Subnet{
 		Name: "test-123",
 		Tags: []string{
-			"other=other",
-			"tag=value",
+			"alice",
+			"bob",
 		},
 	}
 
@@ -40,11 +41,11 @@ func TestMatchSubnet(t *testing.T) {
 		subnet: "~test-.*",
 	}
 	tag := floatingSubnetSpec{
-		subnetTag: "tag=value",
+		subnetTags: "alice",
 	}
 	tagname := floatingSubnetSpec{
-		subnet:    "test-*",
-		subnetTag: "tag=value",
+		subnet:     "test-*",
+		subnetTags: "alice",
 	}
 
 	runName(t, &subnet, glob, true)
@@ -53,6 +54,19 @@ func TestMatchSubnet(t *testing.T) {
 
 	runTag(t, &subnet, tag, true)
 	runTag(t, &subnet, tagname, true)
+
+	all := floatingSubnetSpec{
+		subnetTags: "alice,bob",
+	}
+	one := floatingSubnetSpec{
+		subnetTags: "alice,peter",
+	}
+	runTag(t, &subnet, all, true)
+	runTag(t, &subnet, one, true)
+	all.subnetTags = "&" + all.subnetTags
+	one.subnetTags = "&" + one.subnetTags
+	runTag(t, &subnet, all, true)
+	runTag(t, &subnet, one, false)
 }
 
 func runName(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, expected bool) {
@@ -76,18 +90,20 @@ func runNameNeg(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, e
 func runTag(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, expected bool) {
 	runMatch(t, subnet, spec, expected)
 
-	spec.subnetTag = "!" + spec.subnetTag
+	spec.subnetTags = "!" + spec.subnetTags
 	runMatch(t, subnet, spec, !expected)
 
-	spec.subnetTag = "tag=other"
-	runMatch(t, subnet, spec, !expected)
+	if strings.Index(spec.subnetTags, ",") < 0 {
+		spec.subnetTags = "other"
+		runMatch(t, subnet, spec, !expected)
 
-	spec.subnetTag = "!" + spec.subnetTag
-	runMatch(t, subnet, spec, expected)
+		spec.subnetTags = "!" + spec.subnetTags
+		runMatch(t, subnet, spec, expected)
+	}
 }
 
 func runMatch(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, expected bool) {
-	m, err := spec.Matcher()
+	m, err := spec.Matcher(true)
 	assert.NoError(t, err)
 	assert.Equal(t, m(subnet), expected)
 }

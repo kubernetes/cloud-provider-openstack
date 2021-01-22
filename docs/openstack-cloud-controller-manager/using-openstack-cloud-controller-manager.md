@@ -177,11 +177,11 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `floating-subnet-id`
   Optional. The external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-id`.
 
-* `floating-subnet-pattern`
+* `floating-subnet`
   Optional. A name pattern (glob or regexp if starting with `~`) for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet`. If multiple subnets match the first one with still available IPs is used. 
 
-* `floating-subnet-tag`
-  Optional. A tag for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-tag`. If multiple subnets match the first one with still available IPs is used. 
+* `floating-subnet-tags`
+  Optional. Tags for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-tags`. If multiple subnets match the first one with still available IPs is used. 
 
 * `lb-method`
   The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
@@ -232,8 +232,8 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
   * floating-network-id. The same with `floating-network-id` option above.
   * floating-subnet-id. The same with `floating-subnet-id` option above.
-  * floating-subnet-pattern. The same with `floating-subnet-pattern` option above.
-  * floating-subnet-tag. The same with `floating-subnet-tag` option above.
+  * floating-subnet. The same with `floating-subnet` option above.
+  * floating-subnet-tags. The same with `floating-subnet-tags` option above.
   * network-id. The same with `network-id` option above.
   * subnet-id. The same with `subnet-id` option above.
 

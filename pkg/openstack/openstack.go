@@ -92,14 +92,14 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	LBVersion            string              `gcfg:"lb-version"`          // overrides autodetection. Only support v2.
-	UseOctavia           bool                `gcfg:"use-octavia"`         // uses Octavia V2 service catalog endpoint
-	SubnetID             string              `gcfg:"subnet-id"`           // overrides autodetection.
-	NetworkID            string              `gcfg:"network-id"`          // If specified, will create virtual ip from a subnet in network which has available IP addresses
-	FloatingNetworkID    string              `gcfg:"floating-network-id"` // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`  // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
-	FloatingSubnet       string              `gcfg:"floating-subnet"`     // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
-	FloatingSubnetTag    string              `gcfg:"floating-subnet-tag"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	LBVersion            string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
+	UseOctavia           bool                `gcfg:"use-octavia"`          // uses Octavia V2 service catalog endpoint
+	SubnetID             string              `gcfg:"subnet-id"`            // overrides autodetection.
+	NetworkID            string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
+	FloatingNetworkID    string              `gcfg:"floating-network-id"`  // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`   // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	FloatingSubnet       string              `gcfg:"floating-subnet"`      // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	FloatingSubnetTags   string              `gcfg:"floating-subnet-tags"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
 	LBClasses            map[string]*LBClass // Predefined named Floating networks and subnets
 	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
 	LBProvider           string              `gcfg:"lb-provider"`

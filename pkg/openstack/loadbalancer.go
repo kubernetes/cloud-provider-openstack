@@ -89,7 +89,7 @@ const (
 	ServiceAnnotationLoadBalancerFloatingNetworkID    = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerFloatingSubnet       = "loadbalancer.openstack.org/floating-subnet"
 	ServiceAnnotationLoadBalancerFloatingSubnetID     = "loadbalancer.openstack.org/floating-subnet-id"
-	ServiceAnnotationLoadBalancerFloatingSubnetTag    = "loadbalancer.openstack.org/floating-subnet-tag"
+	ServiceAnnotationLoadBalancerFloatingSubnetTags   = "loadbalancer.openstack.org/floating-subnet-tags"
 	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
@@ -119,10 +119,13 @@ type LbaasV2 struct {
 // the first subnet matching the name pattern with an allocatable floating ip
 // will be selected.
 type floatingSubnetSpec struct {
-	subnetID  string
-	subnet    string
-	subnetTag string
+	subnetID   string
+	subnet     string
+	subnetTags string
 }
+
+// TweakSubNetListOpsFunction is used to modify List Options for subnets
+type TweakSubNetListOpsFunction func(*subnets.ListOpts)
 
 // matcher matches a subnet
 type matcher func(subnet *subnets.Subnet) bool
@@ -173,25 +176,32 @@ func subnetNameMatcher(pat string) (matcher, error) {
 }
 
 // subnetTagMatcher matches a subnet by a given tag spec
-func subnetTagMatcher(tag string) matcher {
+func subnetTagMatcher(tags string) matcher {
 	// try to create floating IP in matching subnets
 	var match matcher
-	not := false
-	if strings.HasPrefix(tag, "!") {
-		not = true
-		tag = tag[1:]
-	}
+
+	list, not, all := tagList(tags)
 
 	match = func(s *subnets.Subnet) bool {
-		for _, t := range s.Tags {
-			if t == tag {
-				return true
+		for _, tag := range list {
+			found := false
+			for _, t := range s.Tags {
+				if t == tag {
+					found = true
+					break
+				}
+			}
+			if found {
+				if !all {
+					return !not
+				}
+			} else {
+				if all {
+					return not
+				}
 			}
 		}
-		return false
-	}
-	if not {
-		match = negate(match)
+		return not != all
 	}
 	return match
 }
@@ -203,14 +213,39 @@ func (s *floatingSubnetSpec) Configured() bool {
 	return false
 }
 
+// TweakListOptsFunction can be used to optimize a subnet list query for the
+// actually described subnet filter
+func (s *floatingSubnetSpec) TweakListOptsFunction() TweakSubNetListOpsFunction {
+	if s.subnetTags != "" {
+		return func(opts *subnets.ListOpts) {
+			list, not, all := tagList(s.subnetTags)
+			tags := strings.Join(list, ",")
+			if all {
+				if not {
+					opts.NotTagsAny = tags // at least one tag must be missing
+				} else {
+					opts.Tags = tags // all tags must be present
+				}
+			} else {
+				if not {
+					opts.NotTags = tags // none of the tags are present
+				} else {
+					opts.TagsAny = tags // at least one tag is present
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (s *floatingSubnetSpec) MatcherConfigured() bool {
-	if s != nil && s.subnetID == "" && (s.subnet != "" || s.subnetTag != "") {
+	if s != nil && s.subnetID == "" && (s.subnet != "" || s.subnetTags != "") {
 		return true
 	}
 	return false
 }
 
-func (s *floatingSubnetSpec) Matcher() (matcher, error) {
+func (s *floatingSubnetSpec) Matcher(tag bool) (matcher, error) {
 	if !s.MatcherConfigured() {
 		return nil, nil
 	}
@@ -222,10 +257,29 @@ func (s *floatingSubnetSpec) Matcher() (matcher, error) {
 			return nil, err
 		}
 	}
-	if s.subnetTag != "" {
-		match = andMatcher(match, subnetTagMatcher(s.subnetTag))
+	if tag && s.subnetTags != "" {
+		match = andMatcher(match, subnetTagMatcher(s.subnetTags))
+	}
+	if match == nil {
+		match = func(s *subnets.Subnet) bool { return true }
 	}
 	return match, nil
+}
+
+func tagList(tags string) ([]string, bool, bool) {
+	not := strings.HasPrefix(tags, "!")
+	if not {
+		tags = tags[1:]
+	}
+	all := strings.HasPrefix(tags, "&")
+	if all {
+		tags = tags[1:]
+	}
+	list := strings.Split(tags, ",")
+	for i := range list {
+		list[i] = strings.TrimSpace(list[i])
+	}
+	return list, not, all
 }
 
 // serviceConfig contains configurations for creating a Service.
@@ -1117,14 +1171,14 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 
 			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.MatcherConfigured() {
 				var found_subnet subnets.Subnet
-
-				subnets, err := lbaas.listSubnetsForNetwork(svcConf.lbPublicNetworkID)
+				// tweak list options for tags
+				subnets, err := lbaas.listSubnetsForNetwork(svcConf.lbPublicNetworkID, svcConf.lbPublicSubnetSpec.TweakListOptsFunction())
 				if err != nil {
 					return "", err
 				}
 
-				// try to create floating IP in matching subnets
-				match, err := svcConf.lbPublicSubnetSpec.Matcher()
+				// try to create floating IP in matching subnets (tags already filtered by list options)
+				match, err := svcConf.lbPublicSubnetSpec.Matcher(false)
 				if err != nil {
 					return "", err
 				}
@@ -1485,7 +1539,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			floatingSubnet.subnetID = lbClass.FloatingSubnetID
 			if floatingSubnet.subnetID == "" {
 				floatingSubnet.subnet = lbClass.FloatingSubnet
-				floatingSubnet.subnetTag = lbClass.FloatingSubnetTag
+				floatingSubnet.subnetTags = lbClass.FloatingSubnetTag
 			}
 		}
 
@@ -1505,7 +1559,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			annos.subnetID = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID)
 			if annos.subnetID == "" {
 				annos.subnet = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet)
-				annos.subnetTag = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTag)
+				annos.subnetTags = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTags)
 			}
 			if annos.Configured() {
 				floatingSubnet = annos
@@ -1519,7 +1573,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		if !floatingSubnet.Configured() {
 			floatingSubnet.subnetID = lbaas.opts.FloatingSubnetID
 			if floatingSubnet.subnetID == "" {
-				floatingSubnet.subnetTag = lbaas.opts.FloatingSubnetTag
+				floatingSubnet.subnetTags = lbaas.opts.FloatingSubnetTags
 				floatingSubnet.subnet = lbaas.opts.FloatingSubnet
 			}
 		}
@@ -2274,9 +2328,15 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 	return status, nil
 }
 
-func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string) ([]subnets.Subnet, error) {
+func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubNetListOpsFunction) ([]subnets.Subnet, error) {
+	var opts = subnets.ListOpts{NetworkID: networkID}
+	for _, f := range tweak {
+		if f != nil {
+			f(&opts)
+		}
+	}
 	mc := metrics.NewMetricContext("subnet", "list")
-	allPages, err := subnets.List(lbaas.network, subnets.ListOpts{NetworkID: networkID}).AllPages()
+	allPages, err := subnets.List(lbaas.network, opts).AllPages()
 	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error listing subnets of network %s: %v", networkID, err)
 	}
@@ -3118,7 +3178,7 @@ func GetLoadBalancerSourceRanges(service *corev1.Service) (netsets.IPNet, error)
 }
 
 // PreserveGopherError preserves the error details delivered with the response
-// that are explicity omitted by dedicated error types.
+// that are explicitly omitted by dedicated error types.
 // error types from provider_client.go
 func PreserveGopherError(rawError error) error {
 	if rawError == nil {

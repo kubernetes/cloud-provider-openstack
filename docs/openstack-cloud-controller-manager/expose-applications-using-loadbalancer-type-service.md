@@ -203,10 +203,12 @@ floating-subnet-id="a374bed4-e920-4c40-b646-2d8927f7f67b"
 floating-subnet-id="b374bed4-e920-4c40-b646-2d8927f7f67b"
 ```
 
-Within a `LoadBalancerClass` one of `floating-subnet-id`, `floating-subnet-pattern` or `floating-subnet-tag` is mandatory.
+Within a `LoadBalancerClass` one of `floating-subnet-id`, `floating-subnet` or `floating-subnet-tags` is mandatory.
 `floating-subnet-id` takes precedence over the other ones with must all match if specified.
 If the pattern starts with a `!`, the match is negated. 
 The rest of the pattern can either be a direct name, a glob or a regular expression if it starts with a `~`.
+`floating-subnet-tags` can be a comma separated list of tags. By default it matches a subnet if at least one tag is present.
+If the list is preceded by a `&` all tags must be present. Again with a preceding `!` the condition be be negated.
 `floating-network-id` is optional can be defined in case it differs from the default `floating-network-id` in the `LoadBalancer` section.
 
 By using the `loadbalancer.openstack.org/class` annotation on the service object, you can now select which floating subnets the `LoadBalancer` should be using.
