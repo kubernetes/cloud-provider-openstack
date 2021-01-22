@@ -18,44 +18,32 @@ package openstack
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
 
-	"k8s.io/cloud-provider-openstack/pkg/util"
-
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/gophercloud/pagination"
-	"github.com/gophercloud/utils/client"
-	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	netutil "k8s.io/apimachinery/pkg/util/net"
-	certutil "k8s.io/client-go/util/cert"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog/v2"
 )
@@ -94,21 +82,6 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 }
 
-// MyDuration is the encoding.TextUnmarshaler interface for time.Duration
-type MyDuration struct {
-	time.Duration
-}
-
-// UnmarshalText is used to convert from text to Duration
-func (d *MyDuration) UnmarshalText(text []byte) error {
-	res, err := time.ParseDuration(string(text))
-	if err != nil {
-		return err
-	}
-	d.Duration = res
-	return nil
-}
-
 // LoadBalancer is used for creating and maintaining load balancers
 type LoadBalancer struct {
 	network *gophercloud.ServiceClient
@@ -129,8 +102,8 @@ type LoadBalancerOpts struct {
 	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
 	LBProvider           string              `gcfg:"lb-provider"`
 	CreateMonitor        bool                `gcfg:"create-monitor"`
-	MonitorDelay         MyDuration          `gcfg:"monitor-delay"`
-	MonitorTimeout       MyDuration          `gcfg:"monitor-timeout"`
+	MonitorDelay         util.MyDuration     `gcfg:"monitor-delay"`
+	MonitorTimeout       util.MyDuration     `gcfg:"monitor-timeout"`
 	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
 	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
 	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
@@ -167,12 +140,6 @@ type RouterOpts struct {
 	RouterID string `gcfg:"router-id"` // required
 }
 
-// MetadataOpts is used for configuring how to talk to metadata service or config drive
-type MetadataOpts struct {
-	SearchOrder    string     `gcfg:"search-order"`
-	RequestTimeout MyDuration `gcfg:"request-timeout"`
-}
-
 type ServerAttributesExt struct {
 	servers.Server
 	availabilityzones.ServerAvailabilityZoneExt
@@ -185,7 +152,7 @@ type OpenStack struct {
 	lbOpts         LoadBalancerOpts
 	bsOpts         BlockStorageOpts
 	routeOpts      RouterOpts
-	metadataOpts   MetadataOpts
+	metadataOpts   metadata.MetadataOpts
 	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
 	localInstanceID string
@@ -198,7 +165,7 @@ type Config struct {
 	LoadBalancerClass map[string]*LBClass
 	BlockStorage      BlockStorageOpts
 	Route             RouterOpts
-	Metadata          MetadataOpts
+	Metadata          metadata.MetadataOpts
 	Networking        NetworkingOpts
 }
 
@@ -233,8 +200,8 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.LBMethod = "ROUND_ROBIN"
 	cfg.LoadBalancer.CreateMonitor = false
 	cfg.LoadBalancer.ManageSecurityGroups = false
-	cfg.LoadBalancer.MonitorDelay = MyDuration{5 * time.Second}
-	cfg.LoadBalancer.MonitorTimeout = MyDuration{3 * time.Second}
+	cfg.LoadBalancer.MonitorDelay = util.MyDuration{Duration: 5 * time.Second}
+	cfg.LoadBalancer.MonitorTimeout = util.MyDuration{Duration: 3 * time.Second}
 	cfg.LoadBalancer.MonitorMaxRetries = 1
 	cfg.LoadBalancer.CascadeDelete = true
 
@@ -306,7 +273,7 @@ func readInstanceID(searchOrder string) (string, error) {
 
 // check opts for OpenStack
 func checkOpenStackOpts(openstackOpts *OpenStack) error {
-	return checkMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
+	return metadata.CheckMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
 }
 
 // NewOpenStack creates a new new instance of the openstack struct from a config struct
@@ -316,7 +283,7 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		return nil, err
 	}
 
-	if cfg.Metadata.RequestTimeout == (MyDuration{}) {
+	if cfg.Metadata.RequestTimeout == (util.MyDuration{}) {
 		cfg.Metadata.RequestTimeout.Duration = time.Duration(defaultTimeOut)
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
@@ -771,28 +738,4 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	klog.V(1).Info("Claiming to support Routes")
 	return r, true
-}
-
-func checkMetadataSearchOrder(order string) error {
-	if order == "" {
-		return errors.New("invalid value in section [Metadata] with key `search-order`. Value cannot be empty")
-	}
-
-	elements := strings.Split(order, ",")
-	if len(elements) > 2 {
-		return errors.New("invalid value in section [Metadata] with key `search-order`. Value cannot contain more than 2 elements")
-	}
-
-	for _, id := range elements {
-		id = strings.TrimSpace(id)
-		switch id {
-		case metadata.ConfigDriveID:
-		case metadata.MetadataID:
-		default:
-			return fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
-				"Supported elements include %q and %q", id, metadata.ConfigDriveID, metadata.MetadataID)
-		}
-	}
-
-	return nil
 }

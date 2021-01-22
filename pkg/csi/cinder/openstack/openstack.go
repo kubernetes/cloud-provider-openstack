@@ -28,8 +28,7 @@ import (
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/cloud-provider-openstack/pkg/client"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
-	md "k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog/v2"
 )
 
@@ -61,7 +60,7 @@ type IOpenStack interface {
 	GetInstanceByID(instanceID string) (*servers.Server, error)
 	ExpandVolume(volumeID string, status string, size int) error
 	GetMaxVolLimit() int64
-	GetMetadataOpts() openstack_provider.MetadataOpts
+	GetMetadataOpts() metadata.MetadataOpts
 	GetBlockStorageOpts() BlockStorageOpts
 }
 
@@ -70,7 +69,7 @@ type OpenStack struct {
 	blockstorage *gophercloud.ServiceClient
 	bsOpts       BlockStorageOpts
 	epOpts       gophercloud.EndpointOpts
-	metadataOpts openstack_provider.MetadataOpts
+	metadataOpts metadata.MetadataOpts
 }
 
 type BlockStorageOpts struct {
@@ -80,12 +79,13 @@ type BlockStorageOpts struct {
 }
 
 type Config struct {
-	openstack_provider.Config
+	Global       client.AuthOpts
+	Metadata     metadata.MetadataOpts
 	BlockStorage BlockStorageOpts
 }
 
 func logcfg(cfg Config) {
-	client.LogCfg(cfg.Config.Global)
+	client.LogCfg(cfg.Global)
 	klog.Infof("Block storage opts: %v", cfg.BlockStorage)
 }
 
@@ -110,7 +110,7 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 		if cfg.Global.CloudsFile != "" {
 			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
 		}
-		err = client.ReadClouds(&cfg.Config.Global)
+		err = client.ReadClouds(&cfg.Global)
 		if err != nil {
 			return cfg, err
 		}
@@ -141,7 +141,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 	}
 	logcfg(cfg)
 
-	provider, err := client.NewOpenStackClient(&cfg.Config.Global, "cinder-csi-plugin", userAgentData...)
+	provider, err := client.NewOpenStackClient(&cfg.Global, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +164,8 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 	}
 
 	// if no search order given, use default
-	if len(cfg.Config.Metadata.SearchOrder) == 0 {
-		cfg.Config.Metadata.SearchOrder = fmt.Sprintf("%s,%s", md.ConfigDriveID, md.MetadataID)
+	if len(cfg.Metadata.SearchOrder) == 0 {
+		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
 
 	// Init OpenStack
@@ -174,7 +174,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		blockstorage: blockstorageclient,
 		bsOpts:       cfg.BlockStorage,
 		epOpts:       epOpts,
-		metadataOpts: cfg.Config.Metadata,
+		metadataOpts: cfg.Metadata,
 	}
 
 	return OsInstance, nil
@@ -195,6 +195,6 @@ func GetOpenStackProvider() (IOpenStack, error) {
 }
 
 // GetMetadataOpts returns metadataopts
-func (os *OpenStack) GetMetadataOpts() openstack_provider.MetadataOpts {
+func (os *OpenStack) GetMetadataOpts() metadata.MetadataOpts {
 	return os.metadataOpts
 }
