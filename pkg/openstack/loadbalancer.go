@@ -517,7 +517,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 	}
 
 	for _, port := range service.Spec.Ports {
-		listenerCreateOpt := lbaas.buildListenerCreateOpt(name, port, svcConf)
+		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
 		members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
 		if err != nil {
 			return nil, err
@@ -1032,6 +1032,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbName, lbID string, pool *v2po
 
 		mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "create")
 		createOpts := lbaas.buildMonitorCreateOpts(lbName, port)
+		// Populate PoolID, attribute is omited for consumption of the createOpts for fully populated Loadbalancer
 		createOpts.PoolID = pool.ID
 		monitor, err := v2monitors.Create(lbaas.lb, createOpts).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -1059,6 +1060,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbName, lbID string, pool *v2po
 	return nil
 }
 
+//buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
 func (lbaas *LbaasV2) buildMonitorCreateOpts(lbName string, port corev1.ServicePort) v2monitors.CreateOpts {
 	name := lbaas.buildObjectName("monitor", lbName, port)
 	monitorProtocol := string(port.Protocol)
@@ -1156,6 +1158,7 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(lbName string, listenerProtocol string,
 	}
 }
 
+//buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of  member names
 func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.String, error) {
 	var members []v2pools.BatchUpdateMemberOpts
 	newMembers := sets.NewString()
@@ -1185,7 +1188,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 }
 
 // Make sure the listener is created for Service
-func (lbaas *LbaasV2) ensureOctaviaListener(lbName, lbID string, oldListeners []listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig) (*listeners.Listener, error) {
+func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig) (*listeners.Listener, error) {
 	// Get all listeners by "port&protocol".
 	lbListeners := make(map[listenerKey]*listeners.Listener)
 	for i, l := range oldListeners {
@@ -1203,7 +1206,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbName, lbID string, oldListeners []
 	}]
 
 	if !ok {
-		listenerCreateOpt := lbaas.buildListenerCreateOpt(lbName, port, svcConf)
+		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
 		listenerCreateOpt.LoadbalancerID = lbID
 
 		klog.V(2).Infof("Creating listener for port %d using protocol %s", int(port.Port), listenerCreateOpt.Protocol)
@@ -1269,15 +1272,14 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbName, lbID string, oldListeners []
 	return listener, nil
 }
 
-func (lbaas *LbaasV2) buildListenerCreateOpt(lbName string, port corev1.ServicePort, svcConf *serviceConfig) listeners.CreateOpts {
+//buildListenerCreateOpt returns listeners.CreateOpts for a specific Service port and configuration
+func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *serviceConfig) listeners.CreateOpts {
 	listenerProtocol := listeners.Protocol(port.Protocol)
-	name := lbaas.buildObjectName("listener", lbName, port)
 
 	listenerCreateOpt := listeners.CreateOpts{
 		Protocol:     listenerProtocol,
 		ProtocolPort: int(port.Port),
 		ConnLimit:    &svcConf.connLimit,
-		Name:         name,
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
@@ -1522,7 +1524,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		listenersCopy := make([]listeners.Listener, len(oldListeners))
 		copy(listenersCopy, oldListeners)
 		for _, port := range service.Spec.Ports {
-			listener, err := lbaas.ensureOctaviaListener(name, loadbalancer.ID, listenersCopy, port, svcConf)
+			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, listenersCopy, port, svcConf)
 			if err != nil {
 				return nil, err
 			}
