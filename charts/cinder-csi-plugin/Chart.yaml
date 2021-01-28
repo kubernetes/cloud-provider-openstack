@@ -2,7 +2,7 @@ apiVersion: v1
 appVersion: v1.20.0
 description: Cinder CSI Chart for OpenStack
 name: openstack-cinder-csi
-version: 1.2.12
+version: 1.2.13
 home: https://github.com/kubernetes/cloud-provider-openstack
 icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
 maintainers:
