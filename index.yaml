@@ -2,6 +2,20 @@ apiVersion: v1
 entries:
   openstack-cinder-csi:
   - apiVersion: v1
+    appVersion: v1.20.0
+    created: "2021-01-28T20:14:01.824951121Z"
+    description: Cinder CSI Chart for OpenStack
+    digest: 388728a9be60169d20c39d101bbb182f1c260e621888f493df6d9609c6442bd7
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: brtknr@bath.edu
+      name: brtknr
+    name: openstack-cinder-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-1.2.13/openstack-cinder-csi-1.2.13.tgz
+    version: 1.2.13
+  - apiVersion: v1
     appVersion: v1.19.0
     created: "2020-09-28T10:25:35.075557926Z"
     description: Cinder CSI Chart for OpenStack
@@ -16,6 +30,20 @@ entries:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-1.2.2/openstack-cinder-csi-1.2.2.tgz
     version: 1.2.2
   openstack-manila-csi:
+  - apiVersion: v1
+    appVersion: v1.20.0
+    created: "2021-01-28T20:14:02.090577746Z"
+    description: Manila CSI Chart for OpenStack
+    digest: 035a1d0a6025bd5e10db287d64f3e01717e2df8b1fd8f954c3c697713778b051
+    home: http://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: brtknr@bath.edu
+      name: brtknr
+    name: openstack-manila-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-1.0.5/openstack-manila-csi-1.0.5.tgz
+    version: 1.0.5
   - apiVersion: v1
     appVersion: v1.19.0
     created: "2020-09-28T10:25:35.206069325Z"
