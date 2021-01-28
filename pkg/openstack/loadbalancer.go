@@ -1032,7 +1032,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbName, lbID string, pool *v2po
 
 		mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "create")
 		createOpts := lbaas.buildMonitorCreateOpts(lbName, port)
-		// Populate PoolID, attribute is omited for consumption of the createOpts for fully populated Loadbalancer
+		// Populate PoolID, attribute is omitted for consumption of the createOpts for fully populated Loadbalancer
 		createOpts.PoolID = pool.ID
 		monitor, err := v2monitors.Create(lbaas.lb, createOpts).Extract()
 		if mc.ObserveRequest(err) != nil {
