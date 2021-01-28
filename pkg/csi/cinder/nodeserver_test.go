@@ -131,7 +131,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 
 	omock.On("CreateVolume", fvolName, 2, "test", "nova", "", "", &properties).Return(&FakeVol, nil)
 
-	omock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
+	omock.On("AttachVolume", FakeNodeID, FakeVolID, false).Return(FakeVolID, nil)
 	omock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)

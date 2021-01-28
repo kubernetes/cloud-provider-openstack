@@ -24,6 +24,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/apiversions"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/attachments"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/pagination"
@@ -161,7 +162,7 @@ func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
 }
 
 // AttachVolume attaches given cinder volume to the compute
-func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
+func (os *OpenStack) AttachVolume(instanceID, volumeID string, readOnly bool) (string, error) {
 	computeServiceClient := os.compute
 
 	volume, err := os.GetVolume(volumeID)
@@ -186,7 +187,7 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 		computeServiceClient.Microversion = "2.60"
 	}
 
-	_, err = volumeattach.Create(computeServiceClient, instanceID, &volumeattach.CreateOpts{
+	vAttachRes, err := volumeattach.Create(computeServiceClient, instanceID, &volumeattach.CreateOpts{
 		VolumeID: volume.ID,
 	}).Extract()
 
@@ -194,6 +195,15 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
 
+	if readOnly {
+		opts := attachments.UpdateOpts{
+			Connector: map[string]interface{}{"mode": "ro"},
+		}
+		_, err = attachments.Update(os.blockstorage, vAttachRes.ID, opts).Extract()
+		if err != nil {
+			return "", fmt.Errorf("failed to update attachment %s mode to readOnly: %v", vAttachRes.ID, err)
+		}
+	}
 	return volume.ID, nil
 }
 

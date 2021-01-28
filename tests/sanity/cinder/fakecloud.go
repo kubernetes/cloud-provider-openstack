@@ -61,7 +61,7 @@ func (cloud *cloud) CheckBlockStorageAPI() error {
 	return nil
 }
 
-func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
+func (cloud *cloud) AttachVolume(instanceID, volumeID string, readOnly bool) (string, error) {
 	// update the volume with attachement
 
 	vol, ok := cloud.volumes[volumeID]

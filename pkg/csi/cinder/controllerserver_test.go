@@ -247,7 +247,7 @@ func TestDeleteVolume(t *testing.T) {
 func TestControllerPublishVolume(t *testing.T) {
 
 	// AttachVolume(instanceID, volumeID string) (string, error)
-	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
+	osmock.On("AttachVolume", FakeNodeID, FakeVolID, false).Return(FakeVolID, nil)
 	// WaitDiskAttached(instanceID string, volumeID string) error
 	osmock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	// GetAttachmentDiskPath(instanceID, volumeID string) (string, error)

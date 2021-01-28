@@ -56,19 +56,19 @@ type OpenStackMock struct {
 }
 
 // AttachVolume provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (string, error) {
-	ret := _m.Called(instanceID, volumeID)
+func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string, readOnly bool) (string, error) {
+	ret := _m.Called(instanceID, volumeID, readOnly)
 
 	var r0 string
-	if rf, ok := ret.Get(0).(func(string, string) string); ok {
-		r0 = rf(instanceID, volumeID)
+	if rf, ok := ret.Get(0).(func(string, string, bool) string); ok {
+		r0 = rf(instanceID, volumeID, readOnly)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(instanceID, volumeID)
+	if rf, ok := ret.Get(1).(func(string, string, bool) error); ok {
+		r1 = rf(instanceID, volumeID, readOnly)
 	} else {
 		r1 = ret.Error(1)
 	}

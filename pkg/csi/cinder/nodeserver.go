@@ -123,6 +123,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	var err error
 
 	volID := req.GetVolumeId()
+	readOnly := req.GetReadonly()
 	volName := fmt.Sprintf("ephemeral-%s", volID)
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": ns.Driver.cluster}
 	capacity, ok := req.GetVolumeContext()["capacity"]
@@ -165,7 +166,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to get Instance ID: %v", err))
 	}
 
-	_, err = ns.Cloud.AttachVolume(nodeID, evol.ID)
+	_, err = ns.Cloud.AttachVolume(nodeID, evol.ID, readOnly)
 	if err != nil {
 		klog.V(3).Infof("Ephermal Volume Attach: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to Attach Volume: %v", err))
