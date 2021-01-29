@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/container-storage-interface/spec v1.2.0
+	github.com/container-storage-interface/spec v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/golang/protobuf v1.4.3
