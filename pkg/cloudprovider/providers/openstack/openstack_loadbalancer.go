@@ -49,7 +49,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	klog "k8s.io/klog/v2"
 
-	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	netsets "k8s.io/cloud-provider-openstack/pkg/util/net/sets"
