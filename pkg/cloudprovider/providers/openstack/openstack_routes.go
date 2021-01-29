@@ -28,7 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/klog/v2"
 )
 
