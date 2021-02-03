@@ -1981,7 +1981,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			_ = mc.ObserveRequest(err)
 			return nil, fmt.Errorf("error deleteting obsolete listener: %v", err)
 		}
-		_= mc.ObserveRequest(nil)
+		_ = mc.ObserveRequest(nil)
 		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, loadbalancer.ID)
 		if err != nil {
 			return nil, fmt.Errorf("timeout when waiting for loadbalancer %s to be ACTIVE after deleting listener, current provisioning status %s", loadbalancer.ID, provisioningStatus)
