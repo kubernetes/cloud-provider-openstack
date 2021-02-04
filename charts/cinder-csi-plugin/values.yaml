@@ -28,6 +28,10 @@ csi:
       repository: k8s.gcr.io/sig-storage/livenessprobe
       tag: v2.1.0
       pullPolicy: IfNotPresent
+    failureThreshold: 5
+    initialDelaySeconds: 10
+    timeoutSeconds: 3
+    periodSeconds: 10
   nodeDriverRegistrar:
     image:
       repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
