@@ -28,6 +28,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 
 	"k8s.io/klog/v2"
@@ -63,6 +64,7 @@ func (os *OpenStack) CheckBlockStorageAPI() error {
 
 // CreateVolume creates a volume of given size
 func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
+	mc := metrics.NewMetricPrometheusContext("volume", "create")
 
 	opts := &volumes.CreateOpts{
 		Name:             name,
@@ -78,6 +80,9 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 	}
 
 	vol, err := volumes.Create(os.blockstorage, opts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +94,8 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error) {
 	var nextPageToken string
 	var vols []volumes.Volume
+
+	mc := metrics.NewMetricPrometheusContext("volume", "list")
 
 	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	err := volumes.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
@@ -114,6 +121,9 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 
 		return false, nil
 	})
+	if mc.ObserveRequest(err) != nil {
+		return nil, nextPageToken, err
+	}
 	if err != nil {
 		return nil, nextPageToken, err
 	}
@@ -124,9 +134,14 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
 // Returns a list of Volume references with the specified name
 func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
+	mc := metrics.NewMetricPrometheusContext("volume", "get")
+
 	opts := volumes.ListOpts{Name: n}
 	pages, err := volumes.List(os.blockstorage, opts).AllPages()
 	if err != nil {
+		return nil, err
+	}
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -140,6 +155,8 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 
 // DeleteVolume delete a volume
 func (os *OpenStack) DeleteVolume(volumeID string) error {
+	mc := metrics.NewMetricPrometheusContext("volume", "delete")
+
 	used, err := os.diskIsUsed(volumeID)
 	if err != nil {
 		return err
@@ -149,14 +166,21 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 	}
 
 	err = volumes.Delete(os.blockstorage, volumeID, nil).ExtractErr()
+	if mc.ObserveRequest(err) != nil {
+		return err
+	}
 	return err
 }
 
 // GetVolume retrieves Volume by its ID.
 func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
+	mc := metrics.NewMetricPrometheusContext("volume", "get")
 
 	vol, err := volumes.Get(os.blockstorage, volumeID).Extract()
 	if err != nil {
+		return nil, err
+	}
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -189,9 +213,14 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 		computeServiceClient.Microversion = "2.60"
 	}
 
+	mc := metrics.NewMetricPrometheusContext("volumeattachment", "create")
+
 	_, err = volumeattach.Create(computeServiceClient, instanceID, &volumeattach.CreateOpts{
 		VolumeID: volume.ID,
 	}).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return "", err
+	}
 
 	if err != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
@@ -276,7 +305,12 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 	// Incase volume is of type multiattach, it could be attached to more than one instance
 	for _, att := range volume.Attachments {
 		if att.ServerID == instanceID {
+			mc := metrics.NewMetricPrometheusContext("volumeattachment", "delete")
+
 			err = volumeattach.Delete(os.compute, instanceID, volume.ID).ExtractErr()
+			if mc.ObserveRequest(err) != nil {
+				return err
+			}
 			if err != nil {
 				return fmt.Errorf("failed to detach volume %s from compute %s : %v", volume.ID, instanceID, err)
 			}
@@ -349,10 +383,21 @@ func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) e
 		// cinder online resize is available since 3.42 microversion
 		// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
 		blockstorageClient.Microversion = "3.42"
+		mc := metrics.NewMetricPrometheusContext("volume", "update")
 
-		return volumeexpand.ExtendSize(blockstorageClient, volumeID, extendOpts).ExtractErr()
+		err = volumeexpand.ExtendSize(blockstorageClient, volumeID, extendOpts).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			return err
+		}
+		return err
+
 	case VolumeAvailableStatus:
-		return volumeexpand.ExtendSize(os.blockstorage, volumeID, extendOpts).ExtractErr()
+		mc := metrics.NewMetricPrometheusContext("volume", "update")
+		err := volumeexpand.ExtendSize(os.blockstorage, volumeID, extendOpts).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			return err
+		}
+		return err
 	}
 
 	// cinder volume can not be expanded when volume status is not volumeInUseStatus or not volumeAvailableStatus
