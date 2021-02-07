@@ -28,6 +28,69 @@ openstack-cloud-controller-manager
   --secure-port=10258
 ```
 
+### Exposing metrics to prometheus operator
+
+Default setup assumes that cloud-controller-manager is located in master.
+Please note that firewall between prometheus (usually normal node) and master port 10258 needs to be open.
+After that you can just apply following manifests and you should be able to see statistics in prometheus soon.
+
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: system:cloud-controller-manager:auth-delegate
+subjects:
+- kind: User
+  name: system:serviceaccount:kube-system:cloud-controller-manager
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: system:auth-delegator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: openstack-cloud-controller-manager
+  name: openstack-cloud-controller-manager
+  namespace: monitoring
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    port: http
+    scheme: https
+    tlsConfig:
+      insecureSkipVerify: true
+  jobLabel: component
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  selector:
+    matchLabels:
+      k8s-app: openstack-cloud-controller-manager
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: openstack-cloud-controller-manager
+  name: openstack-cloud-controller-manager
+  namespace: kube-system
+spec:
+  ports:
+  - name: http
+    port: 10258
+    protocol: TCP
+  selector:
+    k8s-app: openstack-cloud-controller-manager
+
+```
+
+
 ### OpenStack API calls
 
 |Metric name|Metric type|Labels/tags|Status|
