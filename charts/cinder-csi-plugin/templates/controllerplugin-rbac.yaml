@@ -184,3 +184,35 @@ roleRef:
   kind: Role
   name: external-resizer-cfg
   apiGroup: rbac.authorization.k8s.io
+
+{{ if .Values.podSecurityPolicy.enabled }}
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-cinder-controller-psp
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - policy
+  resourceNames:
+  - {{ .Values.podSecurityPolicy.existingPolicyName | default "csi-cinder" }}
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-cinder-controller-psp
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: csi-cinder-controller-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: csi-cinder-controller-psp
+  apiGroup: rbac.authorization.k8s.io
+{{ end }}
