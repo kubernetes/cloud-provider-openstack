@@ -43,6 +43,7 @@ func init() {
 }
 
 func main() {
+	fmt.Println("Hello World. This is only for testing purposes")
 
 	flag.CommandLine.Parse([]string{})
 
