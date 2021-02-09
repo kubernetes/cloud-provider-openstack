@@ -112,13 +112,13 @@ spec:
               protocol: TCP
           # The probe
           livenessProbe:
-            failureThreshold: 5
+            failureThreshold: {{ .Values.csi.livenessprobe.failureThreshold }}
             httpGet:
               path: /healthz
               port: healthz
-            initialDelaySeconds: 10
-            timeoutSeconds: 3
-            periodSeconds: 10
+            initialDelaySeconds: {{ .Values.csi.livenessprobe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.csi.livenessprobe.timeoutSeconds }}
+            periodSeconds: {{ .Values.csi.livenessprobe.periodSeconds }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
