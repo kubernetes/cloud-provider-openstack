@@ -26,6 +26,7 @@ import (
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
+	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 
@@ -83,22 +84,37 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 
 // ListVolumes list all the volumes
 func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error) {
-	nextPageToken := ""
+	var nextPageToken string
+	var vols []volumes.Volume
+
 	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
-	pages, err := volumes.List(os.blockstorage, opts).AllPages()
-	if err != nil {
-		return nil, nextPageToken, err
-	}
-	vols, err := volumes.ExtractVolumes(pages)
-	if err != nil {
-		return nil, nextPageToken, err
-	}
-	nextPageURL, err := pages.NextPageURL()
-	if err != nil && nextPageURL != "" {
-		if queryParams, nerr := url.ParseQuery(nextPageURL); nerr != nil {
+	err := volumes.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
+		var err error
+
+		vols, err = volumes.ExtractVolumes(page)
+		if err != nil {
+			return false, err
+		}
+
+		nextPageURL, err := page.NextPageURL()
+		if err != nil {
+			return false, err
+		}
+
+		if nextPageURL != "" {
+			queryParams, err := url.ParseQuery(nextPageURL)
+			if err != nil {
+				return false, err
+			}
 			nextPageToken = queryParams.Get("marker")
 		}
+
+		return false, nil
+	})
+	if err != nil {
+		return nil, nextPageToken, err
 	}
+
 	return vols, nextPageToken, nil
 }
 
