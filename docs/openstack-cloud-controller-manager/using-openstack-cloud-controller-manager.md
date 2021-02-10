@@ -137,7 +137,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `use-clouds`
   Set this option to `true` to get authorization credentials from a clouds.yaml file. Options explicitly set in this section are prioritized over values read from clouds.yaml, the file path can be set in `clouds-file` option. Otherwise, the following order is applied:
   1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
-  2. The directory `pkg/cloudprovider/providers/openstack/`
+  2. The directory `pkg/openstack`
   3. The directory `~/.config/openstack`
   4. The directory `/etc/openstack`
 * `clouds-file`
