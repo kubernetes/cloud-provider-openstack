@@ -95,6 +95,9 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 
 * `auth-url`
   Required. Keystone service URL, e.g. http://128.110.154.166/identity
+* `os-endpoint-type`
+  Optional. Specify which type of endpoint to use from the service catalog.
+  If not set, public endpoints are used.
 * `ca-file`
   Optional. CA certificate bundle file for communication with Keystone service, this is required when using the https protocol in the Keystone service URL.
 * `cert-file`
