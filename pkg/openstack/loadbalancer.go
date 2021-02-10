@@ -3184,6 +3184,9 @@ func PreserveGopherError(rawError error) error {
 	if rawError == nil {
 		return nil
 	}
+	if v, ok := rawError.(gophercloud.ErrErrorAfterReauthentication); ok {
+		rawError = v.ErrOriginal
+	}
 	var details []byte
 	switch e := rawError.(type) {
 	case gophercloud.ErrDefault400:
@@ -3196,6 +3199,7 @@ func PreserveGopherError(rawError error) error {
 		details = e.Body
 	case gophercloud.ErrDefault408:
 		details = e.Body
+	case gophercloud.ErrDefault409:
 	case gophercloud.ErrDefault429:
 		details = e.Body
 	case gophercloud.ErrDefault500:
