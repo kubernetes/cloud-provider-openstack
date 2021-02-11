@@ -68,7 +68,8 @@ spec:
           imagePullPolicy: {{ .Values.csi.resizer.image.pullPolicy }}
           args:
             - "--csi-address=$(ADDRESS)"
-            - "--csiTimeout={{ .Values.timeout }}"
+            - "--timeout={{ .Values.timeout }}"
+            - "--handle-volume-inuse-error=false"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
