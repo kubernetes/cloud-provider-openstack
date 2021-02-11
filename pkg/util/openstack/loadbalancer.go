@@ -27,10 +27,10 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/pagination"
-	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
-	klog "k8s.io/klog/v2"
+	"k8s.io/klog/v2"
 
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
@@ -324,7 +324,7 @@ func DeleteLoadbalancer(client *gophercloud.ServiceClient, lbID string) error {
 	mc := metrics.NewMetricContext("loadbalancer", "delete")
 	err := loadbalancers.Delete(client, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
 	if err != nil && !cpoerrors.IsNotFound(err) {
-		mc.ObserveRequest(err)
+		_ = mc.ObserveRequest(err)
 		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
 	}
 
