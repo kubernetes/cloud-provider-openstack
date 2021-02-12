@@ -3,6 +3,20 @@ entries:
   openstack-cinder-csi:
   - apiVersion: v1
     appVersion: v1.20.0
+    created: "2021-02-12T05:41:05.906103382Z"
+    description: Cinder CSI Chart for OpenStack
+    digest: 6d046af0d1922e8889c30e9a76a586c39d8323272f699739a224cb13cf6ba991
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: brtknr@bath.edu
+      name: brtknr
+    name: openstack-cinder-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-1.2.14/openstack-cinder-csi-1.2.14.tgz
+    version: 1.2.14
+  - apiVersion: v1
+    appVersion: v1.20.0
     created: "2021-01-28T20:14:01.824951121Z"
     description: Cinder CSI Chart for OpenStack
     digest: 388728a9be60169d20c39d101bbb182f1c260e621888f493df6d9609c6442bd7
