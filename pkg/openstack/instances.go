@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -39,7 +40,7 @@ import (
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
 	compute        *gophercloud.ServiceClient
-	opts           MetadataOpts
+	opts           metadata.MetadataOpts
 	networkingOpts NetworkingOpts
 }
 
@@ -61,7 +62,7 @@ func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
 func (os *OpenStack) instances() (*Instances, bool) {
 	klog.V(4).Info("openstack.Instances() called")
 
-	compute, err := os.NewComputeV2()
+	compute, err := client.NewComputeV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("unable to access compute v2 API : %v", err)
 		return nil, false

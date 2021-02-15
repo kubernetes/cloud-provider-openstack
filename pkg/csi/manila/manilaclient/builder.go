@@ -25,7 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 type ClientBuilder struct {
@@ -33,7 +33,7 @@ type ClientBuilder struct {
 	ExtraUserAgentData []string
 }
 
-func (cb *ClientBuilder) New(o *openstack_provider.AuthOpts) (Interface, error) {
+func (cb *ClientBuilder) New(o *client.AuthOpts) (Interface, error) {
 	return New(o, cb.UserAgent, cb.ExtraUserAgentData)
 }
 
@@ -97,14 +97,17 @@ func validateManilaClient(c *gophercloud.ServiceClient) error {
 	return nil
 }
 
-func New(o *openstack_provider.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
+func New(o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
 	// Authenticate and create Manila v2 client
-	provider, err := openstack_provider.NewOpenStackClient(o, userAgent, extraUserAgentData...)
+	provider, err := client.NewOpenStackClient(o, userAgent, extraUserAgentData...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
-	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{Region: o.Region})
+	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{
+		Region:       o.Region,
+		Availability: o.EndpointType,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
 	}

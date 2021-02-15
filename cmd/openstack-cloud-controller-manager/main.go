@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/healthz"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/cloud-provider/app"
 	"k8s.io/cloud-provider/options"

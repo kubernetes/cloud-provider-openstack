@@ -27,38 +27,37 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (cloudprovider.CloudProvider, error) {
-	client, err := openstack_provider.NewOpenStackClient(&cfg.OpenStack, "magnum-auto-healer")
+	client, err := client.NewOpenStackClient(&cfg.OpenStack, "magnum-auto-healer")
 	if err != nil {
 		return nil, err
 	}
 
+	eoOpts := gophercloud.EndpointOpts{
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
+	}
+
 	// get nova service client
 	var novaClient *gophercloud.ServiceClient
-	novaClient, err = gopenstack.NewComputeV2(client, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	novaClient, err = gopenstack.NewComputeV2(client, eoOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Nova service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
 	}
 
 	// get heat service client
 	var heatClient *gophercloud.ServiceClient
-	heatClient, err = gopenstack.NewOrchestrationV1(client, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	heatClient, err = gopenstack.NewOrchestrationV1(client, eoOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Heat service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
 	}
 
 	// get magnum service client
 	var magnumClient *gophercloud.ServiceClient
-	magnumClient, err = gopenstack.NewContainerInfraV1(client, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	magnumClient, err = gopenstack.NewContainerInfraV1(client, eoOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Magnum service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
 	}
