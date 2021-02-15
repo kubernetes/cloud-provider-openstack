@@ -17,16 +17,16 @@ limitations under the License.
 package options
 
 import (
-	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/validator"
 )
 
 var (
-	osOptionsValidator = validator.New(&cpo.AuthOpts{})
+	osOptionsValidator = validator.New(&client.AuthOpts{})
 )
 
-func NewOpenstackOptions(data map[string]string) (*cpo.AuthOpts, error) {
-	opts := &cpo.AuthOpts{}
+func NewOpenstackOptions(data map[string]string) (*client.AuthOpts, error) {
+	opts := &client.AuthOpts{}
 	if err := osOptionsValidator.Populate(data, opts); err != nil {
 		return nil, err
 	}

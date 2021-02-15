@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gophercloud/gophercloud"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
@@ -123,6 +124,7 @@ rescan-on-resize=true`
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
+	expectedOpts.Global.EndpointType = gophercloud.AvailabilityPublic
 	expectedOpts.Global.UseClouds = true
 	expectedOpts.Global.CloudsFile = wd + "/fixtures/clouds.yaml"
 	expectedOpts.Global.Cloud = fakeCloudName

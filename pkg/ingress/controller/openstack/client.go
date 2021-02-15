@@ -23,7 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	log "github.com/sirupsen/logrus"
 
-	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 )
 
@@ -38,43 +38,40 @@ type OpenStack struct {
 
 // NewOpenStack gets openstack struct
 func NewOpenStack(cfg config.Config) (*OpenStack, error) {
-	provider, err := cpo.NewOpenStackClient(&cfg.OpenStack, "octavia-ingress-controller")
+	provider, err := client.NewOpenStackClient(&cfg.OpenStack, "octavia-ingress-controller")
 	if err != nil {
 		return nil, err
 	}
 
+	epOpts := gophercloud.EndpointOpts{
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
+	}
+
 	// get octavia service client
 	var lb *gophercloud.ServiceClient
-	lb, err = openstack.NewLoadBalancerV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	lb, err = openstack.NewLoadBalancerV2(provider, epOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find octavia endpoint for region %s: %v", cfg.OpenStack.Region, err)
 	}
 
 	// get neutron service client
 	var network *gophercloud.ServiceClient
-	network, err = openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	network, err = openstack.NewNetworkV2(provider, epOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find neutron endpoint for region %s: %v", cfg.OpenStack.Region, err)
 	}
 
 	// get nova service client
 	var compute *gophercloud.ServiceClient
-	compute, err = openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	compute, err = openstack.NewComputeV2(provider, epOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find compute v2 endpoint for region %s: %v", cfg.OpenStack.Region, err)
 	}
 
 	// Get barbican service client.
 	var barbican *gophercloud.ServiceClient
-	barbican, err = openstack.NewKeyManagerV1(provider, gophercloud.EndpointOpts{
-		Region: cfg.OpenStack.Region,
-	})
+	barbican, err = openstack.NewKeyManagerV1(provider, epOpts)
 	if err != nil {
 		log.Warn("Barbican not suppported.")
 		barbican = nil

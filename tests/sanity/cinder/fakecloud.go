@@ -10,9 +10,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	cco "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 type cloud struct {
@@ -29,7 +29,7 @@ func getfakecloud() *cloud {
 	}
 }
 
-var _ cco.IOpenStack = &cloud{}
+var _ openstack.IOpenStack = &cloud{}
 
 // Fake Cloud
 func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
@@ -262,12 +262,12 @@ func (cloud *cloud) GetMaxVolLimit() int64 {
 	return 256
 }
 
-func (cloud *cloud) GetMetadataOpts() cpo.MetadataOpts {
-	var m cpo.MetadataOpts
+func (cloud *cloud) GetMetadataOpts() metadata.MetadataOpts {
+	var m metadata.MetadataOpts
 	m.SearchOrder = fmt.Sprintf("%s,%s", "configDrive", "metadataService")
 	return m
 }
 
-func (cloud *cloud) GetBlockStorageOpts() cco.BlockStorageOpts {
-	return cco.BlockStorageOpts{}
+func (cloud *cloud) GetBlockStorageOpts() openstack.BlockStorageOpts {
+	return openstack.BlockStorageOpts{}
 }

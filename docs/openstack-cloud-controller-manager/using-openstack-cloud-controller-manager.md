@@ -95,6 +95,9 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 
 * `auth-url`
   Required. Keystone service URL, e.g. http://128.110.154.166/identity
+* `os-endpoint-type`
+  Optional. Specify which type of endpoint to use from the service catalog.
+  If not set, public endpoints are used.
 * `ca-file`
   Optional. CA certificate bundle file for communication with Keystone service, this is required when using the https protocol in the Keystone service URL.
 * `cert-file`
@@ -134,7 +137,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `use-clouds`
   Set this option to `true` to get authorization credentials from a clouds.yaml file. Options explicitly set in this section are prioritized over values read from clouds.yaml, the file path can be set in `clouds-file` option. Otherwise, the following order is applied:
   1. A file path stored in the environment variable `OS_CLIENT_CONFIG_FILE`
-  2. The directory `pkg/cloudprovider/providers/openstack/`
+  2. The directory `pkg/openstack`
   3. The directory `~/.config/openstack`
   4. The directory `/etc/openstack`
 * `clouds-file`

@@ -25,6 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 func TestRoutes(t *testing.T) {
@@ -84,7 +85,7 @@ func TestRoutes(t *testing.T) {
 }
 
 func getServers(os *OpenStack) []servers.Server {
-	c, err := os.NewComputeV2()
+	c, err := client.NewComputeV2(os.provider, os.epOpts)
 	opts := servers.ListOpts{
 		Status: "ACTIVE",
 	}
@@ -104,7 +105,7 @@ func getServers(os *OpenStack) []servers.Server {
 
 func getRouters(os *OpenStack) []routers.Router {
 	listOpts := routers.ListOpts{}
-	n, err := os.NewNetworkV2()
+	n, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
 		panic(err)
 	}

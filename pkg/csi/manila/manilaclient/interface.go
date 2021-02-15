@@ -21,7 +21,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 type Interface interface {
@@ -50,5 +50,5 @@ type Interface interface {
 }
 
 type Builder interface {
-	New(o *openstack_provider.AuthOpts) (Interface, error)
+	New(o *client.AuthOpts) (Interface, error)
 }
