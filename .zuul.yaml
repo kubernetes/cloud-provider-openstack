@@ -51,27 +51,6 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-csi-cinder:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-csi-cinder:
-            files:
-              - cluster/images/cinder-csi-plugin/.*
-              - cmd/cinder-csi-plugin/.*
-              - manifests/cinder-csi-plugin/.*
-              - pkg/csi/cinder/.*
-              - pkg/util/.*
-              - pkg/cloudprovider/providers/openstack/.*
-              - test/.*
-              - cmd/tests/.*
-              - go.mod$
-              - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-e2e-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-e2e-test-csi-cinder:
