@@ -14,6 +14,8 @@
     - [Metadata](#metadata)
   - [Exposing applications using services of LoadBalancer type](#exposing-applications-using-services-of-loadbalancer-type)
   - [Metrics](#metrics)
+  - [Limitation](#limitation)
+    - [OpenStack availability zone must not contain blank](#openstack-availability-zone-must-not-contain-blank)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -244,3 +246,9 @@ Refer to [Exposing applications using services of LoadBalancer type](./expose-ap
 ## Metrics
 
 Refer to [Metrics for openstack-cloud-controller-manager](../metrics.md)
+
+## Limitation
+
+### OpenStack availability zone must not contain blank
+
+`topology.kubernetes.io/zone` is used to label node and its value comes from availability zone of the node, according to [label spec](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set) it does not support blank (' ') but OpenStack availability zone supports blank. So your OpenStack availability zone must not contain blank otherwise it will lead to node that belongs to this availability zone register failure, see [#1379](https://github.com/kubernetes/cloud-provider-openstack/issues/1379) for further information.
