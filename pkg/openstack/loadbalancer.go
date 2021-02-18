@@ -522,18 +522,18 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		if err != nil {
 			return nil, err
 		}
-		poolCreateOpt := lbaas.buildPoolCreateOpt(name, string(listenerCreateOpt.Protocol), port, service, svcConf)
+		poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
 		poolCreateOpt.Members = members
 		poolName := poolCreateOpt.Name
 		if svcConf.enableMonitor {
-			opts := lbaas.buildMonitorCreateOpts(name, port)
+			opts := lbaas.buildMonitorCreateOpts(port)
 			poolCreateOpt.Monitor = &opts
 			poolName = poolName + " with healthmonitor"
 		}
 
 		listenerCreateOpt.DefaultPool = &poolCreateOpt
 		createOpts.Listeners = append(createOpts.Listeners, listenerCreateOpt)
-		klog.V(2).Infof("Loadbalancer %s: adding pool %s using protocol %s with %d members%s", name, poolName, poolCreateOpt.Protocol, len(newMembers))
+		klog.V(2).Infof("Loadbalancer %s: adding pool %s using protocol %s with %d members", name, poolName, poolCreateOpt.Protocol, len(newMembers))
 	}
 
 	mc := metrics.NewMetricContext("loadbalancer", "create")
@@ -1031,7 +1031,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbName, lbID string, pool *v2po
 		klog.V(2).Infof("Creating monitor for pool %s", pool.ID)
 
 		mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "create")
-		createOpts := lbaas.buildMonitorCreateOpts(lbName, port)
+		createOpts := lbaas.buildMonitorCreateOpts(port)
 		// Populate PoolID, attribute is omitted for consumption of the createOpts for fully populated Loadbalancer
 		createOpts.PoolID = pool.ID
 		monitor, err := v2monitors.Create(lbaas.lb, createOpts).Extract()
@@ -1061,14 +1061,12 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbName, lbID string, pool *v2po
 }
 
 //buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
-func (lbaas *LbaasV2) buildMonitorCreateOpts(lbName string, port corev1.ServicePort) v2monitors.CreateOpts {
-	name := lbaas.buildObjectName("monitor", lbName, port)
+func (lbaas *LbaasV2) buildMonitorCreateOpts(port corev1.ServicePort) v2monitors.CreateOpts {
 	monitorProtocol := string(port.Protocol)
 	if port.Protocol == corev1.ProtocolUDP {
 		monitorProtocol = "UDP-CONNECT"
 	}
 	return v2monitors.CreateOpts{
-		Name:       name,
 		Type:       monitorProtocol,
 		Delay:      int(lbaas.opts.MonitorDelay.Duration.Seconds()),
 		Timeout:    int(lbaas.opts.MonitorTimeout.Duration.Seconds()),
@@ -1084,7 +1082,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbName, lbID string, listener *listeners
 	}
 	if pool == nil {
 		// By default, use the protocol of the listener
-		createOpt := lbaas.buildPoolCreateOpt(lbName, listener.Protocol, port, service, svcConf)
+		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf)
 		createOpt.ListenerID = listener.ID
 
 		klog.V(2).Infof("Creating pool for listener %s using protocol %s", listener.ID, createOpt.Protocol)
@@ -1128,7 +1126,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbName, lbID string, listener *listeners
 	return pool, nil
 }
 
-func (lbaas *LbaasV2) buildPoolCreateOpt(lbName string, listenerProtocol string, port corev1.ServicePort, service *corev1.Service, svcConf *serviceConfig) v2pools.CreateOpts {
+func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev1.Service, svcConf *serviceConfig) v2pools.CreateOpts {
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listenerProtocol)
 	if svcConf.enableProxyProtocol {
@@ -1147,18 +1145,15 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(lbName string, listenerProtocol string,
 		persistence = &v2pools.SessionPersistence{Type: "SOURCE_IP"}
 	}
 
-	name := lbaas.buildObjectName("pool", lbName, port)
-
 	lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
 	return v2pools.CreateOpts{
-		Name:        name,
 		Protocol:    poolProto,
 		LBMethod:    lbmethod,
 		Persistence: persistence,
 	}
 }
 
-//buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of  member names
+//buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
 func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.String, error) {
 	var members []v2pools.BatchUpdateMemberOpts
 	newMembers := sets.NewString()
