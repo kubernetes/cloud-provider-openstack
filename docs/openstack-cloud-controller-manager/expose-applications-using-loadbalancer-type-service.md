@@ -124,7 +124,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/proxy-protocol`
 
-  If 'true', the protocol for listener will be set as `PROXY`. Default is 'false'.
+  If 'true', the loadbalancer pool protocol will be set as `PROXY`. Default is 'false'.
 
 - `loadbalancer.openstack.org/x-forwarded-for`
 
