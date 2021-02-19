@@ -181,7 +181,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 
 ## Supported Parameters
 
-| Parameter Type             | Paramerter Name       |   Default       |Description      |
+| Parameter Type             | Parameter Name       |   Default       |Description      |
 |-------------------------   |-----------------------|-----------------|-----------------|
 | StorageClass `parameters`  | `availability`          | `nova`          | String. Volume Availability Zone |
 | StorageClass `parameters`  | `type`                  | Empty String    | String. Name/ID of Volume type. Corresponding volume type should exist in cinder     |
