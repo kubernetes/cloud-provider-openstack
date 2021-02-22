@@ -524,16 +524,16 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		}
 		poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
 		poolCreateOpt.Members = members
-		poolName := poolCreateOpt.Name
+		var withHealthMonitor string
 		if svcConf.enableMonitor {
 			opts := lbaas.buildMonitorCreateOpts(port)
 			poolCreateOpt.Monitor = &opts
-			poolName = poolName + " with healthmonitor"
+			withHealthMonitor = " with healthmonitor"
 		}
 
 		listenerCreateOpt.DefaultPool = &poolCreateOpt
 		createOpts.Listeners = append(createOpts.Listeners, listenerCreateOpt)
-		klog.V(2).Infof("Loadbalancer %s: adding pool %s using protocol %s with %d members", name, poolName, poolCreateOpt.Protocol, len(newMembers))
+		klog.V(2).Infof("Loadbalancer %s: adding pool%s using protocol %s with %d members", name, withHealthMonitor, poolCreateOpt.Protocol, len(newMembers))
 	}
 
 	mc := metrics.NewMetricContext("loadbalancer", "create")
@@ -1024,7 +1024,7 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 	return lb.VipAddress, nil
 }
 
-func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbName, lbID string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
 	monitorID := pool.MonitorID
 
 	if monitorID == "" && svcConf.enableMonitor {
@@ -1298,14 +1298,6 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 	return listenerCreateOpt
 }
 
-func (lbaas *LbaasV2) buildObjectName(prefix, lbName string, port corev1.ServicePort) string {
-	portName := port.Name
-	if len(portName) == 0 {
-		portName = strings.ToLower(string(port.Protocol))
-	}
-	return fmt.Sprintf("%s_%s_%d_%s", prefix, portName, port.Port, lbName)
-}
-
 func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
@@ -1533,7 +1525,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			if err := lbaas.ensureOctaviaHealthMonitor(name, loadbalancer.ID, pool, port, svcConf); err != nil {
+			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, pool, port, svcConf); err != nil {
 				return nil, err
 			}
 		}
