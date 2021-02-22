@@ -1075,7 +1075,7 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(port corev1.ServicePort) v2monitors
 }
 
 // Make sure the pool is created for the Service, nodes are added as pool members.
-func (lbaas *LbaasV2) ensureOctaviaPool(lbName, lbID string, listener *listeners.Listener, service *corev1.Service, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) (*v2pools.Pool, error) {
+func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listener, service *corev1.Service, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) (*v2pools.Pool, error) {
 	pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
 	if err != nil && err != openstackutil.ErrNotFound {
 		return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
@@ -1520,7 +1520,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			// Pop valid listener.
 			oldListeners = popListener(oldListeners, listener.ID)
 
-			pool, err := lbaas.ensureOctaviaPool(name, loadbalancer.ID, listener, service, port, nodes, svcConf)
+			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, listener, service, port, nodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
@@ -2481,7 +2481,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		_, err := lbaas.ensureOctaviaPool(name, loadbalancer.ID, &listener, service, port, nodes, svcConf)
+		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, &listener, service, port, nodes, svcConf)
 		if err != nil {
 			return err
 		}
