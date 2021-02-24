@@ -1,0 +1,2 @@
+resources:
+- openstack-cloud-controller-manager-ds.yaml

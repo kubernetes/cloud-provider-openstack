@@ -1,0 +1,7 @@
+resources:
+- csi-controllerplugin-rbac.yaml
+- csi-controllerplugin.yaml
+- csi-nodeplugin-rbac.yaml
+- csi-nodeplugin.yaml
+- csidriver.yaml
+
