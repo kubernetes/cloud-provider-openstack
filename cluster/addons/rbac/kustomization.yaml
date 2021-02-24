@@ -1,0 +1,3 @@
+resources:
+- cloud-controller-manager-role-bindings.yaml
+- cloud-controller-manager-roles.yaml
