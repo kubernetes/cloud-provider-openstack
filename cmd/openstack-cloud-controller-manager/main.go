@@ -55,6 +55,7 @@ var (
 )
 
 func main() {
+	fmt.Println("Hello world... force pipeline run")
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	goflag.CommandLine.Parse([]string{})
