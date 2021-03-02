@@ -788,20 +788,10 @@ func getStringFromServiceAnnotation(service *corev1.Service, annotationKey strin
 		return annotationValue
 	}
 	//if there is no annotation, set "settings" var to the value from cloud config
-	klog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting: %v = %v", annotationKey, defaultSetting)
-	return defaultSetting
-}
-
-//queryStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
-func queryStringFromServiceAnnotation(service *corev1.Service, annotationKey string) string {
-	if annotationValue, ok := service.Annotations[annotationKey]; ok {
-		//if there is an annotation for this setting, set the "setting" var to it
-		// annotationValue can be empty, it is working as designed
-		// it makes possible for instance provisioning loadbalancer without floatingip
-		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, annotationValue)
-		return annotationValue
+	if defaultSetting != "" {
+		klog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting: %v = %v", annotationKey, defaultSetting)
 	}
-	return ""
+	return defaultSetting
 }
 
 //getIntFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's integer value or a specified defaultSetting
@@ -1128,7 +1118,7 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 	klog.V(4).Infof("Found floating ip %v by loadbalancer port id %q", floatIP, portID)
 
 	// second attempt: fetch floating IP specified in service Spec.LoadBalancerIP
-	// if found, assosiate floating IP with loadbalancer's VIP port
+	// if found, associate floating IP with loadbalancer's VIP port
 	loadBalancerIP := service.Spec.LoadBalancerIP
 	if floatIP == nil && loadBalancerIP != "" {
 		opts := floatingips.ListOpts{
@@ -1170,9 +1160,9 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 			}
 
 			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.MatcherConfigured() {
-				var found_subnet subnets.Subnet
+				var foundSubnet subnets.Subnet
 				// tweak list options for tags
-				subnets, err := lbaas.listSubnetsForNetwork(svcConf.lbPublicNetworkID, svcConf.lbPublicSubnetSpec.TweakListOptsFunction())
+				foundSubnets, err := lbaas.listSubnetsForNetwork(svcConf.lbPublicNetworkID, svcConf.lbPublicSubnetSpec.TweakListOptsFunction())
 				if err != nil {
 					return "", err
 				}
@@ -1183,14 +1173,14 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 					return "", err
 				}
 				found := false
-				for _, subnet := range subnets {
+				for _, subnet := range foundSubnets {
 					klog.V(4).Infof("matching subnet %s(s)[%v]", subnet.Name, subnet.ID, subnet.Tags)
 					if match(&subnet) {
 						found = true
 						floatIPOpts.SubnetID = subnet.ID
 						floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
 						if err == nil {
-							found_subnet = subnet
+							foundSubnet = subnet
 							break
 						}
 						klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
@@ -1204,7 +1194,7 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 					return "", fmt.Errorf("no free subnet matching pattern %q found for network %s (last error %s)",
 						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID, err)
 				} else {
-					klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, found_subnet.Name, found_subnet.ID)
+					klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, foundSubnet.Name, foundSubnet.ID)
 				}
 			} else {
 				if svcConf.lbPublicSubnetSpec != nil {
@@ -1554,27 +1544,26 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 
-		if !floatingSubnet.Configured() {
-			annos := floatingSubnetSpec{}
-			annos.subnetID = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID)
-			if annos.subnetID == "" {
-				annos.subnet = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet)
-				annos.subnetTags = queryStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTags)
-			}
-			if annos.Configured() {
-				floatingSubnet = annos
-			}
-		}
-
 		// apply defaults from CCM config
 		if floatingNetworkID == "" {
 			floatingNetworkID = lbaas.opts.FloatingNetworkID
 		}
+
 		if !floatingSubnet.Configured() {
-			floatingSubnet.subnetID = lbaas.opts.FloatingSubnetID
-			if floatingSubnet.subnetID == "" {
-				floatingSubnet.subnetTags = lbaas.opts.FloatingSubnetTags
-				floatingSubnet.subnet = lbaas.opts.FloatingSubnet
+			annos := floatingSubnetSpec{}
+			annos.subnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID, "")
+			if annos.subnetID == "" {
+				annos.subnet = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnet, "")
+				annos.subnetTags = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetTags, "")
+			}
+			if annos.Configured() {
+				floatingSubnet = annos
+			} else {
+				floatingSubnet.subnetID = lbaas.opts.FloatingSubnetID
+				if floatingSubnet.subnetID == "" {
+					floatingSubnet.subnetTags = lbaas.opts.FloatingSubnetTags
+					floatingSubnet.subnet = lbaas.opts.FloatingSubnet
+				}
 			}
 		}
 
@@ -3178,7 +3167,14 @@ func GetLoadBalancerSourceRanges(service *corev1.Service) (netsets.IPNet, error)
 }
 
 // PreserveGopherError preserves the error details delivered with the response
-// that are explicitly omitted by dedicated error types.
+// that are explicitly discarded by dedicated error types.
+// The gopher library, because of an unknown reason, explicitly hides
+// the detailed error information from the response body and replaces it
+// with a generic phrase that does not help to identify the problem anymore.
+// This method resurrects the error message from the response body for
+// such cases. For example for an 404 Error the provided message just
+// tells `Resource not found`, which is not helpful, because it hides
+// the real error information, which might be something completely different.
 // error types from provider_client.go
 func PreserveGopherError(rawError error) error {
 	if rawError == nil {
