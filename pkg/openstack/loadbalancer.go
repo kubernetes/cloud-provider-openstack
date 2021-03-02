@@ -213,29 +213,49 @@ func (s *floatingSubnetSpec) Configured() bool {
 	return false
 }
 
-// TweakListOptsFunction can be used to optimize a subnet list query for the
+func (s *floatingSubnetSpec) ListSubnetsForNetwork(lbaas *LbaasV2, networkID string) ([]subnets.Subnet, error) {
+	matcher, err := s.Matcher(false)
+	if err != nil {
+		return nil, err
+	}
+	list, err := lbaas.listSubnetsForNetwork(networkID, s.tweakListOpts)
+	if err != nil {
+		return nil, err
+	}
+	if matcher==nil {
+		return list, nil
+	}
+
+	// filter subnets according to spec
+	var foundSubnets []subnets.Subnet
+	for _, subnet := range list {
+		if matcher(&subnet) {
+			foundSubnets = append(foundSubnets, subnet)
+		}
+	}
+	return foundSubnets, nil
+}
+
+// tweakListOpts can be used to optimize a subnet list query for the
 // actually described subnet filter
-func (s *floatingSubnetSpec) TweakListOptsFunction() TweakSubNetListOpsFunction {
+func (s *floatingSubnetSpec) tweakListOpts(opts *subnets.ListOpts) {
 	if s.subnetTags != "" {
-		return func(opts *subnets.ListOpts) {
-			list, not, all := tagList(s.subnetTags)
-			tags := strings.Join(list, ",")
-			if all {
-				if not {
-					opts.NotTagsAny = tags // at least one tag must be missing
-				} else {
-					opts.Tags = tags // all tags must be present
-				}
+		list, not, all := tagList(s.subnetTags)
+		tags := strings.Join(list, ",")
+		if all {
+			if not {
+				opts.NotTagsAny = tags // at least one tag must be missing
 			} else {
-				if not {
-					opts.NotTags = tags // none of the tags are present
-				} else {
-					opts.TagsAny = tags // at least one tag is present
-				}
+				opts.Tags = tags // all tags must be present
+			}
+		} else {
+			if not {
+				opts.NotTags = tags // none of the tags are present
+			} else {
+				opts.TagsAny = tags // at least one tag is present
 			}
 		}
 	}
-	return nil
 }
 
 func (s *floatingSubnetSpec) MatcherConfigured() bool {
@@ -1162,33 +1182,25 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.MatcherConfigured() {
 				var foundSubnet subnets.Subnet
 				// tweak list options for tags
-				foundSubnets, err := lbaas.listSubnetsForNetwork(svcConf.lbPublicNetworkID, svcConf.lbPublicSubnetSpec.TweakListOptsFunction())
+				foundSubnets, err := svcConf.lbPublicSubnetSpec.ListSubnetsForNetwork(lbaas, svcConf.lbPublicNetworkID)
 				if err != nil {
 					return "", err
+				}
+				if len(foundSubnets) == 0 {
+					return "", fmt.Errorf("no subnet matching pattern %q found for network %s",
+						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID)
 				}
 
 				// try to create floating IP in matching subnets (tags already filtered by list options)
-				match, err := svcConf.lbPublicSubnetSpec.Matcher(false)
-				if err != nil {
-					return "", err
-				}
-				found := false
 				for _, subnet := range foundSubnets {
 					klog.V(4).Infof("matching subnet %s(s)[%v]", subnet.Name, subnet.ID, subnet.Tags)
-					if match(&subnet) {
-						found = true
-						floatIPOpts.SubnetID = subnet.ID
-						floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
-						if err == nil {
-							foundSubnet = subnet
-							break
-						}
-						klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
+					floatIPOpts.SubnetID = subnet.ID
+					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
+					if err == nil {
+						foundSubnet = subnet
+						break
 					}
-				}
-				if !found {
-					return "", fmt.Errorf("no subnet matching pattern %q found for network %s",
-						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID)
+					klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
 				}
 				if err != nil {
 					return "", fmt.Errorf("no free subnet matching pattern %q found for network %s (last error %s)",
