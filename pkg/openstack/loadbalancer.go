@@ -1161,7 +1161,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 	for _, node := range nodes {
 		addr, err := nodeAddressForLB(node)
 		if err != nil {
-			if err == ErrNotFound {
+			if err == ErrNoAddressFound {
 				// Node failure, do not create member
 				klog.Warningf("Failed to get the address of node %s for creating member: %v", node.Name, err)
 				continue
