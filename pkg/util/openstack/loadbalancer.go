@@ -23,6 +23,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/apiversions"
+	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
@@ -149,6 +150,40 @@ func waitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID st
 	return err
 }
 
+// GetLoadbalancerByName retrieves loadbalancer object
+func GetLoadbalancerByName(client *gophercloud.ServiceClient, name string) (*loadbalancers.LoadBalancer, error) {
+	opts := loadbalancers.ListOpts{
+		Name: name,
+	}
+	allPages, err := loadbalancers.List(client, opts).AllPages()
+	if err != nil {
+		return nil, err
+	}
+	loadbalancerList, err := loadbalancers.ExtractLoadBalancers(allPages)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(loadbalancerList) > 1 {
+		return nil, ErrMultipleResults
+	}
+	if len(loadbalancerList) == 0 {
+		return nil, ErrNotFound
+	}
+
+	return &loadbalancerList[0], nil
+}
+
+// DeleteLoadbalancer deletes a loadbalancer with all its child objects.
+func DeleteLoadbalancer(client *gophercloud.ServiceClient, lbID string) error {
+	err := loadbalancers.Delete(client, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
+	}
+
+	return nil
+}
+
 // UpdateListener updates a listener and wait for the lb active
 func UpdateListener(client *gophercloud.ServiceClient, lbID string, listenerID string, opts listeners.UpdateOpts) error {
 	if _, err := listeners.Update(client, listenerID, opts).Extract(); err != nil {
@@ -174,30 +209,6 @@ func CreateListener(client *gophercloud.ServiceClient, lbID string, opts listene
 	}
 
 	return listener, nil
-}
-
-// GetLoadbalancerByName retrieves loadbalancer object
-func GetLoadbalancerByName(client *gophercloud.ServiceClient, name string) (*loadbalancers.LoadBalancer, error) {
-	opts := loadbalancers.ListOpts{
-		Name: name,
-	}
-	allPages, err := loadbalancers.List(client, opts).AllPages()
-	if err != nil {
-		return nil, err
-	}
-	loadbalancerList, err := loadbalancers.ExtractLoadBalancers(allPages)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(loadbalancerList) > 1 {
-		return nil, ErrMultipleResults
-	}
-	if len(loadbalancerList) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &loadbalancerList[0], nil
 }
 
 // GetListenerByName gets a listener by its name, raise error if not found or get multiple ones.
@@ -232,6 +243,20 @@ func GetListenerByName(client *gophercloud.ServiceClient, name string, lbID stri
 	}
 
 	return &listenerList[0], nil
+}
+
+// CreatePool creates a new pool.
+func CreatePool(client *gophercloud.ServiceClient, opts pools.CreateOptsBuilder, lbID string) (*pools.Pool, error) {
+	pool, err := pools.Create(client, opts).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = waitLoadbalancerActive(client, lbID); err != nil {
+		return nil, fmt.Errorf("failed to wait for load balancer ACTIVE after creating pool: %v", err)
+	}
+
+	return pool, nil
 }
 
 // GetPoolByName gets a pool by its name, raise error if not found or get multiple ones.
@@ -303,14 +328,24 @@ func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID strin
 	return &listenerPools[0], nil
 }
 
-// DeleteLoadbalancer deletes a loadbalancer with all its child objects.
-func DeleteLoadbalancer(client *gophercloud.ServiceClient, lbID string) error {
-	err := loadbalancers.Delete(client, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
-	if err != nil && !cpoerrors.IsNotFound(err) {
-		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
+// GetPools retrives the pools belong to the loadbalancer.
+func GetPools(client *gophercloud.ServiceClient, lbID string) ([]pools.Pool, error) {
+	var lbPools []pools.Pool
+
+	opts := pools.ListOpts{
+		LoadbalancerID: lbID,
+	}
+	allPages, err := pools.List(client, opts).AllPages()
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	lbPools, err = pools.ExtractPools(allPages)
+	if err != nil {
+		return nil, err
+	}
+
+	return lbPools, nil
 }
 
 // GetMembersbyPool get all the members in the pool.
@@ -333,7 +368,21 @@ func GetMembersbyPool(client *gophercloud.ServiceClient, poolID string) ([]pools
 	return members, nil
 }
 
-func BatchUpdatePoolMembers(client *gophercloud.ServiceClient, lbID, poolID string, opts []pools.BatchUpdateMemberOpts) error {
+// DeletePool deletes a pool.
+func DeletePool(client *gophercloud.ServiceClient, poolID string, lbID string) error {
+	if err := pools.Delete(client, poolID).ExtractErr(); err != nil {
+		return err
+	}
+
+	if err := waitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer ACTIVE after deleting pool: %v", err)
+	}
+
+	return nil
+}
+
+// BatchUpdatePoolMembers updates pool members in batch.
+func BatchUpdatePoolMembers(client *gophercloud.ServiceClient, lbID string, poolID string, opts []pools.BatchUpdateMemberOpts) error {
 	err := pools.BatchUpdateMembers(client, poolID, opts).ExtractErr()
 	if err != nil {
 		return err
@@ -341,6 +390,83 @@ func BatchUpdatePoolMembers(client *gophercloud.ServiceClient, lbID, poolID stri
 
 	if err := waitLoadbalancerActive(client, lbID); err != nil {
 		return fmt.Errorf("failed to wait for load balancer ACTIVE after updating pool members for %s: %v", poolID, err)
+	}
+
+	return nil
+}
+
+// GetL7policies retrieves all l7 policies for the given listener.
+func GetL7policies(client *gophercloud.ServiceClient, listenerID string) ([]l7policies.L7Policy, error) {
+	var policies []l7policies.L7Policy
+	opts := l7policies.ListOpts{
+		ListenerID: listenerID,
+	}
+	err := l7policies.List(client, opts).EachPage(func(page pagination.Page) (bool, error) {
+		v, err := l7policies.ExtractL7Policies(page)
+		if err != nil {
+			return false, err
+		}
+		policies = append(policies, v...)
+		return true, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return policies, nil
+}
+
+// CreateL7Policy creates a l7 policy.
+func CreateL7Policy(client *gophercloud.ServiceClient, opts l7policies.CreateOpts, lbID string) (*l7policies.L7Policy, error) {
+	policy, err := l7policies.Create(client, opts).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = waitLoadbalancerActive(client, lbID); err != nil {
+		return nil, fmt.Errorf("failed to wait for load balancer ACTIVE after creating l7policy: %v", err)
+	}
+
+	return policy, nil
+}
+
+// DeleteL7policy deletes a l7 policy.
+func DeleteL7policy(client *gophercloud.ServiceClient, policyID string, lbID string) error {
+	if err := l7policies.Delete(client, policyID).ExtractErr(); err != nil {
+		return err
+	}
+
+	if err := waitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer ACTIVE after deleting l7policy: %v", err)
+	}
+
+	return nil
+}
+
+// GetL7Rules gets all the rules for a l7 policy
+func GetL7Rules(client *gophercloud.ServiceClient, policyID string) ([]l7policies.Rule, error) {
+	listOpts := l7policies.ListRulesOpts{}
+	allPages, err := l7policies.ListRules(client, policyID, listOpts).AllPages()
+	if err != nil {
+		return nil, err
+	}
+	allRules, err := l7policies.ExtractRules(allPages)
+	if err != nil {
+		return nil, err
+	}
+
+	return allRules, nil
+}
+
+// CreateL7Rule creates a l7 rule.
+func CreateL7Rule(client *gophercloud.ServiceClient, policyID string, opts l7policies.CreateRuleOpts, lbID string) error {
+	_, err := l7policies.CreateRule(client, policyID, opts).Extract()
+	if err != nil {
+		return err
+	}
+
+	if err = waitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer ACTIVE after creating l7policy rule: %v", err)
 	}
 
 	return nil

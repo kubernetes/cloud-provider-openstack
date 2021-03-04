@@ -326,7 +326,7 @@ EOF
     printf "\n>>>>>>> Expected: NodePorts ${member_ports} before updating service.\n"
 
     printf "\n>>>>>>> Removing port2 and update NodePort of port1.\n"
-    kubectl patch svc $service --type json -p '[{"op": "remove","path": "/spec/ports/1"},{"op": "remove","path": "/spec/ports/0/nodePort"}]'
+    kubectl -n $NAMESPACE patch svc $service --type json -p '[{"op": "remove","path": "/spec/ports/1"},{"op": "remove","path": "/spec/ports/0/nodePort"}]'
 
     printf "\n>>>>>>> Waiting for load balancer $lbid ACTIVE.\n"
     wait_for_loadbalancer $lbid
