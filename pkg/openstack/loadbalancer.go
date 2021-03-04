@@ -543,7 +543,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		if opts, err := json.Marshal(createOpts); err == nil {
 			printObj = string(opts)
 		}
-		return nil, fmt.Errorf("error creating loadbalancer %v: %s", printObj, err)
+		return nil, fmt.Errorf("error creating loadbalancer %v: %v", printObj, err)
 	}
 
 	// In case subnet ID is not configured
