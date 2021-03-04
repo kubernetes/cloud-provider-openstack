@@ -117,12 +117,12 @@ type LoadBalancerOpts struct {
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
 type LBClass struct {
-	FloatingNetworkID string `gcfg:"floating-network-id,omitempty"`
-	FloatingSubnetID  string `gcfg:"floating-subnet-id,omitempty"`
-	FloatingSubnet    string `gcfg:"floating-subnet,omitempty"`
-	FloatingSubnetTag string `gcfg:"floating-subnet-tag"`
-	NetworkID         string `gcfg:"network-id,omitempty"`
-	SubnetID          string `gcfg:"sunet-id,omitempty"`
+	FloatingNetworkID  string `gcfg:"floating-network-id,omitempty"`
+	FloatingSubnetID   string `gcfg:"floating-subnet-id,omitempty"`
+	FloatingSubnet     string `gcfg:"floating-subnet,omitempty"`
+	FloatingSubnetTags string `gcfg:"floating-subnet-tags,omitempty"`
+	NetworkID          string `gcfg:"network-id,omitempty"`
+	SubnetID           string `gcfg:"subnet-id,omitempty"`
 }
 
 // BlockStorageOpts is used to talk to Cinder service

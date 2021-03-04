@@ -222,7 +222,7 @@ func (s *floatingSubnetSpec) ListSubnetsForNetwork(lbaas *LbaasV2, networkID str
 	if err != nil {
 		return nil, err
 	}
-	if matcher==nil {
+	if matcher == nil {
 		return list, nil
 	}
 
@@ -263,6 +263,25 @@ func (s *floatingSubnetSpec) MatcherConfigured() bool {
 		return true
 	}
 	return false
+}
+
+func addField(s, name, value string) string {
+	if value == "" {
+		return s
+	}
+	if s == "" {
+		s += ", "
+	}
+	return fmt.Sprintf("%s%s: %q", s, name, value)
+}
+
+func (s *floatingSubnetSpec) String() string {
+	if s == nil || (s.subnetID == "" && s.subnet == "" && s.subnetTags == "") {
+		return "<none>"
+	}
+	pat := addField("", "subnetID", s.subnetID)
+	pat = addField(pat, "pattern", s.subnet)
+	return addField(pat, "tags", s.subnetTags)
 }
 
 func (s *floatingSubnetSpec) Matcher(tag bool) (matcher, error) {
@@ -1187,13 +1206,14 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 					return "", err
 				}
 				if len(foundSubnets) == 0 {
-					return "", fmt.Errorf("no subnet matching pattern %q found for network %s",
-						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID)
+					return "", fmt.Errorf("no subnet matching %s found for network %s",
+						svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				}
 
 				// try to create floating IP in matching subnets (tags already filtered by list options)
+				klog.V(4).Infof("found %d subnets matching %s for network %s", len(foundSubnets),
+					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				for _, subnet := range foundSubnets {
-					klog.V(4).Infof("matching subnet %s(s)[%v]", subnet.Name, subnet.ID, subnet.Tags)
 					floatIPOpts.SubnetID = subnet.ID
 					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
 					if err == nil {
@@ -1203,8 +1223,8 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 					klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
 				}
 				if err != nil {
-					return "", fmt.Errorf("no free subnet matching pattern %q found for network %s (last error %s)",
-						svcConf.lbPublicSubnetSpec.subnet, svcConf.lbPublicNetworkID, err)
+					return "", fmt.Errorf("no free subnet matching %q found for network %s (last error %s)",
+						svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID, err)
 				} else {
 					klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, foundSubnet.Name, foundSubnet.ID)
 				}
@@ -1541,7 +1561,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			floatingSubnet.subnetID = lbClass.FloatingSubnetID
 			if floatingSubnet.subnetID == "" {
 				floatingSubnet.subnet = lbClass.FloatingSubnet
-				floatingSubnet.subnetTags = lbClass.FloatingSubnetTag
+				floatingSubnet.subnetTags = lbClass.FloatingSubnetTags
 			}
 		}
 
