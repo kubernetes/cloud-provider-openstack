@@ -67,6 +67,12 @@ func Execute() {
 
 func init() {
 	log.SetOutput(os.Stdout)
+	log.SetFormatter(&log.TextFormatter{
+		ForceColors:            true,
+		FullTimestamp:          true,
+		DisableLevelTruncation: true,
+		PadLevelText:           true,
+	})
 
 	cobra.OnInitialize(initConfig)
 
