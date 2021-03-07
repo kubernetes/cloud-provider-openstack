@@ -51,6 +51,10 @@ func initCinderDriver(name string, manifests ...string) testsuites.TestDriver {
 				testsuites.CapBlock:              true,
 				testsuites.CapSnapshotDataSource: true,
 				testsuites.CapPVCDataSource:      true,
+				testsuites.CapTopology:           true,
+			},
+			TopologyKeys: []string{
+				"topology.cinder.csi.openstack.org/zone",
 			},
 		},
 		manifests: manifests,
@@ -58,22 +62,21 @@ func initCinderDriver(name string, manifests ...string) testsuites.TestDriver {
 }
 
 func InitCinderDriver() testsuites.TestDriver {
-
 	return initCinderDriver("cinder.csi.openstack.org",
 		"cinder-csi-controllerplugin.yaml",
 		"cinder-csi-controllerplugin-rbac.yaml",
 		"cinder-csi-nodeplugin.yaml",
 		"cinder-csi-nodeplugin-rbac.yaml",
 		"csi-secret-cinderplugin.yaml")
-
 }
-
-var _ testsuites.TestDriver = &cinderDriver{}
 
 // var _ testsuites.PreprovisionedVolumeTestDriver = &cinderDriver{}
 // var _ testsuites.PreprovisionedPVTestDriver = &cinderDriver{}
-var _ testsuites.DynamicPVTestDriver = &cinderDriver{}
-var _ testsuites.SnapshottableTestDriver = &cinderDriver{}
+var (
+	_ testsuites.DynamicPVTestDriver     = &cinderDriver{}
+	_ testsuites.SnapshottableTestDriver = &cinderDriver{}
+	_ testsuites.TestDriver              = &cinderDriver{}
+)
 
 func (d *cinderDriver) GetDriverInfo() *testsuites.DriverInfo {
 	return &d.driverInfo

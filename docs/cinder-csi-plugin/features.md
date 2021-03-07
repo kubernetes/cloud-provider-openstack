@@ -28,10 +28,11 @@ For usage, refer [sample app](./examples.md#dynamic-volume-provisioning)
 
 This feature enables driver to consider the topology constraints while creating the volume. For more info, refer [Topology Support](https://github.com/kubernetes-csi/external-provisioner/blob/master/README.md#topology-support)
 
+* Enabled by default
 * Supported topology keys:
   `topology.cinder.csi.openstack.org/zone` : Availability by Zone
-* `--feature-gates=Topology=true` needs to be enabled in external-provisioner.
 * `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
+* To disable: set `--feature-gates=Topology=false` in external-provisioner (container `csi-provisioner` of `csi-cinder-controllerplugin`).
 
 ## Block Volume
 

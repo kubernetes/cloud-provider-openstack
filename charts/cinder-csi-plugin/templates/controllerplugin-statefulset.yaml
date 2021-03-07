@@ -45,6 +45,7 @@ spec:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--default-fstype=ext4"
+            - "--feature-gates=Topology={{ .Values.csi.provisioner.topology }}"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock

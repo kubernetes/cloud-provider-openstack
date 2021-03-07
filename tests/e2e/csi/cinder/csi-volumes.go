@@ -16,9 +16,11 @@ var CSITestSuites = []func() testsuites.TestSuite{
 	testsuites.InitSubPathTestSuite,
 	testsuites.InitProvisioningTestSuite,
 	testsuites.InitVolumeModeTestSuite,
-	//testsuites.InitVolumeIOTestSuite,
 	testsuites.InitSnapshottableTestSuite,
-	//testsuites.InitMultiVolumeTestSuite,
+	testsuites.InitMultiVolumeTestSuite,
+	testsuites.InitFsGroupChangePolicyTestSuite,
+	testsuites.InitTopologyTestSuite,
+	// testsuites.InitVolumeIOTestSuite,
 }
 
 // This executes testSuites for csi volumes.
@@ -29,5 +31,4 @@ var _ = utils.SIGDescribe("[cinder-csi-e2e] CSI Volumes", func() {
 	Context(testsuites.GetDriverNameWithFeatureTags(curDriver), func() {
 		testsuites.DefineTestSuite(curDriver, CSITestSuites)
 	})
-
 })
