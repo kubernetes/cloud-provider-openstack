@@ -17,11 +17,12 @@ var CSITestSuites = []func() storageframework.TestSuite{
 	testsuites.InitSubPathTestSuite,
 	testsuites.InitProvisioningTestSuite,
 	testsuites.InitVolumeModeTestSuite,
+	testsuites.InitEphemeralTestSuite,
+	//testsuites.InitVolumeIOTestSuite,
 	testsuites.InitSnapshottableTestSuite,
 	testsuites.InitMultiVolumeTestSuite,
 	testsuites.InitFsGroupChangePolicyTestSuite,
 	testsuites.InitTopologyTestSuite,
-	// testsuites.InitVolumeIOTestSuite,
 }
 
 // This executes testSuites for csi volumes.
