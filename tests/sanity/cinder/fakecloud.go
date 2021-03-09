@@ -54,7 +54,6 @@ func (cloud *cloud) DeleteVolume(volumeID string) error {
 	delete(cloud.volumes, volumeID)
 
 	return nil
-
 }
 
 func (cloud *cloud) CheckBlockStorageAPI() error {
@@ -102,27 +101,26 @@ func (cloud *cloud) ListVolumes(limit int, marker string) ([]volumes.Volume, str
 
 	}
 	return vollist, retToken, nil
-
 }
 
 func (cloud *cloud) WaitDiskAttached(instanceID string, volumeID string) error {
 	return nil
-
 }
 
 func (cloud *cloud) DetachVolume(instanceID, volumeID string) error {
 	return nil
-
 }
 
 func (cloud *cloud) WaitDiskDetached(instanceID string, volumeID string) error {
 	return nil
+}
 
+func (cloud *cloud) WaitVolumeStatusAvailable(volumeID string) error {
+	return nil
 }
 
 func (cloud *cloud) GetAttachmentDiskPath(instanceID, volumeID string) (string, error) {
 	return cinder.FakeDevicePath, nil
-
 }
 
 func (cloud *cloud) GetVolumesByName(name string) ([]volumes.Volume, error) {
@@ -135,7 +133,6 @@ func (cloud *cloud) GetVolumesByName(name string) ([]volumes.Volume, error) {
 	}
 
 	return vlist, nil
-
 }
 
 func (cloud *cloud) GetVolume(volumeID string) (*volumes.Volume, error) {
@@ -214,7 +211,6 @@ func (cloud *cloud) DeleteSnapshot(snapID string) error {
 	delete(cloud.snapshots, snapID)
 
 	return nil
-
 }
 
 func (cloud *cloud) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {

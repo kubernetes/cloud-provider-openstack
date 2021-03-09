@@ -170,6 +170,20 @@ func (_m *OpenStackMock) WaitDiskAttached(instanceID string, volumeID string) er
 	return r0
 }
 
+// WaitVolumeStatusAvailable provides a mock function with given fields: volumeID
+func (_m *OpenStackMock) WaitVolumeStatusAvailable(volumeID string) error {
+	ret := _m.Called(volumeID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(volumeID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // WaitDiskDetached provides a mock function with given fields: instanceID, volumeID
 func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) error {
 	ret := _m.Called(instanceID, volumeID)

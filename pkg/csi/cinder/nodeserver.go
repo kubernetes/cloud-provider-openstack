@@ -155,26 +155,35 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to create Ephermal Volume %v", err))
 	}
 
+	// Wait for volume status to be Available, before attaching
+	if evol.Status != openstack.VolumeAvailableStatus {
+		err := ns.Cloud.WaitVolumeStatusAvailable(evol.ID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+	}
+
 	klog.V(4).Infof("Ephermeral Volume %s is created", evol.ID)
 
 	// attach volume
 	// for attach volume we need to have information about node.
 	nodeID, err := ns.Metadata.GetInstanceID()
 	if err != nil {
-		klog.V(3).Infof("Ephermal Volume Attach: Failed to get Instance ID: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to get Instance ID: %v", err))
+		msg := "nodePublishEphemeral: Failed to get Instance ID: %v"
+		klog.V(3).Infof(msg, err)
+		return nil, status.Errorf(codes.Internal, msg, err)
 	}
 
 	_, err = ns.Cloud.AttachVolume(nodeID, evol.ID)
 	if err != nil {
-		klog.V(3).Infof("Ephermal Volume Attach: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to Attach Volume: %v", err))
+		msg := "nodePublishEphemeral: attach volume %s failed with error : %v"
+		klog.V(3).Infof(msg, evol.ID, err)
+		return nil, status.Errorf(codes.Internal, msg, evol.ID, err)
 	}
 
 	err = ns.Cloud.WaitDiskAttached(nodeID, evol.ID)
 	if err != nil {
-		klog.V(3).Infof("Ephermal Volume Attach: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Ephermal Volume Attach: Failed to Attach Volume: %v", err))
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	m := ns.Mount
