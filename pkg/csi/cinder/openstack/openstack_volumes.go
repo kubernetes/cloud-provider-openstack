@@ -37,6 +37,7 @@ const (
 	VolumeInUseStatus        = "in-use"
 	VolumeDeletedStatus      = "deleted"
 	VolumeErrorStatus        = "error"
+	VolumeCreatingStatus     = "creating"
 	operationFinishInitDelay = 1 * time.Second
 	operationFinishFactor    = 1.1
 	operationFinishSteps     = 10
@@ -204,6 +205,35 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	}
 
 	return err
+}
+
+//WaitVolumeStatusAvailable waits for volume to be "Available" from "Creating".
+func (os *OpenStack) WaitVolumeStatusAvailable(volumeID string) error {
+	backoff := wait.Backoff{
+		Duration: operationFinishInitDelay,
+		Factor:   operationFinishFactor,
+		Steps:    operationFinishSteps,
+	}
+
+	waitErr := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		vol, err := os.GetVolume(volumeID)
+		if err != nil {
+			return false, err
+		}
+		if vol.Status == VolumeAvailableStatus {
+			return true, nil
+		}
+		if vol.Status != VolumeCreatingStatus {
+			return false, fmt.Errorf("Volume Status is %s", vol.Status)
+		}
+		return false, nil
+	})
+
+	if waitErr == wait.ErrWaitTimeout {
+		waitErr = fmt.Errorf("Timeout on waiting for volume %s status to be 'Available'", volumeID)
+	}
+
+	return waitErr
 }
 
 // DetachVolume detaches given cinder volume from the compute
