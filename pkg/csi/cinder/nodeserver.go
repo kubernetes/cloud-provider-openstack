@@ -516,7 +516,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	}
 	volumePath := req.GetVolumePath()
 
-	args := []string{"-o", "source", "--noheadings", "--target", volumePath}
+	args := []string{"-o", "source", "--first-only", "--noheadings", "--target", volumePath}
 	output, err := ns.Mount.Mounter().Exec.Command("findmnt", args...).CombinedOutput()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not determine device path: %v", err)
