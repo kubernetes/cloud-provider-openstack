@@ -17,7 +17,7 @@ var CSITestSuites = []func() testsuites.TestSuite{
 	testsuites.InitProvisioningTestSuite,
 	testsuites.InitVolumeModeTestSuite,
 	//testsuites.InitVolumeIOTestSuite,
-	//testsuites.InitSnapshottableTestSuite,
+	testsuites.InitSnapshottableTestSuite,
 	//testsuites.InitMultiVolumeTestSuite,
 }
 
