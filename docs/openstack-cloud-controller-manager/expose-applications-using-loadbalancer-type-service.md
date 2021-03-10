@@ -96,8 +96,12 @@ Request Body:
 
 - `loadbalancer.openstack.org/floating-subnet-id`
 
-  This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet`.
+  This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet` or `loadbalancer.openstack.org/floating-tag`.
 
+- `loadbalancer.openstack.org/floating-subnet-tag`
+
+  This annotation is the tag of a subnet belonging to the floating network.
+  
 - `loadbalancer.openstack.org/class`
 
   The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
@@ -199,7 +203,13 @@ floating-subnet-id="a374bed4-e920-4c40-b646-2d8927f7f67b"
 floating-subnet-id="b374bed4-e920-4c40-b646-2d8927f7f67b"
 ```
 
-Within a `LoadBalancerClass` the `floating-subnet-id` is mandatory. `floating-network-id` is optional can be defined in case it differs from the default `floating-network-id` in the `LoadBalancer` section.
+Within a `LoadBalancerClass` one of `floating-subnet-id`, `floating-subnet` or `floating-subnet-tags` is mandatory.
+`floating-subnet-id` takes precedence over the other ones with must all match if specified.
+If the pattern starts with a `!`, the match is negated. 
+The rest of the pattern can either be a direct name, a glob or a regular expression if it starts with a `~`.
+`floating-subnet-tags` can be a comma separated list of tags. By default it matches a subnet if at least one tag is present.
+If the list is preceded by a `&` all tags must be present. Again with a preceding `!` the condition be be negated.
+`floating-network-id` is optional can be defined in case it differs from the default `floating-network-id` in the `LoadBalancer` section.
 
 By using the `loadbalancer.openstack.org/class` annotation on the service object, you can now select which floating subnets the `LoadBalancer` should be using.
 
