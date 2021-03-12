@@ -431,15 +431,19 @@ func TestListSnapshots(t *testing.T) {
 
 func TestControllerExpandVolume(t *testing.T) {
 
+	tState := []string{"available", "in-use"}
 	// ExpandVolume(volumeID string, status string, size int)
-	osmock.On("ExpandVolume", FakeVolName, openstack.VolumeAvailableStatus, 5).Return(nil)
+	osmock.On("ExpandVolume", FakeVolID, openstack.VolumeAvailableStatus, 5).Return(nil)
+
+	// WaitVolumeTargetStatus(volumeID string, tState []string) error
+	osmock.On("WaitVolumeTargetStatus", FakeVolID, tState).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.ControllerExpandVolumeRequest{
-		VolumeId: FakeVolName,
+		VolumeId: FakeVolID,
 		CapacityRange: &csi.CapacityRange{
 			RequiredBytes: 5 * 1024 * 1024 * 1024,
 		},
