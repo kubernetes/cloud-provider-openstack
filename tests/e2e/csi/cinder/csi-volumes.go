@@ -7,11 +7,12 @@ import (
 	_ "github.com/onsi/gomega"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/framework/testfiles"
+	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
 	"k8s.io/kubernetes/test/e2e/storage/testsuites"
 	"k8s.io/kubernetes/test/e2e/storage/utils"
 )
 
-var CSITestSuites = []func() testsuites.TestSuite{
+var CSITestSuites = []func() storageframework.TestSuite{
 	testsuites.InitVolumesTestSuite,
 	testsuites.InitSubPathTestSuite,
 	testsuites.InitProvisioningTestSuite,
@@ -28,7 +29,7 @@ var _ = utils.SIGDescribe("[cinder-csi-e2e] CSI Volumes", func() {
 	testfiles.AddFileSource(testfiles.RootFileSource{Root: path.Join(framework.TestContext.RepoRoot, "../../manifests/cinder-csi-plugin/")})
 
 	curDriver := Cinderdriver()
-	Context(testsuites.GetDriverNameWithFeatureTags(curDriver), func() {
-		testsuites.DefineTestSuite(curDriver, CSITestSuites)
+	Context(storageframework.GetDriverNameWithFeatureTags(curDriver), func() {
+		storageframework.DefineTestSuites(curDriver, CSITestSuites)
 	})
 })
