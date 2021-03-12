@@ -1,8 +1,0 @@
-resources:
-- cinder-csi-controllerplugin-rbac.yaml
-- cinder-csi-controllerplugin.yaml
-- cinder-csi-nodeplugin-rbac.yaml
-- cinder-csi-nodeplugin.yaml
-- csi-cinder-driver.yaml
-- csi-secret-cinderplugin.yaml
-
