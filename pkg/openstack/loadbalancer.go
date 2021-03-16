@@ -735,6 +735,8 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		}
 		poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
 		poolCreateOpt.Members = members
+		// Pool name must be provided to create fully populated loadbalancer
+		poolCreateOpt.Name = fmt.Sprintf("%s_%d_pool", listenerCreateOpt.Protocol, int(port.Port))
 		var withHealthMonitor string
 		if svcConf.enableMonitor {
 			opts := lbaas.buildMonitorCreateOpts(port)
@@ -1334,7 +1336,6 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 		return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 	}
 	if pool == nil {
-		// By default, use the protocol of the listener
 		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf)
 		createOpt.ListenerID = listener.ID
 

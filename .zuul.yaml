@@ -14,7 +14,7 @@
         - cloud-provider-openstack-acceptance-test-lb-octavia:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -56,7 +56,7 @@
         - cloud-provider-openstack-e2e-test-csi-cinder:
             files:
               - cmd/cinder-csi-plugin/.*
-              - manifests/cinder-csi-plugin/.* 
+              - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - tests/e2e/csi/cinder/.*
