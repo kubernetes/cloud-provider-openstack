@@ -50,6 +50,7 @@ func initCinderDriver(name string, manifests ...string) testsuites.TestDriver {
 				testsuites.CapMultiPODs:          true,
 				testsuites.CapBlock:              true,
 				testsuites.CapSnapshotDataSource: true,
+				testsuites.CapPVCDataSource:      true,
 			},
 		},
 		manifests: manifests,
