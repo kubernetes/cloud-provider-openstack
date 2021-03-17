@@ -31,7 +31,7 @@ The Cinder CSI Driver is a CSI Specification compliant driver used by Container 
 
 ## CSI Compatibility
 
-This plugin is compatible with CSI versions v1.2.0 , v1.1.0, and v1.0.0
+This plugin is compatible with CSI versions v1.3.0, v1.2.0 , v1.1.0, and v1.0.0
 
 ## Downloads
 

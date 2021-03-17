@@ -35,9 +35,9 @@ const (
 )
 
 var (
-	specVersion = "1.2.0"
+	specVersion = "1.3.0"
 	// we used to use spec version as driver version, now separate them
-	Version = "1.2.2"
+	Version = "1.3.0"
 )
 
 type CinderDriver struct {
