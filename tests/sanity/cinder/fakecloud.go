@@ -115,7 +115,7 @@ func (cloud *cloud) WaitDiskDetached(instanceID string, volumeID string) error {
 	return nil
 }
 
-func (cloud *cloud) WaitVolumeStatusAvailable(volumeID string) error {
+func (cloud *cloud) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
 	return nil
 }
 

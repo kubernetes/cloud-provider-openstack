@@ -157,7 +157,8 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 
 	// Wait for volume status to be Available, before attaching
 	if evol.Status != openstack.VolumeAvailableStatus {
-		err := ns.Cloud.WaitVolumeStatusAvailable(evol.ID)
+		targetStatus := []string{openstack.VolumeAvailableStatus}
+		err := ns.Cloud.WaitVolumeTargetStatus(evol.ID, targetStatus)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, err.Error())
 		}
