@@ -92,27 +92,28 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	LBVersion            string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
-	UseOctavia           bool                `gcfg:"use-octavia"`          // uses Octavia V2 service catalog endpoint
-	SubnetID             string              `gcfg:"subnet-id"`            // overrides autodetection.
-	NetworkID            string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
-	FloatingNetworkID    string              `gcfg:"floating-network-id"`  // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	FloatingSubnetID     string              `gcfg:"floating-subnet-id"`   // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
-	FloatingSubnet       string              `gcfg:"floating-subnet"`      // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
-	FloatingSubnetTags   string              `gcfg:"floating-subnet-tags"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
-	LBClasses            map[string]*LBClass // Predefined named Floating networks and subnets
-	LBMethod             string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
-	LBProvider           string              `gcfg:"lb-provider"`
-	CreateMonitor        bool                `gcfg:"create-monitor"`
-	MonitorDelay         util.MyDuration     `gcfg:"monitor-delay"`
-	MonitorTimeout       util.MyDuration     `gcfg:"monitor-timeout"`
-	MonitorMaxRetries    uint                `gcfg:"monitor-max-retries"`
-	ManageSecurityGroups bool                `gcfg:"manage-security-groups"`
-	NodeSecurityGroupIDs []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
-	InternalLB           bool                `gcfg:"internal-lb"`    // default false
-	CascadeDelete        bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
-	FlavorID             string              `gcfg:"flavor-id"`
-	AvailabilityZone     string              `gcfg:"availability-zone"`
+	LBVersion             string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
+	UseOctavia            bool                `gcfg:"use-octavia"`          // uses Octavia V2 service catalog endpoint
+	SubnetID              string              `gcfg:"subnet-id"`            // overrides autodetection.
+	NetworkID             string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
+	FloatingNetworkID     string              `gcfg:"floating-network-id"`  // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID      string              `gcfg:"floating-subnet-id"`   // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	FloatingSubnet        string              `gcfg:"floating-subnet"`      // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	FloatingSubnetTags    string              `gcfg:"floating-subnet-tags"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	LBClasses             map[string]*LBClass // Predefined named Floating networks and subnets
+	LBMethod              string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
+	LBProvider            string              `gcfg:"lb-provider"`
+	CreateMonitor         bool                `gcfg:"create-monitor"`
+	MonitorDelay          util.MyDuration     `gcfg:"monitor-delay"`
+	MonitorTimeout        util.MyDuration     `gcfg:"monitor-timeout"`
+	MonitorMaxRetries     uint                `gcfg:"monitor-max-retries"`
+	ManageSecurityGroups  bool                `gcfg:"manage-security-groups"`
+	NodeSecurityGroupIDs  []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
+	InternalLB            bool                `gcfg:"internal-lb"`    // default false
+	CascadeDelete         bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
+	FlavorID              string              `gcfg:"flavor-id"`
+	AvailabilityZone      string              `gcfg:"availability-zone"`
+	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -208,6 +209,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorTimeout = util.MyDuration{Duration: 3 * time.Second}
 	cfg.LoadBalancer.MonitorMaxRetries = 1
 	cfg.LoadBalancer.CascadeDelete = true
+	cfg.LoadBalancer.EnableIngressHostname = false
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {

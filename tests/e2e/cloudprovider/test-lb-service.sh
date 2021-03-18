@@ -9,6 +9,7 @@
 #   - It's recommended to run the script on a host with as less proxies to the public as possible, otherwise the
 #     x-forwarded-for test will probably fail.
 #   - This script is not responsible for resource clean up if there is test case fails.
+set -x
 
 TIMEOUT=${TIMEOUT:-300}
 FLOATING_IP=${FLOATING_IP:-""}
