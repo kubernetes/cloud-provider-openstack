@@ -51,6 +51,8 @@ const (
 	volumeDescription        = "Created by OpenStack Cinder CSI driver"
 )
 
+var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
+
 func (os *OpenStack) CheckBlockStorageAPI() error {
 	_, err := apiversions.List(os.blockstorage).AllPages()
 	if err != nil {
@@ -223,8 +225,8 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	return err
 }
 
-//WaitVolumeStatusAvailable waits for volume to be "Available" from "Creating".
-func (os *OpenStack) WaitVolumeStatusAvailable(volumeID string) error {
+//WaitVolumeTargetStatus waits for volume to be in target state
+func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
 	backoff := wait.Backoff{
 		Duration: operationFinishInitDelay,
 		Factor:   operationFinishFactor,
@@ -236,17 +238,21 @@ func (os *OpenStack) WaitVolumeStatusAvailable(volumeID string) error {
 		if err != nil {
 			return false, err
 		}
-		if vol.Status == VolumeAvailableStatus {
-			return true, nil
+		for _, t := range tStatus {
+			if vol.Status == t {
+				return true, nil
+			}
 		}
-		if vol.Status != VolumeCreatingStatus {
-			return false, fmt.Errorf("Volume Status is %s", vol.Status)
+		for _, eState := range volumeErrorStates {
+			if vol.Status == eState {
+				return false, fmt.Errorf("Volume is in Error State : %s", vol.Status)
+			}
 		}
 		return false, nil
 	})
 
 	if waitErr == wait.ErrWaitTimeout {
-		waitErr = fmt.Errorf("Timeout on waiting for volume %s status to be 'Available'", volumeID)
+		waitErr = fmt.Errorf("Timeout on waiting for volume %s status to be in %v", volumeID, tStatus)
 	}
 
 	return waitErr
