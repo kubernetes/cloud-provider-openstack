@@ -95,14 +95,14 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 	var cfg Config
 	config, err := os.Open(configFilePath)
 	if err != nil {
-		klog.V(3).Infof("Failed to open OpenStack configuration file: %v", err)
+		klog.Errorf("Failed to open OpenStack configuration file: %v", err)
 		return cfg, err
 	}
 	defer config.Close()
 
 	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
-		klog.V(3).Infof("Failed to read OpenStack configuration file: %v", err)
+		klog.Errorf("Failed to read OpenStack configuration file: %v", err)
 		return cfg, err
 	}
 

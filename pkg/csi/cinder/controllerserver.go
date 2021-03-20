@@ -84,7 +84,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Verify a volume with the provided name doesn't already exist for this tenant
 	volumes, err := cloud.GetVolumesByName(volName)
 	if err != nil {
-		klog.V(3).Infof("Failed to query for existing Volume during CreateVolume: %v", err)
+		klog.Errorf("Failed to query for existing Volume during CreateVolume: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to get volumes")
 	}
 
@@ -199,20 +199,20 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 
 	_, err = cs.Cloud.AttachVolume(instanceID, volumeID)
 	if err != nil {
-		klog.V(3).Infof("Failed to AttachVolume: %v", err)
+		klog.Errorf("Failed to AttachVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] Attach Volume failed with error %v", err))
 
 	}
 
 	err = cs.Cloud.WaitDiskAttached(instanceID, volumeID)
 	if err != nil {
-		klog.V(3).Infof("Failed to WaitDiskAttached: %v", err)
+		klog.Errorf("Failed to WaitDiskAttached: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] failed to attach volume: %v", err))
 	}
 
 	devicePath, err := cs.Cloud.GetAttachmentDiskPath(instanceID, volumeID)
 	if err != nil {
-		klog.V(3).Infof("Failed to GetAttachmentDiskPath: %v", err)
+		klog.Errorf("Failed to GetAttachmentDiskPath: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerPublishVolume] failed to get device path of attached volume : %v", err))
 	}
 
@@ -251,13 +251,13 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it does not exist", volumeID)
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
-		klog.V(3).Infof("Failed to DetachVolume: %v", err)
+		klog.Errorf("Failed to DetachVolume: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume Detach Volume failed with error %v", err))
 	}
 
 	err = cs.Cloud.WaitDiskDetached(instanceID, volumeID)
 	if err != nil {
-		klog.V(3).Infof("Failed to WaitDiskDetached: %v", err)
+		klog.Errorf("Failed to WaitDiskDetached: %v", err)
 		if cpoerrors.IsNotFound(err) {
 			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it was deleted in the meanwhile", volumeID)
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
@@ -280,7 +280,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 
 	vlist, nextPageToken, err := cs.Cloud.ListVolumes(maxEntries, req.StartingToken)
 	if err != nil {
-		klog.V(3).Infof("Failed to ListVolumes: %v", err)
+		klog.Errorf("Failed to ListVolumes: %v", err)
 		if cpoerrors.IsInvalidError(err) {
 			return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: %v", err)
 		}
@@ -327,7 +327,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	filters["Name"] = name
 	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
 	if err != nil {
-		klog.V(3).Infof("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
+		klog.Errorf("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to get snapshots")
 	}
 	var snap *ossnapshots.Snapshot
@@ -342,14 +342,14 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		klog.V(3).Infof("Found existing snapshot %s on %s", name, volumeId)
 
 	} else if len(snapshots) > 1 {
-		klog.V(3).Infof("found multiple existing snapshots with selected name (%s) during create", name)
+		klog.Errorf("found multiple existing snapshots with selected name (%s) during create", name)
 		return nil, status.Error(codes.Internal, "Multiple snapshots reported by Cinder with same name")
 
 	} else {
 		// TODO: Delegate the check to openstack itself and ignore the conflict
 		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, &req.Parameters)
 		if err != nil {
-			klog.V(3).Infof("Failed to Create snapshot: %v", err)
+			klog.Errorf("Failed to Create snapshot: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
 		}
 
@@ -363,7 +363,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	err = cs.Cloud.WaitSnapshotReady(snap.ID)
 	if err != nil {
-		klog.V(3).Infof("Failed to WaitSnapshotReady: %v", err)
+		klog.Errorf("Failed to WaitSnapshotReady: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
 	}
 
@@ -393,7 +393,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 			klog.V(3).Infof("Snapshot %s is already deleted.", id)
 			return &csi.DeleteSnapshotResponse{}, nil
 		}
-		klog.V(3).Infof("Failed to Delete snapshot: %v", err)
+		klog.Errorf("Failed to Delete snapshot: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot failed with error %v", err))
 	}
 	return &csi.DeleteSnapshotResponse{}, nil
@@ -449,7 +449,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 	filters["Status"] = "available"
 	slist, nextPageToken, err = cs.Cloud.ListSnapshots(filters)
 	if err != nil {
-		klog.V(3).Infof("Failed to ListSnapshots: %v", err)
+		klog.Errorf("Failed to ListSnapshots: %v", err)
 		return nil, status.Errorf(codes.Internal, "ListSnapshots failed with error %v", err)
 	}
 
