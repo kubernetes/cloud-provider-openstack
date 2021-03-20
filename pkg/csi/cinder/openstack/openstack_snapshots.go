@@ -137,7 +137,7 @@ func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snaps
 func (os *OpenStack) DeleteSnapshot(snapID string) error {
 	err := snapshots.Delete(os.blockstorage, snapID).ExtractErr()
 	if err != nil {
-		klog.V(3).Infof("Failed to delete snapshot: %v", err)
+		klog.Errorf("Failed to delete snapshot: %v", err)
 	}
 	return err
 }
@@ -146,7 +146,7 @@ func (os *OpenStack) DeleteSnapshot(snapID string) error {
 func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
 	s, err := snapshots.Get(os.blockstorage, snapshotID).Extract()
 	if err != nil {
-		klog.V(3).Infof("Failed to get snapshot: %v", err)
+		klog.Errorf("Failed to get snapshot: %v", err)
 		return nil, err
 	}
 	return s, nil
