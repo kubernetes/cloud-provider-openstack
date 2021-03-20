@@ -70,9 +70,9 @@ func InitCinderDriver() testsuites.TestDriver {
 		"csi-secret-cinderplugin.yaml")
 }
 
-// var _ testsuites.PreprovisionedVolumeTestDriver = &cinderDriver{}
-// var _ testsuites.PreprovisionedPVTestDriver = &cinderDriver{}
 var (
+	// _ testsuites.PreprovisionedVolumeTestDriver = &cinderDriver{}
+	// _ testsuites.PreprovisionedPVTestDriver = &cinderDriver{}
 	_ testsuites.DynamicPVTestDriver     = &cinderDriver{}
 	_ testsuites.SnapshottableTestDriver = &cinderDriver{}
 	_ testsuites.TestDriver              = &cinderDriver{}
