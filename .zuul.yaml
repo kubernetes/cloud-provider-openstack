@@ -121,7 +121,7 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -138,7 +138,7 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -155,7 +155,7 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -172,7 +172,7 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.18:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$

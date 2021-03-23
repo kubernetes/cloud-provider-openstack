@@ -107,6 +107,9 @@ const (
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
+
+	// See https://nip.io
+	defaultProxyHostnameSuffix = "nip.io"
 )
 
 // LbaasV2 is a LoadBalancer implementation for Neutron LBaaS v2 API
@@ -1807,6 +1810,16 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 	status := &corev1.LoadBalancerStatus{
 		Ingress: []corev1.LoadBalancerIngress{{IP: addr}},
+	}
+
+	// If the load balancer is using the PROXY protocol, expose its IP address via
+	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
+	// This is a workaround until
+	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
+	// is implemented (maybe in v1.22).
+	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
+		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, defaultProxyHostnameSuffix)
+		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
 	}
 
 	return status, nil
