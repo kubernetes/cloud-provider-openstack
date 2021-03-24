@@ -578,6 +578,14 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Errorf(codes.Internal, fmt.Sprintf("Could not resize volume %q to size %v: %v", volumeID, volSizeGB, err))
 	}
 
+	// we need wait for the volume to be available or InUse, it might be error_extending in some scenario
+	targetStatus := []string{openstack.VolumeAvailableStatus, openstack.VolumeInUseStatus}
+	err = cs.Cloud.WaitVolumeTargetStatus(volumeID, targetStatus)
+	if err != nil {
+		klog.Errorf("Failed to WaitVolumeTargetStatus of volume %s: %v", volumeID, err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("[ControllerExpandVolume] Volume %s not in target state after resize operation : %v", volumeID, err))
+	}
+
 	klog.V(4).Infof("ControllerExpandVolume resized volume %v to size %v", volumeID, volSizeGB)
 
 	return &csi.ControllerExpandVolumeResponse{
