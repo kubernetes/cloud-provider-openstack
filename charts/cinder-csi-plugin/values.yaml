@@ -75,7 +75,7 @@ secret:
 #      ca-file=/etc/cacert/ca-bundle.crt
 
 storageClass:
-  enabled: true
+  enabled: false
   delete:
     isDefault: false
     allowVolumeExpansion: true
@@ -84,40 +84,40 @@ storageClass:
     allowVolumeExpansion: true
 # any kind of custom StorageClasses
 #   custom: |-
-#     ---
-#     apiVersion: storage.k8s.io/v1
-#     kind: StorageClass
-#     metadata:
-#       name: sas
-#     provisioner: cinder.csi.openstack.org
-#     volumeBindingMode: WaitForFirstConsumer
-#     allowVolumeExpansion: true
-#     parameters:
-#       type: SAS
-#     ---
-#     apiVersion: storage.k8s.io/v1
-#     kind: StorageClass
-#     metadata:
-#       name: ssd
-#     provisioner: cinder.csi.openstack.org
-#     volumeBindingMode: WaitForFirstConsumer
-#     allowVolumeExpansion: true
-#     parameters:
-#       type: SSD
-#     ---
-#     apiVersion: storage.k8s.io/v1
-#     kind: StorageClass
-#     metadata:
-#       name: sata
-#     provisioner: cinder.csi.openstack.org
-#     volumeBindingMode: WaitForFirstConsumer
-#     allowVolumeExpansion: true
-#     parameters:
-#       type: SATA
-#     ---
-#     apiVersion: snapshot.storage.k8s.io/v1beta1
-#     kind: VolumeSnapshotClass
-#     metadata:
-#       name: csi-cinder-snapclass
-#     driver: cinder.csi.openstack.org
-#     deletionPolicy: Delete
+#    ---
+#    apiVersion: storage.k8s.io/v1
+#    kind: StorageClass
+#    metadata:
+#      name: sas
+#    provisioner: cinder.csi.openstack.org
+#    volumeBindingMode: WaitForFirstConsumer
+#    allowVolumeExpansion: true
+#    parameters:
+#      type: SAS
+#    ---
+#    apiVersion: storage.k8s.io/v1
+#    kind: StorageClass
+#    metadata:
+#      name: ssd
+#    provisioner: cinder.csi.openstack.org
+#    volumeBindingMode: WaitForFirstConsumer
+#    allowVolumeExpansion: true
+#    parameters:
+#      type: SSD
+#    ---
+#    apiVersion: storage.k8s.io/v1
+#    kind: StorageClass
+#    metadata:
+#      name: sata
+#    provisioner: cinder.csi.openstack.org
+#    volumeBindingMode: WaitForFirstConsumer
+#    allowVolumeExpansion: true
+#    parameters:
+#      type: SATA
+#    apiVersion: snapshot.storage.k8s.io/v1beta1
+#    ---
+#    kind: VolumeSnapshotClass
+#    metadata:
+#      name: csi-cinder-snapclass
+#    driver: cinder.csi.openstack.org
+#    deletionPolicy: Delete
