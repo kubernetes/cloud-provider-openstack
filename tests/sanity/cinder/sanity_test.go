@@ -23,7 +23,7 @@ func TestDriver(t *testing.T) {
 	socket := path.Join(basePath, "csi.sock")
 	endpoint := "unix://" + socket
 	cluster := "kubernetes"
-	nodeID := "fake-node"
+	nodeID := cinder.FakeInstanceID
 
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
 	fakecloudprovider := getfakecloud()

@@ -168,21 +168,16 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 
 	// attach volume
 	// for attach volume we need to have information about node.
-	nodeID, err := ns.Metadata.GetInstanceID()
-	if err != nil {
-		msg := "nodePublishEphemeral: Failed to get Instance ID: %v"
-		klog.V(3).Infof(msg, err)
-		return nil, status.Errorf(codes.Internal, msg, err)
-	}
+	_, err = ns.Cloud.AttachVolume(ns.Driver.nodeID, evol.ID)
 
-	_, err = ns.Cloud.AttachVolume(nodeID, evol.ID)
+	_, err = ns.Cloud.AttachVolume(ns.Driver.nodeID, evol.ID)
 	if err != nil {
 		msg := "nodePublishEphemeral: attach volume %s failed with error : %v"
 		klog.V(3).Infof(msg, evol.ID, err)
 		return nil, status.Errorf(codes.Internal, msg, evol.ID, err)
 	}
 
-	err = ns.Cloud.WaitDiskAttached(nodeID, evol.ID)
+	err = ns.Cloud.WaitDiskAttached(ns.Driver.nodeID, evol.ID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -444,12 +439,6 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-
-	nodeID, err := ns.Metadata.GetInstanceID()
-	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("[NodeGetInfo] unable to retrieve instance id of node %v", err))
-	}
-
 	zone, err := ns.Metadata.GetAvailabilityZone()
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("[NodeGetInfo] Unable to retrieve availability zone of node %v", err))
@@ -459,7 +448,7 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	maxVolume := ns.Cloud.GetMaxVolLimit()
 
 	return &csi.NodeGetInfoResponse{
-		NodeId:             nodeID,
+		NodeId:             ns.Driver.nodeID,
 		AccessibleTopology: topology,
 		MaxVolumesPerNode:  maxVolume,
 	}, nil

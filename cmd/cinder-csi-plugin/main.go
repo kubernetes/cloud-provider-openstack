@@ -75,7 +75,6 @@ func main() {
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
-	cmd.MarkPersistentFlagRequired("nodeid")
 
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
 	cmd.MarkPersistentFlagRequired("endpoint")
@@ -99,8 +98,6 @@ func main() {
 }
 
 func handle() {
-
-	d := cinder.NewDriver(nodeID, endpoint, cluster)
 	// Initiliaze cloud
 	openstack.InitOpenStackProvider(cloudconfig)
 	cloud, err := openstack.GetOpenStackProvider()
@@ -108,12 +105,25 @@ func handle() {
 		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
 		return
 	}
-	//Intiliaze mount
+	// Intiliaze mount
 	mount := mount.GetMountProvider()
 
-	//Intiliaze Metadatda
-	metadatda := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+	// Intiliaze Metadata
+	md := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
 
-	d.SetupDriver(cloud, mount, metadatda)
+	// Get Node ID from metadata if it was not provided by user
+	if nodeID == "" {
+		klog.Info("Node ID is not specified, it's being set from metadata.")
+		nodeID, err = md.GetInstanceID()
+		if err != nil {
+			klog.Warningf("Unable to retrieve instance id of node: %v", err)
+			return
+		}
+	}
+
+	// Create driver
+	d := cinder.NewDriver(nodeID, endpoint, cluster)
+
+	d.SetupDriver(cloud, mount, md)
 	d.Run()
 }
