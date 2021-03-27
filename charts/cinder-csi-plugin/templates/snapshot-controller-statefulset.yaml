@@ -1,0 +1,35 @@
+{{- if .Values.csi.snapshotController.enabled -}}
+# This YAML file shows how to deploy the snapshot controller
+
+# The snapshot controller implements the control loop for CSI snapshot functionality.
+# It should be installed as part of the base Kubernetes distribution in an appropriate
+# namespace for components implementing base system functionality. For installing with
+# Vanilla Kubernetes, kube-system makes sense for the namespace.
+
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  labels:
+    {{- include "cinder-csi.snapshot-controller.labels" . | nindent 4 }}
+  name: {{ include "cinder-csi.name" . }}-snapshot-controller
+spec:
+  serviceName: "snapshot-controller-sa"
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "cinder-csi.snapshot-controller.matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cinder-csi.snapshot-controller.labels" . | nindent 8 }}
+    spec:
+      serviceAccount: snapshot-controller-sa
+      containers:
+        - name: snapshot-controller
+          image: "{{ .Values.csi.snapshotController.image.repository }}:{{ .Values.csi.snapshotController.image.tag }}"
+          args:
+            - "--v=5"
+            - "--leader-election=false"
+          imagePullPolicy: IfNotPresent
+{{- end }}
