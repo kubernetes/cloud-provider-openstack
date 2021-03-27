@@ -1,0 +1,25 @@
+{{- if .Values.loadbalancerService.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.loadbalancerService.servicename | default "openstack-lb" }}
+  namespace: {{ .Values.loadbalancerService.namespace | default "ingress-nginx" }}
+  labels:
+    app: {{ .Values.loadbalancerService.label | default "openstack-lb" }}
+  {{- with .Values.loadbalancerService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: LoadBalancer
+  sessionAffinity: ClientIP
+  externalTrafficPolicy: "Local"
+  ports:
+  - name: http
+    port: 80
+  - name: https
+    port: 443
+  selector:
+    app: {{ .Values.loadbalancerService.selector | default "ingress-nginx" }}
+{{- end }}

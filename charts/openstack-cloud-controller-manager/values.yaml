@@ -1,0 +1,76 @@
+image:
+  repository: docker.io/k8scloudprovider/openstack-cloud-controller-manager
+  tag: ""
+
+resources: {}
+# resources:
+#   requests:
+#     cpu: 200m
+
+livenessProbe: {}
+# livenessProbe:
+#   httpGet:
+#    path: /metrics
+#    port: 10258
+readinessProbe: {}
+
+nodeSelector: []
+# nodeSelector:
+#   node-role.kubernetes.io/controlplane: "true"
+
+tolerations: []
+# tolerations:
+#   - key: node.cloudprovider.kubernetes.io/uninitialized
+#     value: "true"
+#     effect: NoSchedule
+#   - key: node-role.kubernetes.io/controlplane
+#     value: "true"
+#     effect: NoSchedule
+#   - key: node-role.kubernetes.io/etcd
+#     value: "true"
+#     effect: NoExecute
+
+controllerExtraArgs: {}
+# controllerExtraArgs: |-
+#   - --cluster-name=my-cluster
+
+loadbalancerService: {}
+# loadbalancerService:
+#   enabled: true
+#   namespace:
+#   label:
+#   selector:
+#   servicename:
+#   annotations:
+#     service.beta.kubernetes.io/openstack-internal-load-balancer: false
+#     external-dns.alpha.kubernetes.io/hostname: "node.example.com"
+
+serviceMonitor: {}
+# serviceMonitor:
+#   enabled: true
+
+secret:
+  create: true
+#  name:
+
+cloudConfig:
+  global:
+    authUrl:
+    region:
+    username: 
+    password:
+    tenantName: 
+    domainName:
+  loadbalancer:
+    subnetId: 
+    floatingNetworkId: 
+    createMonitor: true
+    monitorDelay: 5s
+    monitorTimeout: 10s
+    monitorMaxRetries: 3
+    useOctavia: false
+    lbProvider: vlb
+  blockstorage:
+    ignoreVolumeAz: false
+  metadata:
+    searchOrder: metadataService,configDrive
