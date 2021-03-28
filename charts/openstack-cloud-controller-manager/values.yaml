@@ -42,7 +42,7 @@ loadbalancerService: {}
 #   selector:
 #   servicename:
 #   annotations:
-#     service.beta.kubernetes.io/openstack-internal-load-balancer: false
+#     service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
 #     external-dns.alpha.kubernetes.io/hostname: "node.example.com"
 
 serviceMonitor: {}
@@ -57,13 +57,13 @@ cloudConfig:
   global:
     authUrl:
     region:
-    username: 
+    username:
     password:
-    tenantName: 
+    tenantName:
     domainName:
   loadbalancer:
-    subnetId: 
-    floatingNetworkId: 
+    subnetId:
+    floatingNetworkId:
     createMonitor: true
     monitorDelay: 5s
     monitorTimeout: 10s
