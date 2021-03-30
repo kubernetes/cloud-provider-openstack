@@ -69,8 +69,6 @@ cloudConfig:
     monitorTimeout: 10s
     monitorMaxRetries: 3
     useOctavia: false
-    lbProvider: vlb
-  blockstorage:
-    ignoreVolumeAz: false
+    lbProvider:
   metadata:
     searchOrder: metadataService,configDrive

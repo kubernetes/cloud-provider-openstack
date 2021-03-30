@@ -67,9 +67,6 @@ monitor-max-retries = {{ .Values.cloudConfig.loadbalancer.monitorMaxRetries }}
 use-octavia         = {{ .Values.cloudConfig.loadbalancer.useOctavia  }}
 lb-provider         = {{ .Values.cloudConfig.loadbalancer.lbProvider  }}
 
-[BlockStorage]
-ignore-volume-az = {{ .Values.cloudConfig.blockstorage.ignoreVolumeAz }}
-
 [Metadata]
 search-order = {{ .Values.cloudConfig.metadata.searchOrder }}
 {{- end -}}
