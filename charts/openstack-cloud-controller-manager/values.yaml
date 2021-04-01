@@ -55,22 +55,54 @@ secret:
 
 cloudConfig:
   global:
-    authUrl:
-    region:
-    username:
-    password:
-    tenantName:
-    domainName:
+    authUrl: ""
+    osEndpointType: ""
+    caFile: ""
+    certFile: ""
+    keyFile: ""
+    username: ""
+    password: ""
+    region: ""
+    domainId: ""
+    domainName: ""
+    tenantId: ""
+    tenantName: ""
+    tenantDomainId: ""
+    tenantDomainName: ""
+    userDomainId: ""
+    userDomainName: ""
+    trustId: ""
+    trusteeId: ""
+    applicationCredentialId: ""
+    applicationCredentialName: ""
+    applicationCredentialSecret: ""
+
+  networking:
+    ipv6SupportDisabled: false
+    publicNetworkName: ""
+    internalNetworkName: ""
+
   loadbalancer:
-    subnetId:
-    floatingNetworkId:
-    createMonitor: true
+    useOctavia: true
+    floatingNetworkId: ""
+    floatingSubnetId: ""
+    floatingSubnet: ""
+    floatingSubnetTags: ""
+    lbMethod: ""
+    lbProvider: ""
+    lbVersion: ""
+    subnetId: ""
+    networkId: ""
+    manageSecurityGroups: false
+    createMonitor: false
     monitorDelay: 5s
-    monitorTimeout: 10s
-    monitorMaxRetries: 3
-    useOctavia: false
-    lbProvider: vlb
-  blockstorage:
-    ignoreVolumeAz: false
+    monitorMaxRetries: 1
+    monitorTimeout: 3s
+    internalLb: false
+    cascadeDelete: true
+    flavorId: ""
+    availabilityZone: ""
+    enableIngressHostname: ""
+
   metadata:
     searchOrder: metadataService,configDrive
