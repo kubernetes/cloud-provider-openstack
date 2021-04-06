@@ -53,56 +53,9 @@ secret:
   create: true
 #  name:
 
+# Specify settings with the same key as the CCM config: https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#config-openstack-cloud-controller-manager
 cloudConfig:
   global:
-    authUrl: ""
-    osEndpointType: ""
-    caFile: ""
-    certFile: ""
-    keyFile: ""
-    username: ""
-    password: ""
-    region: ""
-    domainId: ""
-    domainName: ""
-    tenantId: ""
-    tenantName: ""
-    tenantDomainId: ""
-    tenantDomainName: ""
-    userDomainId: ""
-    userDomainName: ""
-    trustId: ""
-    trusteeId: ""
-    applicationCredentialId: ""
-    applicationCredentialName: ""
-    applicationCredentialSecret: ""
-
   networking:
-    ipv6SupportDisabled: false
-    publicNetworkName: ""
-    internalNetworkName: ""
-
-  loadbalancer:
-    useOctavia: true
-    floatingNetworkId: ""
-    floatingSubnetId: ""
-    floatingSubnet: ""
-    floatingSubnetTags: ""
-    lbMethod: ""
-    lbProvider: ""
-    lbVersion: ""
-    subnetId: ""
-    networkId: ""
-    manageSecurityGroups: false
-    createMonitor: false
-    monitorDelay: 5s
-    monitorMaxRetries: 1
-    monitorTimeout: 3s
-    internalLb: false
-    cascadeDelete: true
-    flavorId: ""
-    availabilityZone: ""
-    enableIngressHostname: ""
-
+  loadBalancer:
   metadata:
-    searchOrder: metadataService,configDrive
