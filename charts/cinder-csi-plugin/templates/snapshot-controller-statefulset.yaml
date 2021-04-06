@@ -29,7 +29,6 @@ spec:
         - name: snapshot-controller
           image: "{{ .Values.csi.snapshotController.image.repository }}:{{ .Values.csi.snapshotController.image.tag }}"
           args:
-            - "--v=5"
             - "--leader-election=false"
           imagePullPolicy: IfNotPresent
 {{- end }}
