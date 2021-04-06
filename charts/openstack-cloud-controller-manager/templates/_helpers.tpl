@@ -64,6 +64,11 @@ Create cloud-config makro.
 {{ $key }} = {{ $value }}
 {{- end }}
 
+[BlockStorage]
+{{- range $key, $value := .Values.cloudConfig.blockStorage }}
+{{ $key }} = {{ $value }}
+{{- end }}
+
 [Metadata]
 {{- range $key, $value := .Values.cloudConfig.metadata }}
 {{ $key }} = {{ $value }}
