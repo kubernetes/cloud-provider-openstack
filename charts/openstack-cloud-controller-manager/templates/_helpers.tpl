@@ -50,57 +50,27 @@ Create cloud-config makro.
 */}}
 {{- define "cloudConfig" -}}
 [Global]
-auth-url                      = {{ .Values.cloudConfig.global.authUrl }}
-os-endpoint-type              = {{ .Values.cloudConfig.global.osEndpointType }}
-ca-file                       = {{ .Values.cloudConfig.global.caFile }}
-cert-file                     = {{ .Values.cloudConfig.global.certFile }}
-key-file                      = {{ .Values.cloudConfig.global.keyFile }}
-username                      = {{ .Values.cloudConfig.global.username }}
-password                      = {{ .Values.cloudConfig.global.password }}
-region                        = {{ .Values.cloudConfig.global.region }}
-domain-id                     = {{ .Values.cloudConfig.global.domainId }}
-domain-name                   = {{ .Values.cloudConfig.global.domainName }}
-tenant-id                     = {{ .Values.cloudConfig.global.tenantId }}
-tenant-name                   = {{ .Values.cloudConfig.global.tenantName }}
-tenant-domain-id              = {{ .Values.cloudConfig.global.tenantDomainId }}
-tenant-domain-name            = {{ .Values.cloudConfig.global.tenantDomainName }}
-user-domain-id                = {{ .Values.cloudConfig.global.userDomainId }}
-user-domain-name              = {{ .Values.cloudConfig.global.userDomainName }}
-trust-id                      = {{ .Values.cloudConfig.global.trustId }}
-trustee-id                    = {{ .Values.cloudConfig.global.trusteeId }}
-use-clouds                    = false
-application-credential-id     = {{ .Values.cloudConfig.global.applicationCredentialId }}
-application-credential-name   = {{ .Values.cloudConfig.global.applicationCredentialName }}
-application-credential-secret = {{ .Values.cloudConfig.global.applicationCredentialSecret }}
-tls-insecure                  = {{ .Values.cloudConfig.global.tlsInsecure }}
+{{- range $key, $value := .Values.cloudConfig.global }}
+{{ $key }} = {{ $value }}
+{{- end }}
 
 [Networking]
-ipv6-support-disabled = {{ .Values.cloudConfig.networking.ipv6SupportDisabled }}
-public-network-name   = {{ .Values.cloudConfig.networking.publicNetworkName }}
-internal-network-name = {{ .Values.cloudConfig.networking.internalNetworkName }}
+{{- range $key, $value := .Values.cloudConfig.networking }}
+{{ $key }} = {{ $value }}
+{{- end }}
 
 [LoadBalancer]
-use-octavia             = {{ .Values.cloudConfig.loadbalancer.useOctavia  }}
-floating-network-id     = {{ .Values.cloudConfig.loadbalancer.floatingNetworkId }}
-floating-subnet-id      = {{ .Values.cloudConfig.loadbalancer.floatingSubnetId }}
-floating-subnet         = {{ .Values.cloudConfig.loadbalancer.floatingSubnet }}
-floating-subnet-tags    = {{ .Values.cloudConfig.loadbalancer.floatingSubnetTags }}
-lb-method               = {{ .Values.cloudConfig.loadbalancer.lbMethod }}
-lb-provider             = {{ .Values.cloudConfig.loadbalancer.lbProvider }}
-lb-version              = {{ .Values.cloudConfig.loadbalancer.lbVersion }}
-subnet-id               = {{ .Values.cloudConfig.loadbalancer.subnetId }}
-network-id              = {{ .Values.cloudConfig.loadbalancer.networkId }}
-manage-security-groups  = {{ .Values.cloudConfig.loadbalancer.manageSecurityGroups }}
-create-monitor          = {{ .Values.cloudConfig.loadbalancer.createMonitor }}
-monitor-delay           = {{ .Values.cloudConfig.loadbalancer.monitorDelay }}
-monitor-max-retries     = {{ .Values.cloudConfig.loadbalancer.monitorMaxRetries }}
-monitor-timeout         = {{ .Values.cloudConfig.loadbalancer.monitorTimeout }}
-internal-lb             = {{ .Values.cloudConfig.loadbalancer.internalLb }}
-cascade-delete          = {{ .Values.cloudConfig.loadbalancer.cascadeDelete }}
-flavor-id               = {{ .Values.cloudConfig.loadbalancer.flavorId }}
-availability-zone       = {{ .Values.cloudConfig.loadbalancer.availabilityZone }}
-enable-ingress-hostname = {{ .Values.cloudConfig.loadbalancer.enableIngressHostname }}
+{{- range $key, $value := .Values.cloudConfig.loadBalancer }}
+{{ $key }} = {{ $value }}
+{{- end }}
+
+[BlockStorage]
+{{- range $key, $value := .Values.cloudConfig.blockStorage }}
+{{ $key }} = {{ $value }}
+{{- end }}
 
 [Metadata]
-search-order = {{ .Values.cloudConfig.metadata.searchOrder }}
-{{- end -}}
+{{- range $key, $value := .Values.cloudConfig.metadata }}
+{{ $key }} = {{ $value }}
+{{- end }}
+{{- end }}
