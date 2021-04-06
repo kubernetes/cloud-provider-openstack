@@ -5,6 +5,9 @@
 # It should be installed as part of the base Kubernetes distribution in an appropriate
 # namespace for components implementing base system functionality. For installing with
 # Vanilla Kubernetes, kube-system makes sense for the namespace.
+# 
+# Enable this only if your Kubernetes distribution does not bundle the snapshot controller.
+# It should be installed only once per cluster, independent of CSI driver.
 
 apiVersion: v1
 kind: ServiceAccount
