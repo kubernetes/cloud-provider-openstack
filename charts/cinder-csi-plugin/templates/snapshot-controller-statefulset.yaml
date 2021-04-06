@@ -14,7 +14,7 @@ metadata:
     {{- include "cinder-csi.snapshot-controller.labels" . | nindent 4 }}
   name: {{ include "cinder-csi.name" . }}-snapshot-controller
 spec:
-  serviceName: "snapshot-controller-sa"
+  serviceName: "snapshot-controller"
   replicas: 1
   selector:
     matchLabels:

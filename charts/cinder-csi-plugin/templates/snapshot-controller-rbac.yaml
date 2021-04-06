@@ -9,7 +9,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: snapshot-controller-sa
+  name: snapshot-controller
   namespace: {{ .Release.Namespace }}
 ---
 kind: ClusterRole
@@ -34,9 +34,6 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshotcontents"]
-    verbs: ["create", "get", "list", "watch", "update", "delete"]
-  - apiGroups: ["snapshot.storage.k8s.io"]
-    resources: ["volumesnapshotcontents/status"]
     verbs: ["create", "get", "list", "watch", "update", "delete"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots"]
