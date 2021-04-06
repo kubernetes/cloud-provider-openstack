@@ -54,6 +54,7 @@ nodeplugin:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  priorityClassName: ""
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
 
