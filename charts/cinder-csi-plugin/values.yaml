@@ -54,6 +54,11 @@ csi:
       - name: cloud-config
         mountPath: /etc/kubernetes
         readOnly: true
+  snapshotController:
+    enabled: false
+    image:
+      repository: k8s.gcr.io/sig-storage/snapshot-controller
+      tag: v2.1.3
 
 secret:
   enabled: false
