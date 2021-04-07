@@ -1,0 +1,11 @@
+apiVersion: v1
+appVersion: "latest"
+description: Openstack Service Loadbalancer Helm Chart
+icon: https://object-storage-ca-ymq-1.vexxhost.net/swift/v1/6e4619c416ff4bd19e1c087f27a43eea/www-images-prod/openstack-logo/OpenStack-Logo-Vertical.png
+home: https://github.com/kubernetes/cloud-provider-openstack
+name: openstack-service-loadbalancer
+version: 1.0.0
+maintainers:
+  - name: eumel8 # Frank Kloeker
+    email: f.kloeker@telekom.de
+    url: https://www.telekom.com

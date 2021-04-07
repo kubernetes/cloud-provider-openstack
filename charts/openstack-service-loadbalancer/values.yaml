@@ -1,0 +1,14 @@
+# Values OpenStack Service Loadbalancer Helm Chart
+#
+# Define loadbalancer service based ony OpenStack Cloud Controller Manager
+#
+# Create a service openstack-lb (or other service name) for OpenStack Loadbalancer
+loadbalancerService: {}
+# loadbalancerService:
+#   namespace:
+#   label:
+#   selector:
+#   servicename:
+#   annotations:
+#     service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
+#     external-dns.alpha.kubernetes.io/hostname: "node.example.com"
