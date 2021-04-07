@@ -1,23 +1,34 @@
+# Values OpenStack Cloud Controller Manager Helm Chart
+#
+# Define deployment mode for the controller and provide cloud credentials in cloudConfig at the end of the file
+#
+# Image repository name and tag
 image:
   repository: docker.io/k8scloudprovider/openstack-cloud-controller-manager
   tag: ""
 
+# Set resources for Kubernetes daemonset
 resources: {}
 # resources:
 #   requests:
 #     cpu: 200m
 
+# Set livenessProbe for Kubernetes daemonset. Used the same port for servicemonitor metrics
 livenessProbe: {}
 # livenessProbe:
 #   httpGet:
 #    path: /metrics
 #    port: 10258
+
+# Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
+# Set nodeSelector where the controller shut run, i.e. controlplane nodes
 nodeSelector: []
 # nodeSelector:
 #   node-role.kubernetes.io/controlplane: "true"
 
+# Set tolerations for nodes where the controller should run, i.e. node should uninitialized, controlplane...
 tolerations: []
 # tolerations:
 #   - key: node.cloudprovider.kubernetes.io/uninitialized
@@ -30,10 +41,12 @@ tolerations: []
 #     value: "true"
 #     effect: NoExecute
 
+# Any extra arguments for openstack-cloud-controller-manager
 controllerExtraArgs: {}
 # controllerExtraArgs: |-
 #   - --cluster-name=my-cluster
 
+# Create a service openstack-lb (or other service name) for OpenStack Loadbalancer
 loadbalancerService: {}
 # loadbalancerService:
 #   enabled: true
@@ -45,10 +58,12 @@ loadbalancerService: {}
 #     service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
 #     external-dns.alpha.kubernetes.io/hostname: "node.example.com"
 
+# Create a service monitor for Prometheus Operator
 serviceMonitor: {}
 # serviceMonitor:
 #   enabled: true
 
+# Create a secret resource cloud-config (or other name) to store credentials and settings from cloudConfig
 secret:
   create: true
 #  name:
