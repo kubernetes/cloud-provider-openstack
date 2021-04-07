@@ -64,12 +64,20 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 	}
 	magnumClient.Microversion = "latest"
 
+	// get cinder service client
+	var cinderClient *gophercloud.ServiceClient
+	cinderClient, err = gopenstack.NewBlockStorageV2(client, eoOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Cinder service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
+	}
+
 	var p cloudprovider.CloudProvider
 	p = openstack.OpenStackCloudProvider{
 		KubeClient: kubeClient,
 		Nova:       novaClient,
 		Heat:       heatClient,
 		Magnum:     magnumClient,
+		Cinder:     cinderClient,
 		Config:     cfg,
 	}
 
