@@ -75,7 +75,7 @@ secret:
 #      ca-file=/etc/cacert/ca-bundle.crt
 
 storageClass:
-  enabled: false
+  enabled: true
   delete:
     isDefault: false
     allowVolumeExpansion: true
