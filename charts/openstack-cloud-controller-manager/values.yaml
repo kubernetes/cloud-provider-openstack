@@ -46,18 +46,6 @@ controllerExtraArgs: {}
 # controllerExtraArgs: |-
 #   - --cluster-name=my-cluster
 
-# Create a service openstack-lb (or other service name) for OpenStack Loadbalancer
-loadbalancerService: {}
-# loadbalancerService:
-#   enabled: true
-#   namespace:
-#   label:
-#   selector:
-#   servicename:
-#   annotations:
-#     service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
-#     external-dns.alpha.kubernetes.io/hostname: "node.example.com"
-
 # Create a service monitor for Prometheus Operator
 serviceMonitor: {}
 # serviceMonitor:
