@@ -66,7 +66,9 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 
 	// get cinder service client
 	var cinderClient *gophercloud.ServiceClient
-	cinderClient, err = gopenstack.NewBlockStorageV2(client, eoOpts)
+	cinderClient, err = gopenstack.NewBlockStorageV2(client, gophercloud.EndpointOpts{
+		Region: cfg.OpenStack.Region,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Cinder service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
 	}
