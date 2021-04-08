@@ -80,10 +80,12 @@ func (c fakeNodeSvcClient) UnpublishVolume(context.Context, *csi.NodeUnpublishVo
 
 type fakeCSIClientBuilder struct{}
 
-func (b fakeCSIClientBuilder) NewConnection(string) (*grpc.ClientConn, error) { return nil, nil }
+func (b fakeCSIClientBuilder) NewConnection(string) (*grpc.ClientConn, error) {
+	return grpc.Dial("", grpc.WithInsecure())
+}
 
 func (b fakeCSIClientBuilder) NewConnectionWithContext(context.Context, string) (*grpc.ClientConn, error) {
-	return nil, nil
+	return grpc.Dial("", grpc.WithInsecure())
 }
 
 func (b fakeCSIClientBuilder) NewNodeServiceClient(conn *grpc.ClientConn) csiclient.Node {
