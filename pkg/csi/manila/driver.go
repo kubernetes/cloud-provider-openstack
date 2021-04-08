@@ -247,6 +247,7 @@ func (d *Driver) initProxiedDriver() (csiNodeCapabilitySet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connecting to %s endpoint failed: %v", d.fwdEndpoint, err)
 	}
+	defer conn.Close()
 
 	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
 
