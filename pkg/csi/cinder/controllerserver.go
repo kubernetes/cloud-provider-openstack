@@ -136,6 +136,16 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	}
 
+	// Wait for volume status to be Available
+	if vol.Status != openstack.VolumeAvailableStatus {
+		targetStatus := []string{openstack.VolumeAvailableStatus}
+		err := cloud.WaitVolumeTargetStatus(vol.ID, targetStatus)
+		if err != nil {
+			klog.Errorf("[CreateVolume] Target volume status is not 'Available': %v", err.Error())
+			return nil, status.Errorf(codes.Internal, err.Error())
+		}
+	}
+
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
 	return getCreateVolumeResponse(vol, ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
