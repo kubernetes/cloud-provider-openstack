@@ -209,7 +209,7 @@ func (provider OpenStackCloudProvider) waitForServerDetachVolumes(serverID strin
 
 			bootable, err := strconv.ParseBool(volume.Bootable)
 			if err != nil {
-				log.Warningf("Unexpected value for bootable volume %s in volume %s, error %s", volume.Bootable, volume, err)
+				log.Warningf("Unexpected value for bootable volume %v in volume %s, error %v", volume.Bootable, attachment.VolumeID, err)
 			}
 
 			log.Infof("volume %s is bootable %t", attachment.VolumeID, bootable)
