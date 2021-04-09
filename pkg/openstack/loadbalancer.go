@@ -30,6 +30,7 @@ import (
 	"gopkg.in/godo.v2/glob"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/containers"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
@@ -107,7 +108,7 @@ const (
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether or not to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
-
+	ServiceAnnotationTlsContainerRef                 = "loadbalancer.openstack.org/default-tls-container-ref"
 	// See https://nip.io
 	defaultProxyHostnameSuffix = "nip.io"
 )
@@ -345,6 +346,7 @@ type serviceConfig struct {
 	enableMonitor        bool
 	flavorID             string
 	availabilityZone     string
+	tlsContainerRef      string
 }
 
 type listenerKey struct {
@@ -1388,8 +1390,14 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 	poolProto := v2pools.Protocol(listenerProtocol)
 	if svcConf.enableProxyProtocol {
 		poolProto = v2pools.ProtocolPROXY
-	} else if svcConf.keepClientIP && poolProto != v2pools.ProtocolHTTP {
-		klog.V(4).Infof("Forcing to use %q protocol for pool because annotation %q is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
+		if svcConf.keepClientIP && svcConf.tlsContainerRef != "" {
+			klog.V(4).Infof("Forcing to use %q protocol for pool because annotations %q %q are set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor, ServiceAnnotationTlsContainerRef)
+		} else if svcConf.keepClientIP {
+			klog.V(4).Infof("Forcing to use %q protocol for pool because annotation %q is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+		} else {
+			klog.V(4).Infof("Forcing to use %q protocol for pool because annotations %q is set", v2pools.ProtocolHTTP, ServiceAnnotationTlsContainerRef)
+		}
 		poolProto = v2pools.ProtocolHTTP
 	}
 
@@ -1449,7 +1457,9 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 	}
 
 	proto := toListenersProtocol(port.Protocol)
-	if svcConf.keepClientIP {
+	if svcConf.tlsContainerRef != "" {
+		proto = listeners.ProtocolTerminatedHTTPS
+	} else if svcConf.keepClientIP {
 		proto = listeners.ProtocolHTTP
 	}
 	listener, ok := lbListeners[listenerKey{
@@ -1478,14 +1488,22 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 			updateOpts.ConnLimit = &svcConf.connLimit
 			listenerChanged = true
 		}
-		updateOpts.InsertHeaders = &listener.InsertHeaders
+
 		listenerKeepClientIP := listener.InsertHeaders[annotationXForwardedFor] == "true"
 		if svcConf.keepClientIP != listenerKeepClientIP {
+			updateOpts.InsertHeaders = &listener.InsertHeaders
 			if svcConf.keepClientIP {
+				if *updateOpts.InsertHeaders == nil {
+					*updateOpts.InsertHeaders = make(map[string]string)
+				}
 				(*updateOpts.InsertHeaders)[annotationXForwardedFor] = "true"
 			} else {
 				delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
 			}
+			listenerChanged = true
+		}
+		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
+			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
 			listenerChanged = true
 		}
 		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
@@ -1542,11 +1560,20 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 	}
 
 	if svcConf.keepClientIP {
-		if listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
-			klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-			listenerCreateOpt.Protocol = listeners.ProtocolHTTP
-		}
 		listenerCreateOpt.InsertHeaders = map[string]string{annotationXForwardedFor: "true"}
+	}
+
+	if svcConf.tlsContainerRef != "" {
+		listenerCreateOpt.DefaultTlsContainerRef = svcConf.tlsContainerRef
+	}
+
+	// protocol selection
+	if svcConf.tlsContainerRef != "" && listenerCreateOpt.Protocol != listeners.ProtocolTerminatedHTTPS {
+		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolTerminatedHTTPS, ServiceAnnotationTlsContainerRef)
+		listenerCreateOpt.Protocol = listeners.ProtocolTerminatedHTTPS
+	} else if svcConf.keepClientIP && listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
+		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+		listenerCreateOpt.Protocol = listeners.ProtocolHTTP
 	}
 
 	if len(svcConf.allowedCIDR) > 0 {
@@ -1575,6 +1602,24 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			return err
 		}
 		svcConf.internal = internal
+	}
+
+	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
+	if svcConf.tlsContainerRef != "" {
+		if lbaas.secret == nil {
+			return fmt.Errorf("failed to create a TLS Terminated loadbalancer because openstack keymanager client is not "+
+				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
+		}
+
+		// check if container exists
+		// tls container ref has format: https://{keymanager_host}/v1/containers/{uuid}
+		slice := strings.Split(svcConf.tlsContainerRef, "/")
+		containerID := slice[len(slice)-1]
+		container, err := containers.Get(lbaas.secret, containerID).Extract()
+		if err != nil {
+			return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+		}
+		klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 	}
 
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)

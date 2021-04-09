@@ -64,3 +64,12 @@ func NewLoadBalancerV2(provider *gophercloud.ProviderClient, eo *gophercloud.End
 	}
 	return lb, nil
 }
+
+// NewKeyManagerV1 creates a ServiceClient that can be used with KeyManager v1 API
+func NewKeyManagerV1(provider *gophercloud.ProviderClient, eo *gophercloud.EndpointOpts) (*gophercloud.ServiceClient, error) {
+	secret, err := openstack.NewKeyManagerV1(provider, *eo)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize keymanager client for region %s: %v", eo.Region, err)
+	}
+	return secret, nil
+}

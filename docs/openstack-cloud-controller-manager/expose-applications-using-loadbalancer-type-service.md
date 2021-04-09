@@ -166,6 +166,10 @@ Request Body:
 
   The name of the loadbalancer availability zone to use. It is ignored if the Octavia version doesn't support availability zones yet.
 
+- `loadbalancer.openstack.org/default-tls-container-ref`
+
+  Reference to a tls container. This option works with Octavia, when this option is set then a TLS Terminated loadbalancer will be created by cloud provider.
+  Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.
