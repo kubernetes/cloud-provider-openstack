@@ -43,6 +43,7 @@ func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*c
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, fmtGrpcConnError(ids.d.fwdEndpoint, err))
 	}
+	defer csiConn.Close()
 
 	return ids.d.csiClientBuilder.NewIdentityServiceClient(csiConn).Probe(ctx, req)
 }
