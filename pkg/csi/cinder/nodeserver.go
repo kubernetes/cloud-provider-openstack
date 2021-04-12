@@ -25,6 +25,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -47,7 +48,7 @@ type nodeServer struct {
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	klog.V(4).Infof("NodePublishVolume: called with args %+v", *req)
+	klog.V(4).Infof("NodePublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
 	source := req.GetStagingTargetPath()
@@ -226,7 +227,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 }
 
 func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer, mountOptions []string) (*csi.NodePublishVolumeResponse, error) {
-	klog.V(4).Infof("NodePublishVolumeBlock: called with args %+v", *req)
+	klog.V(4).Infof("NodePublishVolumeBlock: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
@@ -265,7 +266,7 @@ func nodePublishVolumeForBlock(req *csi.NodePublishVolumeRequest, ns *nodeServer
 }
 
 func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	klog.V(4).Infof("NodeUnPublishVolume: called with args %+v", *req)
+	klog.V(4).Infof("NodeUnPublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
@@ -348,7 +349,7 @@ func nodeUnpublishEphermeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer
 }
 
 func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	klog.V(4).Infof("NodeStageVolume: called with args %+v", *req)
+	klog.V(4).Infof("NodeStageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	stagingTarget := req.GetStagingTargetPath()
 	volumeCapability := req.GetVolumeCapability()
@@ -414,7 +415,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 }
 
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", *req)
+	klog.V(4).Infof("NodeUnstageVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -474,7 +475,7 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 }
 
 func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", *req)
+	klog.V(4).Infof("NodeGetVolumeStats: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -518,7 +519,7 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 }
 
 func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	klog.V(4).Infof("NodeExpandVolume: called with args %+v", *req)
+	klog.V(4).Infof("NodeExpandVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
