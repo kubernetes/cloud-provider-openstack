@@ -28,7 +28,7 @@ External cloud providers were introduced as an Alpha feature in Kubernetes relea
 
 For more information about cloud-controller-manager, please see:
 
-- <https://github.com/kubernetes/enhancements/blob/master/keps/sig-cloud-provider/20180530-cloud-controller-manager.md>
+- <https://github.com/kubernetes/enhancements/tree/master/keps/sig-cloud-provider/2392-cloud-controller-manager>
 - <https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager>
 - <https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/>
 
