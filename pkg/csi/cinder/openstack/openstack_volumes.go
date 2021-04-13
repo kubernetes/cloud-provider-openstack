@@ -124,8 +124,18 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
 // Returns a list of Volume references with the specified name
 func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
+	// Init a local thread safe copy of the Cinder ServiceClient
+	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// cinder filtering in volumes list is available since 3.34 microversion
+	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id32
+	blockstorageClient.Microversion = "3.34"
+
 	opts := volumes.ListOpts{Name: n}
-	pages, err := volumes.List(os.blockstorage, opts).AllPages()
+	pages, err := volumes.List(blockstorageClient, opts).AllPages()
 	if err != nil {
 		return nil, err
 	}

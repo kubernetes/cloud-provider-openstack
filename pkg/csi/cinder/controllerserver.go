@@ -86,7 +86,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volumes, err := cloud.GetVolumesByName(volName)
 	if err != nil {
 		klog.Errorf("Failed to query for existing Volume during CreateVolume: %v", err)
-		return nil, status.Error(codes.Internal, "Failed to get volumes")
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to get volumes: %s", err))
 	}
 
 	if len(volumes) == 1 {
