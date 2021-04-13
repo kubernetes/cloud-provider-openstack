@@ -3,6 +3,7 @@ appVersion: latest
 description: Cinder CSI Chart for OpenStack
 name: openstack-cinder-csi
 version: 1.3.6
+>>>>>>> bump chart version, add maintainer
 home: https://github.com/kubernetes/cloud-provider-openstack
 icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
 maintainers:
