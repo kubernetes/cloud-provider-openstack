@@ -8,3 +8,5 @@ icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
 maintainers:
   - name: brtknr
     email: brtknr@bath.edu
+  - name: eumel8
+    email: f.kloeker@telekom.de
