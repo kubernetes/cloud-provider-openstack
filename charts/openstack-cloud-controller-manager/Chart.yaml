@@ -6,9 +6,9 @@ home: https://github.com/kubernetes/cloud-provider-openstack
 name: openstack-cloud-controller-manager
 version: 1.0.0
 maintainers:
-  - name: morremeyer # Maurice Meyer
+  - name: morremeyer
     email: kubernetes@maurice-meyer.de
     url: https://maurice-meyer.de
-  - name: eumel8 # Frank Kloeker
+  - name: eumel8
     email: f.kloeker@telekom.de
     url: https://www.telekom.com
