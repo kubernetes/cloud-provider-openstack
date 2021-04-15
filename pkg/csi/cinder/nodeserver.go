@@ -67,7 +67,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
 	if ephemeralVolume {
-		return nodePublishEphermeral(req, ns)
+		return nodePublishEphemeral(req, ns)
 	}
 
 	// In case of ephemeral volume staging path not provided
@@ -118,7 +118,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*csi.NodePublishVolumeResponse, error) {
+func nodePublishEphemeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*csi.NodePublishVolumeResponse, error) {
 
 	var size int
 	var err error
@@ -152,8 +152,8 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 	evol, err := ns.Cloud.CreateVolume(volName, size, volumeType, volAvailability, "", "", &properties)
 
 	if err != nil {
-		klog.V(3).Infof("Failed to Create Ephermal Volume: %v", err)
-		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to create Ephermal Volume %v", err))
+		klog.V(3).Infof("Failed to Create Ephemeral Volume: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to create Ephemeral Volume %v", err))
 	}
 
 	// Wait for volume status to be Available, before attaching
@@ -165,7 +165,7 @@ func nodePublishEphermeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*
 		}
 	}
 
-	klog.V(4).Infof("Ephermeral Volume %s is created", evol.ID)
+	klog.V(4).Infof("Ephemeral Volume %s is created", evol.ID)
 
 	// attach volume
 	// for attach volume we need to have information about node.
@@ -310,14 +310,14 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	if ephemeralVolume {
-		return nodeUnpublishEphermeral(req, ns, vol)
+		return nodeUnpublishEphemeral(req, ns, vol)
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 
 }
 
-func nodeUnpublishEphermeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer, vol *volumes.Volume) (*csi.NodeUnpublishVolumeResponse, error) {
+func nodeUnpublishEphemeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer, vol *volumes.Volume) (*csi.NodeUnpublishVolumeResponse, error) {
 	volumeID := vol.ID
 	var instanceID string
 
