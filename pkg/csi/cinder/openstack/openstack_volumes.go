@@ -36,9 +36,6 @@ import (
 const (
 	VolumeAvailableStatus    = "available"
 	VolumeInUseStatus        = "in-use"
-	VolumeDeletedStatus      = "deleted"
-	VolumeErrorStatus        = "error"
-	VolumeCreatingStatus     = "creating"
 	operationFinishInitDelay = 1 * time.Second
 	operationFinishFactor    = 1.1
 	operationFinishSteps     = 10
