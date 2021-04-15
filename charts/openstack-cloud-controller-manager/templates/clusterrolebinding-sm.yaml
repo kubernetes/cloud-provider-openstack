@@ -1,0 +1,14 @@
+{{- if .Values.serviceMonitor.enabled }}
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: system:{{ include "occm.name" . }}:auth-delegate
+subjects:
+- kind: User
+  name: system:serviceaccount:{{ .Release.Namespace }}:{{ include "occm.name" . }}
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: system:auth-delegator
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

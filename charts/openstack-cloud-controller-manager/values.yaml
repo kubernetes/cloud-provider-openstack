@@ -1,0 +1,65 @@
+# Values OpenStack Cloud Controller Manager Helm Chart
+#
+# Define deployment mode for the controller and provide cloud credentials in cloudConfig at the end of the file
+#
+# Image repository name and tag
+image:
+  repository: docker.io/k8scloudprovider/openstack-cloud-controller-manager
+  tag: ""
+
+# Set resources for Kubernetes daemonset
+resources: {}
+# resources:
+#   requests:
+#     cpu: 200m
+
+# Set livenessProbe for Kubernetes daemonset. Used the same port for servicemonitor metrics
+livenessProbe: {}
+# livenessProbe:
+#   httpGet:
+#    path: /metrics
+#    port: 10258
+
+# Set readinessProbe in the same way like livenessProbe
+readinessProbe: {}
+
+# Set nodeSelector where the controller shut run, i.e. controlplane nodes
+nodeSelector: []
+# nodeSelector:
+#   node-role.kubernetes.io/controlplane: "true"
+
+# Set tolerations for nodes where the controller should run, i.e. node should uninitialized, controlplane...
+tolerations: []
+# tolerations:
+#   - key: node.cloudprovider.kubernetes.io/uninitialized
+#     value: "true"
+#     effect: NoSchedule
+#   - key: node-role.kubernetes.io/controlplane
+#     value: "true"
+#     effect: NoSchedule
+#   - key: node-role.kubernetes.io/etcd
+#     value: "true"
+#     effect: NoExecute
+
+# Any extra arguments for openstack-cloud-controller-manager
+controllerExtraArgs: {}
+# controllerExtraArgs: |-
+#   - --cluster-name=my-cluster
+
+# Create a service monitor for Prometheus Operator
+serviceMonitor: {}
+# serviceMonitor:
+#   enabled: true
+
+# Create a secret resource cloud-config (or other name) to store credentials and settings from cloudConfig
+secret:
+  create: true
+#  name:
+
+# Specify settings with the same key as the CCM config: https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#config-openstack-cloud-controller-manager
+cloudConfig:
+  global:
+  networking:
+  loadBalancer:
+  blockStorage:
+  metadata:
