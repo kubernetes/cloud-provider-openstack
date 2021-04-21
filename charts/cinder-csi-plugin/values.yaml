@@ -95,26 +95,6 @@ storageClass:
 #     parameters:
 #       type: SAS
 #     ---
-#     apiVersion: storage.k8s.io/v1
-#     kind: StorageClass
-#     metadata:
-#       name: ssd
-#     provisioner: cinder.csi.openstack.org
-#     volumeBindingMode: WaitForFirstConsumer
-#     allowVolumeExpansion: true
-#     parameters:
-#       type: SSD
-#     ---
-#     apiVersion: storage.k8s.io/v1
-#     kind: StorageClass
-#     metadata:
-#       name: sata
-#     provisioner: cinder.csi.openstack.org
-#     volumeBindingMode: WaitForFirstConsumer
-#     allowVolumeExpansion: true
-#     parameters:
-#       type: SATA
-#     ---
 #     apiVersion: snapshot.storage.k8s.io/v1beta1
 #     kind: VolumeSnapshotClass
 #     metadata:
