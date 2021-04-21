@@ -84,6 +84,7 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 
 // LoadBalancer is used for creating and maintaining load balancers
 type LoadBalancer struct {
+	secret  *gophercloud.ServiceClient
 	network *gophercloud.ServiceClient
 	compute *gophercloud.ServiceClient
 	lb      *gophercloud.ServiceClient
@@ -113,7 +114,8 @@ type LoadBalancerOpts struct {
 	CascadeDelete         bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
 	FlavorID              string              `gcfg:"flavor-id"`
 	AvailabilityZone      string              `gcfg:"availability-zone"`
-	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
+	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"`   // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
+	TlsContainerRef       string              `gcfg:"default-tls-container-ref"` //  reference to a tls container
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -210,6 +212,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorMaxRetries = 1
 	cfg.LoadBalancer.CascadeDelete = true
 	cfg.LoadBalancer.EnableIngressHostname = false
+	cfg.LoadBalancer.TlsContainerRef = ""
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
@@ -621,6 +624,12 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 		return nil, false
 	}
 
+	// keymanager client is optional
+	secret, err := client.NewKeyManagerV1(os.provider, os.epOpts)
+	if err != nil {
+		klog.Warningf("Failed to create an OpenStack Secret client: %v", err)
+	}
+
 	// LBaaS v1 is deprecated in the OpenStack Liberty release.
 	// Currently kubernetes OpenStack cloud provider just support LBaaS v2.
 	lbVersion := os.lbOpts.LBVersion
@@ -631,7 +640,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{network, compute, lb, os.lbOpts}}, true
+	return &LbaasV2{LoadBalancer{secret, network, compute, lb, os.lbOpts}}, true
 }
 
 // Zones indicates that we support zones

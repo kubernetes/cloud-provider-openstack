@@ -244,6 +244,11 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
   This option is currently a workaround for the issue https://github.com/kubernetes/ingress-nginx/issues/3996, should be removed or refactored after the Kubernetes [KEP-1860](https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding) is implemented.
 
+* `default-tls-container-ref`
+  Reference to a tls container. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type TERMINATED_HTTPS for a TLS Terminated loadbalancer.
+
+  Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
+
 ### Metadata
 
 * `search-order`
