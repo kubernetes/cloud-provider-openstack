@@ -282,7 +282,8 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 		}
 	}
 
-	return fmt.Errorf("disk: %s has no attachments or not attached to compute %s", volume.ID, instanceID)
+	// Disk has no attachments or not attached to provided compute
+	return nil
 }
 
 // WaitDiskDetached waits for detached
