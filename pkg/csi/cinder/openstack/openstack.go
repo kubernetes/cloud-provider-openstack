@@ -63,6 +63,7 @@ type IOpenStack interface {
 	GetMaxVolLimit() int64
 	GetMetadataOpts() metadata.MetadataOpts
 	GetBlockStorageOpts() BlockStorageOpts
+	GetCapacity() int64
 }
 
 type OpenStack struct {
@@ -71,6 +72,7 @@ type OpenStack struct {
 	bsOpts       BlockStorageOpts
 	epOpts       gophercloud.EndpointOpts
 	metadataOpts metadata.MetadataOpts
+	projectInfo  ProjectInfo
 }
 
 type BlockStorageOpts struct {
@@ -83,6 +85,10 @@ type Config struct {
 	Global       client.AuthOpts
 	Metadata     metadata.MetadataOpts
 	BlockStorage BlockStorageOpts
+}
+
+type ProjectInfo struct {
+	ProjectID    string
 }
 
 func logcfg(cfg Config) {
@@ -176,6 +182,7 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		bsOpts:       cfg.BlockStorage,
 		epOpts:       epOpts,
 		metadataOpts: cfg.Metadata,
+		projectInfo:  ProjectInfo{ProjectID: cfg.Global.TenantID},
 	}
 
 	return OsInstance, nil
