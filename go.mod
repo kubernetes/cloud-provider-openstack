@@ -5,8 +5,6 @@ go 1.15
 require (
 	github.com/MichaelTJones/walk v0.0.0-20161122175330-4748e29d5718 // indirect
 	github.com/container-storage-interface/spec v1.3.0
-	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
-	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/golang/protobuf v1.4.3
 	github.com/gophercloud/gophercloud v0.15.1-0.20210105012856-e34a44dc6580
 	github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
@@ -16,12 +14,12 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.6.1
 	github.com/kubernetes-csi/csi-test v2.2.0+incompatible
-	github.com/kubernetes-csi/csi-test/v3 v3.1.0
+	github.com/kubernetes-csi/csi-test/v4 v4.2.0
 	github.com/mgutz/str v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.1.2
-	github.com/onsi/ginkgo v1.12.0
-	github.com/onsi/gomega v1.9.0
+	github.com/onsi/ginkgo v1.14.2
+	github.com/onsi/gomega v1.10.4
 	github.com/pborman/uuid v1.2.0
 	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.7.0
@@ -32,7 +30,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/net v0.0.0-20210224082022-3d97a244fca7
 	golang.org/x/sys v0.0.0-20210225134936-a50acf3fe073
-	google.golang.org/grpc v1.29.0
+	google.golang.org/grpc v1.34.0
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -53,6 +51,7 @@ require (
 
 replace (
 	github.com/opencontainers/runc => github.com/opencontainers/runc v1.0.0-rc9
+	google.golang.org/grpc v1.34.0 => google.golang.org/grpc v1.29.0
 	k8s.io/api => k8s.io/api v0.21.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.0
