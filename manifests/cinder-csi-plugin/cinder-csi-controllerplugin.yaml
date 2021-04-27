@@ -104,6 +104,7 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            - "--http-endpoint=$(HTTP_ENDPOINT)"
           env:
             - name: NODE_ID
               valueFrom:
@@ -115,6 +116,8 @@ spec:
               value: /etc/config/cloud.conf
             - name: CLUSTER_NAME
               value: kubernetes
+            - name: HTTP_ENDPOINT
+              value: :8080
           imagePullPolicy: "IfNotPresent"
           ports:
             - containerPort: 9808

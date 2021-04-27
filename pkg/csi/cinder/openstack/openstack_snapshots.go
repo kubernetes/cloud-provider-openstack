@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/klog/v2"
 )
 
@@ -67,8 +68,12 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 		opts.Metadata = *tags
 	}
 	// TODO: Do some check before really call openstack API on the input
+	mc := metrics.NewMetricPrometheusContext("snapshot", "create")
 
 	snap, err := snapshots.Create(os.blockstorage, opts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
 	if err != nil {
 		return &snapshots.Snapshot{}, err
 	}
@@ -84,6 +89,8 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error) {
 	var nextPageToken string
 	var snaps []snapshots.Snapshot
+
+	mc := metrics.NewMetricPrometheusContext("snapshot", "list")
 
 	// Build the Opts
 	opts := snapshots.ListOpts{}
@@ -126,6 +133,9 @@ func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snaps
 
 		return false, nil
 	})
+	if mc.ObserveRequest(err) != nil {
+		return nil, nextPageToken, err
+	}
 	if err != nil {
 		return nil, nextPageToken, err
 	}
@@ -135,7 +145,12 @@ func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snaps
 
 // DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend
 func (os *OpenStack) DeleteSnapshot(snapID string) error {
+	mc := metrics.NewMetricPrometheusContext("snapshot", "delete")
 	err := snapshots.Delete(os.blockstorage, snapID).ExtractErr()
+	if mc.ObserveRequest(err) != nil {
+		return err
+	}
+
 	if err != nil {
 		klog.Errorf("Failed to delete snapshot: %v", err)
 	}
@@ -144,7 +159,12 @@ func (os *OpenStack) DeleteSnapshot(snapID string) error {
 
 //GetSnapshotByID returns snapshot details by id
 func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
+	mc := metrics.NewMetricPrometheusContext("snapshot", "get")
 	s, err := snapshots.Get(os.blockstorage, snapshotID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+
 	if err != nil {
 		klog.Errorf("Failed to get snapshot: %v", err)
 		return nil, err

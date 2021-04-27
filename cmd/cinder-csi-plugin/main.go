@@ -19,23 +19,29 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/component-base/logs"
 	"k8s.io/klog/v2"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	endpoint    string
-	nodeID      string
-	cloudconfig string
-	cluster     string
+	endpoint     string
+	nodeID       string
+	cloudconfig  string
+	cluster      string
+	httpEndpoint string
+	metricsPath  string
 )
 
 func init() {
@@ -85,6 +91,10 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
+	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
+
+	cmd.PersistentFlags().StringVar(&metricsPath, "metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	logs.InitLogs()
@@ -99,6 +109,18 @@ func main() {
 }
 
 func handle() {
+
+	if httpEndpoint != "" {
+		metrics.RegisterAPIPrometheusMetrics()
+		http.Handle("/metrics", promhttp.Handler())
+		go func() {
+			klog.Infof("ServeMux listening at %v", httpEndpoint)
+			err := http.ListenAndServe(httpEndpoint, nil)
+			if err != nil {
+				klog.Fatalf("Failed to start HTTP serv")
+			}
+		}()
+	}
 
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
 	// Initiliaze cloud
