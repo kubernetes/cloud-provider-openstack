@@ -82,3 +82,22 @@ storageClass:
   retain:
     isDefault: false
     allowVolumeExpansion: true
+# any kind of custom StorageClasses
+#   custom: |-
+#     ---
+#     apiVersion: storage.k8s.io/v1
+#     kind: StorageClass
+#     metadata:
+#       name: sas
+#     provisioner: cinder.csi.openstack.org
+#     volumeBindingMode: WaitForFirstConsumer
+#     allowVolumeExpansion: true
+#     parameters:
+#       type: SAS
+#     ---
+#     apiVersion: snapshot.storage.k8s.io/v1beta1
+#     kind: VolumeSnapshotClass
+#     metadata:
+#       name: csi-cinder-snapclass
+#     driver: cinder.csi.openstack.org
+#     deletionPolicy: Delete
