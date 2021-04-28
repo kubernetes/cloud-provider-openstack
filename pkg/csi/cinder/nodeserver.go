@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/util/resizefs"
 	utilpath "k8s.io/utils/path"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -38,6 +37,7 @@ import (
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+	mountutil "k8s.io/mount-utils"
 )
 
 type nodeServer struct {
@@ -546,8 +546,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 			return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
 		}
 	}
-
-	r := resizefs.NewResizeFs(ns.Mount.Mounter())
+	r := mountutil.NewResizeFs(ns.Mount.Mounter().Exec)
 	if _, err := r.Resize(devicePath, volumePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 	}
