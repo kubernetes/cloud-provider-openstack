@@ -103,6 +103,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Volume Create
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
+	//Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
+	for _, mKey := range []string{"csi.storage.k8s.io/pvc/name", "csi.storage.k8s.io/pvc/namespace", "csi.storage.k8s.io/pv/name"} {
+		if v, ok := req.Parameters[mKey]; ok {
+			properties[mKey] = v
+		}
+	}
 	content := req.GetVolumeContentSource()
 	var snapshotID string
 	var sourcevolID string

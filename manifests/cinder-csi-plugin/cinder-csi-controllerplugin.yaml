@@ -54,6 +54,7 @@ spec:
             - "--timeout=3m"
             - "--default-fstype=ext4"
             - "--feature-gates=Topology=true"
+            - "--extra-create-metadata"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
