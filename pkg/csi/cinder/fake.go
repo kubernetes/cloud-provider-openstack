@@ -38,6 +38,9 @@ var FakeAvailability = "nova"
 var FakeDevicePath = "/dev/xxx"
 var FakeTargetPath = "/mnt/cinder"
 var FakeStagingTargetPath = "/mnt/globalmount"
+var FakePVName = "fakepv-1"
+var FakePVCName = "fakepvc-1"
+var FakePVCNamespace = "fakepvc-ns"
 var FakeAttachment = volumes.Attachment{
 	ServerID: FakeNodeID,
 }
