@@ -63,7 +63,7 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 
 	nodeNamesByAddr := make(map[string]types.NodeName)
 	err := foreachServer(r.compute, servers.ListOpts{}, func(srv *servers.Server) (bool, error) {
-		interfaces, err := getAttachedInterfacesByID(r.compute, srv.ID)
+		interfaces, err := getAttachedInterfacesByID(r.compute, srv.ID, r.network)
 		if err != nil {
 			return false, err
 		}
@@ -186,7 +186,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 
 	ip, _, _ := net.ParseCIDR(route.DestinationCIDR)
 	isCIDRv6 := ip.To4() == nil
-	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts)
+	addr, err := getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts, r.network)
 
 	if err != nil {
 		return err
@@ -221,7 +221,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 	defer onFailure.call(unwind)
 
 	// get the port of addr on target node.
-	portID, err := getPortIDByIP(r.compute, route.TargetNode, addr)
+	portID, err := getPortIDByIP(r.compute, route.TargetNode, addr, r.network)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	// Blackhole routes are orphaned and have no counterpart in OpenStack
 	if !route.Blackhole {
 		var err error
-		addr, err = getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts)
+		addr, err = getAddressByName(r.compute, route.TargetNode, isCIDRv6, r.networkingOpts, r.network)
 		if err != nil {
 			return err
 		}
@@ -306,7 +306,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	defer onFailure.call(unwind)
 
 	// get the port of addr on target node.
-	portID, err := getPortIDByIP(r.compute, route.TargetNode, addr)
+	portID, err := getPortIDByIP(r.compute, route.TargetNode, addr, r.network)
 	if err != nil {
 		return err
 	}
@@ -341,13 +341,13 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	return nil
 }
 
-func getPortIDByIP(compute *gophercloud.ServiceClient, targetNode types.NodeName, ipAddress string) (string, error) {
+func getPortIDByIP(compute *gophercloud.ServiceClient, targetNode types.NodeName, ipAddress string, network *gophercloud.ServiceClient) (string, error) {
 	srv, err := getServerByName(compute, targetNode)
 	if err != nil {
 		return "", err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(compute, srv.ID)
+	interfaces, err := getAttachedInterfacesByID(compute, srv.ID, network)
 	if err != nil {
 		return "", err
 	}
