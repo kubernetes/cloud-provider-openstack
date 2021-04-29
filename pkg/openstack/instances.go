@@ -40,6 +40,7 @@ import (
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
 	compute        *gophercloud.ServiceClient
+	network        *gophercloud.ServiceClient
 	opts           metadata.MetadataOpts
 	networkingOpts NetworkingOpts
 }
@@ -68,8 +69,15 @@ func (os *OpenStack) instances() (*Instances, bool) {
 		return nil, false
 	}
 
+	network, err := client.NewNetworkV2(os.provider, os.epOpts)
+	if err != nil {
+		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
+		return nil, false
+	}
+
 	return &Instances{
 		compute:        compute,
+		network:        network,
 		opts:           os.metadataOpts,
 		networkingOpts: os.networkingOpts,
 	}, true
@@ -94,7 +102,7 @@ func (i *Instances) AddSSHKeyToAllInstances(ctx context.Context, user string, ke
 func (i *Instances) NodeAddresses(ctx context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
 	klog.V(4).Infof("NodeAddresses(%v) called", name)
 
-	addrs, err := getAddressesByName(i.compute, name, i.networkingOpts)
+	addrs, err := getAddressesByName(i.compute, name, i.networkingOpts, i.network)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +130,7 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(i.compute, server.ID)
+	interfaces, err := getAttachedInterfacesByID(i.compute, server.ID, i.network)
 	if err != nil {
 		return []v1.NodeAddress{}, err
 	}
@@ -205,7 +213,7 @@ func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloud
 		return nil, err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(i.compute, srv.ID)
+	interfaces, err := getAttachedInterfacesByID(i.compute, srv.ID, i.network)
 	if err != nil {
 		return nil, err
 	}

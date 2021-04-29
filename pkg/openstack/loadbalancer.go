@@ -904,7 +904,7 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
-func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node) (string, error) {
+func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node, network *gophercloud.ServiceClient) (string, error) {
 	ipAddress, err := nodeAddressForLB(&node)
 	if err != nil {
 		return "", err
@@ -915,7 +915,7 @@ func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node) (str
 		instanceID = instanceID[(ind + 1):]
 	}
 
-	interfaces, err := getAttachedInterfacesByID(compute, instanceID)
+	interfaces, err := getAttachedInterfacesByID(compute, instanceID, network)
 	if err != nil {
 		return "", err
 	}
@@ -1632,7 +1632,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.lbMemberSubnetID = svcConf.lbSubnetID
 	}
 	if len(svcConf.lbNetworkID) == 0 && len(svcConf.lbSubnetID) == 0 {
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], lbaas.network)
 		if err != nil {
 			return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
 		}
@@ -1897,7 +1897,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 	if len(lbaas.opts.SubnetID) == 0 && len(lbaas.opts.NetworkID) == 0 {
 		// Get SubnetID automatically.
 		// The LB needs to be configured with instance addresses on the same subnet, so get SubnetID by one node.
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], lbaas.network)
 		if err != nil {
 			klog.Warningf("Failed to find subnet-id for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 			return nil, fmt.Errorf("no subnet-id for service %s/%s : subnet-id not set in cloud provider config, "+
@@ -2767,7 +2767,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		} else {
 			svcConf.lbMemberSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 			if len(svcConf.lbMemberSubnetID) == 0 && len(nodes) > 0 {
-				subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+				subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], lbaas.network)
 				if err != nil {
 					return fmt.Errorf("no subnet-id found for service %s: %v", serviceName, err)
 				}
@@ -2858,7 +2858,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 	if len(lbaas.opts.SubnetID) == 0 && len(nodes) > 0 {
 		// Get SubnetID automatically.
 		// The LB needs to be configured with instance addresses on the same subnet, so get SubnetID by one node.
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], lbaas.network)
 		if err != nil {
 			klog.Warningf("Failed to find subnet-id for loadbalancer service %s/%s: %v", service.Namespace, service.Name, err)
 			return fmt.Errorf("no subnet-id for service %s/%s : subnet-id not set in cloud provider config, "+
