@@ -1345,8 +1345,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 	poolProto := v2pools.Protocol(listener.Protocol)
 	if svcConf.enableProxyProtocol {
 		poolProto = v2pools.ProtocolPROXY
-	} else if svcConf.keepClientIP && poolProto != v2pools.ProtocolHTTP {
-		klog.V(4).Infof("Forcing to use %q protocol for pool because annotation %q is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		poolProto = v2pools.ProtocolHTTP
 	}
 
