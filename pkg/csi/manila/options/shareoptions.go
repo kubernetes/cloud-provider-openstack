@@ -26,6 +26,7 @@ type ControllerVolumeContext struct {
 	ShareNetworkID      string `name:"shareNetworkID" value:"optional"`
 	AvailabilityZone    string `name:"availability" value:"optional"`
 	AppendShareMetadata string `name:"appendShareMetadata" value:"optional"`
+	ShareAccessTo       string `name:"shareAccessTo" value:"optional"`
 
 	// Adapter options
 
