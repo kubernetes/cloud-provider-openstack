@@ -32,7 +32,7 @@ data:
           "roles": ["member"]
         },
         "resource_permissions": {
-          "default/pods": ["get", "list"]
+          "default/pods": ["get", "list", "watch"]
         }
       }
     ]
