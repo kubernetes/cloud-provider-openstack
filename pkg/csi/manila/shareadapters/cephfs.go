@@ -36,6 +36,11 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 
 	var rights []shares.AccessRight
 
+	accessTo := args.Options.ShareAccessTo
+	if accessTo == "" {
+		accessTo = args.Share.Name
+	}
+
 	rights, err = args.ManilaClient.GetAccessRights(args.Share.ID)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
@@ -45,7 +50,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 		// Try to find the access right
 
 		for _, r := range rights {
-			if r.AccessTo == args.Share.Name && r.AccessType == "cephx" && r.AccessLevel == "rw" {
+			if r.AccessTo == accessTo && r.AccessType == "cephx" && r.AccessLevel == "rw" {
 				klog.V(4).Infof("cephx access right for share %s already exists", args.Share.Name)
 
 				accessRight = &r
@@ -60,7 +65,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 		accessRight, err = args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
 			AccessType:  "cephx",
 			AccessLevel: "rw",
-			AccessTo:    args.Share.Name,
+			AccessTo:    accessTo,
 		})
 
 		if err != nil {
@@ -90,7 +95,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 		var accessRight *shares.AccessRight
 
 		for i := range rights {
-			if rights[i].AccessTo == args.Share.Name {
+			if rights[i].AccessTo == accessTo {
 				accessRight = &rights[i]
 				break
 			}
