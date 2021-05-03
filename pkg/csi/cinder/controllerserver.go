@@ -172,6 +172,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 }
 
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	// Volume Attach
 	instanceID := req.GetNodeId()
@@ -235,6 +236,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	// Volume Detach
 	instanceID := req.GetNodeId()
@@ -318,6 +320,8 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 }
 
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
+
 	name := req.Name
 	volumeId := req.GetSourceVolumeId()
 
@@ -386,6 +390,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 }
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+	klog.V(4).Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	id := req.GetSnapshotId()
 
