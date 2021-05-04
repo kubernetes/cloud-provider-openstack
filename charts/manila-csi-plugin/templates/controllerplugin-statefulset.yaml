@@ -83,7 +83,8 @@ spec:
             --fwdendpoint=$(FWD_CSI_ENDPOINT)
             {{- if .compatibilitySettings }}
             --compatibility-settings={{ .compatibilitySettings }}
-            {{- end }}'
+            {{- end }}
+            --cluster-id="{{ $.Values.csimanila.clusterID }}"'
           ]
           env:
             - name: DRIVER_NAME
