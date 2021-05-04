@@ -52,6 +52,12 @@ items:
   - apiGroups:
     - ""
     resources:
+    - serviceaccounts/token
+    verbs:
+    - create
+  - apiGroups:
+    - ""
+    resources:
     - persistentvolumes
     verbs:
     - '*'
