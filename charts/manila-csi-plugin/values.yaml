@@ -47,13 +47,14 @@ nodeplugin:
   # csi-node-driver-registrar
   registrar:
     image:
-      repository: quay.io/k8scsi/csi-node-driver-registrar
-      tag: v1.1.0
+      repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
+      tag: v1.3.0
       pullPolicy: IfNotPresent
     resources: {}
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  priorityClassName: ""
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
 
@@ -66,15 +67,15 @@ controllerplugin:
   # CSI external-provisioner container spec
   provisioner:
     image:
-      repository: quay.io/k8scsi/csi-provisioner
+      repository: k8s.gcr.io/sig-storage/csi-provisioner
       tag: v2.0.2
       pullPolicy: IfNotPresent
     resources: {}
   # CSI external-snapshotter container spec
   snapshotter:
     image:
-      repository: quay.io/k8scsi/csi-snapshotter
-      tag: v2.1.1
+      repository: k8s.gcr.io/sig-storage/csi-snapshotter
+      tag: v2.1.3
       pullPolicy: IfNotPresent
     resources: {}
   nodeSelector: {}

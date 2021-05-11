@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -10,6 +11,21 @@ import (
 const (
 	GIB = 1024 * 1024 * 1024
 )
+
+// MyDuration is the encoding.TextUnmarshaler interface for time.Duration
+type MyDuration struct {
+	time.Duration
+}
+
+// UnmarshalText is used to convert from text to Duration
+func (d *MyDuration) UnmarshalText(text []byte) error {
+	res, err := time.ParseDuration(string(text))
+	if err != nil {
+		return err
+	}
+	d.Duration = res
+	return nil
+}
 
 // StringListEqual compares two string list, returns true if they have the same items, order doesn't matter
 func StringListEqual(list1, list2 []string) bool {

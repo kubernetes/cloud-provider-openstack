@@ -17,3 +17,5 @@ ARG ARCH=amd64
 RUN apk add --no-cache ca-certificates
 
 ADD openstack-cloud-controller-manager-${ARCH} /bin/openstack-cloud-controller-manager
+
+RUN chmod 755 /bin/openstack-cloud-controller-manager

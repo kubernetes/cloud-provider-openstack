@@ -8,6 +8,7 @@
   - [Volume Expansion Example](#volume-expansion-example)
   - [Using Block Volume](#using-block-volume)
   - [Snapshot Create and Restore](#snapshot-create-and-restore)
+  - [Disaster recovery of PV and PVC](#disaster-recovery-of-pv-and-pvc)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -18,7 +19,7 @@ All following examples need to be used inside instance(s) provisoned by openstac
 ## Dynamic Volume Provisioning
 
 For dynamic provisoning , create StorageClass, PersistentVolumeClaim and pod to consume it. 
-Checkout [sample app](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/nginx.yaml) definition fore reference.
+Checkout [sample app](../../examples/cinder-csi-plugin/nginx.yaml) definition fore reference.
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
 
@@ -101,10 +102,10 @@ index.html  lost+found
 
 ## Deploy app using Inline volumes
 
-Sample App definition on using Inline volumes can be found at [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/inline/inline-example.yaml)
+Sample App definition on using Inline volumes can be found at [here](../../examples/cinder-csi-plugin/inline/inline-example.yaml)
 
 Prerequisites:
-* Deploy CSI Driver, with both volumeLifecycleModes enabled as specified [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/cinder-csi-plugin/csi-cinder-driver.yaml)
+* Deploy CSI Driver, with both volumeLifecycleModes enabled as specified [here](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml)
 
 Create a pod with inline volume
 ```
@@ -130,7 +131,7 @@ Volumes:
 
 ## Volume Expansion Example
 
-Sample App definition for volume resize could be found [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/resize/example.yaml)
+Sample App definition for volume resize could be found [here](../../examples/cinder-csi-plugin/resize/example.yaml)
 
 Deploy the sample app 
 ```
@@ -181,7 +182,7 @@ Filesystem      Size  Used Avail Use% Mounted on
 
 ## Using Block Volume 
 
-Sample App definition of pod consuming block volume can be found [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/examples/cinder-csi-plugin/block/block.yaml)
+Sample App definition of pod consuming block volume can be found [here](../../examples/cinder-csi-plugin/block/block.yaml)
 
 Deploy the same app  
 ```
@@ -202,7 +203,7 @@ brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
 
 ## Snapshot Create and Restore
 
-Sample App definition using snapshots can be found [here](https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/cinder-csi-plugin/snapshot)
+Sample App definition using snapshots can be found [here](../../examples/cinder-csi-plugin/snapshot)
 
 Deploy app , Create Storage Class, Snapshot Class and PVC
 ```
@@ -253,4 +254,107 @@ $ openstack volume list
 +--------------------------------------+------------------------------------------+-----------+------+-------------------------------------------------+
 | 07522a3b-95db-4bfa-847c-ffa179d08c39 | pvc-400b1ca8-8786-435f-a6cc-f684afddbbea | available |    1 |                                                 |
 | bf8f9ae9-87b4-42bb-b74c-ba4645634be6 | pvc-4699fa78-4149-4772-b900-9536891fe200 | available |    1 |                                                 |
+```
+
+## Disaster recovery of PV and PVC
+
+This example assume your Kubernetes cluster is crashed, but your volumes
+are still available in the OpenStack cloud:
+
+```
+$ openstack volume show e129824a-16fa-486d-a8c7-482945a626ff
++--------------------------------+-----------------------------------------------------------------+
+| Field                          | Value                                                           |
++--------------------------------+-----------------------------------------------------------------+
+| attachments                    | []                                                              |
+| availability_zone              | eu-de-01                                                        |
+| bootable                       | false                                                           |
+| consistencygroup_id            | None                                                            |
+| created_at                     | 2020-11-30T15:16:23.788791                                      |
+| description                    | Created by OpenStack Cinder CSI driver                          |
+| encrypted                      | False                                                           |
+| id                             | e129824a-16fa-486d-a8c7-482945a626ff                            |
+| multiattach                    | True                                                            |
+| name                           | pvc-ba482e24-2e76-48fd-9be5-504724922185                        |
+| os-vol-host-attr:host          | pod07.eu-de-01#SATA                                             |
+| os-vol-mig-status-attr:migstat | None                                                            |
+| os-vol-mig-status-attr:name_id | None                                                            |
+| os-vol-tenant-attr:tenant_id   | 7c3ec0b3db5f476990043258670caf82                                |
+| properties                     | cinder.csi.openstack.org/cluster='kubernetes', readonly='False' |
+| replication_status             | disabled                                                        |
+| shareable                      | True                                                            |
+| size                           | 9                                                               |
+| snapshot_id                    | None                                                            |
+| source_volid                   | None                                                            |
+| status                         | available                                                       |
+| storage_cluster_id             | None                                                            |
+| type                           | SATA                                                            |
+| updated_at                     | 2020-12-06T22:51:30.032404                                      |
+| user_id                        | 2497435010e14245843bfe20e6f05024                                |
+| volume_image_metadata          | {}                                                              |
++--------------------------------+-----------------------------------------------------------------+
+```
+
+You can recover the volume to a PV/PVC under the same name/id in a new cluster.
+Useful to have a backup of the PV/PVC manifest (e.g. etcd backup, rancher-backup,
+kube-backup), otherwise write a new one in combination of the origin OpenStack
+Cinder VolumeID:
+
+```
+$ kubectl apply -f recover-pv.yaml
+```
+```
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/provisioned-by: cinder.csi.openstack.org
+  name: pvc-ba482e24-2e76-48fd-9be5-504724922185
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 9Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: sib
+    namespace: sib
+  csi:
+    driver: cinder.csi.openstack.org
+    volumeAttributes:
+      storage.kubernetes.io/csiProvisionerIdentity: 1606744152466-8081-cinder.csi.openstack.org
+    volumeHandle: e129824a-16fa-486d-a8c7-482945a626ff
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: topology.cinder.csi.openstack.org/zone
+          operator: In
+          values:
+          - eu-de-01
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: sata
+  volumeMode: Filesystem
+```
+
+```
+cat recover-pvc.yaml
+```
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    volume.beta.kubernetes.io/storage-provisioner: cinder.csi.openstack.org
+  name: sib
+  namespace: sib
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: sata
+  volumeMode: Filesystem
 ```

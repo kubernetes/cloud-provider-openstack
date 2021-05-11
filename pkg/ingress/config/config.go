@@ -17,15 +17,15 @@ limitations under the License.
 package config
 
 import (
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 // Config struct contains ingress controller configuration
 type Config struct {
-	ClusterName string                      `mapstructure:"cluster-name"`
-	Kubernetes  kubeConfig                  `mapstructure:"kubernetes"`
-	OpenStack   openstack_provider.AuthOpts `mapstructure:"openstack"`
-	Octavia     octaviaConfig               `mapstructure:"octavia"`
+	ClusterName string          `mapstructure:"cluster-name"`
+	Kubernetes  kubeConfig      `mapstructure:"kubernetes"`
+	OpenStack   client.AuthOpts `mapstructure:"openstack"`
+	Octavia     octaviaConfig   `mapstructure:"octavia"`
 }
 
 // Configuration for connecting to Kubernetes API server, either api_host or kubeconfig should be configured.

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
@@ -78,12 +79,12 @@ func ParseEndpoint(ep string) (string, string, error) {
 
 func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	klog.V(3).Infof("GRPC call: %s", info.FullMethod)
-	klog.V(5).Infof("GRPC request: %+v", req)
+	klog.V(5).Infof("GRPC request: %+v", protosanitizer.StripSecrets(req))
 	resp, err := handler(ctx, req)
 	if err != nil {
 		klog.Errorf("GRPC error: %v", err)
 	} else {
-		klog.V(5).Infof("GRPC response: %+v", resp)
+		klog.V(5).Infof("GRPC response: %+v", protosanitizer.StripSecrets(resp))
 	}
 	return resp, err
 }

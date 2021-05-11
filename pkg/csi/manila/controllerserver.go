@@ -18,6 +18,7 @@ package manila
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 
@@ -32,6 +33,8 @@ import (
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog/v2"
 )
+
+const clusterMetadataKey = "manila.csi.openstack.org/cluster"
 
 type controllerServer struct {
 	d *Driver
@@ -82,6 +85,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
 	}
 
+	shareMetadata, err := prepareShareMetadata(shareOpts.AppendShareMetadata, cs.d.clusterID)
+	if err != nil {
+		return nil, err
+	}
+
 	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
@@ -118,7 +126,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	share, err := volCreator.create(req, req.GetName(), sizeInGiB, manilaClient, shareOpts)
+	share, err := volCreator.create(req, req.GetName(), sizeInGiB, manilaClient, shareOpts, shareMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -417,4 +425,37 @@ func (cs *controllerServer) ListSnapshots(context.Context, *csi.ListSnapshotsReq
 
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func (cs *controllerServer) ControllerGetVolume(context.Context, *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func parseStringMapFromJson(data string) (m map[string]string, err error) {
+	if data == "" {
+		return
+	}
+
+	err = json.Unmarshal([]byte(data), &m)
+	return
+}
+
+func prepareShareMetadata(appendShareMetadata, clusterID string) (map[string]string, error) {
+	shareMetadata, err := parseStringMapFromJson(appendShareMetadata)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse appendShareMetadata field: %v", err)
+	}
+
+	if clusterID != "" {
+		if shareMetadata == nil {
+			shareMetadata = make(map[string]string)
+		}
+		if val, ok := shareMetadata[clusterMetadataKey]; ok && val != clusterID {
+			klog.Warningf("skip adding cluster ID %v to share metadata because appended metadata already defines it as %v", clusterID, val)
+		} else {
+			shareMetadata[clusterMetadataKey] = clusterID
+		}
+	}
+
+	return shareMetadata, nil
 }

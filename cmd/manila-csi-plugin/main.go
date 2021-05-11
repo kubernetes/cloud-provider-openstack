@@ -44,6 +44,7 @@ var (
 	fwdEndpoint           string
 	userAgentData         []string
 	compatibilitySettings string
+	clusterID             string
 )
 
 func validateShareProtocolSelector(v string) error {
@@ -140,6 +141,7 @@ func main() {
 					ManilaClientBuilder: manilaClientBuilder,
 					CSIClientBuilder:    csiClientBuilder,
 					CompatOpts:          compatOpts,
+					ClusterID:           clusterID,
 				},
 			)
 
@@ -177,6 +179,8 @@ func main() {
 	cmd.PersistentFlags().StringVar(&compatibilitySettings, "compatibility-settings", "", "settings for the compatibility layer")
 
 	cmd.PersistentFlags().StringArrayVar(&userAgentData, "user-agent", nil, "extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+
+	cmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "The identifier of the cluster that the plugin is running in.")
 
 	logs.InitLogs()
 	defer logs.FlushLogs()

@@ -14,7 +14,7 @@
         - cloud-provider-openstack-acceptance-test-lb-octavia:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -51,33 +51,12 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-csi-cinder:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-csi-cinder:
-            files:
-              - cluster/images/cinder-csi-plugin/.*
-              - cmd/cinder-csi-plugin/.*
-              - manifests/cinder-csi-plugin/.*
-              - pkg/csi/cinder/.*
-              - pkg/util/.*
-              - pkg/cloudprovider/providers/openstack/.*
-              - test/.*
-              - cmd/tests/.*
-              - go.mod$
-              - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-e2e-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-e2e-test-csi-cinder:
             files:
               - cmd/cinder-csi-plugin/.*
-              - manifests/cinder-csi-plugin/.* 
+              - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - tests/e2e/csi/cinder/.*
@@ -142,7 +121,7 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -154,12 +133,12 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.16:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -171,12 +150,12 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.17:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
@@ -193,7 +172,7 @@
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.18:
             files:
               - cmd/openstack-cloud-controller-manager/.*
-              - pkg/cloudprovider/.*
+              - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$

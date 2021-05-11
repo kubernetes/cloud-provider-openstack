@@ -29,8 +29,10 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/client"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
@@ -38,7 +40,7 @@ import (
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
 	compute        *gophercloud.ServiceClient
-	opts           MetadataOpts
+	opts           metadata.MetadataOpts
 	networkingOpts NetworkingOpts
 }
 
@@ -60,7 +62,7 @@ func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
 func (os *OpenStack) instances() (*Instances, bool) {
 	klog.V(4).Info("openstack.Instances() called")
 
-	compute, err := os.NewComputeV2()
+	compute, err := client.NewComputeV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("unable to access compute v2 API : %v", err)
 		return nil, false
@@ -280,21 +282,38 @@ func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (st
 	keys := []string{"original_name", "id"}
 	for _, key := range keys {
 		val, found := srv.Flavor[key]
-		if found {
-			flavor, ok := val.(string)
-			if ok {
-				if key == "id" {
-					mc := metrics.NewMetricContext("flavor", "get")
-					f, err := flavors.Get(client, flavor).Extract()
-					if mc.ObserveRequest(err) == nil {
-						return f.Name, nil
-					}
-				}
-				return flavor, nil
+		if !found {
+			continue
+		}
+
+		flavor, ok := val.(string)
+		if !ok {
+			continue
+		}
+
+		if key == "original_name" && isValidLabelValue(flavor) {
+			return flavor, nil
+		}
+
+		// get flavor name by id
+		mc := metrics.NewMetricContext("flavor", "get")
+		f, err := flavors.Get(client, flavor).Extract()
+		if mc.ObserveRequest(err) == nil {
+			if isValidLabelValue(f.Name) {
+				return f.Name, nil
 			}
+			// fallback on flavor id
+			return f.ID, nil
 		}
 	}
-	return "", fmt.Errorf("flavor name/id not found")
+	return "", fmt.Errorf("flavor original_name/id not found")
+}
+
+func isValidLabelValue(v string) bool {
+	if errs := validation.IsValidLabelValue(v); len(errs) != 0 {
+		return false
+	}
+	return true
 }
 
 // If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.

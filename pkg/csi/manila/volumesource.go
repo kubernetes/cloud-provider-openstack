@@ -17,8 +17,6 @@ limitations under the License.
 package manila
 
 import (
-	"encoding/json"
-
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"google.golang.org/grpc/codes"
@@ -31,17 +29,12 @@ import (
 )
 
 type volumeCreator interface {
-	create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error)
+	create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error)
 }
 
 type blankVolume struct{}
 
-func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
-	shareMetadata, err := parseStringMapFromJson(shareOpts.AppendShareMetadata)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse appendShareMetadata field: %v", err)
-	}
-
+func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
 	klog.V(4).Infof("creating a new share (%s) in AZ %s", shareName, coalesceValue(shareOpts.AvailabilityZone))
 
 	createOpts := &shares.CreateOpts{
@@ -74,7 +67,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 
 type volumeFromSnapshot struct{}
 
-func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext) (*shares.Share, error) {
+func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
 	snapshotSource := req.GetVolumeContentSource().GetSnapshot()
 
 	if shareOpts.Protocol == "CEPHFS" {
@@ -84,11 +77,6 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 	if snapshotSource.GetSnapshotId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "snapshot ID cannot be empty")
-	}
-
-	shareMetadata, err := parseStringMapFromJson(shareOpts.AppendShareMetadata)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse appendShareMetadata field: %v", err)
 	}
 
 	klog.V(4).Infof("restoring snapshot %s into a share (%s) in AZ %s", snapshotSource.GetSnapshotId(), shareName, coalesceValue(shareOpts.AvailabilityZone))
@@ -137,13 +125,4 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 	}
 
 	return share, err
-}
-
-func parseStringMapFromJson(data string) (m map[string]string, err error) {
-	if data == "" {
-		return
-	}
-
-	err = json.Unmarshal([]byte(data), &m)
-	return
 }

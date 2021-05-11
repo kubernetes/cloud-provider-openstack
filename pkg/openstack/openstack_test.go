@@ -309,67 +309,6 @@ func TestToAuthOptions(t *testing.T) {
 	}
 }
 
-func TestCheckOpenStackOpts(t *testing.T) {
-	tests := []struct {
-		name          string
-		openstackOpts *OpenStack
-		expectedError error
-	}{
-		{
-			name: "test1",
-			openstackOpts: &OpenStack{
-				metadataOpts: MetadataOpts{
-					SearchOrder: metadata.ConfigDriveID,
-				},
-			},
-			expectedError: nil,
-		},
-		{
-			name: "test2",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				metadataOpts: MetadataOpts{
-					SearchOrder: "",
-				},
-			},
-			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot be empty"),
-		},
-		{
-			name: "test3",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				metadataOpts: MetadataOpts{
-					SearchOrder: "value1,value2,value3",
-				},
-			},
-			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot contain more than 2 elements"),
-		},
-		{
-			name: "test4",
-			openstackOpts: &OpenStack{
-				provider: nil,
-				metadataOpts: MetadataOpts{
-					SearchOrder: "value1",
-				},
-			},
-			expectedError: fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
-				"Supported elements include %q and %q", "value1", metadata.ConfigDriveID, metadata.MetadataID),
-		},
-	}
-
-	for _, testcase := range tests {
-		err := checkOpenStackOpts(testcase.openstackOpts)
-
-		if err == nil && testcase.expectedError == nil {
-			continue
-		}
-		if (err != nil && testcase.expectedError == nil) || (err == nil && testcase.expectedError != nil) || err.Error() != testcase.expectedError.Error() {
-			t.Errorf("%s failed: expected err=%q, got %q",
-				testcase.name, testcase.expectedError, err)
-		}
-	}
-}
-
 func TestCaller(t *testing.T) {
 	called := false
 	myFunc := func() { called = true }
@@ -945,7 +884,10 @@ func TestZones(t *testing.T) {
 		provider: &gophercloud.ProviderClient{
 			IdentityBase: "http://auth.url/",
 		},
-		region: "myRegion",
+		epOpts: &gophercloud.EndpointOpts{
+			Region:       "myRegion",
+			Availability: gophercloud.AvailabilityPublic,
+		},
 	}
 
 	z, ok := os.Zones()

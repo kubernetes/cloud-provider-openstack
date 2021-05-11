@@ -23,11 +23,11 @@ not natively supported by `k8s.io/client-go`. The plugin implements the protocol
 then returns opaque credentials to use. This credential plugin use cases require a server side
 component with support for the [webhook token authenticator](https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication)
 to interpret the credential format produced by the client plugin. The webhook authenticator is
-provided by [k8s-keystone-auth binary](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/keystone-auth/using-keystone-webhook-authenticator-and-authorizer.md)
+provided by [k8s-keystone-auth binary](./using-keystone-webhook-authenticator-and-authorizer.md)
 
 ## Example use case
 
-In a hypothetical use case, an organization would run an external service that exchanges Openstack Keystone
+In a hypothetical use case, an organization would run an external service that exchanges OpenStack Keystone
 credentials for user specific, signed tokens. The service would also be capable of responding to [webhook token
 authenticator](https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication) requests to
 validate the tokens. Users would be required to install a credential plugin on their workstation.

@@ -36,7 +36,7 @@ spec:
       serviceAccountName: openstack-manila-csi-controllerplugin
       containers:
         - name: provisioner
-          image: "quay.io/k8scsi/csi-provisioner:v2.0.2"
+          image: "k8s.gcr.io/sig-storage/csi-provisioner:v2.0.2"
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -50,7 +50,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: snapshotter
-          image: "quay.io/k8scsi/csi-snapshotter:v2.1.1"
+          image: "k8s.gcr.io/sig-storage/csi-snapshotter:v2.1.3"
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -67,7 +67,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "k8scloudprovider/manila-csi-plugin:latest"
+          image: "k8scloudprovider/manila-csi-plugin:v1.21.0"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --v=5

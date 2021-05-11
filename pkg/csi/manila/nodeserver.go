@@ -25,7 +25,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -47,7 +47,7 @@ type stageCacheEntry struct {
 	publishSecret map[string]string
 }
 
-func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *openstack_provider.AuthOpts) (
+func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *client.AuthOpts) (
 	volumeContext map[string]string, accessRight *shares.AccessRight, err error,
 ) {
 	manilaClient, err := ns.d.manilaClientBuilder.New(osOpts)
@@ -211,6 +211,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
+	defer csiConn.Close()
 
 	req.Secrets = secret
 	req.VolumeContext = volumeCtx
@@ -227,6 +228,7 @@ func (ns *nodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
+	defer csiConn.Close()
 
 	return ns.d.csiClientBuilder.NewNodeServiceClient(csiConn).UnpublishVolume(ctx, req)
 }
@@ -285,6 +287,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
+	defer csiConn.Close()
 
 	req.Secrets = stageSecret
 	req.VolumeContext = volumeCtx
@@ -305,6 +308,7 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, fmtGrpcConnError(ns.d.fwdEndpoint, err))
 	}
+	defer csiConn.Close()
 
 	return ns.d.csiClientBuilder.NewNodeServiceClient(csiConn).UnstageVolume(ctx, req)
 }

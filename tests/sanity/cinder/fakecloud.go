@@ -10,9 +10,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
-	cco "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 type cloud struct {
@@ -29,7 +29,7 @@ func getfakecloud() *cloud {
 	}
 }
 
-var _ cco.IOpenStack = &cloud{}
+var _ openstack.IOpenStack = &cloud{}
 
 // Fake Cloud
 func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
@@ -54,7 +54,6 @@ func (cloud *cloud) DeleteVolume(volumeID string) error {
 	delete(cloud.volumes, volumeID)
 
 	return nil
-
 }
 
 func (cloud *cloud) CheckBlockStorageAPI() error {
@@ -102,27 +101,26 @@ func (cloud *cloud) ListVolumes(limit int, marker string) ([]volumes.Volume, str
 
 	}
 	return vollist, retToken, nil
-
 }
 
 func (cloud *cloud) WaitDiskAttached(instanceID string, volumeID string) error {
 	return nil
-
 }
 
 func (cloud *cloud) DetachVolume(instanceID, volumeID string) error {
 	return nil
-
 }
 
 func (cloud *cloud) WaitDiskDetached(instanceID string, volumeID string) error {
 	return nil
+}
 
+func (cloud *cloud) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
+	return nil
 }
 
 func (cloud *cloud) GetAttachmentDiskPath(instanceID, volumeID string) (string, error) {
 	return cinder.FakeDevicePath, nil
-
 }
 
 func (cloud *cloud) GetVolumesByName(name string) ([]volumes.Volume, error) {
@@ -135,7 +133,6 @@ func (cloud *cloud) GetVolumesByName(name string) ([]volumes.Volume, error) {
 	}
 
 	return vlist, nil
-
 }
 
 func (cloud *cloud) GetVolume(volumeID string) (*volumes.Volume, error) {
@@ -214,7 +211,6 @@ func (cloud *cloud) DeleteSnapshot(snapID string) error {
 	delete(cloud.snapshots, snapID)
 
 	return nil
-
 }
 
 func (cloud *cloud) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
@@ -262,12 +258,12 @@ func (cloud *cloud) GetMaxVolLimit() int64 {
 	return 256
 }
 
-func (cloud *cloud) GetMetadataOpts() cpo.MetadataOpts {
-	var m cpo.MetadataOpts
+func (cloud *cloud) GetMetadataOpts() metadata.MetadataOpts {
+	var m metadata.MetadataOpts
 	m.SearchOrder = fmt.Sprintf("%s,%s", "configDrive", "metadataService")
 	return m
 }
 
-func (cloud *cloud) GetBlockStorageOpts() cco.BlockStorageOpts {
-	return cco.BlockStorageOpts{}
+func (cloud *cloud) GetBlockStorageOpts() openstack.BlockStorageOpts {
+	return openstack.BlockStorageOpts{}
 }

@@ -9,7 +9,7 @@
     - [Switching between Floating Subnets by using preconfigured Classes](#switching-between-floating-subnets-by-using-preconfigured-classes)
     - [Creating Service by specifying a floating IP](#creating-service-by-specifying-a-floating-ip)
     - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
-  - [Issues](#issues)
+    - [Use PROXY protocol to preserve client IP](#use-proxy-protocol-to-preserve-client-ip)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -96,8 +96,12 @@ Request Body:
 
 - `loadbalancer.openstack.org/floating-subnet-id`
 
-  This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet`.
+  This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet` or `loadbalancer.openstack.org/floating-tag`.
 
+- `loadbalancer.openstack.org/floating-subnet-tag`
+
+  This annotation is the tag of a subnet belonging to the floating network.
+  
 - `loadbalancer.openstack.org/class`
 
   The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
@@ -124,11 +128,13 @@ Request Body:
 
 - `loadbalancer.openstack.org/proxy-protocol`
 
-  If 'true', the protocol for listener will be set as `PROXY`. Default is 'false'.
+  If 'true', the loadbalancer pool protocol will be set as `PROXY`. Default is 'false'.
 
 - `loadbalancer.openstack.org/x-forwarded-for`
 
-  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request. Only applies when using Octavia.
+  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request. Please note that the cloud provider will force the creation of an Octavia listener of type `HTTP` if this option is set. Only applies when using Octavia.
+
+  This annotation also works in conjunction with the `loadbalancer.openstack.org/default-tls-container-ref` annotation. In this case the cloud provider will create an Octavia listener of type `TERMINATED_HTTPS` instead of an `HTTP` listener.
 
 - `loadbalancer.openstack.org/timeout-client-data`
 
@@ -161,6 +167,11 @@ Request Body:
 - `loadbalancer.openstack.org/availability-zone`
 
   The name of the loadbalancer availability zone to use. It is ignored if the Octavia version doesn't support availability zones yet.
+
+- `loadbalancer.openstack.org/default-tls-container-ref`
+
+  Reference to a tls container. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type `TERMINATED_HTTPS` for a TLS Terminated loadbalancer.
+  Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
@@ -199,7 +210,13 @@ floating-subnet-id="a374bed4-e920-4c40-b646-2d8927f7f67b"
 floating-subnet-id="b374bed4-e920-4c40-b646-2d8927f7f67b"
 ```
 
-Within a `LoadBalancerClass` the `floating-subnet-id` is mandatory. `floating-network-id` is optional can be defined in case it differs from the default `floating-network-id` in the `LoadBalancer` section.
+Within a `LoadBalancerClass` one of `floating-subnet-id`, `floating-subnet` or `floating-subnet-tags` is mandatory.
+`floating-subnet-id` takes precedence over the other ones with must all match if specified.
+If the pattern starts with a `!`, the match is negated. 
+The rest of the pattern can either be a direct name, a glob or a regular expression if it starts with a `~`.
+`floating-subnet-tags` can be a comma separated list of tags. By default it matches a subnet if at least one tag is present.
+If the list is preceded by a `&` all tags must be present. Again with a preceding `!` the condition be be negated.
+`floating-network-id` is optional can be defined in case it differs from the default `floating-network-id` in the `LoadBalancer` section.
 
 By using the `loadbalancer.openstack.org/class` annotation on the service object, you can now select which floating subnets the `LoadBalancer` should be using.
 
@@ -268,6 +285,148 @@ spec:
 
 `loadBalancerSourceRanges` field supports to be updated.
 
-## Issues
+### Use PROXY protocol to preserve client IP
 
-- `spec.externalTrafficPolicy` is not supported.
+When exposing services like nginx-ingress-controller, it's a common requirement that the client connection information could pass through proxy servers and load balancers, therefore visible to the backend services. Knowing the originating IP address of a client may be useful for setting a particular language for a website, keeping a denylist of IP addresses, or simply for logging and statistics purposes.
+
+This requires that not only the proxy server(e.g. NGINX) should support PROXY protocol, but also the external load balancer (created by openstack-cloud-controller-manager in our case) should be able to send the correct data traffic to the proxy server.
+
+This guide uses nginx-ingress-controller as an example.
+
+To enable PROXY protocol support, the openstack-cloud-controller-manager config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) should set to `true`.
+
+1. Set up the nginx-ingress-controller
+
+   Refer to https://docs.nginx.com/nginx-ingress-controller/installation for how to install nginx-ingress-controller deployment or daemonset. Before creating load balancer service, make sure to enable PROXY protocol in the nginx config.
+
+   ```yaml
+   proxy-protocol: "True"
+   real-ip-header: "proxy_protocol"
+   set-real-ip-from: "0.0.0.0/0"
+   ```
+
+2. Create load balancer service
+
+   Use the following manifest to create nginx-ingress Service of LoadBalancer type.
+
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: nginx-ingress
+     namespace: nginx-ingress
+     annotations:
+       loadbalancer.openstack.org/proxy-protocol: "true"
+   spec:
+     externalTrafficPolicy: Cluster
+     type: LoadBalancer
+     ports:
+     - port: 80
+       targetPort: 80
+       protocol: TCP
+       name: http
+     - port: 443
+       targetPort: 443
+       protocol: TCP
+       name: https
+     selector:
+       app: nginx-ingress
+   ```
+
+   Wait until the service gets an external IP.
+
+   ```bash
+   $ kubectl -n nginx-ingress get svc
+   NAME            TYPE           CLUSTER-IP       EXTERNAL-IP             PORT(S)                      AGE
+   nginx-ingress   LoadBalancer   10.104.112.154   103.250.240.24.nip.io   80:32418/TCP,443:30009/TCP   107s
+   ```
+
+3. To validate the PROXY protocol is working, create a service that can print the request header and an ingress backed by nginx-ingress-controller.
+
+   ```bash
+   $ cat <<EOF | kubectl apply -f -
+   apiVersion: apps/v1
+   kind: Deployment
+   metadata:
+     name: echoserver
+     namespace: default
+     labels:
+       app: echoserver
+   spec:
+     replicas: 1
+     selector:
+       matchLabels:
+         app: echoserver
+     template:
+       metadata:
+         labels:
+           app: echoserver
+       spec:
+         containers:
+         - name: echoserver
+           image: gcr.io/google-containers/echoserver:1.10
+           imagePullPolicy: IfNotPresent
+           ports:
+             - containerPort: 8080
+   EOF
+   
+   $ kubectl expose deployment echoserver --type=ClusterIP --target-port=8080
+   
+   $ cat <<EOF | kubectl apply -f -
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: test-proxy-protocol
+     namespace: default
+     annotations:
+       kubernetes.io/ingress.class: "nginx"
+   spec:
+     rules:
+       - host: test.com
+         http:
+           paths:
+           - path: /ping
+             pathType: Exact
+             backend:
+               service:
+                 name: echoserver
+                 port:
+                   number: 80
+   EOF
+   
+   $ kubectl get ing
+   NAME                   CLASS    HOSTS      ADDRESS                 PORTS   AGE
+   test-proxy-protocol    <none>   test.com   103.250.240.24.nip.io   80      58m
+   ```
+
+   Now, send request to the ingress URL defined above, you should see your public IP address is shown in the Request Headers (`x-forwarded-for` or `x-real-ip`).
+
+   ```bash
+   $ ip=103.250.240.24.nip.io
+   $ curl -sH "Host: test.com" http://$ip/ping | sed '/^\s*$/d'
+   Hostname: echoserver-5c79dc5747-m4spf
+   Pod Information:
+           -no pod information available-
+   Server values:
+           server_version=nginx: 1.13.3 - lua: 10008
+   Request Information:
+           client_address=10.244.215.132
+           method=GET
+           real path=/ping
+           query=
+           request_version=1.1
+           request_scheme=http
+           request_uri=http://test.com:8080/ping
+   Request Headers:
+           accept=*/*
+           connection=close
+           host=test.com
+           user-agent=curl/7.58.0
+           x-forwarded-for=103.197.63.236
+           x-forwarded-host=test.com
+           x-forwarded-port=80
+           x-forwarded-proto=http
+           x-real-ip=103.197.63.236
+   Request Body:
+           -no body in request-
+   ```

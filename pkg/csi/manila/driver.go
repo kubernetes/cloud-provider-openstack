@@ -42,6 +42,7 @@ type DriverOpts struct {
 	NodeAZ       string
 	WithTopology bool
 	ShareProto   string
+	ClusterID    string
 
 	ServerCSIEndpoint string
 	FwdCSIEndpoint    string
@@ -59,6 +60,7 @@ type Driver struct {
 	name         string
 	fqVersion    string // Fully qualified version in format {driverVersion}@{CPO version}
 	shareProto   string
+	clusterID    string
 
 	serverEndpoint string
 	fwdEndpoint    string
@@ -119,6 +121,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		compatOpts:          o.CompatOpts,
 		manilaClientBuilder: o.ManilaClientBuilder,
 		csiClientBuilder:    o.CSIClientBuilder,
+		clusterID:           o.ClusterID,
 	}
 
 	klog.Info("Driver: ", d.name)
@@ -244,6 +247,7 @@ func (d *Driver) initProxiedDriver() (csiNodeCapabilitySet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connecting to %s endpoint failed: %v", d.fwdEndpoint, err)
 	}
+	defer conn.Close()
 
 	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
 

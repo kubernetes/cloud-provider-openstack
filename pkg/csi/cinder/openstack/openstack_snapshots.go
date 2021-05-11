@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 )
@@ -81,10 +82,11 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 // In addition the filters argument provides a mechanism for passing in valid filter strings to the list
 // operation.  Valid filter keys are:  Name, Status, VolumeID, Limit, Marker (TenantID has no effect)
 func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error) {
+	var nextPageToken string
+	var snaps []snapshots.Snapshot
+
 	// Build the Opts
 	opts := snapshots.ListOpts{}
-	nextPageToken := ""
-
 	for key, val := range filters {
 		switch key {
 		case "Status":
@@ -101,33 +103,41 @@ func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snaps
 			klog.V(3).Infof("Not a valid filter key %s", key)
 		}
 	}
+	err := snapshots.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
+		var err error
 
-	pages, err := snapshots.List(os.blockstorage, opts).AllPages()
-	if err != nil {
-		klog.V(3).Infof("Failed to retrieve snapshots: %v", err)
-		return nil, nextPageToken, err
-	}
-	snaps, err := snapshots.ExtractSnapshots(pages)
-	if err != nil {
-		klog.V(3).Infof("Failed to extract snapshot pages: %v", err)
-		return nil, nextPageToken, err
-	}
+		snaps, err = snapshots.ExtractSnapshots(page)
+		if err != nil {
+			return false, err
+		}
 
-	nextPageURL, err := pages.NextPageURL()
-	if err != nil && nextPageURL != "" {
-		if queryParams, nerr := url.ParseQuery(nextPageURL); nerr != nil {
+		nextPageURL, err := page.NextPageURL()
+		if err != nil {
+			return false, err
+		}
+
+		if nextPageURL != "" {
+			queryParams, err := url.ParseQuery(nextPageURL)
+			if err != nil {
+				return false, err
+			}
 			nextPageToken = queryParams.Get("marker")
 		}
-	}
-	return snaps, nextPageToken, nil
 
+		return false, nil
+	})
+	if err != nil {
+		return nil, nextPageToken, err
+	}
+
+	return snaps, nextPageToken, nil
 }
 
 // DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend
 func (os *OpenStack) DeleteSnapshot(snapID string) error {
 	err := snapshots.Delete(os.blockstorage, snapID).ExtractErr()
 	if err != nil {
-		klog.V(3).Infof("Failed to delete snapshot: %v", err)
+		klog.Errorf("Failed to delete snapshot: %v", err)
 	}
 	return err
 }
@@ -136,7 +146,7 @@ func (os *OpenStack) DeleteSnapshot(snapID string) error {
 func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
 	s, err := snapshots.Get(os.blockstorage, snapshotID).Extract()
 	if err != nil {
-		klog.V(3).Infof("Failed to get snapshot: %v", err)
+		klog.Errorf("Failed to get snapshot: %v", err)
 		return nil, err
 	}
 	return s, nil

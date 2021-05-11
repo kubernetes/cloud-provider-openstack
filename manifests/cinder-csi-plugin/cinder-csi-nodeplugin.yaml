@@ -21,7 +21,7 @@ spec:
       hostNetwork: true
       containers:
         - name: node-driver-registrar
-          image: quay.io/k8scsi/csi-node-driver-registrar:v1.3.0
+          image: k8s.gcr.io/sig-storage/csi-node-driver-registrar:v1.3.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
@@ -44,13 +44,20 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
+        - name: liveness-probe
+          image: k8s.gcr.io/sig-storage/livenessprobe:v2.1.0
+          args:
+            - --csi-address=/csi/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
         - name: cinder-csi-plugin
           securityContext:
             privileged: true
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
+          image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.21.0
           args:
             - /bin/cinder-csi-plugin
             - "--nodeid=$(NODE_ID)"
@@ -66,6 +73,19 @@ spec:
             - name: CLOUD_CONFIG
               value: /etc/config/cloud.conf
           imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 9808
+              name: healthz
+              protocol: TCP
+          # The probe
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
           volumeMounts:
             - name: socket-dir
               mountPath: /csi

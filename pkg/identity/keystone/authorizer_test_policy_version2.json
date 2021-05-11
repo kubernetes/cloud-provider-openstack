@@ -6,7 +6,8 @@
     },
     "resource_permissions": {
       "!kube-system/!['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles', 'podSecurityPolicies']": ["*"],
-      "!kube-system/['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles', 'podSecurityPolicies']": ["get", "list"]
+      "!kube-system/['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'rolebindings', 'roles', 'podSecurityPolicies']": ["get", "list"],
+      "*/['namespaces', 'clusterrolebindings', 'clusterroles', 'podsecuritypolicies', 'podSecurityPolicies']": ["get", "list"]
     }
   },
   {
@@ -28,6 +29,16 @@
     },
     "nonresource_permissions": {
       "/healthz": ["get", "post"]
+    }
+  },
+  {
+    "users": {
+      "roles": ["testuser"],
+      "projects": ["demo"]
+    },
+    "resource_permissions": {
+      "*/['namespaces', 'clusterroles']": ["get", "list"],
+      "default/['pods', 'deployments']": ["get", "list"]
     }
   }
 ]
