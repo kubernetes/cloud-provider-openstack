@@ -33,6 +33,12 @@ var (
 		grpc.WithInsecure(),
 		grpc.WithBackoffMaxDelay(time.Second),
 		grpc.WithBlock(),
+		// CSI connections use unix:// so should ignore proxy settings
+		// WithNoProxy can be removed when we update to gRPC >= v1.34,
+		// which contains https://github.com/grpc/grpc-go/pull/3890.
+		// This automatically ignores proxy settings for unix
+		// connections.
+		grpc.WithNoProxy(),
 		grpc.WithUnaryInterceptor(func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 			callID := atomic.AddUint64(&grpcCallCounter, 1)
 
