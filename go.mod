@@ -32,7 +32,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
 	golang.org/x/net v0.0.0-20210224082022-3d97a244fca7
 	golang.org/x/sys v0.0.0-20210225134936-a50acf3fe073
-	google.golang.org/grpc v1.27.1
+	google.golang.org/grpc v1.29.0
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/warnings.v0 v0.1.2 // indirect
