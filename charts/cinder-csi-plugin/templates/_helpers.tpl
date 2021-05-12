@@ -88,3 +88,13 @@ component: nodeplugin
 {{ include "cinder-csi.nodeplugin.matchLabels" . }}
 {{ include "cinder-csi.common.metaLabels" . }}
 {{- end -}}
+
+{{- define "cinder-csi.snapshot-controller.matchLabels" -}}
+component: snapshot-controller
+{{ include "cinder-csi.common.matchLabels" . }}
+{{- end -}}
+
+{{- define "cinder-csi.snapshot-controller.labels" -}}
+{{ include "cinder-csi.snapshot-controller.matchLabels" . }}
+{{ include "cinder-csi.common.metaLabels" . }}
+{{- end -}}

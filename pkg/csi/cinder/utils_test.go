@@ -17,7 +17,14 @@ limitations under the License.
 package cinder
 
 import (
+	"bytes"
+	"context"
+	"flag"
 	"testing"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc"
+	"k8s.io/klog/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -73,4 +80,69 @@ func TestParseEndpoint(t *testing.T) {
 
 	_, _, err = ParseEndpoint("")
 	assert.NotNil(t, err)
+}
+
+func TestLogGRPC(t *testing.T) {
+	// SET UP
+	klog.InitFlags(nil)
+	if e := flag.Set("logtostderr", "false"); e != nil {
+		t.Error(e)
+	}
+	if e := flag.Set("alsologtostderr", "false"); e != nil {
+		t.Error(e)
+	}
+	if e := flag.Set("v", "100"); e != nil {
+		t.Error(e)
+	}
+	flag.Parse()
+
+	buf := new(bytes.Buffer)
+	klog.SetOutput(buf)
+
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return nil, nil }
+	info := grpc.UnaryServerInfo{
+		FullMethod: "fake",
+	}
+
+	tests := []struct {
+		name   string
+		req    interface{}
+		expStr string
+	}{
+		{
+			"with secrets",
+			&csi.NodeStageVolumeRequest{
+				VolumeId: "vol_1",
+				Secrets: map[string]string{
+					"account_name": "k8s",
+					"account_key":  "testkey",
+				},
+				XXX_sizecache: 100,
+			},
+			`GRPC request: {"secrets":"***stripped***","volume_id":"vol_1"}`,
+		},
+		{
+			"without secrets",
+			&csi.ListSnapshotsRequest{
+				StartingToken: "testtoken",
+			},
+			`GRPC request: {"starting_token":"testtoken"}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// EXECUTE
+			_, _ = logGRPC(context.Background(), test.req, &info, handler)
+			klog.Flush()
+
+			// ASSERT
+			assert.Contains(t, buf.String(), "GRPC call: fake")
+			assert.Contains(t, buf.String(), test.expStr)
+			assert.Contains(t, buf.String(), "GRPC response: null")
+
+			// CLEANUP
+			buf.Reset()
+		})
+	}
 }

@@ -21,7 +21,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/stretchr/testify/mock"
-	cpo "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
 var fakeVol1 = volumes.Volume{
@@ -163,6 +163,20 @@ func (_m *OpenStackMock) WaitDiskAttached(instanceID string, volumeID string) er
 	var r0 error
 	if rf, ok := ret.Get(0).(func(string, string) error); ok {
 		r0 = rf(instanceID, volumeID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// WaitVolumeTargetStatus provides a mock function with given fields: volumeID, tStatus
+func (_m *OpenStackMock) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
+	ret := _m.Called(volumeID, tStatus)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string, []string) error); ok {
+		r0 = rf(volumeID, tStatus)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -373,8 +387,8 @@ func (_m *OpenStackMock) ExpandVolume(volumeID string, status string, size int) 
 	return r0
 }
 
-func (_m *OpenStackMock) GetMetadataOpts() cpo.MetadataOpts {
-	var m cpo.MetadataOpts
+func (_m *OpenStackMock) GetMetadataOpts() metadata.MetadataOpts {
+	var m metadata.MetadataOpts
 	m.SearchOrder = "configDrive"
 	return m
 }

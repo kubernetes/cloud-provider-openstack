@@ -87,6 +87,53 @@ func TestCreateVolume(t *testing.T) {
 
 }
 
+func TestCreateVolumeWithExtraMetadata(t *testing.T) {
+
+	// mock OpenStack
+	properties := map[string]string{
+		"cinder.csi.openstack.org/cluster": FakeCluster,
+		"csi.storage.k8s.io/pv/name":       FakePVName,
+		"csi.storage.k8s.io/pvc/name":      FakePVCName,
+		"csi.storage.k8s.io/pvc/namespace": FakePVCNamespace,
+	}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", &properties).Return(&FakeVol, nil)
+
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		Parameters: map[string]string{
+			"csi.storage.k8s.io/pv/name":       FakePVName,
+			"csi.storage.k8s.io/pvc/name":      FakePVCName,
+			"csi.storage.k8s.io/pvc/namespace": FakePVCNamespace,
+		},
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+				},
+			},
+		},
+	}
+
+	// Invoke CreateVolume
+	_, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+}
+
 func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
@@ -431,15 +478,19 @@ func TestListSnapshots(t *testing.T) {
 
 func TestControllerExpandVolume(t *testing.T) {
 
+	tState := []string{"available", "in-use"}
 	// ExpandVolume(volumeID string, status string, size int)
-	osmock.On("ExpandVolume", FakeVolName, openstack.VolumeAvailableStatus, 5).Return(nil)
+	osmock.On("ExpandVolume", FakeVolID, openstack.VolumeAvailableStatus, 5).Return(nil)
+
+	// WaitVolumeTargetStatus(volumeID string, tState []string) error
+	osmock.On("WaitVolumeTargetStatus", FakeVolID, tState).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
 
 	// Fake request
 	fakeReq := &csi.ControllerExpandVolumeRequest{
-		VolumeId: FakeVolName,
+		VolumeId: FakeVolID,
 		CapacityRange: &csi.CapacityRange{
 			RequiredBytes: 5 * 1024 * 1024 * 1024,
 		},

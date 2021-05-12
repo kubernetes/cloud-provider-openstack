@@ -29,6 +29,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/utils/exec"
 )
@@ -62,6 +63,12 @@ var MetadataService IMetadata
 
 // Metadata is fixed for the current host, so cache the value process-wide
 var metadataCache *Metadata
+
+// MetadataOpts is used for configuring how to talk to metadata service or config drive
+type MetadataOpts struct {
+	SearchOrder    string          `gcfg:"search-order"`
+	RequestTimeout util.MyDuration `gcfg:"request-timeout"`
+}
 
 // DeviceMetadata is a single/simplified data structure for all kinds of device metadata types.
 type DeviceMetadata struct {
@@ -291,4 +298,28 @@ func (m *metadataService) GetAvailabilityZone() (string, error) {
 		return "", err
 	}
 	return md.AvailabilityZone, nil
+}
+
+func CheckMetadataSearchOrder(order string) error {
+	if order == "" {
+		return errors.New("invalid value in section [Metadata] with key `search-order`. Value cannot be empty")
+	}
+
+	elements := strings.Split(order, ",")
+	if len(elements) > 2 {
+		return errors.New("invalid value in section [Metadata] with key `search-order`. Value cannot contain more than 2 elements")
+	}
+
+	for _, id := range elements {
+		id = strings.TrimSpace(id)
+		switch id {
+		case ConfigDriveID:
+		case MetadataID:
+		default:
+			return fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
+				"Supported elements include %q and %q", id, ConfigDriveID, MetadataID)
+		}
+	}
+
+	return nil
 }

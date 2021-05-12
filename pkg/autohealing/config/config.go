@@ -19,7 +19,7 @@ package config
 import (
 	"time"
 
-	openstack_provider "k8s.io/cloud-provider-openstack/pkg/cloudprovider/providers/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 // Config struct contains ingress controller configuration
@@ -46,7 +46,7 @@ type Config struct {
 	Kubernetes kubeConfig `mapstructure:"kubernetes"`
 
 	// (Required) OpenStack related configuration.
-	OpenStack openstack_provider.AuthOpts `mapstructure:"openstack"`
+	OpenStack client.AuthOpts `mapstructure:"openstack"`
 
 	// (Optional) Healthcheck configuration for master and worker.
 	HealthCheck healthCheck `mapstructure:"healthcheck"`

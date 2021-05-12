@@ -9,6 +9,7 @@
 #   - It's recommended to run the script on a host with as less proxies to the public as possible, otherwise the
 #     x-forwarded-for test will probably fail.
 #   - This script is not responsible for resource clean up if there is test case fails.
+set -x
 
 TIMEOUT=${TIMEOUT:-300}
 FLOATING_IP=${FLOATING_IP:-""}
@@ -326,7 +327,7 @@ EOF
     printf "\n>>>>>>> Expected: NodePorts ${member_ports} before updating service.\n"
 
     printf "\n>>>>>>> Removing port2 and update NodePort of port1.\n"
-    kubectl patch svc $service --type json -p '[{"op": "remove","path": "/spec/ports/1"},{"op": "remove","path": "/spec/ports/0/nodePort"}]'
+    kubectl -n $NAMESPACE patch svc $service --type json -p '[{"op": "remove","path": "/spec/ports/1"},{"op": "remove","path": "/spec/ports/0/nodePort"}]'
 
     printf "\n>>>>>>> Waiting for load balancer $lbid ACTIVE.\n"
     wait_for_loadbalancer $lbid

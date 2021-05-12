@@ -14,6 +14,7 @@
     - [Using the manifests](#using-the-manifests)
     - [Using the Helm chart](#using-the-helm-chart)
   - [Supported Features](#supported-features)
+  - [Sidecar Compatibility](#sidecar-compatibility)
   - [Supported Parameters](#supported-parameters)
   - [Local Development](#local-development)
     - [Build](#build)
@@ -26,11 +27,11 @@
 
 # CSI Cinder driver
 
-The Cinder CSI Driver is a CSI Specification compliant driver used by Container Orchestrators to manage the lifecycle of Openstack Cinder Volumes.
+The Cinder CSI Driver is a CSI Specification compliant driver used by Container Orchestrators to manage the lifecycle of OpenStack Cinder Volumes.
 
 ## CSI Compatibility
 
-This plugin is compatible with CSI versions v1.2.0 , v1.1.0, and v1.0.0
+This plugin is compatible with CSI versions v1.3.0, v1.2.0 , v1.1.0, and v1.0.0
 
 ## Downloads
 
@@ -58,7 +59,7 @@ For Driver configuration, parameters must be passed via configuration file speci
 The following sections are supported in configuration file.
 
 ### Global 
-For Cinder CSI Plugin to authenticate with Openstack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
+For Cinder CSI Plugin to authenticate with OpenStack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](../openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
 
 ### Block Storage
 These configuration options pertain to block storage and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
@@ -95,9 +96,9 @@ Configuration file specified in `$CLOUD_CONFIG` is passed to cinder CSI driver v
 
 To create a secret:
 
-* Encode your ```$CLOUD_CONFIG``` file content using base64.
+* Encode your `$CLOUD_CONFIG` file content using base64.
 
-```$ base64 -w 0 $CLOUD_CONFIG```
+`$ base64 -w 0 $CLOUD_CONFIG`
 
 * Update ```cloud.conf``` configuration in ```manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml``` file
 by using the result of the above command.
@@ -119,8 +120,8 @@ You should make sure following similar pods are ready before proceed:
 ```
 $ kubectl get pods -n kube-system
 NAME                                READY   STATUS    RESTARTS   AGE
-csi-cinder-controllerplugin         5/5     Running   0          29h
-csi-cinder-nodeplugin               2/2     Running   0          46h
+csi-cinder-controllerplugin         6/6     Running   0          29h
+csi-cinder-nodeplugin               3/3     Running   0          46h
 ```
 
 To get information about CSI Drivers running in a cluster -
@@ -136,7 +137,26 @@ cinder.csi.openstack.org   2019-07-29T09:02:40Z
 
 ### Using the Helm chart
 
-> NOTE: This chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+> NOTE: With default values, this chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+
+You can specify a K8S Secret for `cloud-config` :
+```
+secret:
+  enabled: true
+  name: yousecretname
+```
+
+You can also tell Helm to create the K8S Secret :
+
+```
+secret:
+  enabled: true
+  name: cinder-csi-cloud-config
+  data:
+    cloud-config: |-
+      ...
+```
+
 
 To install the chart, use the following command:
 ```
@@ -153,10 +173,15 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 * [Volume Snapshots](./features.md#volume-snapshots)
 * [Inline Volumes](./features.md#inline-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
+* [Liveness probe](./features.md#liveness-probe)
+
+## Sidecar Compatibility
+
+* [Set file type in provisioner](./sidecarcompatibility.md#set-file-type-in-provisioner)
 
 ## Supported Parameters
 
-| Parameter Type             | Paramerter Name       |   Default       |Description      |
+| Parameter Type             | Parameter Name       |   Default       |Description      |
 |-------------------------   |-----------------------|-----------------|-----------------|
 | StorageClass `parameters`  | `availability`          | `nova`          | String. Volume Availability Zone |
 | StorageClass `parameters`  | `type`                  | Empty String    | String. Name/ID of Volume type. Corresponding volume type should exist in cinder     |
@@ -206,6 +231,6 @@ Optionally, to test the driver csc tool could be used. please refer, [usage guid
 Starting from Kubernetes 1.18, CSI migration is supported as beta feature. If you have persistence volumes that are created with in-tree `kubernetes.io/cinder` plugin, you could migrate to use `cinder.csi.openstack.org` Container Storage Interface (CSI) Driver. 
 
 * The CSI Migration feature for Cinder, when enabled, shims all plugin operations from the existing in-tree plugin to the `cinder.csi.openstack.org` CSI Driver. 
-* In order to use this feature, the Openstack Cinder CSI Driver must be installed on the cluster.
+* In order to use this feature, the OpenStack Cinder CSI Driver must be installed on the cluster.
 * To turn on the migration, set `CSIMigration` and `CSIMigrationOpenstack` feature gates to true for kube-controller-manager and kubelet.
-* For more info, please refer [Migrate to CCM with CSI Migration](../migrate-to-ccm-with-csimigration.md#migrate-from-in-tree-cloud-provider-to-openstack-cloud-controller-manager-and-enable-csimigration) guide
+* For more info, please refer [Migrate to CCM with CSI Migration](../openstack-cloud-controller-manager/migrate-to-ccm-with-csimigration.md#migrate-from-in-tree-cloud-provider-to-openstack-cloud-controller-manager-and-enable-csimigration) guide

@@ -16,9 +16,9 @@
 This guide walks you through the process of migrating from using the Kubernetes in-tree cloud provider (specified by using `--cloud-provider=openstack` on `kube-controller-manager`) to use the `cloud-controller-manager` (CCM) for OpenStack. This document tries to give an example for using multiple steps in order to get the migration fully done. We expect users to want to migrate to `cloud-provider-openstack` but stay with the in-tree `cinder-volume-provisioner` up until `CSIMigration` has become GA.
 
 
-A little bit of background on CSI and `CSIMigration`. These days, storage providers should implement the [Container Storage Interface](https://github.com/container-storage-interface/spec/blob/master/spec.md) to provide storage for Kubernetes clusters (but not limited to Kubernetes). `cloud-provider-openstack` also provides [Cinder CSI Plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md) to serve exact this purpose. This plugin can be installed and used alongside in-tree `cloud-provider`, because it requires its own `StorageClass`. What this means is: All volumes, created by the in-tree volume APIs will be handled by the old in-tree-provisioner one. Everything provisioned by Cinder CSI Plugin, will be handled by `cinder-csi-plugin`.
+A little bit of background on CSI and `CSIMigration`. These days, storage providers should implement the [Container Storage Interface](https://github.com/container-storage-interface/spec/blob/master/spec.md) to provide storage for Kubernetes clusters (but not limited to Kubernetes). `cloud-provider-openstack` also provides [Cinder CSI Plugin](../cinder-csi-plugin/using-cinder-csi-plugin.md) to serve exact this purpose. This plugin can be installed and used alongside in-tree `cloud-provider`, because it requires its own `StorageClass`. What this means is: All volumes, created by the in-tree volume APIs will be handled by the old in-tree-provisioner one. Everything provisioned by Cinder CSI Plugin, will be handled by `cinder-csi-plugin`.
 
-Sometimes it can be hard to migrate an entire cluster to use the new `StorageClass`. This is where `CSIMigration` comes into play (see [CSIMigration design proposal](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/storage/csi-migration.md)). With this enabled, calls to the in-tree volume APIs will call out to the CSI plugins. See [In-tree Storage Plugin to CSI Migration Design Doc](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/20190129-csi-migration.md) for more detail.
+Sometimes it can be hard to migrate an entire cluster to use the new `StorageClass`. This is where `CSIMigration` comes into play (see [CSIMigration design proposal](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/storage/csi-migration.md)). With this enabled, calls to the in-tree volume APIs will call out to the CSI plugins.
 
 ## Before you begin
 
@@ -91,7 +91,7 @@ W1117 19:59:34.094187       1 controllermanager.go:513] "route" is disabled
 W1117 19:59:44.988353       1 controllermanager.go:513] "cloud-node-lifecycle" is disabled
 ```
 
-You can now deploy `openstack-cloud-controller-manager` using [RBAC](https://github.com/kubernetes/cloud-provider-openstack/tree/master/cluster/addons/rbac) and the [CCM manifest](https://github.com/kubernetes/cloud-provider-openstack/blob/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml). But disable the controller `cloud-node` by adding the argument `--controllers=*,-cloud-node`. This will be done by the `kubelets` up until the entire migration is done. Note: You must create a secret `cloud-config` with a valid `cloud.conf` for the CCM. E.g.
+You can now deploy `openstack-cloud-controller-manager` using [RBAC](../../cluster/addons/rbac) and the [CCM manifest](../../manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml). But disable the controller `cloud-node` by adding the argument `--controllers=*,-cloud-node`. This will be done by the `kubelets` up until the entire migration is done. Note: You must create a secret `cloud-config` with a valid `cloud.conf` for the CCM. E.g.
 
 ```bash
 kubectl -n kube-system create secret generic cloud-config --from-file=cloud.conf=/etc/kubernetes/cloud.conf
@@ -101,7 +101,7 @@ Note: Because you still want to use the in-tree volume API, you **must** keep th
 
 At this point, the cluster should work as before. LoadBalancers can be created and `StatefulSets` create and use persistent volumes. Note: The logs of `openstack-cloud-controller-manager` in namespace `kube-system` reveal, that this now takes care of creating LoadBalancers. All further management of existing LoadBalancers is taken over by `openstack-cloud-controller-manager` as well. There is no need to recreate any LoadBalancer.
 
-At this point, you should also deploy [Cinder CSI Plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md). As mentioned above, this can be deployed alogside the in-tree provider. We would recommend to create a separate `StorageClass` for Cinder CSI Plugin, and make it the default. (see https://github.com/kubernetes/cloud-provider-openstack/tree/master/examples/cinder-csi-plugin for examples)
+At this point, you should also deploy [Cinder CSI Plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md). As mentioned above, this can be deployed alogside the in-tree provider. We would recommend to create a separate `StorageClass` for Cinder CSI Plugin, and make it the default. (refer [example](../../examples/cinder-csi-plugin))
 
 ## Enable CSIMigration
 

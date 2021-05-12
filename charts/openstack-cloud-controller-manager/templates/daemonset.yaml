@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "occm.name" . }}
+  labels:
+    {{- include "occm.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "occm.controllermanager.matchLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+         checksum/config: {{ include "cloudConfig" . | sha256sum }}
+      labels:
+        {{- include "occm.controllermanager.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsUser: 1001
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: openstack-cloud-controller-manager
+      containers:
+        - name: openstack-cloud-controller-manager
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          args:
+            - /bin/openstack-cloud-controller-manager
+            - --v=1
+            - --cloud-config=$(CLOUD_CONFIG)
+            - --cloud-provider=openstack
+            - --use-service-account-credentials=true
+            {{- if .Values.serviceMonitor.enabled }}
+            - --address=0.0.0.0
+            {{- else }}
+            - --address=127.0.0.1
+            {{- end }}
+            {{- if .Values.controllerExtraArgs }}
+            {{- with .Values.controllerExtraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
+          {{- if .Values.serviceMonitor.enabled }}
+          ports:
+          - containerPort: 10258
+            hostPort: 10258
+            name: http
+            protocol: TCP
+          {{- end }}
+          volumeMounts:
+            - mountPath: /etc/kubernetes/pki
+              name: k8s-certs
+              readOnly: true
+            - mountPath: /etc/ssl/certs
+              name: ca-certs
+              readOnly: true
+            - mountPath: /etc/config
+              name: cloud-config-volume
+              readOnly: true
+            - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
+              name: flexvolume-dir
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+          env:
+            - name: CLOUD_CONFIG
+              value: /etc/config/cloud.conf
+      hostNetwork: true
+      volumes:
+      - hostPath:
+          path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
+          type: DirectoryOrCreate
+        name: flexvolume-dir
+      - hostPath:
+          path: /etc/kubernetes/pki
+          type: DirectoryOrCreate
+        name: k8s-certs
+      - hostPath:
+          path: /etc/ssl/certs
+          type: DirectoryOrCreate
+        name: ca-certs
+      - name: cloud-config-volume
+        secret:
+          secretName: {{ .Values.secret.name | default "cloud-config" }}

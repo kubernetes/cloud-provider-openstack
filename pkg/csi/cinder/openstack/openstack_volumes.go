@@ -26,6 +26,7 @@ import (
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
+	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 
@@ -35,8 +36,6 @@ import (
 const (
 	VolumeAvailableStatus    = "available"
 	VolumeInUseStatus        = "in-use"
-	VolumeDeletedStatus      = "deleted"
-	VolumeErrorStatus        = "error"
 	operationFinishInitDelay = 1 * time.Second
 	operationFinishFactor    = 1.1
 	operationFinishSteps     = 10
@@ -48,6 +47,8 @@ const (
 	diskDetachSteps          = 13
 	volumeDescription        = "Created by OpenStack Cinder CSI driver"
 )
+
+var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
 
 func (os *OpenStack) CheckBlockStorageAPI() error {
 	_, err := apiversions.List(os.blockstorage).AllPages()
@@ -83,22 +84,37 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 
 // ListVolumes list all the volumes
 func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error) {
-	nextPageToken := ""
+	var nextPageToken string
+	var vols []volumes.Volume
+
 	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
-	pages, err := volumes.List(os.blockstorage, opts).AllPages()
-	if err != nil {
-		return nil, nextPageToken, err
-	}
-	vols, err := volumes.ExtractVolumes(pages)
-	if err != nil {
-		return nil, nextPageToken, err
-	}
-	nextPageURL, err := pages.NextPageURL()
-	if err != nil && nextPageURL != "" {
-		if queryParams, nerr := url.ParseQuery(nextPageURL); nerr != nil {
+	err := volumes.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
+		var err error
+
+		vols, err = volumes.ExtractVolumes(page)
+		if err != nil {
+			return false, err
+		}
+
+		nextPageURL, err := page.NextPageURL()
+		if err != nil {
+			return false, err
+		}
+
+		if nextPageURL != "" {
+			queryParams, err := url.ParseQuery(nextPageURL)
+			if err != nil {
+				return false, err
+			}
 			nextPageToken = queryParams.Get("marker")
 		}
+
+		return false, nil
+	})
+	if err != nil {
+		return nil, nextPageToken, err
 	}
+
 	return vols, nextPageToken, nil
 }
 
@@ -206,6 +222,39 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	return err
 }
 
+//WaitVolumeTargetStatus waits for volume to be in target state
+func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
+	backoff := wait.Backoff{
+		Duration: operationFinishInitDelay,
+		Factor:   operationFinishFactor,
+		Steps:    operationFinishSteps,
+	}
+
+	waitErr := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		vol, err := os.GetVolume(volumeID)
+		if err != nil {
+			return false, err
+		}
+		for _, t := range tStatus {
+			if vol.Status == t {
+				return true, nil
+			}
+		}
+		for _, eState := range volumeErrorStates {
+			if vol.Status == eState {
+				return false, fmt.Errorf("Volume is in Error State : %s", vol.Status)
+			}
+		}
+		return false, nil
+	})
+
+	if waitErr == wait.ErrWaitTimeout {
+		waitErr = fmt.Errorf("Timeout on waiting for volume %s status to be in %v", volumeID, tStatus)
+	}
+
+	return waitErr
+}
+
 // DetachVolume detaches given cinder volume from the compute
 func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 	volume, err := os.GetVolume(volumeID)
@@ -233,7 +282,8 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 		}
 	}
 
-	return fmt.Errorf("disk: %s has no attachments or not attached to compute %s", volume.ID, instanceID)
+	// Disk has no attachments or not attached to provided compute
+	return nil
 }
 
 // WaitDiskDetached waits for detached

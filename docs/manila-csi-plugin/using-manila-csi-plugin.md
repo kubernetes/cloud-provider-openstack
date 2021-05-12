@@ -3,7 +3,6 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [CSI Manila driver](#csi-manila-driver)
-          - [Table of contents](#table-of-contents)
   - [Configuration](#configuration)
     - [Command line arguments](#command-line-arguments)
     - [Controller Service volume parameters](#controller-service-volume-parameters)
@@ -38,6 +37,7 @@ Option | Default value | Description
 `--with-topology` | _none_ | CSI Manila is topology-aware. See [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning) for more info
 `--share-protocol-selector` | _none_ | Specifies which Manila share protocol to use for this instance of the driver. See [supported protocols](#share-protocol-support-matrix) for valid values.
 `--fwdendpoint` | _none_ | [CSI Node Plugin](https://github.com/container-storage-interface/spec/blob/master/spec.md#rpc-interface) endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in `share-protocol-selector`. Check out the [Deployment](#deployment) section to see why this is necessary.
+`--cluster-id` | _none_ | The identifier of the cluster that the plugin is running in. If set then the plugin will add "manila.csi.openstack.org/cluster: \<clusterID\>" to metadata of created shares.
 
 ### Controller Service volume parameters
 

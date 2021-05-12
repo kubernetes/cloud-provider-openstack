@@ -17,6 +17,7 @@ limitations under the License.
 package metadata
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -103,5 +104,47 @@ func TestParseMetadata(t *testing.T) {
 
 	if md.Devices[0].Serial != "6df1888b-f373-41cf-b960-3786e60a28ef" {
 		t.Errorf("incorrect device serial: %s", md.Devices[0].Serial)
+	}
+}
+
+func TestCheckMetaDataOpts(t *testing.T) {
+	tests := []struct {
+		name          string
+		searchOrder   string
+		expectedError error
+	}{
+		{
+			name:          "test1",
+			searchOrder:   ConfigDriveID,
+			expectedError: nil,
+		},
+		{
+			name:          "test2",
+			searchOrder:   "",
+			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot be empty"),
+		},
+		{
+			name:          "test3",
+			searchOrder:   "value1,value2,value3",
+			expectedError: fmt.Errorf("invalid value in section [Metadata] with key `search-order`. Value cannot contain more than 2 elements"),
+		},
+		{
+			name:        "test4",
+			searchOrder: "value1",
+			expectedError: fmt.Errorf("invalid element %q found in section [Metadata] with key `search-order`."+
+				"Supported elements include %q and %q", "value1", ConfigDriveID, MetadataID),
+		},
+	}
+
+	for _, testcase := range tests {
+		err := CheckMetadataSearchOrder(testcase.searchOrder)
+
+		if err == nil && testcase.expectedError == nil {
+			continue
+		}
+		if (err != nil && testcase.expectedError == nil) || (err == nil && testcase.expectedError != nil) || err.Error() != testcase.expectedError.Error() {
+			t.Errorf("%s failed: expected err=%q, got %q",
+				testcase.name, testcase.expectedError, err)
+		}
 	}
 }

@@ -21,7 +21,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: registrar
-          image: "quay.io/k8scsi/csi-node-driver-registrar:v1.1.0"
+          image: "k8s.gcr.io/sig-storage/csi-node-driver-registrar:v1.3.0"
           args:
             - "--v=5"
             - "--csi-address=/csi/csi.sock"
@@ -51,7 +51,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "k8scloudprovider/manila-csi-plugin:latest"
+          image: "k8scloudprovider/manila-csi-plugin:v1.21.0"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --v=5
