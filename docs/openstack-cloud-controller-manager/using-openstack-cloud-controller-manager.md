@@ -93,7 +93,7 @@ Implementation of openstack-cloud-controller-manager relies on several OpenStack
 
 NOTE:
 
-* Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md).
+* Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](../cinder-csi-plugin/using-cinder-csi-plugin.md).
 * Barbican is required to support creating Service of LoadBalancer type with TLS termination.
 
 ### Global

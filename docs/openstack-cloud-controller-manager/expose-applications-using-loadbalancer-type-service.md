@@ -98,7 +98,7 @@ Request Body:
 
   This annotation is the ID of a subnet belonging to the floating network, if specified, it takes precedence over `loadbalancer.openstack.org/floating-subnet` or `loadbalancer.openstack.org/floating-tag`.
 
-- `loadbalancer.openstack.org/floating-subnet-tag`
+- `loadbalancer.openstack.org/floating-subnet-tags`
 
   This annotation is the tag of a subnet belonging to the floating network.
   
