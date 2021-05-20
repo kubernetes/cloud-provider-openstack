@@ -138,3 +138,6 @@ spec:
             path: /etc/kubernetes
         {{- end }}
         {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
+      affinity: {{ toYaml .Values.csi.plugin.controllerPlugin.affinity | nindent 8 }}
+      nodeSelector: {{ toYaml .Values.csi.plugin.controllerPlugin.nodeSelector | nindent 8 }}
+      tolerations: {{ toYaml .Values.csi.plugin.controllerPlugin.tolerations | nindent 8 }}

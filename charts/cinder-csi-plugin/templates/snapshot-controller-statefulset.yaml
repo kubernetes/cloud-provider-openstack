@@ -31,4 +31,7 @@ spec:
           args:
             - "--leader-election=false"
           imagePullPolicy: IfNotPresent
+      affinity: {{ toYaml .Values.csi.snapshotController.affinity | nindent 8 }}
+      nodeSelector: {{ toYaml .Values.csi.snapshotController.nodeSelector | nindent 8 }}
+      tolerations: {{ toYaml .Values.csi.snapshotController.tolerations | nindent 8 }}
 {{- end }}

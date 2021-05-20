@@ -54,11 +54,22 @@ csi:
       - name: cloud-config
         mountPath: /etc/kubernetes
         readOnly: true
+    nodePlugin:
+      affinity: {}
+      nodeSelector: {}
+      tolerations: []
+    controllerPlugin:
+      affinity: {}
+      nodeSelector: {}
+      tolerations: []
   snapshotController:
     enabled: false
     image:
       repository: k8s.gcr.io/sig-storage/snapshot-controller
       tag: v2.1.3
+    affinity: {}
+    nodeSelector: {}
+    tolerations: []
 
 secret:
   enabled: false
