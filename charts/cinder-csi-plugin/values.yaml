@@ -13,13 +13,13 @@ csi:
     topology: "true"
     image:
       repository: k8s.gcr.io/sig-storage/csi-provisioner
-      tag: v2.1.1
+      tag: v2.2.0
       pullPolicy: IfNotPresent
     resources: {}
   snapshotter:
     image:
       repository: k8s.gcr.io/sig-storage/csi-snapshotter
-      tag: v2.1.3
+      tag: v4.0.0
       pullPolicy: IfNotPresent
     resources: {}
   resizer:
@@ -31,7 +31,7 @@ csi:
   livenessprobe:
     image:
       repository: k8s.gcr.io/sig-storage/livenessprobe
-      tag: v2.1.0
+      tag: v2.2.0
       pullPolicy: IfNotPresent
     failureThreshold: 5
     initialDelaySeconds: 10
@@ -41,7 +41,7 @@ csi:
   nodeDriverRegistrar:
     image:
       repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
-      tag: v1.3.0
+      tag: v2.1.0
       pullPolicy: IfNotPresent
     resources: {}
   plugin:
@@ -73,7 +73,7 @@ csi:
     enabled: false
     image:
       repository: k8s.gcr.io/sig-storage/snapshot-controller
-      tag: v2.1.3
+      tag: v4.0.0
     resources: {}
     affinity: {}
     nodeSelector: {}
