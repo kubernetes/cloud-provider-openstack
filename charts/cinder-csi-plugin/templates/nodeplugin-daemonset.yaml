@@ -43,6 +43,7 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
+          resources: {{ toYaml .Values.csi.nodeDriverRegistrar.resources | nindent 12 }}
         - name: liveness-probe
           image: "{{ .Values.csi.livenessprobe.image.repository }}:{{ .Values.csi.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.csi.livenessprobe.image.pullPolicy }}
@@ -51,6 +52,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+          resources: {{ toYaml .Values.csi.livenessprobe.resources | nindent 12 }}
         - name: cinder-csi-plugin
           securityContext:
             privileged: true
@@ -97,6 +99,7 @@ spec:
               mountPath: /dev
               mountPropagation: "HostToContainer"
             {{- .Values.csi.plugin.volumeMounts | toYaml | trimSuffix "\n" | nindent 12 }}
+          resources: {{ toYaml .Values.csi.plugin.resources | nindent 12 }}
       volumes:
         - name: socket-dir
           hostPath:
@@ -127,3 +130,6 @@ spec:
             path: /etc/kubernetes
         {{- end }}
         {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
+      affinity: {{ toYaml .Values.csi.plugin.nodePlugin.affinity | nindent 8 }}
+      nodeSelector: {{ toYaml .Values.csi.plugin.nodePlugin.nodeSelector | nindent 8 }}
+      tolerations: {{ toYaml .Values.csi.plugin.nodePlugin.tolerations | nindent 8 }}
