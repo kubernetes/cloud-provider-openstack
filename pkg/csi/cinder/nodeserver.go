@@ -28,6 +28,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/cloud-provider-openstack/pkg/util/filesystem"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/util/resizefs"
 	utilpath "k8s.io/utils/path"
@@ -515,6 +516,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
 	}
 	volumePath := req.GetVolumePath()
+	requiredSize := req.GetCapacityRange().GetRequiredBytes()
 
 	args := []string{"-o", "source", "--noheadings", "--target", volumePath}
 	output, err := ns.Mount.Mounter().Exec.Command("findmnt", args...).CombinedOutput()
@@ -530,8 +532,7 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 
 	if ns.Cloud.GetBlockStorageOpts().RescanOnResize {
 		// comparing current volume size with the expected one
-		newSize := req.GetCapacityRange().GetRequiredBytes()
-		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil {
+		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, requiredSize); err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
 		}
 	}
@@ -540,6 +541,17 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	if _, err := r.Resize(devicePath, volumePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
 	}
+
+	newFsSize, err := filesystem.GetFilesystemSize(volumePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get filesystem size at mount point %q: %s", volumePath, err)
+	}
+
+	if newFsSize < req.GetCapacityRange().GetRequiredBytes() {
+		return nil, status.Errorf(codes.Internal,
+			"After resizing filesystem mounted at %q, its size %v is less than RequiredBytes %v", volumePath, newFsSize, requiredSize)
+	}
+
 	return &csi.NodeExpandVolumeResponse{}, nil
 }
 
