@@ -250,6 +250,67 @@ func (provider OpenStackCloudProvider) waitForServerDetachVolumes(serverID strin
 	return rootVolumeID, err
 }
 
+// FirstTimeRepair Handle the first time repair for a node
+// 1) If the node is the first time in error, reboot and uncordon it
+// 2) If the node is not the first time in error, check if the last reboot time is in provider.Config.RebuildDelayAfterReboot
+//    That said, if the node has been found in broken status before but has been long time since then, the processed variable
+//    will be kept as False, which means the node need to be rebuilt to fix it, otherwise it means the has been processed.
+// The bool type return value means that if the node has been processed from a first time repair PoV
+func (provider OpenStackCloudProvider) firstTimeRepair(n healthcheck.NodeInfo, serverID string, firstTimeRebootNodes map[string]healthcheck.NodeInfo) (bool, error) {
+	var firstTimeUnhealthy = true
+	for id := range unHealthyNodes {
+		log.V(5).Infof("comparing server ID %s with known broken ID %s", serverID, id)
+		if id == serverID {
+			log.Infof("it is NOT the first time that node %s is being repaired", serverID)
+			firstTimeUnhealthy = false
+			break
+		}
+	}
+
+	var processed = false
+	if firstTimeUnhealthy == true {
+		log.Infof("rebooting node %s to repair it", serverID)
+
+		if res := servers.Reboot(provider.Nova, serverID, servers.RebootOpts{Type: servers.SoftReboot}); res.Err != nil {
+			// Usually it means the node is being rebooted
+			log.Warningf("failed to reboot node %s, error: %v", serverID, res.Err)
+			if strings.Contains(res.Err.Error(), "reboot_started") {
+				// The node has been restarted
+				firstTimeRebootNodes[serverID] = n
+				processed = true
+			}
+		} else {
+			// Uncordon the node
+			if n.IsWorker == true {
+				nodeName := n.KubeNode.Name
+				newNode := n.KubeNode.DeepCopy()
+				newNode.Spec.Unschedulable = false
+				if _, err := provider.KubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
+					log.Errorf("Failed to cordon node %s, error: %v", nodeName, err)
+				} else {
+					log.Infof("Node %s is cordoned", nodeName)
+				}
+			}
+
+			n.RebootAt = time.Now()
+			firstTimeRebootNodes[serverID] = n
+			unHealthyNodes[serverID] = n
+			log.Infof("Node %s has been rebooted at %s", serverID, n.RebootAt)
+		}
+		processed = true
+	} else {
+		// If the node was rebooted within mins (defined by RepairDelayAfterReboot), ignore it
+		log.Infof("Node %s is found in unhealthy again which was rebooted at %s", serverID, unHealthyNodes[serverID].RebootAt)
+		if unHealthyNodes[serverID].RebootAt.After(time.Now().Add(-1 * provider.Config.RebuildDelayAfterReboot)) {
+			log.Infof("Node %s is found in unhealthy again, but we're going to defer the repair because it maybe in reboot process", serverID)
+			firstTimeRebootNodes[serverID] = n
+			processed = true
+		}
+	}
+
+	return processed, nil
+}
+
 // Repair  For master nodes: detach etcd and docker volumes, find the root
 //         volume, then shutdown the VM, marks the both the VM and the root
 //         volume (heat resource) as "unhealthy" then trigger Heat stack update
@@ -275,6 +336,8 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 		masters = nodes
 	}
 
+	firstTimeRebootNodes := make(map[string]healthcheck.NodeInfo)
+
 	err := provider.UpdateHealthStatus(masters, workers)
 	if err != nil {
 		return fmt.Errorf("failed to update the helath status of cluster %s, error: %v", clusterName, err)
@@ -295,21 +358,10 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 			}
 			serverID := machineID.String()
 
-			var firsttimeUnhealthy = true
-			for id := range unHealthyNodes {
-				log.V(5).Infof("comparing server ID %s with known broken ID %s", serverID, id)
-				if id == serverID {
-					firsttimeUnhealthy = false
-					break
-				}
-			}
-
-			if firsttimeUnhealthy == true {
-				unHealthyNodes[serverID] = n
-				log.Infof("rebooting node %s to repair it", serverID)
-				if res := servers.Reboot(provider.Nova, serverID, servers.RebootOpts{Type: servers.SoftReboot}); res.Err != nil {
-					log.Warningf("failed to reboot node %s, error: %v", serverID, res.Err)
-				}
+			if processed, err := provider.firstTimeRepair(n, serverID, firstTimeRebootNodes); err != nil {
+				log.Warningf("Failed to process if the node %s is in first time repair , error: %v", serverID, err)
+			} else if processed == true {
+				log.Infof("Node %s has been processed", serverID)
 				continue
 			}
 
@@ -374,21 +426,10 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 			}
 			serverID := machineID.String()
 
-			var firsttimeUnhealthy = true
-			for id := range unHealthyNodes {
-				log.Infof("comparing server ID %s with known broken ID %s", serverID, id)
-				if id == serverID {
-					firsttimeUnhealthy = false
-					break
-				}
-			}
-
-			if firsttimeUnhealthy == true {
-				unHealthyNodes[serverID] = n
-				log.Infof("rebooting node %s to repair it", serverID)
-				if res := servers.Reboot(provider.Nova, serverID, servers.RebootOpts{Type: servers.SoftReboot}); res.Err != nil {
-					log.Warningf("failed to reboot node %s, error: %v", serverID, res.Err)
-				}
+			if processed, err := provider.firstTimeRepair(n, serverID, firstTimeRebootNodes); err != nil {
+				log.Warningf("Failed to process if the node %s is in first time repair , error: %v", serverID, err)
+			} else if processed == true {
+				log.Infof("Node %s has been processed", serverID)
 				continue
 			}
 
@@ -404,8 +445,14 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 				}
 			}
 
-			if err := provider.waitForServerPoweredOff(serverID, 30*time.Second); err != nil {
+			if err := provider.waitForServerPoweredOff(serverID, 180*time.Second); err != nil {
 				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
+				// If the server is failed to delete after 180s, then delete it to avoid the
+				// stack update failure later.
+				res := servers.ForceDelete(provider.Nova, serverID)
+				if res.Err != nil {
+					log.Warningf("Failed to delete the server %s, error: %v", serverID, err)
+				}
 			}
 
 			log.Infof("Marking Nova VM %s(Heat resource %s) unhealthy for Heat stack %s", serverID, allMapping[serverID].ResourceID, cluster.StackID)
@@ -428,6 +475,11 @@ func (provider OpenStackCloudProvider) Repair(nodes []healthcheck.NodeInfo) erro
 
 	// Remove the broken nodes from the cluster
 	for _, n := range nodes {
+		serverID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID).String()
+		if _, found := firstTimeRebootNodes[serverID]; found {
+			log.Infof("Skip node delete for %s because it's repaired by reboot", serverID)
+			continue
+		}
 		if err := provider.KubeClient.CoreV1().Nodes().Delete(context.TODO(), n.KubeNode.Name, metav1.DeleteOptions{}); err != nil {
 			log.Errorf("Failed to remove the node %s from cluster, error: %v", n.KubeNode.Name, err)
 		}

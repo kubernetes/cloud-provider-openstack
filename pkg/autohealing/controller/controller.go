@@ -316,6 +316,10 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 					newNode := node.KubeNode.DeepCopy()
 					newNode.Spec.Unschedulable = true
 
+					// Skip cordon for master node
+					if node.IsWorker == false {
+						continue
+					}
 					if _, err := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
 						log.Errorf("Failed to cordon node %s, error: %v", nodeName, err)
 					} else {
