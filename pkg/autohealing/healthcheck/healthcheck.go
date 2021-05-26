@@ -17,6 +17,8 @@ limitations under the License.
 package healthcheck
 
 import (
+	"time"
+
 	apiv1 "k8s.io/api/core/v1"
 	log "k8s.io/klog/v2"
 )
@@ -32,6 +34,8 @@ type NodeInfo struct {
 	KubeNode    apiv1.Node
 	IsWorker    bool
 	FailedCheck string
+	FoundAt     time.Time
+	RebootAt    time.Time
 }
 
 type HealthCheck interface {
@@ -81,6 +85,7 @@ func CheckNodes(checkers []HealthCheck, nodes []NodeInfo, controller NodeControl
 		for _, checker := range checkers {
 			if !checker.Check(node, controller) {
 				node.FailedCheck = checker.GetName()
+				node.FoundAt = time.Now()
 				unhealthyNodes = append(unhealthyNodes, node)
 				break
 			}
