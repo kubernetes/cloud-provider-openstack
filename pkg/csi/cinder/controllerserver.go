@@ -41,6 +41,10 @@ type controllerServer struct {
 	Cloud  openstack.IOpenStack
 }
 
+const (
+	cinderCSIClusterIDKey = "cinder.csi.openstack.org/cluster"
+)
+
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
@@ -102,7 +106,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	// Volume Create
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
 	//Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
 	for _, mKey := range []string{"csi.storage.k8s.io/pvc/name", "csi.storage.k8s.io/pvc/namespace", "csi.storage.k8s.io/pv/name"} {
 		if v, ok := req.Parameters[mKey]; ok {
@@ -357,8 +361,14 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Error(codes.Internal, "Multiple snapshots reported by Cinder with same name")
 
 	} else {
+		// Add cluster ID to the snapshot metadata
+		properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+		for mKey, mVal := range req.Parameters {
+			properties[mKey] = mVal
+		}
+
 		// TODO: Delegate the check to openstack itself and ignore the conflict
-		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, &req.Parameters)
+		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, &properties)
 		if err != nil {
 			klog.Errorf("Failed to Create snapshot: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
