@@ -183,3 +183,18 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
+    cloud-provider-openstack-test-occm-e2e-conformance:
+      jobs:
+        - cloud-provider-openstack-test-occm-e2e-conformance:
+            files:
+              - cmd/openstack-cloud-controller-manager/.*
+              - pkg/openstack/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
