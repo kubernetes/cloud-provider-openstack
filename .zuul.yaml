@@ -10,24 +10,22 @@
               - ^.gitignore$
               - ^.*\.sh$
 
-# Disable the job temporarily until we fix the cluster issue.
-#    cloud-provider-openstack-acceptance-test-lb-octavia:
-#      jobs:
-#        - cloud-provider-openstack-acceptance-test-lb-octavia:
-#            files:
-#              - cmd/openstack-cloud-controller-manager/.*
-#              - pkg/openstack/.*
-#              - pkg/util/.*
-#              - tests/e2e/cloudprovider/.*
-#              - go.mod$
-#              - go.sum$
-#              - Makefile$
-#            irrelevant-files:
-#              - docs/.*$
-#              - ^.*\.md$
-#              - ^OWNERS$
-#              - ^SECURITY_CONTACTS$
-#              - ^.gitignore$
+    cloud-provider-openstack-test-occm:
+      jobs:
+        - cloud-provider-openstack-test-occm:
+            files:
+              - cmd/openstack-cloud-controller-manager/.*
+              - pkg/openstack/.*
+              - pkg/util/.*
+              - tests/e2e/cloudprovider/.*
+              - Makefile$
+            irrelevant-files:
+              - docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
+
     cloud-provider-openstack-format:
       jobs:
         - cloud-provider-openstack-format:
