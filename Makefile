@@ -97,6 +97,12 @@ build-all-archs:
 
 build: $(addprefix build-cmd-,$(BUILD_CMDS))
 
+client-keystone-auth: work $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) go build \
+		-ldflags $(LDFLAGS) \
+		-o client-keystone-auth \
+		cmd/client-keystone-auth/main.go
+
 # Remove individual go build targets, once we migrate openlab-zuul-jobs
 # to use new build-cmd-% targets.
 cinder-csi-plugin: work $(SOURCES)
