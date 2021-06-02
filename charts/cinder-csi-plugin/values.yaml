@@ -120,3 +120,5 @@ storageClass:
 #       name: csi-cinder-snapclass
 #     driver: cinder.csi.openstack.org
 #     deletionPolicy: Delete
+
+priorityClassName: ""
