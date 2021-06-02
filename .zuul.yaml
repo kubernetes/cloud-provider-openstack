@@ -9,16 +9,14 @@
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
               - ^.*\.sh$
-    cloud-provider-openstack-acceptance-test-lb-octavia:
+    cloud-provider-openstack-test-occm-1.20:
       jobs:
-        - cloud-provider-openstack-acceptance-test-lb-octavia:
+        - cloud-provider-openstack-test-occm-1.20:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
-              - go.mod$
-              - go.sum$
               - Makefile$
             irrelevant-files:
               - docs/.*$
@@ -61,11 +59,10 @@
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - pkg/cloudprovider/providers/openstack/.*
-              - test/.*
+              - tests/e2e/csi/cinder/.*
               - cmd/tests/.*
               - go.mod$
               - go.sum$
-              - Makefile$
             irrelevant-files:
               - ^docs/.*$
               - ^.*\.md$
@@ -77,14 +74,13 @@
         - cloud-provider-openstack-e2e-test-csi-cinder:
             files:
               - cmd/cinder-csi-plugin/.*
-              - manifests/cinder-csi-plugin/.* 
+              - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
               - pkg/util/.*
               - tests/e2e/csi/cinder/.*
               - cmd/tests/.*
               - go.mod$
               - go.sum$
-              - Makefile$
             irrelevant-files:
               - docs/.*$
               - ^.*\.md$
@@ -117,7 +113,6 @@
               - go.mod$
               - go.sum$
               - Makefile$
-              - .zuul.yaml$
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:
@@ -144,7 +139,6 @@
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
               - pkg/util/.*
-              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
               - Makefile$
@@ -161,7 +155,6 @@
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
               - pkg/util/.*
-              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
               - Makefile$
@@ -178,7 +171,6 @@
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
               - pkg/util/.*
-              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
               - Makefile$
@@ -195,7 +187,6 @@
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/cloudprovider/.*
               - pkg/util/.*
-              - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
               - Makefile$
