@@ -9,16 +9,14 @@
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
               - ^.*\.sh$
-    cloud-provider-openstack-acceptance-test-lb-octavia:
+    cloud-provider-openstack-test-occm:
       jobs:
-        - cloud-provider-openstack-acceptance-test-lb-octavia:
+        - cloud-provider-openstack-test-occm:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
-              - go.mod$
-              - go.sum$
               - Makefile$
             irrelevant-files:
               - docs/.*$
