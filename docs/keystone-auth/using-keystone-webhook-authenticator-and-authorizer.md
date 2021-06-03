@@ -15,9 +15,6 @@
     - [Configuration on K8S master for authentication and/or authorization](#configuration-on-k8s-master-for-authentication-andor-authorization)
   - [Authorization policy definition(version 2)](#authorization-policy-definitionversion-2)
   - [Client(kubectl) configuration](#clientkubectl-configuration)
-    - [Old kubectl clients](#old-kubectl-clients)
-    - [kubectl clients from v1.8.0 to v1.10.x](#kubectl-clients-from-v180-to-v110x)
-    - [New kubectl clients from v1.11.0 and later](#new-kubectl-clients-from-v1110-and-later)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -109,7 +106,7 @@ $ kubectl apply -f /etc/kubernetes/keystone-auth/policy-config.yaml
 ```
 Version 2:
 
-please refer to [configmap](../examples/webhook/keystone-policy-configmap.yaml) for the definition of 
+please refer to [configmap](../../examples/webhook/keystone-policy-configmap.yaml) for the definition of 
 policy config map.
 ```shell
 $ kubectl apply -f examples/webhook/keystone-policy-configmap.yaml
@@ -241,7 +238,7 @@ specify a kubeconfig file or relies on the in-cluster configuration capability
 to instantiate the kubernetes client, the latter approach is recommended.
 
 Next, we create a new service account `keystone-auth` and grant the
-cluster admin role to it. please refer to [rbac](../examples/webhook/keystone-rbac.yaml)
+cluster admin role to it. please refer to [rbac](../../examples/webhook/keystone-rbac.yaml)
 for definition of the rbac such as clusterroles and rolebinding.
 
 ```shell
@@ -591,90 +588,7 @@ authorization, make sure your OpenStack user in the following steps has the
 `member` role in Keystone as defined above, otherwise listing pod operation
 will fail.
 
-### Old kubectl clients
-
-- Run `openstack token issue` to generate a token
-- Run `kubectl --token $TOKEN get po` or `curl -k -v -XGET  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN" https://localhost:6443/api/v1/namespaces/default/pods`
-
-### kubectl clients from v1.8.0 to v1.10.x
-
-The client is able to read the `OS_` env variables used also by the
-openstackclient. You don't have to pass a token with `--token`, but the client
-will contact Keystone directly, will get a token and will use it. To configure
-the client do the following:
-
-- Run `kubectl config set-credentials openstackuser --auth-provider=openstack`
-
-This command creates the following entry in your ~/.kube/config
-```
-- name: openstackuser
-  user:
-    as-user-extra: {}
-    auth-provider:
-      name: openstack
-```
-- Run `kubectl config set-context --cluster=mycluster --user=openstackuser openstackuser@kubernetes`
-- Run `kubectl config use-context openstackuser@kubernetes` to activate the context
-
-After running above commands, your kubeconfig file should be like below:
-
-```
-apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority: /tmp/certs/ca.pem
-    server: https://172.24.4.6:6443
-  name: mycluster
-contexts:
-- context:
-    cluster: mycluster
-    user: admin
-  name: default
-- context:
-    cluster: mycluster
-    user: openstackuser
-  name: openstackuser@kubernetes
-current-context: openstackuser@kubernetes
-kind: Config
-preferences: {}
-users:
-- name: admin
-  user:
-    client-certificate: /tmp/certs/cert.pem
-    client-key: /tmp/certs/key.pem
-- name: openstackuser
-  user:
-    auth-provider:
-      config:
-        ttl: 10m0s
-      name: openstack
-
-```
-
-In above kubeconfig, the cluster name is `mycluster`, the kube API address is
-`https://172.24.4.6:6443`. And in this kubeconfig file, there are two contexts.
-One for normal certs auth, and one for Keystone auth. Please note, the current
-context is `openstackuser@kubernetes`.
-
-Source your env vars. Make sure you include `OS_DOMAIN_NAME` or the client will
-fallback to Keystone V2 that is not supported by the webhook.This env should be
-ok:
-
-```
-OS_AUTH_URL="https://keystone.example.com:5000/v3"
-OS_DOMAIN_NAME="default"
-OS_IDENTITY_API_VERSION="3"
-OS_PASSWORD="mysecret"
-OS_PROJECT_NAME="myproject"
-OS_REGION_NAME="myRegion"
-OS_USERNAME="username"
-```
-- Try: `kubectl get pods`
-
-### New kubectl clients from v1.11.0 and later
-
-Client auth providers are deprecated in v1.11.0 and to be removed in the next
-version. The recommended way of client authentication is to use ``exec`` mode
+The recommended way of client authentication is to use ``exec`` mode
 with the ``client-keystone-auth`` binary.
 
 To configure the client do the following:
