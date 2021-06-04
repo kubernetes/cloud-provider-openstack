@@ -46,7 +46,7 @@ require (
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.8.0
 	k8s.io/kubernetes v1.21.0
-	k8s.io/mount-utils v0.21.0
+	k8s.io/mount-utils v0.21.1
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	software.sslmate.com/src/go-pkcs12 v0.0.0-20190209200317-47dd539968c4
 )
@@ -75,7 +75,7 @@ replace (
 	k8s.io/kubelet => k8s.io/kubelet v0.21.0
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.21.0
 	k8s.io/metrics => k8s.io/metrics v0.21.0
-	k8s.io/mount-utils => k8s.io/mount-utils v0.21.0
+	k8s.io/mount-utils => k8s.io/mount-utils v0.21.1
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.0
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.21.0
 	k8s.io/sample-controller => k8s.io/sample-controller v0.21.0

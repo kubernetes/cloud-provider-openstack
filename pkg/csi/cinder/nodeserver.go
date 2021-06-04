@@ -366,7 +366,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
 	}
 
-	_, err := ns.Cloud.GetVolume(volumeID)
+	vol, err := ns.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, "Volume not found")
@@ -408,6 +408,25 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	// Try expanding the volume if it's created from a snapshot or another volume (see #1539)
+	if vol.SourceVolID != "" || vol.SnapshotID != "" {
+
+		r := mountutil.NewResizeFs(ns.Mount.Mounter().Exec)
+
+		needResize, err := r.NeedResize(devicePath, stagingTarget)
+
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not determine if volume %q need to be resized: %v", volumeID, err)
+		}
+
+		if needResize {
+			klog.V(4).Infof("NodeStageVolume: Resizing volume %q created from a snapshot/volume", volumeID)
+			if _, err := r.Resize(devicePath, stagingTarget); err != nil {
+				return nil, status.Errorf(codes.Internal, "Could not resize volume %q:  %v", volumeID, err)
+			}
 		}
 	}
 
