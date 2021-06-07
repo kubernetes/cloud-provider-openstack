@@ -133,7 +133,21 @@ cinder.csi.openstack.org   2019-07-29T09:02:40Z
 
 ```
 
-> NOTE: If using certs(`ca-file`), make sure to update the manifests (controller and node plugin) to mount the location of certs as volume onto container as well.
+> NOTE: If using certs(`ca-file`), make sure to add the additional mount to the manifests (controller and node plugin) to mount the location of certs as volume onto container. For example, add `ca-cert` in `/etc/cacert` folder. Uncomment the related sections in `manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml` and `manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml` and replace the path with your own.
+
+```
+       volumeMounts:
+          ....
+          - name: cacert
+              mountPath: /etc/cacert
+              readOnly: true
+
+     volumes:   
+        ....
+        - name: cacert
+          hostPath:
+            path: /etc/cacert
+```
 
 ### Using the Helm chart
 
