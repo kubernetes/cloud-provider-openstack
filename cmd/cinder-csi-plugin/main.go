@@ -101,19 +101,19 @@ func main() {
 func handle() {
 
 	d := cinder.NewDriver(nodeID, endpoint, cluster)
-	// Initiliaze cloud
+	// Initialize cloud
 	openstack.InitOpenStackProvider(cloudconfig)
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
 		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
 		return
 	}
-	//Intiliaze mount
+	//Initialize mount
 	mount := mount.GetMountProvider()
 
-	//Intiliaze Metadatda
-	metadatda := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+	//Initialize Metadata
+	metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
 
-	d.SetupDriver(cloud, mount, metadatda)
+	d.SetupDriver(cloud, mount, metadata)
 	d.Run()
 }
