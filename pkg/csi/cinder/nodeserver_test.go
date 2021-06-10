@@ -39,7 +39,7 @@ var omock *openstack.OpenStackMock
 func init() {
 	if fakeNs == nil {
 
-		d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+		d := NewDriver(FakeEndpoint, FakeCluster)
 
 		// mock MountMock
 		mmock = new(mount.MountMock)
@@ -143,7 +143,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	metadata.MetadataService = metamock
 	openstack.OsInstance = omock
 
-	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+	d := NewDriver(FakeEndpoint, FakeCluster)
 	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
 
 	// Init assert
@@ -294,7 +294,7 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	omock.On("WaitDiskDetached", FakeNodeID, FakeVolID).Return(nil)
 	omock.On("DeleteVolume", FakeVolID).Return(nil)
 
-	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+	d := NewDriver(FakeEndpoint, FakeCluster)
 	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
 
 	// Init assert
