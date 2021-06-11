@@ -35,9 +35,15 @@ const (
 )
 
 var (
+	// CSI spec version
 	specVersion = "1.3.0"
-	// we used to use spec version as driver version, now separate them
-	Version = "1.3.1"
+
+	// Driver version
+	// Version history:
+	// * 1.3.0: Up to version 1.3.0 driver version was the same as CSI spec version
+	// * 1.3.1: Bump for 1.21 release
+	// * 1.3.2: Allow --cloud-config to be given multiple times
+	Version = "1.3.2"
 )
 
 type CinderDriver struct {

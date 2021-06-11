@@ -34,7 +34,7 @@ import (
 var (
 	endpoint    string
 	nodeID      string
-	cloudconfig string
+	cloudconfig []string
 	cluster     string
 )
 
@@ -80,7 +80,7 @@ func main() {
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
 	cmd.MarkPersistentFlagRequired("endpoint")
 
-	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "CSI driver cloud config")
+	cmd.PersistentFlags().StringSliceVar(&cloudconfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
 	cmd.MarkPersistentFlagRequired("cloud-config")
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
