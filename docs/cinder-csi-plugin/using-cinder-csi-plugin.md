@@ -6,11 +6,12 @@
   - [CSI Compatibility](#csi-compatibility)
   - [Downloads](#downloads)
   - [Kubernetes Compatibility](#kubernetes-compatibility)
+  - [Driver Deployment](#driver-deployment)
+    - [Command-line arguments](#command-line-arguments)
   - [Driver Config](#driver-config)
     - [Global](#global)
     - [Block Storage](#block-storage)
     - [Metadata](#metadata)
-  - [Driver Deployment](#driver-deployment)
     - [Using the manifests](#using-the-manifests)
     - [Using the Helm chart](#using-the-helm-chart)
   - [Supported Features](#supported-features)
@@ -42,6 +43,52 @@ Stable released version images of the plugin can be found at [Docker Hub](https:
 For each kubernetes official release, there is a corresponding release of Cinder CSI driver which is compatible with k8s release. It is recommended to use the corresponding version w.r.t kubernetes.
 
 For sidecar version compatibility with kubernetes, please refer [Compatibility Matrix](https://kubernetes-csi.github.io/docs/sidecar-containers.html) of each sidecar.
+
+## Driver Deployment
+
+You can either use the manifests under `manifests/cinder-csi-plugin` or the Helm chart `charts/cinder-csi-plugin`.
+
+### Command-line arguments
+
+In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the following command-line arguments:
+
+<dl>
+  <dt>--nodeid &lt;node id&gt;</dt>
+  <dd>
+  This argument is required.
+
+  An identifier for the current node which will be used in OpenStack API calls.  This can be either the UUID or name of the OpenStack server, but note that if using name it must be unique.
+  </dd>
+
+  <dt>--endpoint &lt;endpoint&gt;</dt>
+  <dd>
+  This argument is required.
+
+  The endpoint of the gRPC server agents will use to connect to this CSI plugin, typically a local unix socket.
+
+  The manifests default this to `unix://csi/csi.sock`, which is supplied via the `CSI_ENDPOINT` environment variable.
+  </dd>
+
+  <dt>--cloud-config &lt;config file&gt; [--cloud-config &lt;config file&gt; ...]</dt>
+  <dd>
+  This argument must be given at least once.
+
+  The path to a driver config file. The format of this file is specified in [Driver Config](#driver-config).
+
+  If multiple configuration files are supplied they will be merged. In the case of a conflict, the last supplied config file will take precedence.
+
+  The manifests default this to `/etc/config/cloud.conf`, which is supplied via the `CLOUD_CONFIG` environment variable.
+  </dd>
+
+  <dt>--cluster &lt;cluster name&gt;</dt>
+  <dd>
+  This argument is optional.
+
+  The identifier of the cluster that the plugin is running in.
+
+  This will be added as metadata to every Cinder volume created by this plugin.
+  </dd>
+</dl>
 
 ## Driver Config
 
@@ -83,10 +130,6 @@ These configuration options pertain to metadata and should appear in the `[Metad
     service first if available, then the configuration drive.
 
   Influencing this behavior may be desirable as the metadata on the configuration drive may grow stale over time, whereas the metadata service always provides the most up to date view. Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both.
-
-## Driver Deployment
-
-You can either use the manifests under `manifests/cinder-csi-plugin` or the Helm chart `charts/cinder-csi-plugin`.
 
 ### Using the manifests
 

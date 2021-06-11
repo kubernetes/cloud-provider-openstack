@@ -90,20 +90,25 @@ func logcfg(cfg Config) {
 	klog.Infof("Block storage opts: %v", cfg.BlockStorage)
 }
 
-// GetConfigFromFile retrieves config options from file
-func GetConfigFromFile(configFilePath string) (Config, error) {
+// GetConfigFromFiles retrieves config options from file
+func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 	var cfg Config
-	config, err := os.Open(configFilePath)
-	if err != nil {
-		klog.Errorf("Failed to open OpenStack configuration file: %v", err)
-		return cfg, err
-	}
-	defer config.Close()
 
-	err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
-	if err != nil {
-		klog.Errorf("Failed to read OpenStack configuration file: %v", err)
-		return cfg, err
+	// Read all specified config files in order. Values from later config files
+	// will overwrite values from earlier ones.
+	for _, configFilePath := range configFilePaths {
+		config, err := os.Open(configFilePath)
+		if err != nil {
+			klog.Errorf("Failed to open OpenStack configuration file: %v", err)
+			return cfg, err
+		}
+		defer config.Close()
+
+		err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
+		if err != nil {
+			klog.Errorf("Failed to read OpenStack configuration file: %v", err)
+			return cfg, err
+		}
 	}
 
 	// Update the config with data from clouds.yaml if UseClouds is enabled
@@ -111,7 +116,7 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 		if cfg.Global.CloudsFile != "" {
 			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
 		}
-		err = client.ReadClouds(&cfg.Global)
+		err := client.ReadClouds(&cfg.Global)
 		if err != nil {
 			return cfg, err
 		}
@@ -124,20 +129,20 @@ func GetConfigFromFile(configFilePath string) (Config, error) {
 const defaultMaxVolAttachLimit int64 = 256
 
 var OsInstance IOpenStack = nil
-var configFile = "/etc/cloud.conf"
+var configFiles = []string{"/etc/cloud.conf"}
 var cfg Config
 
-func InitOpenStackProvider(cfgFile string) {
-	configFile = cfgFile
-	klog.V(2).Infof("InitOpenStackProvider configFile: %s", configFile)
+func InitOpenStackProvider(cfgFiles []string) {
+	configFiles = cfgFiles
+	klog.V(2).Infof("InitOpenStackProvider configFiles: %s", configFiles)
 }
 
 // CreateOpenStackProvider creates Openstack Instance
 func CreateOpenStackProvider() (IOpenStack, error) {
 	// Get config from file
-	cfg, err := GetConfigFromFile(configFile)
+	cfg, err := GetConfigFromFiles(configFiles)
 	if err != nil {
-		klog.Errorf("GetConfigFromFile %s failed with error: %v", configFile, err)
+		klog.Errorf("GetConfigFromFiles %s failed with error: %v", configFiles, err)
 		return nil, err
 	}
 	logcfg(cfg)
