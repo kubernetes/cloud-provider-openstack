@@ -67,3 +67,7 @@ func (m *fakemount) MakeFile(pathname string) error {
 func (m *fakemount) GetDeviceStats(path string) (*cpomount.DeviceStats, error) {
 	return cinder.FakeFsStats, nil
 }
+
+func (m *fakemount) GetMountFs(pathname string) ([]byte, error) {
+	return []byte("aaa"), nil
+}

@@ -526,15 +526,24 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
 	}
 	volumePath := req.GetVolumePath()
-
-	args := []string{"-o", "source", "--first-only", "--noheadings", "--target", volumePath}
-	output, err := ns.Mount.Mounter().Exec.Command("findmnt", args...).CombinedOutput()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not determine device path: %v", err)
-
+	if len(volumePath) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume path not provided")
 	}
-	devicePath := strings.TrimSpace(string(output))
 
+	_, err := ns.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, fmt.Sprintf("Volume with ID %s not found", volumeID))
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("NodeExpandVolume failed with error %v", err))
+	}
+
+	output, err := ns.Mount.GetMountFs(volumePath)
+	if err != nil {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("Failed to find mount file system %s: %v", volumePath, err))
+	}
+
+	devicePath := strings.TrimSpace(string(output))
 	if devicePath == "" {
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}

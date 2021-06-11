@@ -50,6 +50,7 @@ type IMount interface {
 	MakeFile(pathname string) error
 	MakeDir(pathname string) error
 	GetDeviceStats(path string) (*DeviceStats, error)
+	GetMountFs(path string) ([]byte, error)
 }
 
 type DeviceStats struct {
@@ -215,6 +216,11 @@ func (m *Mount) IsLikelyNotMountPointAttach(targetpath string) (bool, error) {
 		}
 	}
 	return notMnt, err
+}
+
+func (m *Mount) GetMountFs(volumePath string) ([]byte, error) {
+	args := []string{"-o", "source", "--first-only", "--noheadings", "--target", volumePath}
+	return m.BaseMounter.Exec.Command("findmnt", args...).CombinedOutput()
 }
 
 // UnmountPath
