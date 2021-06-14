@@ -55,7 +55,7 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 <dl>
   <dt>--nodeid &lt;node id&gt;</dt>
   <dd>
-  This argument is required.
+  This argument is deprecated, will be removed in future.
 
   An identifier for the current node which will be used in OpenStack API calls.  This can be either the UUID or name of the OpenStack server, but note that if using name it must be unique.
   </dd>
