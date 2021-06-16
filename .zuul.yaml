@@ -115,9 +115,26 @@
               - ^OWNERS$
               - ^SECURITY_CONTACTS$
               - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance:
+    cloud-provider-openstack-test-occm-e2e-conformance:
       jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance:
+        - cloud-provider-openstack-test-occm-e2e-conformance:
+            files:
+              - cmd/openstack-cloud-controller-manager/.*
+              - pkg/openstack/.*
+              - pkg/util/.*
+              - tests/e2e/cloudprovider/.*
+              - go.mod$
+              - go.sum$
+              - Makefile$
+            irrelevant-files:
+              - ^docs/.*$
+              - ^.*\.md$
+              - ^OWNERS$
+              - ^SECURITY_CONTACTS$
+              - ^.gitignore$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.21:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.21:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/openstack/.*
@@ -157,38 +174,6 @@
               - pkg/openstack/.*
               - pkg/util/.*
               - tests/e2e/cloudprovider/.*
-              - go.mod$
-              - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.18:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.18:
-            files:
-              - cmd/openstack-cloud-controller-manager/.*
-              - pkg/openstack/.*
-              - pkg/util/.*
-              - tests/e2e/cloudprovider/.*
-              - go.mod$
-              - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-test-occm-e2e-conformance:
-      jobs:
-        - cloud-provider-openstack-test-occm-e2e-conformance:
-            files:
-              - cmd/openstack-cloud-controller-manager/.*
-              - pkg/openstack/.*
               - go.mod$
               - go.sum$
               - Makefile$
