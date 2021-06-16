@@ -407,7 +407,7 @@ func TestListVolumes(t *testing.T) {
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
 
-	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{"tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{cinderCSIClusterIDKey: "cluster", "tag": "tag1"}).Return(&FakeSnapshotRes, nil)
 	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
