@@ -28,12 +28,12 @@ const (
 )
 
 var (
-	vendorVersion = "1.3.0"
+	vendorVersion = "1.3.2"
 )
 
 func NewFakeDriver() *CinderDriver {
 
-	driver := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+	driver := NewDriver(FakeEndpoint, FakeCluster)
 
 	return driver
 }

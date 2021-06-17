@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 
-# This script is used for the openlab CI job cloud-provider-openstack-acceptance-test-lb-octavia.
-# See https://github.com/theopenlab/openlab-zuul-jobs/blob/master/playbooks/cloud-provider-openstack-acceptance-test-lb-octavia/run.yaml#L104
+# This script is used for the openlab CI job cloud-provider-openstack-test-occm.
 #
 # Prerequisites:
-#   - This script is supposed to be running on a host has access to kubernetes cluster.
+#   - This script is supposed to be running on the CI host which is running devstack.
 #   - kubectl is ready to talk with the kubernetes cluster.
-#   - It's recommended to run the script on a host with as less proxies to the public as possible, otherwise the
-#     x-forwarded-for test will probably fail.
 #   - This script is not responsible for resource clean up if there is test case fails.
 set -x
 
 TIMEOUT=${TIMEOUT:-300}
 FLOATING_IP=${FLOATING_IP:-""}
 NAMESPACE="octavia-lb-test"
+GATEWAY_IP=${GATEWAY_IP:-""}
+OS_RC=${OS_RC:-"/home/zuul/devstack/openrc"}
 
 delete_resources() {
   ERROR_CODE="$?"
@@ -63,7 +62,7 @@ function wait_for_loadbalancer {
 
   end=$(($(date +%s) + ${TIMEOUT}))
   while true; do
-    status=$(kubectl -n $NAMESPACE exec openstackcli -- openstack loadbalancer show $lbid -f value -c provisioning_status)
+    status=$(openstack loadbalancer show $lbid -f value -c provisioning_status)
     if [[ $status == "ACTIVE" ]]; then
       if [[ $i == 2 ]]; then
         printf "\n>>>>>>> Load balancer ${lbid} is ACTIVE\n"
@@ -153,37 +152,6 @@ EOF
 }
 
 ########################################################################
-## Name: create_openstackcli_pod
-## Desc: Makes sure the openstackcli pod is running.
-## Params: None
-########################################################################
-function create_openstackcli_pod {
-    kubectl -n $NAMESPACE get pod | grep openstackcli | grep Running > /dev/null
-    if [[ $? -eq 1 ]]; then
-      printf "\n>>>>>>> Creating openstackcli pod\n"
-      cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Pod
-metadata:
-  name: openstackcli
-  namespace: $NAMESPACE
-spec:
-  containers:
-    - name: openstackcli
-      image: lingxiankong/openstack-cli:1.0.0
-      envFrom:
-      - secretRef:
-          name: openrc
-      command:
-        - sleep
-        - "3600"
-EOF
-    kubectl -n $NAMESPACE wait --for=condition=Ready pod/openstackcli
-    printf "\n>>>>>>> Pod openstackcli created.\n"
-    fi
-}
-
-########################################################################
 ## Name: test_basic
 ## Desc: Create a k8s service and send request to the service external
 ##       IP
@@ -260,9 +228,9 @@ EOF
     wait_for_service ${service}
 
     printf "\n>>>>>>> Sending request to the Service ${service}\n"
-    orig_ip=$(curl -s http://${ipaddr} | grep  x-forwarded-for | awk -F'=' '{print $2}')
-    if [[ "${orig_ip}" != "${local_ip}" && "${orig_ip}" != "${public_ip}" ]]; then
-        printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, orig_ip: ${local_ip}, public_ip: ${public_ip}\n"
+    ip_in_header=$(curl -s http://${ipaddr} | grep  x-forwarded-for | awk -F'=' '{print $2}')
+    if [[ "${ip_in_header}" != "${local_ip}" && "${ip_in_header}" != "${public_ip}" && "${ip_in_header}" != "${GATEWAY_IP}" ]]; then
+        printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, ip_in_header: ${ip_in_header}, local_ip: ${local_ip}, gateway_ip: ${GATEWAY_IP}, public_ip: ${public_ip}\n"
         exit -1
     else
         printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
@@ -308,12 +276,12 @@ EOF
     wait_for_service ${service}
 
     printf "\n>>>>>>> Validating openstack load balancer\n"
-    create_openstackcli_pod
-    lbid=$(kubectl -n $NAMESPACE exec openstackcli -- openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
-    lb_info=$(kubectl -n $NAMESPACE exec openstackcli -- openstack loadbalancer status show $lbid)
+    set +x; source $OS_RC demo demo; set -x
+    lbid=$(openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
+    lb_info=$(openstack loadbalancer status show $lbid)
     listener_count=$(echo $lb_info | jq '.loadbalancer.listeners | length')
     member_ports=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq)
-    service_nodeports=$(kubectl -n $NAMESPACE  get svc $service -o json | jq '.spec.ports | .[].nodePort')
+    service_nodeports=$(kubectl -n $NAMESPACE get svc $service -o json | jq '.spec.ports | .[].nodePort')
 
     if [[ ${listener_count} != 2 ]]; then
         printf "\n>>>>>>> FAIL: Unexpected number of listeners(${listener_count}) created for service ${service}\n"
@@ -334,7 +302,7 @@ EOF
 
     printf "\n>>>>>>> Validating openstack load balancer after updating the service.\n"
     create_openstackcli_pod
-    lb_info=$(kubectl -n $NAMESPACE exec openstackcli -- openstack loadbalancer status show $lbid)
+    lb_info=$(openstack loadbalancer status show $lbid)
     listener_count=$(echo $lb_info | jq '.loadbalancer.listeners | length')
     member_port=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq)
     service_nodeport=$(kubectl -n $NAMESPACE  get svc $service -o json | jq '.spec.ports | .[].nodePort')

@@ -188,3 +188,7 @@ func (_m *MountMock) MakeDir(pathname string) error {
 func (_m *MountMock) MakeFile(pathname string) error {
 	return nil
 }
+
+func (_m *MountMock) GetMountFs(pathname string) ([]byte, error) {
+	return []byte("devicepath"), nil
+}

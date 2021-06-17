@@ -56,6 +56,9 @@ type Config struct {
 
 	// (Optional) How long after new node added that the node will be checked for health status. Default: 10m
 	CheckDelayAfterAdd time.Duration `mapstructure:"check-delay-after-add"`
+
+	// (Optional) How long to wait after a node being rebooted
+	RebuildDelayAfterReboot time.Duration `mapstructure:"rebuild-delay-after-reboot"`
 }
 
 type healthCheck struct {
@@ -83,12 +86,13 @@ type kubeConfig struct {
 // NewConfig defines the default values for Config
 func NewConfig() Config {
 	return Config{
-		DryRun:               false,
-		CloudProvider:        "openstack",
-		MonitorInterval:      30 * time.Second,
-		MasterMonitorEnabled: true,
-		WorkerMonitorEnabled: true,
-		LeaderElect:          true,
-		CheckDelayAfterAdd:   10 * time.Minute,
+		DryRun:                  false,
+		CloudProvider:           "openstack",
+		MonitorInterval:         60 * time.Second,
+		MasterMonitorEnabled:    true,
+		WorkerMonitorEnabled:    true,
+		LeaderElect:             true,
+		CheckDelayAfterAdd:      10 * time.Minute,
+		RebuildDelayAfterReboot: 5 * time.Minute,
 	}
 }
