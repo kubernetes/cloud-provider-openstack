@@ -407,7 +407,7 @@ func TestListVolumes(t *testing.T) {
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
 
-	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{cinderCSIClusterIDKey: "cluster", "tag": "tag1"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{cinderCSIClusterIDKey: "cluster"}).Return(&FakeSnapshotRes, nil)
 	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
@@ -419,6 +419,46 @@ func TestCreateSnapshot(t *testing.T) {
 		Name:           FakeSnapshotName,
 		SourceVolumeId: FakeVolID,
 		Parameters:     map[string]string{"tag": "tag1"},
+	}
+
+	// Invoke CreateSnapshot
+	actualRes, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot: %v", err)
+	}
+
+	// Assert
+	assert.Equal(FakeVolID, actualRes.Snapshot.SourceVolumeId)
+
+	assert.NotNil(FakeSnapshotID, actualRes.Snapshot.SnapshotId)
+}
+
+// Test CreateSnapshot with extra metadata
+func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
+
+	properties := map[string]string{
+		"cinder.csi.openstack.org/cluster":              FakeCluster,
+		"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
+		"csi.storage.k8s.io/volumesnapshotcontent/name": FakeSnapshotContentName,
+		"csi.storage.k8s.io/volumesnapshot/namespace":   FakeSnapshotNamespace,
+	}
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &properties).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
+			"csi.storage.k8s.io/volumesnapshotcontent/name": FakeSnapshotContentName,
+			"csi.storage.k8s.io/volumesnapshot/namespace":   FakeSnapshotNamespace,
+		},
 	}
 
 	// Invoke CreateSnapshot

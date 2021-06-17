@@ -41,6 +41,8 @@ var FakeStagingTargetPath = "/mnt/globalmount"
 var FakePVName = "fakepv-1"
 var FakePVCName = "fakepvc-1"
 var FakePVCNamespace = "fakepvc-ns"
+var FakeSnapshotContentName = "fake-content"
+var FakeSnapshotNamespace = "fakesnapshot-ns"
 var FakeAttachment = volumes.Attachment{
 	ServerID: FakeNodeID,
 }

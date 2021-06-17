@@ -363,8 +363,12 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	} else {
 		// Add cluster ID to the snapshot metadata
 		properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
-		for mKey, mVal := range req.Parameters {
-			properties[mKey] = mVal
+
+		// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
+		for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name"} {
+			if v, ok := req.Parameters[mKey]; ok {
+				properties[mKey] = v
+			}
 		}
 
 		// TODO: Delegate the check to openstack itself and ignore the conflict
