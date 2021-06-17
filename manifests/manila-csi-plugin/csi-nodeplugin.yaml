@@ -51,7 +51,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: "k8scloudprovider/manila-csi-plugin:v1.21.0"
+          image: "k8scloudprovider/manila-csi-plugin:latest"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --v=5
