@@ -1340,6 +1340,37 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 	if err != nil && err != openstackutil.ErrNotFound {
 		return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 	}
+
+	// By default, use the protocol of the listener
+	poolProto := v2pools.Protocol(listener.Protocol)
+	if svcConf.enableProxyProtocol {
+		poolProto = v2pools.ProtocolPROXY
+	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
+		poolProto = v2pools.ProtocolHTTP
+	}
+
+	// Delete the pool and its members if it already exists and has the wrong protocol
+	if pool != nil && v2pools.Protocol(pool.Protocol) != poolProto {
+		klog.V(2).Infof("Deleting wrong pool %s for listener %s because the protocol does not match", pool.ID, listener.ID)
+
+		// Delete pool automatically deletes all its members.
+		mc := metrics.NewMetricContext("loadbalancer_pool", "delete")
+		if err = v2pools.Delete(lbaas.lb, pool.ID).ExtractErr(); err != nil {
+			if cpoerrors.IsNotFound(err) {
+				klog.V(2).Infof("Wrong pool %s for listener %s was already deleted: %v", pool.ID, listener.ID, err)
+			} else {
+				_ = mc.ObserveRequest(err)
+				return nil, fmt.Errorf("error deleting wrong pool %s for listener %s: %v", pool.ID, listener.ID, err)
+			}
+		}
+		_ = mc.ObserveRequest(nil)
+		provisioningStatus, err := waitLoadbalancerActiveProvisioningStatus(lbaas.lb, lbID)
+		if err != nil {
+			return nil, fmt.Errorf("timeout when waiting for loadbalancer to be ACTIVE after deleting pool, current provisioning status %s", provisioningStatus)
+		}
+		pool = nil
+	}
+
 	if pool == nil {
 		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf)
 		createOpt.ListenerID = listener.ID
@@ -2159,7 +2190,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 		}
 		if pool == nil {
-			// Use the protocol of the listerner
+			// Use the protocol of the listener
 			poolProto := v2pools.Protocol(listener.Protocol)
 
 			if lbaas.opts.UseOctavia {

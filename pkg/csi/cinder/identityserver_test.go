@@ -26,7 +26,7 @@ import (
 )
 
 func TestGetPluginInfo(t *testing.T) {
-	d := NewDriver(FakeNodeID, FakeEndpoint, FakeCluster)
+	d := NewDriver(FakeEndpoint, FakeCluster)
 
 	ids := NewIdentityServer(d)
 

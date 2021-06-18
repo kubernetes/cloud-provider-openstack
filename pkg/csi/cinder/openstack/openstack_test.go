@@ -28,6 +28,7 @@ import (
 )
 
 var fakeFileName = "cloud.conf"
+var fakeOverrideFileName = "cloud-override.conf"
 var fakeUserName = "user"
 var fakePassword = "pass"
 var fakeAuthUrl = "https://169.254.169.254/identity/v3"
@@ -37,8 +38,8 @@ var fakeRegion = "RegionOne"
 var fakeCAfile = "fake-ca.crt"
 var fakeCloudName = "openstack"
 
-// Test GetConfigFromFile
-func TestGetConfigFromFile(t *testing.T) {
+// Test GetConfigFromFiles
+func TestGetConfigFromFiles(t *testing.T) {
 	// init file
 	var fakeFileContent = `
 [Global]
@@ -76,10 +77,41 @@ rescan-on-resize=true`
 	expectedOpts.Global.Region = fakeRegion
 	expectedOpts.BlockStorage.RescanOnResize = true
 
-	// Invoke GetConfigFromFile
-	actualAuthOpts, err := GetConfigFromFile(fakeFileName)
+	// Invoke GetConfigFromFiles
+	actualAuthOpts, err := GetConfigFromFiles([]string{fakeFileName})
 	if err != nil {
-		t.Errorf("failed to GetConfigFromFile: %v", err)
+		t.Errorf("failed to GetConfigFromFiles: %v", err)
+	}
+
+	// Assert
+	assert.Equal(expectedOpts, actualAuthOpts)
+
+	// Create an override config file
+	var fakeOverrideFileContent = `
+[BlockStorage]
+rescan-on-resize=false`
+
+	f, err = os.Create(fakeOverrideFileName)
+	if err != nil {
+		t.Errorf("failed to create file: %v", err)
+	}
+
+	_, err = f.WriteString(fakeOverrideFileContent)
+	f.Close()
+	if err != nil {
+		t.Errorf("failed to write file: %v", err)
+	}
+	defer os.Remove(fakeOverrideFileName)
+
+	// expectedOpts should reflect the overridden value of rescan-on-resize. All
+	// other values should be the same as before because they come from the
+	// 'base' configuration
+	expectedOpts.BlockStorage.RescanOnResize = false
+
+	// Invoke GetConfigFromFiles with both the base and override config files
+	actualAuthOpts, err = GetConfigFromFiles([]string{fakeFileName, fakeOverrideFileName})
+	if err != nil {
+		t.Errorf("failed to GetConfigFromFiles: %v", err)
 	}
 
 	// Assert
@@ -130,10 +162,10 @@ rescan-on-resize=true`
 	expectedOpts.Global.Cloud = fakeCloudName
 	expectedOpts.BlockStorage.RescanOnResize = true
 
-	// Invoke GetConfigFromFile
-	actualAuthOpts, err := GetConfigFromFile(fakeFileName)
+	// Invoke GetConfigFromFiles
+	actualAuthOpts, err := GetConfigFromFiles([]string{fakeFileName})
 	if err != nil {
-		t.Errorf("failed to GetConfigFromFile: %v", err)
+		t.Errorf("failed to GetConfigFromFiles: %v", err)
 	}
 
 	// Assert

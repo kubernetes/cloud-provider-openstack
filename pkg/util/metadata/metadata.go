@@ -207,7 +207,7 @@ func getFromMetadataService(metadataVersion string) (*Metadata, error) {
 }
 
 // GetDevicePath retrieves device path from metadata service
-func GetDevicePath(volumeID string) string {
+func GetDevicePath(volumeID string) (string, error) {
 	// Nova Hyper-V hosts cannot override disk SCSI IDs. In order to locate
 	// volumes, we're querying the metadata service. Note that the Hyper-V
 	// driver will include device metadata for untagged volumes as well.
@@ -215,10 +215,9 @@ func GetDevicePath(volumeID string) string {
 	// We're avoiding using cached metadata (or the configdrive),
 	// relying on the metadata service.
 	instanceMetadata, err := getFromMetadataService(defaultMetadataVersion)
-
 	if err != nil {
-		klog.V(4).Infof("Could not retrieve instance metadata. Error: %v", err)
-		return ""
+		klog.Errorf("Could not retrieve instance metadata: %v", err)
+		return "", fmt.Errorf("could not retrieve instance metadata: %v", err)
 	}
 
 	for _, device := range instanceMetadata.Devices {
@@ -230,24 +229,27 @@ func GetDevicePath(volumeID string) string {
 			diskPattern := fmt.Sprintf("/dev/disk/by-path/*-%s-%s", device.Bus, device.Address)
 			diskPaths, err := filepath.Glob(diskPattern)
 			if err != nil {
-				klog.Errorf(
-					"could not retrieve disk path for volumeID: %q. Error filepath.Glob(%q): %v",
+				klog.Errorf("Could not retrieve disk path for volumeID: %q. Error filepath.Glob(%q): %v",
 					volumeID, diskPattern, err)
-				return ""
+				return "", fmt.Errorf("could not retrieve disk path for volumeID: %q. Error filepath.Glob(%q): %v",
+					volumeID, diskPattern, err)
 			}
 
 			if len(diskPaths) == 1 {
-				return diskPaths[0]
+				if diskPaths[0] == "" {
+					klog.Errorf("Disk path for volumeID %q is empty", volumeID)
+					return "", fmt.Errorf("disk path for volumeID %q is empty", volumeID)
+				}
+				return diskPaths[0], nil
 			}
 
-			klog.V(4).Infof("expecting to find one disk path for volumeID %q, found %d: %v",
+			klog.Warningf("Expecting to find one disk path for volumeID %q, found %d: %v",
 				volumeID, len(diskPaths), diskPaths)
-
 		}
 	}
 
-	klog.V(4).Infof("Could not retrieve device metadata for volumeID: %q", volumeID)
-	return ""
+	klog.Errorf("Could not retrieve device metadata for volumeID: %q", volumeID)
+	return "", fmt.Errorf("could not retrieve device metadata for volumeID: %q", volumeID)
 }
 
 // Get retrieves metadata from either config drive or metadata service.

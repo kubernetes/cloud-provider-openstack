@@ -43,6 +43,12 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
   - serviceaccounts
   verbs:
   - create

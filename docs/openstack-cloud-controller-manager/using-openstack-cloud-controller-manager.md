@@ -63,8 +63,8 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
 - Create RBAC resources and openstack-cloud-controller-manager deamonset.
 
     ```shell
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-roles.yaml
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/cluster/addons/rbac/cloud-controller-manager-role-bindings.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-controller-manager-roles.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-controller-manager-role-bindings.yaml
     kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
     ```
 
@@ -89,8 +89,12 @@ Implementation of openstack-cloud-controller-manager relies on several OpenStack
 | Compute (Nova)                 | v2             | No         | Yes      |
 | Load Balancing (Neutron-LBaaS) | v1, v2         | Yes        | No       |
 | Load Balancing (Octavia)       | v2             | No         | Yes      |
+| Key Manager (Barbican)         | v1             | No         | No       |
 
-> NOTE: Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](./cinder-csi-plugin/using-cinder-csi-plugin.md).
+NOTE:
+
+* Block Storage is not needed for openstack-cloud-controller-manager in favor of [cinder-csi-plugin](../cinder-csi-plugin/using-cinder-csi-plugin.md).
+* Barbican is required to support creating Service of LoadBalancer type with TLS termination.
 
 ### Global
 

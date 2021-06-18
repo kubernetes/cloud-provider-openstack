@@ -57,17 +57,12 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.21.0
+          image: docker.io/k8scloudprovider/cinder-csi-plugin:latest
           args:
             - /bin/cinder-csi-plugin
-            - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
           env:
-            - name: NODE_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
@@ -98,6 +93,9 @@ spec:
             - name: secret-cinderplugin
               mountPath: /etc/config
               readOnly: true
+            # - name: cacert
+            #   mountPath: /etc/cacert
+            #   readOnly: true
       volumes:
         - name: socket-dir
           hostPath:
@@ -118,3 +116,6 @@ spec:
         - name: secret-cinderplugin
           secret:
             secretName: cloud-config
+        # - name: cacert
+        #   hostPath:
+        #     path: /etc/cacert

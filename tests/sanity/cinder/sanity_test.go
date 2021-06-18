@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/kubernetes-csi/csi-test/v3/pkg/sanity"
+	"github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
@@ -23,9 +23,8 @@ func TestDriver(t *testing.T) {
 	socket := path.Join(basePath, "csi.sock")
 	endpoint := "unix://" + socket
 	cluster := "kubernetes"
-	nodeID := "fake-node"
 
-	d := cinder.NewDriver(nodeID, endpoint, cluster)
+	d := cinder.NewDriver(endpoint, cluster)
 	fakecloudprovider := getfakecloud()
 	openstack.OsInstance = fakecloudprovider
 

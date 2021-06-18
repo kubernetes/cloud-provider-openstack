@@ -18,7 +18,7 @@ spec:
       serviceAccountName: k8s-keystone
       containers:
         - name: k8s-keystone-auth
-          image: k8scloudprovider/k8s-keystone-auth:v1.21.0
+          image: k8scloudprovider/k8s-keystone-auth:latest
           args:
             - ./bin/k8s-keystone-auth
             - --tls-cert-file

@@ -38,6 +38,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+          resources: {{ toYaml .Values.csi.attacher.resources | nindent 12 }}
         - name: csi-provisioner
           image: "{{ .Values.csi.provisioner.image.repository }}:{{ .Values.csi.provisioner.image.tag }}"
           imagePullPolicy: {{ .Values.csi.provisioner.image.pullPolicy }}
@@ -53,6 +54,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+          resources: {{ toYaml .Values.csi.provisioner.resources | nindent 12 }}
         - name: csi-snapshotter
           image: "{{ .Values.csi.snapshotter.image.repository }}:{{ .Values.csi.snapshotter.image.tag }}"
           imagePullPolicy: {{ .Values.csi.snapshotter.image.pullPolicy }}
@@ -65,6 +67,7 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
+          resources: {{ toYaml .Values.csi.snapshotter.resources | nindent 12 }}
         - name: csi-resizer
           image: "{{ .Values.csi.resizer.image.repository }}:{{ .Values.csi.resizer.image.tag }}"
           imagePullPolicy: {{ .Values.csi.resizer.image.pullPolicy }}
@@ -78,6 +81,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+          resources: {{ toYaml .Values.csi.resizer.resources | nindent 12 }}
         - name: liveness-probe
           image: "{{ .Values.csi.livenessprobe.image.repository }}:{{ .Values.csi.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.csi.livenessprobe.image.pullPolicy }}
@@ -89,20 +93,16 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
+          resources: {{ toYaml .Values.csi.livenessprobe.resources | nindent 12 }}
         - name: cinder-csi-plugin
           image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
           args:
             - /bin/cinder-csi-plugin
-            - "--nodeid=$(NODE_ID)"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
           env:
-            - name: NODE_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
@@ -126,6 +126,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
             {{- .Values.csi.plugin.volumeMounts | toYaml | trimSuffix "\n" | nindent 12 }}
+          resources: {{ toYaml .Values.csi.plugin.resources | nindent 12 }}
       volumes:
         - name: socket-dir
           emptyDir:
@@ -138,3 +139,9 @@ spec:
             path: /etc/kubernetes
         {{- end }}
         {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
+      affinity: {{ toYaml .Values.csi.plugin.controllerPlugin.affinity | nindent 8 }}
+      nodeSelector: {{ toYaml .Values.csi.plugin.controllerPlugin.nodeSelector | nindent 8 }}
+      tolerations: {{ toYaml .Values.csi.plugin.controllerPlugin.tolerations | nindent 8 }}
+    {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+    {{- end }}
