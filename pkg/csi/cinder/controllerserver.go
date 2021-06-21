@@ -554,8 +554,37 @@ func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacit
 	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("GetCapacity is not yet implemented"))
 }
 
-func (cs *controllerServer) ControllerGetVolume(context.Context, *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("ControllerGetVolume is not yet implemented"))
+func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+
+	volumeID := req.GetVolumeId()
+
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	}
+
+	volume, err := cs.Cloud.GetVolume(volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)
+		}
+		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerGetVolume failed with error %v", err))
+	}
+
+	ventry := csi.ControllerGetVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      volumeID,
+			CapacityBytes: int64(volume.Size * 1024 * 1024 * 1024),
+		},
+	}
+
+	status := &csi.ControllerGetVolumeResponse_VolumeStatus{}
+	for _, attachment := range volume.Attachments {
+		status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
+	}
+	ventry.Status = status
+
+	return &ventry, nil
 }
 
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
