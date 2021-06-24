@@ -52,6 +52,10 @@ func (c Client) DeleteShare(shareID string) error {
 	return shares.Delete(c.c, shareID).ExtractErr()
 }
 
+func (c Client) ExtendShare(shareID string, opts shares.ExtendOptsBuilder) error {
+	return shares.Extend(c.c, shareID, opts).ExtractErr()
+}
+
 func (c Client) GetExportLocations(shareID string) ([]shares.ExportLocation, error) {
 	return shares.ListExportLocations(c.c, shareID).Extract()
 }

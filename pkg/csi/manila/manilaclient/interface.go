@@ -29,6 +29,7 @@ type Interface interface {
 	GetShareByName(shareName string) (*shares.Share, error)
 	CreateShare(opts shares.CreateOptsBuilder) (*shares.Share, error)
 	DeleteShare(shareID string) error
+	ExtendShare(shareID string, opts shares.ExtendOptsBuilder) error
 
 	GetExportLocations(shareID string) ([]shares.ExportLocation, error)
 

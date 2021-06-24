@@ -303,6 +303,22 @@ func validateValidateVolumeCapabilitiesRequest(req *csi.ValidateVolumeCapabiliti
 	return nil
 }
 
+func validateControllerExpandVolumeRequest(req *csi.ControllerExpandVolumeRequest) error {
+	if req.GetVolumeId() == "" {
+		return errors.New("volume ID missing in request")
+	}
+
+	if req.GetCapacityRange() == nil {
+		return errors.New("capacity range cannot be nil")
+	}
+
+	if req.GetSecrets() == nil || len(req.GetSecrets()) == 0 {
+		return errors.New("volume expand secrets cannot be nil or empty")
+	}
+
+	return nil
+}
+
 //
 // Node service request validation
 //
