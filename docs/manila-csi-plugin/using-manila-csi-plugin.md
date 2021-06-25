@@ -21,7 +21,7 @@
 
 # CSI Manila driver
 
-The CSI Manila driver is able to create, extend and mount OpenStack Manila shares. Snapshots and recovering shares from snapshots is supported as well (support for CephFS snapshots will be added soon).
+The CSI Manila driver is able to create, expand and mount OpenStack Manila shares. Snapshots and recovering shares from snapshots is supported as well (support for CephFS snapshots will be added soon).
 
 ## Configuration
 
