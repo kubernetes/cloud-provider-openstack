@@ -1537,7 +1537,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
 			listenerChanged = true
 		}
-		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
 			if svcConf.timeoutClientData != listener.TimeoutClientData {
 				updateOpts.TimeoutClientData = &svcConf.timeoutClientData
 				listenerChanged = true
@@ -1555,7 +1555,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, oldListeners []listener
 				listenerChanged = true
 			}
 		}
-		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
+		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
 			if !cpoutil.StringListEqual(svcConf.allowedCIDR, listener.AllowedCIDRs) {
 				updateOpts.AllowedCIDRs = &svcConf.allowedCIDR
 				listenerChanged = true
@@ -1583,7 +1583,7 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 		ConnLimit:    &svcConf.connLimit,
 	}
 
-	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
 		listenerCreateOpt.TimeoutClientData = &svcConf.timeoutClientData
 		listenerCreateOpt.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
 		listenerCreateOpt.TimeoutMemberData = &svcConf.timeoutMemberData
@@ -1769,7 +1769,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	svcConf.keepClientIP = keepClientIP
 	svcConf.enableProxyProtocol = useProxyProtocol
 
-	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout) {
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
 		svcConf.timeoutClientData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
 		svcConf.timeoutMemberConnect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutMemberConnect, 5000)
 		svcConf.timeoutMemberData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutMemberData, 50000)
@@ -1781,7 +1781,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	if err != nil {
 		return fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
-	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
 		klog.V(4).Info("LoadBalancerSourceRanges is suppported")
 		listenerAllowedCIDRs = sourceRanges.StringSlice()
 	} else {
@@ -1789,12 +1789,12 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 	svcConf.allowedCIDR = listenerAllowedCIDRs
 
-	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors) {
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
 		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
 	}
 
 	availabilityZone := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerAvailabilityZone, lbaas.opts.AvailabilityZone)
-	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureAvailabilityZones) {
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureAvailabilityZones, lbaas.opts.LBProvider) {
 		svcConf.availabilityZone = availabilityZone
 	} else if availabilityZone != "" {
 		klog.Warning("LoadBalancer Availability Zones aren't supported. Please, upgrade Octavia API to version 2.14 or later (Ussuri release) to use them")
@@ -2055,7 +2055,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
-	if lbaas.opts.UseOctavia && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
+	if lbaas.opts.UseOctavia && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
 		klog.V(4).Info("loadBalancerSourceRanges is supported")
 		listenerAllowedCIDRs = sourceRanges.StringSlice()
 	} else if !IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
@@ -2164,7 +2164,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			}
 
 			if lbaas.opts.UseOctavia {
-				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL) {
+				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
 					if !cpoutil.StringListEqual(listenerAllowedCIDRs, listener.AllowedCIDRs) {
 						updateOpts.AllowedCIDRs = &listenerAllowedCIDRs
 						listenerChanged = true
