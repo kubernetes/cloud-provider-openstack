@@ -91,7 +91,7 @@ func getOctaviaVersion(client *gophercloud.ServiceClient) (string, error) {
 }
 
 // IsOctaviaFeatureSupported returns true if the given feature is supported in the deployed Octavia version.
-func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int) bool {
+func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int, lbProvider string) bool {
 	octaviaVer, err := getOctaviaVersion(client)
 	if err != nil {
 		klog.Warningf("Failed to get current Octavia API version: %v", err)
@@ -102,6 +102,9 @@ func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int) b
 
 	switch feature {
 	case OctaviaFeatureVIPACL:
+		if lbProvider == "ovn" {
+			return false
+		}
 		verACL, _ := version.NewVersion("v2.12")
 		if currentVer.GreaterThanOrEqual(verACL) {
 			return true
@@ -112,16 +115,25 @@ func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int) b
 			return true
 		}
 	case OctaviaFeatureFlavors:
+		if lbProvider == "ovn" {
+			return false
+		}
 		verFlavors, _ := version.NewVersion("v2.6")
 		if currentVer.GreaterThanOrEqual(verFlavors) {
 			return true
 		}
 	case OctaviaFeatureTimeout:
+		if lbProvider == "ovn" {
+			return false
+		}
 		verFlavors, _ := version.NewVersion("v2.1")
 		if currentVer.GreaterThanOrEqual(verFlavors) {
 			return true
 		}
 	case OctaviaFeatureAvailabilityZones:
+		if lbProvider == "ovn" {
+			return false
+		}
 		verAvailabilityZones, _ := version.NewVersion("v2.14")
 		if currentVer.GreaterThanOrEqual(verAvailabilityZones) {
 			return true
