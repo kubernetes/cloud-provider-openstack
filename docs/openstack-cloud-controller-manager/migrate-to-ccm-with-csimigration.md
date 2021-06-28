@@ -109,6 +109,8 @@ This walks you through enabling needed `feature-gates` and explains necessary st
 
 The first step is to ebale the `feature-gates` on the control plane. We again use `kubeadm.yaml` and `kubeadm` to perform necessary tasks.
 
+**Note: From Kubernetes 1.21 or later, `CSIMigrationOpenStack` is enabled by default.**
+
 ```yaml
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
@@ -116,12 +118,8 @@ kubernetesVersion: "1.17.0-beta.1"
 networking:
   podSubnet: 10.96.0.0/16
   serviceSubnet: 10.97.0.0/16
-apiServer:
-  extraArgs:
-    feature-gates: "CSIMigration=true,CSIMigrationOpenStack=true,ExpandCSIVolumes=true"
 controllerManager:
   extraArgs:
-    feature-gates: "CSIMigration=true,CSIMigrationOpenStack=true,ExpandCSIVolumes=true"
     controllers: "*,bootstrapsigner,tokencleaner,-cloud-node-lifecycle,-route,-service"
     cloud-config: /etc/kubernetes/cloud.conf
     cloud-provider: openstack
@@ -141,6 +139,8 @@ kubeadm init --config ~ubuntu/kubeadm-migrate-1.yaml phase control-plane control
 ```
 
 You must now drain an existing node and enable the `feature-gates` on `kubelet`. (At this point, you could also change to `--cloud-provider=external` and remove the `--cloud-config` argument)
+
+**Note: For kubernetes 1.21 or later, all the feature gates are enabled by default.**
 
 ```bash
 cat >> /var/lib/kubelet/config.yaml<<EOF
@@ -188,12 +188,6 @@ kubernetesVersion: "1.17.0-beta.1"
 networking:
   podSubnet: 10.96.0.0/16
   serviceSubnet: 10.97.0.0/16
-apiServer:
-  extraArgs:
-    feature-gates: "CSIMigration=true,CSIMigrationOpenStack=true,ExpandCSIVolumes=true"
-controllerManager:
-  extraArgs:
-    feature-gates: "CSIMigration=true,CSIMigrationOpenStack=true,ExpandCSIVolumes=true"
 ```
 
 ```bash
