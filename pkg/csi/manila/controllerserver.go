@@ -424,7 +424,60 @@ func (cs *controllerServer) ListSnapshots(context.Context, *csi.ListSnapshotsReq
 }
 
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	if err := validateControllerExpandVolumeRequest(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	// Configuration
+
+	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
+	}
+
+	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
+	}
+
+	// Retrieve the share by its ID
+
+	share, err := manilaClient.GetShareByID(req.GetVolumeId())
+	if err != nil {
+		if clouderrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "share %s not found: %v", req.GetVolumeId(), err)
+		}
+
+		return nil, status.Errorf(codes.Internal, "failed to retrieve share %s: %v", req.GetVolumeId(), err)
+	}
+
+	// Check for pending operations on this volume
+	if _, isPending := pendingVolumes.LoadOrStore(share.Name, true); isPending {
+		return nil, status.Errorf(codes.Aborted, "volume named %s is already being processed", share.Name)
+	}
+	defer pendingVolumes.Delete(share.Name)
+
+	// Try to expand the share
+
+	currentSizeInBytes := int64(share.Size * bytesInGiB)
+
+	if currentSizeInBytes >= req.GetCapacityRange().GetRequiredBytes() {
+		// Share is already larger than requested size
+
+		return &csi.ControllerExpandVolumeResponse{
+			CapacityBytes: currentSizeInBytes,
+		}, nil
+	}
+
+	desiredSizeInGiB := int(req.GetCapacityRange().GetRequiredBytes() / bytesInGiB)
+
+	if err = extendShare(share, desiredSizeInGiB, manilaClient); err != nil {
+		return nil, err
+	}
+
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes: int64(desiredSizeInGiB * bytesInGiB),
+	}, nil
 }
 
 func (cs *controllerServer) ControllerGetVolume(context.Context, *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {

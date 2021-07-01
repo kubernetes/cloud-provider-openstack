@@ -57,6 +57,13 @@ func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.G
 				},
 			},
 		},
+		{
+			Type: &csi.PluginCapability_VolumeExpansion_{
+				VolumeExpansion: &csi.PluginCapability_VolumeExpansion{
+					Type: csi.PluginCapability_VolumeExpansion_ONLINE,
+				},
+			},
+		},
 	}
 
 	if ids.d.withTopology {
