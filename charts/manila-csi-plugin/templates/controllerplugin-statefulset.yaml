@@ -59,6 +59,21 @@ spec:
               mountPath: /var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}
           resources:
 {{ toYaml $.Values.controllerplugin.snapshotter.resources | indent 12 }}
+        - name: {{ .protocolSelector | lower }}-resizer
+          image: "{{ $.Values.controllerplugin.resizer.image.repository }}:{{ $.Values.controllerplugin.resizer.image.tag }}"
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--handle-volume-inuse-error=false"
+          env:
+            - name: ADDRESS
+              value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
+          imagePullPolicy: {{ $.Values.controllerplugin.resizer.image.pullPolicy }}
+          volumeMounts:
+            - name: {{ .protocolSelector | lower }}-plugin-dir
+              mountPath: /var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}
+          resources:
+{{ toYaml $.Values.controllerplugin.resizer.resources | indent 12 }}
         - name: {{ .protocolSelector | lower }}-nodeplugin
           securityContext:
             privileged: true
