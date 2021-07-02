@@ -31,7 +31,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-provisioner
           image: "{{ $.Values.controllerplugin.provisioner.image.repository }}:{{ $.Values.controllerplugin.provisioner.image.tag }}"
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             - "--feature-gates=Topology=true"
@@ -48,7 +47,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-snapshotter
           image: "{{ $.Values.controllerplugin.snapshotter.image.repository }}:{{ $.Values.controllerplugin.snapshotter.image.tag }}"
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
@@ -62,7 +60,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-resizer
           image: "{{ $.Values.controllerplugin.resizer.image.repository }}:{{ $.Values.controllerplugin.resizer.image.tag }}"
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--handle-volume-inuse-error=false"
           env:
@@ -83,7 +80,6 @@ spec:
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
-            --v=5
             --nodeid=$(NODE_ID)
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             --with-topology
