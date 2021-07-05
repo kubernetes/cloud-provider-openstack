@@ -38,7 +38,6 @@ spec:
         - name: provisioner
           image: "k8s.gcr.io/sig-storage/csi-provisioner:v2.0.2"
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
             # To enable topology awareness in csi-provisioner, uncomment the following line:
             # - "--feature-gates=Topology=true"
@@ -52,8 +51,19 @@ spec:
         - name: snapshotter
           image: "k8s.gcr.io/sig-storage/csi-snapshotter:v2.1.3"
           args:
-            - "--v=5"
             - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: "unix:///var/lib/kubelet/plugins/manila.csi.openstack.org/csi-controllerplugin.sock"
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
+        - name: resizer
+          image: "k8s.gcr.io/sig-storage/csi-resizer:v1.2.0"
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--handle-volume-inuse-error=false"
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/manila.csi.openstack.org/csi-controllerplugin.sock"
@@ -70,7 +80,6 @@ spec:
           image: "k8scloudprovider/manila-csi-plugin:latest"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
-            --v=5
             --nodeid=$(NODE_ID)
             --endpoint=$(CSI_ENDPOINT)
             --drivername=$(DRIVER_NAME)

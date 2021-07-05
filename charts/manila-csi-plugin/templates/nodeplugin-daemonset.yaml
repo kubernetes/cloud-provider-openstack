@@ -31,7 +31,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-registrar
           image: "{{ $.Values.nodeplugin.registrar.image.repository }}:{{ $.Values.nodeplugin.registrar.image.tag }}"
           args:
-            - "--v=5"
             - "--csi-address=/csi/csi.sock"
             - "--kubelet-registration-path=/var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi.sock"
           lifecycle:
@@ -64,7 +63,6 @@ spec:
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
-            --v=5
             --nodeid=$(NODE_ID)
             {{- if $.Values.csimanila.runtimeConfig.enabled }}
             --runtime-config-file=/runtimeconfig/runtimeconfig.json

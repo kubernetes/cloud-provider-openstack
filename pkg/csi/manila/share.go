@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -33,6 +35,7 @@ const (
 
 	shareCreating      = "creating"
 	shareDeleting      = "deleting"
+	shareExtending     = "extending"
 	shareError         = "error"
 	shareErrorDeleting = "error_deleting"
 	shareAvailable     = "available"
@@ -102,6 +105,27 @@ func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 	if err != nil && err != wait.ErrWaitTimeout {
 		klog.Errorf("couldn't retrieve share %s in a roll-back procedure: %v", share.ID, err)
 	}
+}
+
+func extendShare(share *shares.Share, newSizeInGiB int, manilaClient manilaclient.Interface) error {
+	opts := shares.ExtendOpts{
+		NewSize: newSizeInGiB,
+	}
+
+	if err := manilaClient.ExtendShare(share.ID, opts); err != nil {
+		return err
+	}
+
+	share, manilaErrCode, err := waitForShareStatus(share.ID, shareExtending, shareAvailable, false, manilaClient)
+	if err != nil {
+		if err == wait.ErrWaitTimeout {
+			return status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
+		}
+
+		return status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to resize share %s: %v", share.ID, err)
+	}
+
+	return nil
 }
 
 func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {

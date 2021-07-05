@@ -17,12 +17,13 @@ limitations under the License.
 package sanity
 
 import (
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
+	"fmt"
 	"strconv"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
@@ -114,6 +115,27 @@ func (c fakeManilaClient) DeleteShare(shareID string) error {
 	}
 
 	delete(fakeShares, id)
+	return nil
+}
+
+func (c fakeManilaClient) ExtendShare(shareID string, opts shares.ExtendOptsBuilder) error {
+	share, err := c.GetShareByID(shareID)
+	if err != nil {
+		return err
+	}
+
+	var res shares.ExtendResult
+	res.Body = opts
+
+	extendOpts := &shares.ExtendOpts{}
+	if err := res.ExtractInto(extendOpts); err != nil {
+		return err
+	}
+
+	if extendOpts.NewSize < share.Size {
+		return fmt.Errorf("new size is smaller than old size: %d < %d", extendOpts.NewSize, share.Size)
+	}
+
 	return nil
 }
 
