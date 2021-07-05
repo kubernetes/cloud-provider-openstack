@@ -23,7 +23,6 @@ spec:
         - name: registrar
           image: "k8s.gcr.io/sig-storage/csi-node-driver-registrar:v1.3.0"
           args:
-            - "--v=5"
             - "--csi-address=/csi/csi.sock"
             - "--kubelet-registration-path=/var/lib/kubelet/plugins/manila.csi.openstack.org/csi.sock"
           lifecycle:
@@ -54,7 +53,6 @@ spec:
           image: "k8scloudprovider/manila-csi-plugin:latest"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
-            --v=5
             --nodeid=$(NODE_ID)
             --endpoint=$(CSI_ENDPOINT)
             --drivername=$(DRIVER_NAME)
