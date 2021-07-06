@@ -381,6 +381,10 @@ func TestListVolumes(t *testing.T) {
 				},
 				Status: &csi.ListVolumesResponse_VolumeStatus{
 					PublishedNodeIds: []string{FakeNodeID},
+					VolumeCondition: &csi.VolumeCondition{
+						Abnormal: false,
+						Message:  "available",
+					},
 				},
 			},
 			{
@@ -388,7 +392,12 @@ func TestListVolumes(t *testing.T) {
 					VolumeId:      FakeVol3.ID,
 					CapacityBytes: int64(FakeVol3.Size * 1024 * 1024 * 1024),
 				},
-				Status: &csi.ListVolumesResponse_VolumeStatus{},
+				Status: &csi.ListVolumesResponse_VolumeStatus{
+					VolumeCondition: &csi.VolumeCondition{
+						Abnormal: false,
+						Message:  "available",
+					},
+				},
 			},
 		},
 		NextToken: "",

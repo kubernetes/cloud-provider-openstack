@@ -313,6 +313,12 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		for _, attachment := range v.Attachments {
 			status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
 		}
+
+		condition := &csi.VolumeCondition{
+			Abnormal: openstack.IsAbnormalVolume(v.Status),
+			Message:  v.Status,
+		}
+		status.VolumeCondition = condition
 		ventry.Status = status
 
 		ventries = append(ventries, &ventry)
@@ -586,6 +592,11 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 	for _, attachment := range volume.Attachments {
 		status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
 	}
+	condition := &csi.VolumeCondition{
+		Abnormal: openstack.IsAbnormalVolume(volume.Status),
+		Message:  volume.Status,
+	}
+	status.VolumeCondition = condition
 	ventry.Status = status
 
 	return &ventry, nil
