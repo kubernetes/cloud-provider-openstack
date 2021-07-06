@@ -13,8 +13,9 @@ import (
 )
 
 type cinderDriver struct {
-	driverInfo storageframework.DriverInfo
-	manifests  []string
+	driverInfo       storageframework.DriverInfo
+	manifests        []string
+	volumeAttributes []map[string]string
 }
 
 var Cinderdriver = InitCinderDriver
@@ -58,6 +59,9 @@ func initCinderDriver(name string, manifests ...string) storageframework.TestDri
 			},
 		},
 		manifests: manifests,
+		volumeAttributes: []map[string]string{
+			{"capacity": "1Gi"},
+		},
 	}
 }
 
@@ -75,6 +79,7 @@ var (
 	_ storageframework.TestDriver              = &cinderDriver{}
 	_ storageframework.DynamicPVTestDriver     = &cinderDriver{}
 	_ storageframework.SnapshottableTestDriver = &cinderDriver{}
+	_ storageframework.EphemeralTestDriver     = &cinderDriver{}
 )
 
 func (d *cinderDriver) GetDriverInfo() *storageframework.DriverInfo {
@@ -103,6 +108,14 @@ func (d *cinderDriver) GetSnapshotClass(config *storageframework.PerTestConfig, 
 
 func (d *cinderDriver) GetClaimSize() string {
 	return "2Gi"
+}
+
+func (d *cinderDriver) GetVolume(config *storageframework.PerTestConfig, volumeNumber int) (map[string]string, bool, bool) {
+	return d.volumeAttributes[volumeNumber%len(d.volumeAttributes)], false /* not shared */, false /* read-write */
+}
+
+func (d *cinderDriver) GetCSIDriverName(config *storageframework.PerTestConfig) string {
+	return d.driverInfo.Name
 }
 
 func (d *cinderDriver) PrepareTest(f *framework.Framework) (*storageframework.PerTestConfig, func()) {
