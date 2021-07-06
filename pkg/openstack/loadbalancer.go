@@ -135,6 +135,8 @@ type TweakSubNetListOpsFunction func(*subnets.ListOpts)
 // matcher matches a subnet
 type matcher func(subnet *subnets.Subnet) bool
 
+var _ cloudprovider.LoadBalancer = &LbaasV2{}
+
 // negate returns a negated matches for a given one
 func negate(f matcher) matcher { return func(s *subnets.Subnet) bool { return !f(s) } }
 
@@ -410,7 +412,7 @@ func getLoadbalancerByName(client *gophercloud.ServiceClient, name string, legac
 				return nil, err
 			}
 		} else {
-			return nil, ErrNotFound
+			return nil, cpoerrors.ErrNotFound
 		}
 	}
 
@@ -422,10 +424,10 @@ func getLoadbalancerByName(client *gophercloud.ServiceClient, name string, legac
 	}
 
 	if len(validLBs) > 1 {
-		return nil, ErrMultipleResults
+		return nil, cpoerrors.ErrMultipleResults
 	}
 	if len(validLBs) == 0 {
-		return nil, ErrNotFound
+		return nil, cpoerrors.ErrNotFound
 	}
 
 	return &validLBs[0], nil
@@ -778,7 +780,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	legacyName := lbaas.GetLoadBalancerLegacyName(ctx, clusterName, service)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name, legacyName)
-	if err == ErrNotFound {
+	if err == cpoerrors.ErrNotFound {
 		return nil, false, nil
 	}
 	if loadbalancer == nil {
@@ -832,7 +834,7 @@ func cutString(original string) string {
 func nodeAddressForLB(node *corev1.Node) (string, error) {
 	addrs := node.Status.Addresses
 	if len(addrs) == 0 {
-		return "", ErrNoAddressFound
+		return "", cpoerrors.ErrNoAddressFound
 	}
 
 	allowedAddrTypes := []corev1.NodeAddressType{corev1.NodeInternalIP, corev1.NodeExternalIP}
@@ -845,7 +847,7 @@ func nodeAddressForLB(node *corev1.Node) (string, error) {
 		}
 	}
 
-	return "", ErrNoAddressFound
+	return "", cpoerrors.ErrNoAddressFound
 }
 
 //getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
@@ -928,7 +930,7 @@ func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node) (str
 		}
 	}
 
-	return "", ErrNotFound
+	return "", cpoerrors.ErrNotFound
 }
 
 // getPorts gets all the filtered ports.
@@ -1088,16 +1090,16 @@ func getFloatingNetworkIDForLB(client *gophercloud.ServiceClient) (string, error
 		}
 
 		if len(floatingNetworkIds) > 1 {
-			return false, ErrMultipleResults
+			return false, cpoerrors.ErrMultipleResults
 		}
 		return true, nil
 	})
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return "", mc.ObserveRequest(ErrNotFound)
+			return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
 		}
 
-		if err == ErrMultipleResults {
+		if err == cpoerrors.ErrMultipleResults {
 			klog.V(4).Infof("found multiple external networks, pick the first one when there are no explicit configuration.")
 			return floatingNetworkIds[0], mc.ObserveRequest(nil)
 		}
@@ -1105,7 +1107,7 @@ func getFloatingNetworkIDForLB(client *gophercloud.ServiceClient) (string, error
 	}
 
 	if len(floatingNetworkIds) == 0 {
-		return "", mc.ObserveRequest(ErrNotFound)
+		return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
 	}
 
 	return floatingNetworkIds[0], mc.ObserveRequest(nil)
@@ -1457,7 +1459,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 	for _, node := range nodes {
 		addr, err := nodeAddressForLB(node)
 		if err != nil {
-			if err == ErrNoAddressFound {
+			if err == cpoerrors.ErrNoAddressFound {
 				// Node failure, do not create member
 				klog.Warningf("Failed to get the address of node %s for creating member: %v", node.Name, err)
 				continue
@@ -1824,7 +1826,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name, legacyName)
 	fullyPopulated := false
 	if err != nil {
-		if err != ErrNotFound {
+		if err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 		}
 
@@ -2078,7 +2080,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 	legacyName := lbaas.GetLoadBalancerLegacyName(ctx, clusterName, apiService)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name, legacyName)
 	if err != nil {
-		if err != ErrNotFound {
+		if err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 		}
 
@@ -2235,7 +2237,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		for _, node := range nodes {
 			addr, err := nodeAddressForLB(node)
 			if err != nil {
-				if err == ErrNotFound {
+				if err == cpoerrors.ErrNotFound {
 					// Node failure, do not create member
 					klog.Warningf("Failed to create LB pool member for node %s: %v", node.Name, err)
 					continue
@@ -3125,7 +3127,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	legacyName := lbaas.GetLoadBalancerLegacyName(ctx, clusterName, service)
 	loadbalancer, err := getLoadbalancerByName(lbaas.lb, name, legacyName)
-	if err != nil && err != ErrNotFound {
+	if err != nil && err != cpoerrors.ErrNotFound {
 		return err
 	}
 	if loadbalancer == nil {
