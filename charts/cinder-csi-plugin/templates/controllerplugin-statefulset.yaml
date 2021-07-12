@@ -6,7 +6,7 @@ metadata:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
   clusterIP: None
----    
+--- 
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
