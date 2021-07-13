@@ -273,7 +273,9 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			publishSecret, err = buildNodePublishSecret(accessRight, getShareAdapter(ns.d.shareProto), volID)
 		}
 
-		ns.nodeStageCache[volID] = stageCacheEntry{volumeContext: volumeCtx, stageSecret: stageSecret, publishSecret: publishSecret}
+		if err == nil {
+			ns.nodeStageCache[volID] = stageCacheEntry{volumeContext: volumeCtx, stageSecret: stageSecret, publishSecret: publishSecret}
+		}
 	}
 	ns.nodeStageCacheMtx.Unlock()
 
