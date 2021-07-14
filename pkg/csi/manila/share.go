@@ -63,10 +63,10 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 			}
 		} else {
 			// Something else is wrong
-			return nil, 0, fmt.Errorf("failed to probe for a share named %s: %v", shareName, err)
+			return nil, 0, fmt.Errorf("failed to retrieve volume %s: %v", shareName, err)
 		}
 	} else {
-		klog.V(4).Infof("a share named %s already exists", shareName)
+		klog.V(4).Infof("volume %s already exists", shareName)
 	}
 
 	// It exists, wait till it's Available
@@ -81,7 +81,7 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 func deleteShare(shareID string, manilaClient manilaclient.Interface) error {
 	if err := manilaClient.DeleteShare(shareID); err != nil {
 		if clouderrors.IsNotFound(err) {
-			klog.V(4).Infof("share %s not found, assuming it to be already deleted", shareID)
+			klog.V(4).Infof("volume with share ID %s not found, assuming it to be already deleted", shareID)
 		} else {
 			return err
 		}
@@ -97,13 +97,13 @@ func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 
 	if err := manilaClient.DeleteShare(share.ID); err != nil {
 		// TODO failure to delete a share in an error state needs proper monitoring support
-		klog.Errorf("couldn't delete share %s in a roll-back procedure: %v", share.ID, err)
+		klog.Errorf("couldn't delete volume %s in a roll-back procedure: %v", share.Name, err)
 		return
 	}
 
 	_, _, err := waitForShareStatus(share.ID, shareDeleting, "", true, manilaClient)
 	if err != nil && err != wait.ErrWaitTimeout {
-		klog.Errorf("couldn't retrieve share %s in a roll-back procedure: %v", share.ID, err)
+		klog.Errorf("couldn't retrieve volume %s in a roll-back procedure: %v", share.Name, err)
 	}
 }
 
@@ -119,10 +119,10 @@ func extendShare(share *shares.Share, newSizeInGiB int, manilaClient manilaclien
 	share, manilaErrCode, err := waitForShareStatus(share.ID, shareExtending, shareAvailable, false, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
+			return status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
 		}
 
-		return status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to resize share %s: %v", share.ID, err)
+		return status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to resize volume %s: %v", share.Name, err)
 	}
 
 	return nil

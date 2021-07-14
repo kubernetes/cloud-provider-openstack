@@ -25,7 +25,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
-	"k8s.io/klog/v2"
 )
 
 type volumeCreator interface {
@@ -35,8 +34,6 @@ type volumeCreator interface {
 type blankVolume struct{}
 
 func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
-	klog.V(4).Infof("creating a new share (%s) in AZ %s", shareName, coalesceValue(shareOpts.AvailabilityZone))
-
 	createOpts := &shares.CreateOpts{
 		AvailabilityZone: shareOpts.AvailabilityZone,
 		ShareProto:       shareOpts.Protocol,
@@ -51,7 +48,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", shareName)
 		}
 
 		if manilaErrCode != 0 {
@@ -59,7 +56,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 			tryDeleteShare(share, manilaClient)
 		}
 
-		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to create a share (%s): %v", shareName, err)
+		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to create volume %s: %v", shareName, err)
 	}
 
 	return share, err
@@ -78,8 +75,6 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 	if snapshotSource.GetSnapshotId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "snapshot ID cannot be empty")
 	}
-
-	klog.V(4).Infof("restoring snapshot %s into a share (%s) in AZ %s", snapshotSource.GetSnapshotId(), shareName, coalesceValue(shareOpts.AvailabilityZone))
 
 	snapshot, err := manilaClient.GetSnapshotByID(snapshotSource.GetSnapshotId())
 	if err != nil {
@@ -113,7 +108,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for share %s to become available", share.ID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", share.Name)
 		}
 
 		if manilaErrCode != 0 {
@@ -121,7 +116,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 			tryDeleteShare(share, manilaClient)
 		}
 
-		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to restore snapshot %s into a share (%s): %v", snapshotSource.GetSnapshotId(), shareName, err)
+		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to restore snapshot %s into volume %s: %v", snapshotSource.GetSnapshotId(), shareName, err)
 	}
 
 	return share, err
