@@ -52,13 +52,13 @@ csi:
     volumes:
       - name: cacert
         hostPath:
-          path: /etc/cacert
+          path: /etc/ssl/certs
     volumeMounts:
       - name: cacert
-        mountPath: /etc/cacert
+        mountPath: /etc/ssl/certs
         readOnly: true
       - name: cloud-config
-        mountPath: /etc/kubernetes
+        mountPath: /etc/config
         readOnly: true
     nodePlugin:
       affinity: {}
