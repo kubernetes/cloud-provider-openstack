@@ -183,7 +183,7 @@ endif
 import-boss:
 ifndef HAS_IMPORT_BOSS
 	echo "installing import-boss"
-	go install k8s.io/code-generator/cmd/import-boss
+	go install k8s.io/code-generator/cmd/import-boss@v0.22.0
 endif
 	hack/verify-import-boss.sh
 
