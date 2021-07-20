@@ -1,8 +1,6 @@
 package test
 
 import (
-	"fmt"
-
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -101,9 +99,8 @@ func (d *cinderDriver) GetDynamicProvisionStorageClass(config *storageframework.
 
 func (d *cinderDriver) GetSnapshotClass(config *storageframework.PerTestConfig, parameters map[string]string) *unstructured.Unstructured {
 	snapshotter := d.driverInfo.Name
-	suffix := fmt.Sprintf("%s-vsc", snapshotter)
 	ns := config.Framework.Namespace.Name
-	return utils.GenerateSnapshotClassSpec(snapshotter, parameters, ns, suffix)
+	return utils.GenerateSnapshotClassSpec(snapshotter, parameters, ns)
 }
 
 func (d *cinderDriver) GetClaimSize() string {
