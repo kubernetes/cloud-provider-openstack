@@ -29,9 +29,11 @@ type ControllerVolumeContext struct {
 
 	// Adapter options
 
-	CephfsMounter  string `name:"cephfs-mounter" value:"default:fuse" matches:"^kernel|fuse$"`
-	CephfsClientID string `name:"cephfs-clientID" value:"optional"`
-	NFSShareClient string `name:"nfs-shareClient" value:"default:0.0.0.0/0"`
+	CephfsMounter            string `name:"cephfs-mounter" value:"default:fuse" matches:"^kernel|fuse$"`
+	CephfsClientID           string `name:"cephfs-clientID" value:"optional"`
+	CephfsKernelMountOptions string `name:"cephfs-kernelMountOptions" value:"optional"`
+	CephfsFuseMountOptions   string `name:"cephfs-fuseMountOptions" value:"optional"`
+	NFSShareClient           string `name:"nfs-shareClient" value:"default:0.0.0.0/0"`
 }
 
 type NodeVolumeContext struct {
@@ -41,7 +43,9 @@ type NodeVolumeContext struct {
 
 	// Adapter options
 
-	CephfsMounter string `name:"cephfs-mounter" value:"default:fuse" matches:"^kernel|fuse$"`
+	CephfsMounter            string `name:"cephfs-mounter" value:"default:fuse" matches:"^kernel|fuse$"`
+	CephfsKernelMountOptions string `name:"cephfs-kernelMountOptions" value:"optional"`
+	CephfsFuseMountOptions   string `name:"cephfs-fuseMountOptions" value:"optional"`
 }
 
 var (
