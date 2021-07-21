@@ -37,7 +37,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-          imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -83,7 +82,6 @@ spec:
             initialDelaySeconds: {{ .Values.csi.livenessprobe.initialDelaySeconds }}
             timeoutSeconds: {{ .Values.csi.livenessprobe.timeoutSeconds }}
             periodSeconds: {{ .Values.csi.livenessprobe.periodSeconds }}
-          imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
