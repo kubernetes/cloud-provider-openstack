@@ -97,7 +97,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Check for pending CreateVolume for this volume name
 	if _, isPending := pendingVolumes.LoadOrStore(req.GetName(), true); isPending {
-		return nil, status.Errorf(codes.Aborted, "a volume named %s is already being created", req.GetName())
+		return nil, status.Errorf(codes.Aborted, "volume %s is already being processed", req.GetName())
 	}
 	defer pendingVolumes.Delete(req.GetName())
 
@@ -132,22 +132,20 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	if err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts, cs.d.compatOpts, shareTypeCaps); err != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "a share named %s already exists, but is incompatible with the request: %v", req.GetName(), err)
+		return nil, status.Errorf(codes.AlreadyExists, "volume %s already exists, but is incompatible with the request: %v", req.GetName(), err)
 	}
 
 	// Grant access to the share
 
 	ad := getShareAdapter(shareOpts.Protocol)
 
-	klog.V(4).Infof("creating an access rule for share %s", share.ID)
-
 	accessRight, err := ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rights %s for share %s to become available", accessRight.ID, share.ID)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rule %s for volume %s to become available", accessRight.ID, share.Name)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to grant access for share %s: %v", share.ID, err)
+		return nil, status.Errorf(codes.Internal, "failed to grant access to volume %s: %v", share.Name, err)
 	}
 
 	// Check if compatibility layer is needed and can be used
@@ -197,7 +195,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	}
 
 	if err := deleteShare(req.GetVolumeId(), manilaClient); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete share %s: %v", req.GetVolumeId(), err)
+		return nil, status.Errorf(codes.Internal, "failed to delete volume %s: %v", req.GetVolumeId(), err)
 	}
 
 	return &csi.DeleteVolumeResponse{}, nil
@@ -223,7 +221,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Check for pending CreateSnapshots for this snapshot name
 	if _, isPending := pendingSnapshots.LoadOrStore(req.GetName(), true); isPending {
-		return nil, status.Errorf(codes.Aborted, "a snapshot named %s is already being created", req.GetName())
+		return nil, status.Errorf(codes.Aborted, "snapshot %s is already being processed", req.GetName())
 	}
 	defer pendingSnapshots.Delete(req.GetName())
 
@@ -237,32 +235,30 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	sourceShare, err := manilaClient.GetShareByID(req.GetSourceVolumeId())
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
+			return nil, status.Errorf(codes.NotFound, "failed to create snapshot %s for volume %s because the volume doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to retrieve source share %s when creating a snapshot (%s): %v", req.GetSourceVolumeId(), req.GetName(), err)
+		return nil, status.Errorf(codes.Internal, "failed to retrieve source volume %s when creating snapshot %s: %v", req.GetSourceVolumeId(), req.GetName(), err)
 	}
 
 	if strings.ToUpper(sourceShare.ShareProto) != cs.d.shareProto {
-		return nil, status.Errorf(codes.InvalidArgument, "share protocol mismatch: requested a snapshot of %s share %s, but share protocol selector is set to %s",
+		return nil, status.Errorf(codes.InvalidArgument, "share protocol mismatch: requested snapshot of %s volume %s, but share protocol selector is set to %s",
 			sourceShare.ShareProto, req.GetSourceVolumeId(), cs.d.shareProto)
 	}
 
 	// Retrieve an existing snapshot or create a new one
 
-	klog.V(4).Infof("creating a snapshot (%s) of share %s", req.GetName(), req.GetSourceVolumeId())
-
 	snapshot, err := getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of share %s to become available", snapshot.ID, req.GetSourceVolumeId())
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of volume %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 
 		if clouderrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "failed to create a snapshot (%s) for share %s because the share doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
+			return nil, status.Errorf(codes.NotFound, "failed to create snapshot %s for volume %s because the volume doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to create a snapshot (%s) of share %s: %v", req.GetName(), req.GetSourceVolumeId(), err)
+		return nil, status.Errorf(codes.Internal, "failed to create a snapshot %s of volume  %s: %v", req.GetName(), req.GetSourceVolumeId(), err)
 	}
 
 	if err = verifySnapshotCompatibility(snapshot, req); err != nil {
@@ -284,12 +280,12 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 		manilaErrMsg, err := lastResourceError(snapshot.ID, manilaClient)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "snapshot %s of share %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err.Error())
+			return nil, status.Errorf(codes.Internal, "snapshot %s of volume %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err.Error())
 		}
 
-		return nil, status.Errorf(manilaErrMsg.errCode.toRpcErrorCode(), "snapshot %s of share %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
+		return nil, status.Errorf(manilaErrMsg.errCode.toRpcErrorCode(), "snapshot %s of volume %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
 	default:
-		return nil, status.Errorf(codes.Internal, "an error occurred while creating a snapshot (%s) of share %s: snapshot is in an unexpected state: wanted creating/available, got %s",
+		return nil, status.Errorf(codes.Internal, "an error occurred while creating snapshot %s of volume %s: snapshot is in an unexpected state: wanted creating/available, got %s",
 			req.GetName(), req.GetSourceVolumeId(), snapshot.Status)
 	}
 
@@ -376,18 +372,18 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	share, err := manilaClient.GetShareByID(req.GetVolumeId())
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "share %s not found: %v", req.GetVolumeId(), err)
+			return nil, status.Errorf(codes.NotFound, "volume %s not found: %v", req.GetVolumeId(), err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to retrieve share %s: %v", req.GetVolumeId(), err)
+		return nil, status.Errorf(codes.Internal, "failed to retrieve volume %s: %v", req.GetVolumeId(), err)
 	}
 
 	if share.Status != shareAvailable {
 		if share.Status == shareCreating {
-			return nil, status.Errorf(codes.Unavailable, "share %s is in transient creating state", share.ID)
+			return nil, status.Errorf(codes.Unavailable, "volume %s is in transient creating state", req.GetVolumeId())
 		}
 
-		return nil, status.Errorf(codes.FailedPrecondition, "share %s is in an unexpected state: wanted %s, got %s", share.ID, shareAvailable, share.Status)
+		return nil, status.Errorf(codes.FailedPrecondition, "volume %s is in an unexpected state: wanted %s, got %s", req.GetVolumeId(), shareAvailable, share.Status)
 	}
 
 	if !compareProtocol(share.ShareProto, cs.d.shareProto) {
@@ -445,15 +441,15 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 	share, err := manilaClient.GetShareByID(req.GetVolumeId())
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "share %s not found: %v", req.GetVolumeId(), err)
+			return nil, status.Errorf(codes.NotFound, "volume %s not found: %v", req.GetVolumeId(), err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to retrieve share %s: %v", req.GetVolumeId(), err)
+		return nil, status.Errorf(codes.Internal, "failed to retrieve volume %s: %v", req.GetVolumeId(), err)
 	}
 
 	// Check for pending operations on this volume
-	if _, isPending := pendingVolumes.LoadOrStore(share.Name, true); isPending {
-		return nil, status.Errorf(codes.Aborted, "volume named %s is already being processed", share.Name)
+	if _, isPending := pendingVolumes.LoadOrStore(req.GetVolumeId(), true); isPending {
+		return nil, status.Errorf(codes.Aborted, "volume %s is already being processed", share.Name)
 	}
 	defer pendingVolumes.Delete(share.Name)
 

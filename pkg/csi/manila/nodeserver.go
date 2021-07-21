@@ -62,20 +62,22 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	if shareOpts.ShareID != "" {
 		share, err = manilaClient.GetShareByID(shareOpts.ShareID)
 		if err != nil {
+			errCode := codes.Internal
 			if clouderrors.IsNotFound(err) {
-				return nil, nil, status.Errorf(codes.NotFound, "share %s not found: %v", shareOpts.ShareID, err)
+				errCode = codes.NotFound
 			}
 
-			return nil, nil, status.Errorf(codes.Internal, "failed to retrieve share %s: %v", shareOpts.ShareID, err)
+			return nil, nil, status.Errorf(errCode, "failed to retrieve volume with share ID %s: %v", shareOpts.ShareID, err)
 		}
 	} else {
 		share, err = manilaClient.GetShareByName(shareOpts.ShareName)
 		if err != nil {
+			errCode := codes.Internal
 			if clouderrors.IsNotFound(err) {
-				return nil, nil, status.Errorf(codes.NotFound, "no share named %s found: %v", shareOpts.ShareName, err)
+				errCode = codes.NotFound
 			}
 
-			return nil, nil, status.Errorf(codes.Internal, "failed to retrieve share named %s: %v", shareOpts.ShareName, err)
+			return nil, nil, status.Errorf(errCode, "failed to retrieve volume with share name %s: %v", shareOpts.ShareName, err)
 		}
 	}
 
@@ -83,25 +85,24 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 
 	if strings.ToLower(share.ShareProto) != strings.ToLower(ns.d.shareProto) {
 		return nil, nil, status.Errorf(codes.InvalidArgument,
-			"wrong share protocol %s for volume %s (share ID %s), the plugin is set to operate in %s",
-			share.ShareProto, volID, share.ID, ns.d.shareProto)
+			"wrong share protocol %s for volume %s, the plugin is set to operate in %s",
+			share.ShareProto, volID, ns.d.shareProto)
 	}
 
 	if share.Status != shareAvailable {
 		if share.Status == shareCreating {
-			return nil, nil, status.Errorf(codes.Unavailable, "share %s for volume %s is in transient creating state", share.ID, volID)
+			return nil, nil, status.Errorf(codes.Unavailable, "volume %s is in transient creating state", volID)
 		}
 
-		return nil, nil, status.Errorf(codes.FailedPrecondition, "invalid share status for volume %s (share ID %s): expected 'available', got '%s'",
-			volID, share.ID, share.Status)
+		return nil, nil, status.Errorf(codes.FailedPrecondition, "invalid share status for volume %s: expected 'available', got '%s'",
+			volID, share.Status)
 	}
 
 	// Get the access right for this share
 
 	accessRights, err := manilaClient.GetAccessRights(share.ID)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "failed to list access rights for volume %s (share ID %s): %v",
-			volID, share.ID, err)
+		return nil, nil, status.Errorf(codes.Internal, "failed to list access rights for volume %s: %v", volID, err)
 	}
 
 	for i := range accessRights {
@@ -112,8 +113,8 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	}
 
 	if accessRight == nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot find access right %s for volume %s (share ID %s)",
-			shareOpts.ShareAccessID, volID, share.ID)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot find access right %s for volume %s",
+			shareOpts.ShareAccessID, volID)
 	}
 
 	// Retrieve list of all export locations for this share.
@@ -273,7 +274,9 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			publishSecret, err = buildNodePublishSecret(accessRight, getShareAdapter(ns.d.shareProto), volID)
 		}
 
-		ns.nodeStageCache[volID] = stageCacheEntry{volumeContext: volumeCtx, stageSecret: stageSecret, publishSecret: publishSecret}
+		if err == nil {
+			ns.nodeStageCache[volID] = stageCacheEntry{volumeContext: volumeCtx, stageSecret: stageSecret, publishSecret: publishSecret}
+		}
 	}
 	ns.nodeStageCacheMtx.Unlock()
 
