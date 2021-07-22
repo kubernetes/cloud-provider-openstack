@@ -66,7 +66,11 @@ This feature enables creating volume snapshots and restore volume from snapshot.
 * To avail the feature. deploy the snapshot-controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver) . For more info, refer [Snapshot Controller](https://kubernetes-csi.github.io/docs/snapshot-controller.html)
 * For example on using snapshot feature, refer [sample app](./examples#snapshot-create-and-restore)
 
-## Inline Volumes
+## Ephemeral Volumes
+
+Two different Kubernetes features allow volumes to follow the Pod's lifecycle: CSI Ephemeral Volumes and Generic Ephemeral Volumes
+
+### CSI Ephemeral Volumes
 
 This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts.
 
@@ -74,6 +78,12 @@ This feature allows CSI volumes to be directly embedded in the Pod specification
 * To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes.
 * `podInfoOnMount` must be `true` to use this feature.
 * For usage, refer [sample app](./examples.md#deploy-app-using-inline-volumes)
+
+### Generic Ephemeral Volumes
+
+As of Kubernetes v1.21, this is beta feature and enabled by default.
+
+The key design idea is that the parameters for a volume claim are allowed inside a volume source of the Pod. For sample app, refer [here](../../examples/cinder-csi-plugin/ephemeral/generic-ephemeral-volumes.yaml)
 
 ## Volume Cloning
 
