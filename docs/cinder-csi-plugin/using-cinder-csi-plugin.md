@@ -228,7 +228,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 * [Volume Expansion](./features.md#volume-expansion)
 * [Volume Cloning](./features.md#volume-cloning)
 * [Volume Snapshots](./features.md#volume-snapshots)
-* [Inline Volumes](./features.md#inline-volumes)
+* [Ephemeral Volumes](./features.md#inline-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
 * [Liveness probe](./features.md#liveness-probe)
 
