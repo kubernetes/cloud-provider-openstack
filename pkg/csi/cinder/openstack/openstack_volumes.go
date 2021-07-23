@@ -398,3 +398,14 @@ func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
 func (os *OpenStack) GetBlockStorageOpts() BlockStorageOpts {
 	return os.bsOpts
 }
+
+// IsAbnormalVolume returns whether the volume is abnormal
+func IsAbnormalVolume(status string) bool {
+	for _, eState := range volumeErrorStates {
+		if status == eState {
+			return true
+		}
+	}
+
+	return false
+}
