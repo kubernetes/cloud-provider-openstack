@@ -18,21 +18,20 @@ package openstack
 
 import (
 	"context"
-	"errors"
 	"net"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/pagination"
 
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog/v2"
 )
-
-var errNoRouterID = errors.New("router-id not set in cloud provider config")
 
 // Routes implements the cloudprovider.Routes for OpenStack clouds
 type Routes struct {
@@ -42,10 +41,12 @@ type Routes struct {
 	networkingOpts NetworkingOpts
 }
 
+var _ cloudprovider.Routes = &Routes{}
+
 // NewRoutes creates a new instance of Routes
 func NewRoutes(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, opts RouterOpts, networkingOpts NetworkingOpts) (cloudprovider.Routes, error) {
 	if opts.RouterID == "" {
-		return nil, errNoRouterID
+		return nil, errors.ErrNoRouterID
 	}
 
 	return &Routes{
@@ -105,6 +106,26 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	}
 
 	return routes, nil
+}
+
+func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuilder, handler func(*servers.Server) (bool, error)) error {
+	mc := metrics.NewMetricContext("server", "list")
+	pager := servers.List(client, opts)
+
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		s, err := servers.ExtractServers(page)
+		if err != nil {
+			return false, err
+		}
+		for _, server := range s {
+			ok, err := handler(&server)
+			if !ok || err != nil {
+				return false, err
+			}
+		}
+		return true, nil
+	})
+	return mc.ObserveRequest(err)
 }
 
 func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, newRoutes []routers.Route) (func(), error) {
@@ -339,7 +360,7 @@ func getPortIDByIP(compute *gophercloud.ServiceClient, targetNode types.NodeName
 		}
 	}
 
-	return "", ErrNotFound
+	return "", errors.ErrNotFound
 }
 
 func getPortByID(client *gophercloud.ServiceClient, portID string) (*neutronports.Port, error) {
@@ -350,7 +371,7 @@ func getPortByID(client *gophercloud.ServiceClient, portID string) (*neutronport
 	}
 
 	if targetPort == nil {
-		return nil, ErrNotFound
+		return nil, errors.ErrNotFound
 	}
 
 	return targetPort, nil
