@@ -1,0 +1,32 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: scratch-storage-class 
+provisioner: cinder.csi.openstack.org
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ephemeral-example
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: nginx-inline
+    volumeMounts:
+    - name: scratch-volume
+      mountPath: /var/lib/www/html
+  volumes:
+  - name: scratch-volume
+    ephemeral:
+      volumeClaimTemplate:
+        metadata:
+          labels:
+            type: my-frontend-volume
+        spec:
+          accessModes: [ "ReadWriteOnce" ]
+          storageClassName: scratch-storage-class
+          resources:
+            requests:
+              storage: 1Gi

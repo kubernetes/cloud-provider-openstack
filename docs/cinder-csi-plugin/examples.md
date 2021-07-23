@@ -102,14 +102,14 @@ index.html  lost+found
 
 ## Deploy app using Inline volumes
 
-Sample App definition on using Inline volumes can be found at [here](../../examples/cinder-csi-plugin/inline/inline-example.yaml)
+Sample App definition on using Inline volumes can be found at [here](../../examples/cinder-csi-plugin/ephemeral/csi-ephemeral-volumes-example.yaml)
 
 Prerequisites:
 * Deploy CSI Driver, with both volumeLifecycleModes enabled as specified [here](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml)
 
 Create a pod with inline volume
 ```
-$ kubectl create -f examples/cinder-csi-plugin/inline/inline-example.yaml
+$ kubectl create -f examples/cinder-csi-plugin/ephemeral/csi-ephemeral-volumes-example.yaml
 ```
 Get the pod description, verify created volume in Volumes section.
 ```
