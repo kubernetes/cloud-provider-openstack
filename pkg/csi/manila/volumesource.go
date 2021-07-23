@@ -67,11 +67,6 @@ type volumeFromSnapshot struct{}
 func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
 	snapshotSource := req.GetVolumeContentSource().GetSnapshot()
 
-	if shareOpts.Protocol == "CEPHFS" {
-		// TODO: Restoring shares from CephFS snapshots needs special handling.
-		return nil, status.Errorf(codes.InvalidArgument, "restoring CephFS snapshots is not supported yet")
-	}
-
 	if snapshotSource.GetSnapshotId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "snapshot ID cannot be empty")
 	}

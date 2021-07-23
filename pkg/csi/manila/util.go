@@ -19,7 +19,6 @@ package manila
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -28,7 +27,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"google.golang.org/grpc/codes"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/compatibility"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/klog/v2"
@@ -154,18 +152,6 @@ func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (
 
 func compareProtocol(protoA, protoB string) bool {
 	return strings.ToUpper(protoA) == strings.ToUpper(protoB)
-}
-
-func tryCompatForVolumeSource(compatOpts *options.CompatibilityOptions, shareOpts *options.ControllerVolumeContext, source *csi.VolumeContentSource, shareTypeCaps capabilities.ManilaCapabilities) compatibility.Layer {
-	if source != nil {
-		if source.GetSnapshot() != nil && shareTypeCaps[capabilities.ManilaCapabilitySnapshot] {
-			if createShareFromSnapshotEnabled, _ := strconv.ParseBool(compatOpts.CreateShareFromSnapshotEnabled); createShareFromSnapshotEnabled {
-				return compatibility.FindCompatibilityLayer(shareOpts.Protocol, capabilities.ManilaCapabilityShareFromSnapshot, shareTypeCaps)
-			}
-		}
-	}
-
-	return nil
 }
 
 //
