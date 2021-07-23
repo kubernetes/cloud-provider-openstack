@@ -22,11 +22,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
+
 	"github.com/gorilla/mux"
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
@@ -246,6 +248,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	err := decoder.Decode(&data)
 	if err != nil {
+		klog.Errorf("an error decoding data: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -280,6 +283,12 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
 	user, authenticated, err := k.authn.AuthenticateToken(token)
 	klog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
+
+	if err != nil {
+		klog.Errorf("an error occurred during authentication request: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil
+	}
 
 	if !authenticated {
 		var response status
@@ -325,7 +334,12 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 
 func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
 	output, err := json.MarshalIndent(data, "", "  ")
-	klog.V(4).Infof("authorizeToken data : %s\n", string(output))
+	klog.V(4).Infof("authorizeToken data : %s , error: %v\n", string(output), err)
+	if err != nil {
+		klog.Errorf("an error occurred during token authorization request: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	spec := data["spec"].(map[string]interface{})
 
@@ -567,6 +581,53 @@ func createKubernetesClient(kubeConfig string) (*kubernetes.Clientset, error) {
 	return client, nil
 }
 
+type wrappedRoundTripper struct {
+	http.RoundTripper
+}
+
+func MonitoredRoundTripper(roundTripper http.RoundTripper) http.RoundTripper {
+	return &wrappedRoundTripper{roundTripper}
+}
+
+func (w *wrappedRoundTripper) RoundTrip(r *http.Request) (resp *http.Response, err error) {
+	trace := &httptrace.ClientTrace{
+		GetConn: func(hostPort string) {
+			klog.V(4).Infof("GetConn: %s\n", hostPort)
+		},
+		GotConn: func(connInfo httptrace.GotConnInfo) {
+			klog.V(4).Infof("GotConn: %+v\n", connInfo)
+		},
+		DNSStart: func(dnsInfo httptrace.DNSStartInfo) {
+			klog.V(4).Infof("DNSStart: %+v\n", dnsInfo)
+		},
+		DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+			klog.V(4).Infof("DNSDone: %+v\n", dnsInfo)
+		},
+		GotFirstResponseByte: func() {
+			klog.V(4).Infof("GotFirstResponseByte")
+		},
+		TLSHandshakeStart: func() {
+			klog.V(4).Infof("TLSHandshakeStart")
+		},
+		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+			if err != nil {
+				klog.V(4).Error(err, err.Error())
+			}
+			klog.V(4).Infof("TLSHandshakeDone: %+v\n", state)
+		},
+		WroteHeaderField: func(key string, value []string) {
+			klog.V(4).Infof("WroteHeaderField: %s %+v\n", key, value)
+		},
+		WroteRequest: func(reqInfo httptrace.WroteRequestInfo) {
+			klog.V(4).Infof("WroteRequest: %+v\n", reqInfo)
+		},
+	}
+
+	r = r.WithContext(httptrace.WithClientTrace(r.Context(), trace))
+	resp, err = w.RoundTripper.RoundTrip(r)
+	return
+}
+
 func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceClient, error) {
 	// FIXME: Enable this check later
 	//if !strings.HasPrefix(authURL, "https") {
@@ -585,6 +646,8 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 		config.RootCAs = roots
 		transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
+
+	transport = MonitoredRoundTripper(transport)
 	opts := gophercloud.AuthOptions{IdentityEndpoint: authURL}
 	provider, err := createIdentityV3Provider(opts, transport)
 	if err != nil {
