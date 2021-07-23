@@ -68,7 +68,7 @@ spec:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
-              value: /etc/kubernetes/cloud-config
+              value: /etc/config/cloud.conf
           ports:
             - containerPort: 9808
               name: healthz
@@ -120,7 +120,7 @@ spec:
             secretName: {{ .Values.secret.name }}
         {{- else }}
           hostPath:
-            path: /etc/kubernetes
+            path: /etc/config
         {{- end }}
         {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
       affinity: {{ toYaml .Values.csi.plugin.nodePlugin.affinity | nindent 8 }}
