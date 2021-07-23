@@ -136,7 +136,7 @@ spec:
             secretName: {{ .Values.secret.name }}
         {{- else }}
           hostPath:
-            path: /etc/kubernetes
+            path: /etc/config
         {{- end }}
         {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
       affinity: {{ toYaml .Values.csi.plugin.controllerPlugin.affinity | nindent 8 }}
