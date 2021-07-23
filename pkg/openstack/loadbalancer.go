@@ -66,19 +66,19 @@ const (
 	defaultLoadBalancerSourceRanges = "0.0.0.0/0"
 	// loadbalancerActive* is configuration of exponential backoff for
 	// going into ACTIVE loadbalancer provisioning status. Starting with 1
-	// seconds, multiplying by 1.2 with each step and taking 19 steps at maximum
-	// it will time out after 128s, which roughly corresponds to 120s
+	// seconds, multiplying by 1.75 with each step and taking 8 steps at maximum
+	// it will time out after 114s
 	loadbalancerActiveInitDelay = 1 * time.Second
-	loadbalancerActiveFactor    = 1.2
-	loadbalancerActiveSteps     = 19
+	loadbalancerActiveFactor    = 1.75
+	loadbalancerActiveSteps     = 8
 
 	// loadbalancerDelete* is configuration of exponential backoff for
 	// waiting for delete operation to complete. Starting with 1
-	// seconds, multiplying by 1.2 with each step and taking 13 steps at maximum
-	// it will time out after 32s, which roughly corresponds to 30s
+	// seconds, multiplying by 1.75 with each step and taking 6 steps at maximum
+	// it will time out after 35s
 	loadbalancerDeleteInitDelay = 1 * time.Second
-	loadbalancerDeleteFactor    = 1.2
-	loadbalancerDeleteSteps     = 13
+	loadbalancerDeleteFactor    = 1.75
+	loadbalancerDeleteSteps     = 6
 
 	activeStatus = "ACTIVE"
 	errorStatus  = "ERROR"
