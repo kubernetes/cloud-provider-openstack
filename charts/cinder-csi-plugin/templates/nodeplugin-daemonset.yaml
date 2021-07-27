@@ -13,8 +13,6 @@ spec:
       labels:
         {{- include "cinder-csi.nodeplugin.labels" . | nindent 8 }}
     spec:
-      tolerations:
-        - operator: Exists
       serviceAccount: csi-cinder-node-sa
       hostNetwork: true
       containers:
