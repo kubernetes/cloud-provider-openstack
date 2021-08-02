@@ -193,3 +193,34 @@ func TestMatches(t *testing.T) {
 		t.Error(`matches:"true|false" violated, should succeed on matching parameter`)
 	}
 }
+
+func TestFieldNames(t *testing.T) {
+	type s struct {
+		A string `name:"a"`
+		B string `name:"b"`
+	}
+
+	v := New(&s{})
+
+	expected := []string{"a", "b"}
+
+	findElem := func(x string, xs []string) bool {
+		for _, e := range xs {
+			if e == x {
+				return true
+			}
+		}
+		return false
+	}
+
+	if len(expected) != len(v.Fields) {
+		t.Errorf("expected number of entries %d (%v), got %d (%v)",
+			len(expected), expected, len(v.Fields), v.Fields)
+	}
+
+	for i := range v.Fields {
+		if !findElem(v.Fields[i], expected) {
+			t.Error("found unexpected field", v.Fields[i], "; expected fields", expected, "actual fields", v.Fields)
+		}
+	}
+}
