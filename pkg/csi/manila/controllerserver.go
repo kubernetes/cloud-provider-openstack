@@ -66,6 +66,18 @@ func getVolumeCreator(source *csi.VolumeContentSource, shareOpts *options.Contro
 	return nil, status.Error(codes.InvalidArgument, "invalid volume content source")
 }
 
+func filterParametersForVolumeContext(params map[string]string, recognizedFields []string) map[string]string {
+	volCtx := make(map[string]string)
+
+	for _, fieldName := range recognizedFields {
+		if val, ok := params[fieldName]; ok {
+			volCtx[fieldName] = val
+		}
+	}
+
+	return volCtx
+}
+
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	if err := validateCreateVolumeRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -164,17 +176,17 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		accessibleTopology = req.GetAccessibilityRequirements().GetPreferred()
 	}
 
+	volCtx := filterParametersForVolumeContext(params, options.NodeVolumeContextFields())
+	volCtx["shareID"] = share.ID
+	volCtx["shareAccessID"] = accessRight.ID
+
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			VolumeId:           share.ID,
 			ContentSource:      req.GetVolumeContentSource(),
 			AccessibleTopology: accessibleTopology,
 			CapacityBytes:      int64(sizeInGiB) * bytesInGiB,
-			VolumeContext: map[string]string{
-				"shareID":        share.ID,
-				"shareAccessID":  accessRight.ID,
-				"cephfs-mounter": shareOpts.CephfsMounter,
-			},
+			VolumeContext:      volCtx,
 		},
 	}, nil
 }
