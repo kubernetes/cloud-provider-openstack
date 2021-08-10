@@ -54,7 +54,7 @@ nodeplugin:
   registrar:
     image:
       repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
-      tag: v1.3.0
+      tag: v2.2.0
       pullPolicy: IfNotPresent
     resources: {}
   nodeSelector: {}
@@ -74,14 +74,14 @@ controllerplugin:
   provisioner:
     image:
       repository: k8s.gcr.io/sig-storage/csi-provisioner
-      tag: v2.0.2
+      tag: v2.2.2
       pullPolicy: IfNotPresent
     resources: {}
   # CSI external-snapshotter container spec
   snapshotter:
     image:
       repository: k8s.gcr.io/sig-storage/csi-snapshotter
-      tag: v2.1.3
+      tag: v4.1.1
       pullPolicy: IfNotPresent
     resources: {}
   # CSI external-resizer container spec
