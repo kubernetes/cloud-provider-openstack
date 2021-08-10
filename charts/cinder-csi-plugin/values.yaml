@@ -65,6 +65,7 @@ csi:
       nodeSelector: {}
       tolerations:
         - operator: Exists
+      kubeletDir: /var/lib/kubelet
     controllerPlugin:
       affinity: {}
       nodeSelector: {}
