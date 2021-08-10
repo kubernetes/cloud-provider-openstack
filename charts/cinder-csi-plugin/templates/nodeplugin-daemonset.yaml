@@ -22,15 +22,11 @@ spec:
           args:
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
-          lifecycle:
-            preStop:
-              exec:
-                command: ["/bin/sh", "-c", "rm -rf /registration/cinder.csi.openstack.org /registration/cinder.csi.openstack.org-reg.sock"]
           env:
             - name: ADDRESS
               value: /csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
-              value: {{ .Values.csi.nodePlugin.kubeletDir }}/plugins/cinder.csi.openstack.org/csi.sock
+              value: {{ .Values.csi.plugin.nodePlugin.kubeletDir }}/plugins/cinder.csi.openstack.org/csi.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -84,7 +80,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
             - name: kubelet-dir
-              mountPath: {{ .Values.csi.nodePlugin.kubeletDir }}
+              mountPath: {{ .Values.csi.plugin.nodePlugin.kubeletDir }}
               mountPropagation: "Bidirectional"
             - name: pods-probe-dir
               mountPath: /dev
@@ -94,15 +90,15 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: {{ .Values.csi.nodePlugin.kubeletDir }}/plugins/cinder.csi.openstack.org
+            path: {{ .Values.csi.plugin.nodePlugin.kubeletDir }}/plugins/cinder.csi.openstack.org
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
-            path: {{ .Values.csi.nodePlugin.kubeletDir }}/plugins_registry/
+            path: {{ .Values.csi.plugin.nodePlugin.kubeletDir }}/plugins_registry/
             type: Directory
         - name: kubelet-dir
           hostPath:
-            path: {{ .Values.csi.nodePlugin.kubeletDir }}
+            path: {{ .Values.csi.plugin.nodePlugin.kubeletDir }}
             type: Directory
         # - name: pods-cloud-data
         #   hostPath:
