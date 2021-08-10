@@ -19,20 +19,27 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/mitchellh/mapstructure"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
@@ -47,6 +54,8 @@ type Instances struct {
 const (
 	instanceShutoff = "SHUTOFF"
 )
+
+var _ cloudprovider.Instances = &Instances{}
 
 // Instances returns an implementation of Instances for OpenStack.
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
@@ -73,6 +82,18 @@ func (os *OpenStack) instances() (*Instances, bool) {
 		opts:           os.metadataOpts,
 		networkingOpts: os.networkingOpts,
 	}, true
+}
+
+// InstanceID returns the kubelet's cloud provider ID.
+func (os *OpenStack) InstanceID() (string, error) {
+	if len(os.localInstanceID) == 0 {
+		id, err := readInstanceID(os.metadataOpts.SearchOrder)
+		if err != nil {
+			return "", err
+		}
+		os.localInstanceID = id
+	}
+	return os.localInstanceID, nil
 }
 
 // CurrentNodeName implements Instances.CurrentNodeName
@@ -221,23 +242,11 @@ func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloud
 	}, nil
 }
 
-// InstanceID returns the kubelet's cloud provider ID.
-func (os *OpenStack) InstanceID() (string, error) {
-	if len(os.localInstanceID) == 0 {
-		id, err := readInstanceID(os.metadataOpts.SearchOrder)
-		if err != nil {
-			return "", err
-		}
-		os.localInstanceID = id
-	}
-	return os.localInstanceID, nil
-}
-
 // InstanceID returns the cloud provider ID of the specified instance.
 func (i *Instances) InstanceID(ctx context.Context, name types.NodeName) (string, error) {
 	srv, err := getServerByName(i.compute, name)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == errors.ErrNotFound {
 			return "", cloudprovider.InstanceNotFound
 		}
 		return "", err
@@ -370,4 +379,251 @@ func RemoveFromNodeAddresses(addresses *[]v1.NodeAddress, removeAddresses ...v1.
 			*addresses = append((*addresses)[:i], (*addresses)[i+1:]...)
 		}
 	}
+}
+
+// mapNodeNameToServerName maps a k8s NodeName to an OpenStack Server Name
+// This is a simple string cast.
+func mapNodeNameToServerName(nodeName types.NodeName) string {
+	return string(nodeName)
+}
+
+// mapServerToNodeName maps an OpenStack Server to a k8s NodeName
+func mapServerToNodeName(server *servers.Server) types.NodeName {
+	// Node names are always lowercase, and (at least)
+	// routecontroller does case-sensitive string comparisons
+	// assuming this
+	return types.NodeName(strings.ToLower(server.Name))
+}
+
+func readInstanceID(searchOrder string) (string, error) {
+	// First, try to get data from metadata service because local
+	// data might be changed by accident
+	md, err := metadata.Get(searchOrder)
+	if err == nil {
+		return md.UUID, nil
+	}
+
+	// Try to find instance ID on the local filesystem (created by cloud-init)
+	const instanceIDFile = "/var/lib/cloud/data/instance-id"
+	idBytes, err := ioutil.ReadFile(instanceIDFile)
+	if err == nil {
+		instanceID := string(idBytes)
+		instanceID = strings.TrimSpace(instanceID)
+		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
+		if instanceID != "" && instanceID != "iid-datasource-none" {
+			return instanceID, nil
+		}
+	}
+
+	return "", err
+}
+
+func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
+	opts := servers.ListOpts{
+		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
+	}
+
+	var s []ServerAttributesExt
+	serverList := make([]ServerAttributesExt, 0, 1)
+
+	mc := metrics.NewMetricContext("server", "list")
+	pager := servers.List(client, opts)
+
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		if err := servers.ExtractServersInto(page, &s); err != nil {
+			return false, err
+		}
+		serverList = append(serverList, s...)
+		if len(serverList) > 1 {
+			return false, errors.ErrMultipleResults
+		}
+		return true, nil
+	})
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+
+	if len(serverList) == 0 {
+		return nil, errors.ErrNotFound
+	}
+
+	return &serverList[0], nil
+}
+
+// IP addresses order:
+// * interfaces private IPs
+// * access IPs
+// * metadata hostname
+// * server object Addresses (floating type)
+func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
+	addrs := []v1.NodeAddress{}
+
+	// parse private IP addresses first in an ordered manner
+	for _, iface := range interfaces {
+		for _, fixedIP := range iface.FixedIPs {
+			if iface.PortState == "ACTIVE" {
+				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
+				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+					AddToNodeAddresses(&addrs,
+						v1.NodeAddress{
+							Type:    v1.NodeInternalIP,
+							Address: fixedIP.IPAddress,
+						},
+					)
+				}
+			}
+		}
+	}
+
+	// process public IP addresses
+	if srv.AccessIPv4 != "" {
+		AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeExternalIP,
+				Address: srv.AccessIPv4,
+			},
+		)
+	}
+
+	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
+		AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeExternalIP,
+				Address: srv.AccessIPv6,
+			},
+		)
+	}
+
+	if srv.Metadata[TypeHostName] != "" {
+		AddToNodeAddresses(&addrs,
+			v1.NodeAddress{
+				Type:    v1.NodeHostName,
+				Address: srv.Metadata[TypeHostName],
+			},
+		)
+	}
+
+	// process the rest
+	type Address struct {
+		IPType string `mapstructure:"OS-EXT-IPS:type"`
+		Addr   string
+	}
+
+	var addresses map[string][]Address
+	err := mapstructure.Decode(srv.Addresses, &addresses)
+	if err != nil {
+		return nil, err
+	}
+
+	var networks []string
+	for k := range addresses {
+		networks = append(networks, k)
+	}
+	sort.Strings(networks)
+
+	for _, network := range networks {
+		for _, props := range addresses[network] {
+			var addressType v1.NodeAddressType
+			if props.IPType == "floating" {
+				addressType = v1.NodeExternalIP
+			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
+				addressType = v1.NodeExternalIP
+				// removing already added address to avoid listing it as both ExternalIP and InternalIP
+				// may happen due to listing "private" network as "public" in CCM's config
+				RemoveFromNodeAddresses(&addrs,
+					v1.NodeAddress{
+						Address: props.Addr,
+					},
+				)
+			} else {
+				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
+					addressType = v1.NodeInternalIP
+				} else {
+					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
+					RemoveFromNodeAddresses(&addrs,
+						v1.NodeAddress{
+							Address: props.Addr,
+						},
+					)
+					continue
+				}
+			}
+
+			isIPv6 := net.ParseIP(props.Addr).To4() == nil
+			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+				AddToNodeAddresses(&addrs,
+					v1.NodeAddress{
+						Type:    addressType,
+						Address: props.Addr,
+					},
+				)
+			}
+		}
+	}
+
+	return addrs, nil
+}
+
+func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
+	srv, err := getServerByName(client, name)
+	if err != nil {
+		return nil, err
+	}
+
+	interfaces, err := getAttachedInterfacesByID(client, srv.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return nodeAddresses(&srv.Server, interfaces, networkingOpts)
+}
+
+func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
+	if needIPv6 && networkingOpts.IPv6SupportDisabled {
+		return "", errors.ErrIPv6SupportDisabled
+	}
+
+	addrs, err := getAddressesByName(client, name, networkingOpts)
+	if err != nil {
+		return "", err
+	} else if len(addrs) == 0 {
+		return "", errors.ErrNoAddressFound
+	}
+
+	for _, addr := range addrs {
+		isIPv6 := net.ParseIP(addr.Address).To4() == nil
+		if (addr.Type == v1.NodeInternalIP) && (isIPv6 == needIPv6) {
+			return addr.Address, nil
+		}
+	}
+
+	for _, addr := range addrs {
+		isIPv6 := net.ParseIP(addr.Address).To4() == nil
+		if (addr.Type == v1.NodeExternalIP) && (isIPv6 == needIPv6) {
+			return addr.Address, nil
+		}
+	}
+	// It should never return an address from a different IP Address family than the one needed
+	return "", errors.ErrNoAddressFound
+}
+
+// getAttachedInterfacesByID returns the node interfaces of the specified instance.
+func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID string) ([]attachinterfaces.Interface, error) {
+	var interfaces []attachinterfaces.Interface
+
+	mc := metrics.NewMetricContext("server_os_interface", "list")
+	pager := attachinterfaces.List(client, serviceID)
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		s, err := attachinterfaces.ExtractInterfaces(page)
+		if err != nil {
+			return false, err
+		}
+		interfaces = append(interfaces, s...)
+		return true, nil
+	})
+	if mc.ObserveRequest(err) != nil {
+		return interfaces, err
+	}
+
+	return interfaces, nil
 }
