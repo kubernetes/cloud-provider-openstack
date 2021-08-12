@@ -33,15 +33,30 @@ const (
 	waitForAvailableShareTimeout = 3
 	waitForAvailableShareRetries = 10
 
-	shareCreating      = "creating"
-	shareDeleting      = "deleting"
-	shareExtending     = "extending"
-	shareError         = "error"
-	shareErrorDeleting = "error_deleting"
-	shareAvailable     = "available"
+	shareCreating             = "creating"
+	shareCreatingFromSnapshot = "creating_from_snapshot"
+	shareDeleting             = "deleting"
+	shareExtending            = "extending"
+	shareError                = "error"
+	shareErrorDeleting        = "error_deleting"
+	shareErrorExtending       = "extending_error"
+	shareAvailable            = "available"
 
 	shareDescription = "provisioned-by=manila.csi.openstack.org"
 )
+
+var (
+	shareErrorStatuses = map[string]struct{}{
+		shareError:          {},
+		shareErrorDeleting:  {},
+		shareErrorExtending: {},
+	}
+)
+
+func isShareInErrorState(s string) bool {
+	_, found := shareErrorStatuses[s]
+	return found
+}
 
 // getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
 // Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
@@ -75,7 +90,7 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 		return share, 0, nil
 	}
 
-	return waitForShareStatus(share.ID, shareCreating, shareAvailable, false, manilaClient)
+	return waitForShareStatus(share.ID, []string{shareCreating, shareCreatingFromSnapshot}, shareAvailable, false, manilaClient)
 }
 
 func deleteShare(shareID string, manilaClient manilaclient.Interface) error {
@@ -101,7 +116,7 @@ func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 		return
 	}
 
-	_, _, err := waitForShareStatus(share.ID, shareDeleting, "", true, manilaClient)
+	_, _, err := waitForShareStatus(share.ID, []string{shareDeleting}, "", true, manilaClient)
 	if err != nil && err != wait.ErrWaitTimeout {
 		klog.Errorf("couldn't retrieve volume %s in a roll-back procedure: %v", share.Name, err)
 	}
@@ -116,7 +131,7 @@ func extendShare(share *shares.Share, newSizeInGiB int, manilaClient manilaclien
 		return err
 	}
 
-	share, manilaErrCode, err := waitForShareStatus(share.ID, shareExtending, shareAvailable, false, manilaClient)
+	share, manilaErrCode, err := waitForShareStatus(share.ID, []string{shareExtending}, shareAvailable, false, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
 			return status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
@@ -128,7 +143,7 @@ func extendShare(share *shares.Share, newSizeInGiB int, manilaClient manilaclien
 	return nil
 }
 
-func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
+func waitForShareStatus(shareID string, validTransientStates []string, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -141,6 +156,15 @@ func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnN
 		err           error
 	)
 
+	isInTransientState := func(s string) bool {
+		for _, val := range validTransientStates {
+			if s == val {
+				return true
+			}
+		}
+		return false
+	}
+
 	return share, manilaErrCode, wait.ExponentialBackoff(backoff, func() (bool, error) {
 		share, err = manilaClient.GetShareByID(shareID)
 
@@ -152,25 +176,24 @@ func waitForShareStatus(shareID, currentStatus, desiredStatus string, successOnN
 			return false, err
 		}
 
-		var isAvailable bool
+		if share.Status == desiredStatus {
+			return true, nil
+		}
 
-		switch share.Status {
-		case currentStatus:
-			isAvailable = false
-		case desiredStatus:
-			isAvailable = true
-		case shareError:
+		if isInTransientState(share.Status) {
+			return false, nil
+		}
+
+		if isShareInErrorState(share.Status) {
 			manilaErrMsg, err := lastResourceError(shareID, manilaClient)
 			if err != nil {
 				return false, fmt.Errorf("share %s is in error state, error description could not be retrieved: %v", shareID, err)
 			}
 
 			manilaErrCode = manilaErrMsg.errCode
-			return false, fmt.Errorf("share %s is in error state: %s", shareID, manilaErrMsg.message)
-		default:
-			return false, fmt.Errorf("share %s is in an unexpected state: wanted either %s or %s, got %s", shareID, currentStatus, desiredStatus, share.Status)
+			return false, fmt.Errorf("share %s is in error state \"%s\": %s", shareID, share.Status, manilaErrMsg.message)
 		}
 
-		return isAvailable, nil
+		return false, fmt.Errorf("share %s is in an unexpected state: wanted either %v or %s, got %s", shareID, validTransientStates, desiredStatus, share.Status)
 	})
 }
