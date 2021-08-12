@@ -43,7 +43,8 @@ var (
 	// * 1.3.0: Up to version 1.3.0 driver version was the same as CSI spec version
 	// * 1.3.1: Bump for 1.21 release
 	// * 1.3.2: Allow --cloud-config to be given multiple times
-	Version = "1.3.2"
+	// * 1.3.3: Bump for 1.22 release
+	Version = "1.3.3"
 )
 
 type CinderDriver struct {
