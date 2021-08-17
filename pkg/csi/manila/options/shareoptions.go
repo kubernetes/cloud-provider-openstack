@@ -70,3 +70,7 @@ func NewNodeVolumeContext(data map[string]string) (*NodeVolumeContext, error) {
 
 	return opts, nil
 }
+
+func NodeVolumeContextFields() []string {
+	return nodeVolumeCtxValidator.Fields
+}
