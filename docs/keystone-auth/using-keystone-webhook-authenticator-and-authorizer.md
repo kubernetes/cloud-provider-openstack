@@ -297,7 +297,7 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   $ kubectl run curl --rm -it --restart=Never --image curlimages/curl -- \
     -k -XPOST https://k8s-keystone-auth-service.kube-system:8443/webhook -d '
   {
-    "apiVersion": "authentication.k8s.io/v1beta1",
+    "apiVersion": "authentication.k8s.io/v1",
     "kind": "TokenReview",
     "metadata": {
       "creationTimestamp": null
@@ -316,7 +316,7 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 
   ```shell
   {
-      "apiVersion": "authentication.k8s.io/v1beta1",
+      "apiVersion": "authentication.k8s.io/v1",
       "kind": "TokenReview",
       "metadata": {
           "creationTimestamp": null
@@ -370,18 +370,18 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   $ kubectl run curl --rm -it --restart=Never --image curlimages/curl -- \
     -k -XPOST https://k8s-keystone-auth-service.kube-system:8443/webhook -d '
   {
-    "apiVersion": "authorization.k8s.io/v1beta1",
+    "apiVersion": "authorization.k8s.io/v1",
     "kind": "SubjectAccessReview",
     "spec": {
       "resourceAttributes": {
         "namespace": "default",
         "verb": "get",
-        "group": "",
+        "groups": "",
         "resource": "pods",
         "name": "pod1"
       },
       "user": "demo",
-      "group": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
+      "groups": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
       "extra": {
           "alpha.kubernetes.io/identity/project/id": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
           "alpha.kubernetes.io/identity/project/name": ["demo"],
@@ -395,7 +395,7 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 
   ```shell
   {
-      "apiVersion": "authorization.k8s.io/v1beta1",
+      "apiVersion": "authorization.k8s.io/v1",
       "kind": "SubjectAccessReview",
       "status": {
           "allowed": true
@@ -409,18 +409,18 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
   $ kubectl run curl --rm -it --restart=Never --image curlimages/curl -- \
     -k -XPOST https://k8s-keystone-auth-service.kube-system:8443/webhook -d '
   {
-    "apiVersion": "authorization.k8s.io/v1beta1",
+    "apiVersion": "authorization.k8s.io/v1",
     "kind": "SubjectAccessReview",
     "spec": {
       "resourceAttributes": {
         "namespace": "default",
         "verb": "create",
-        "group": "",
+        "groups": "",
         "resource": "pods",
         "name": "pod1"
       },
       "user": "demo",
-      "group": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
+      "groups": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
       "extra": {
           "alpha.kubernetes.io/identity/project/id": ["423d41d3a02f4b77b4a9bbfbc3a1b3c6"],
           "alpha.kubernetes.io/identity/project/name": ["demo"],
@@ -434,7 +434,7 @@ $ kubectl apply -f examples/webhook/keystone-service.yaml
 
   ```shell
   {
-      "apiVersion": "authorization.k8s.io/v1beta1",
+      "apiVersion": "authorization.k8s.io/v1",
       "kind": "SubjectAccessReview",
       "status": {
           "allowed": false
