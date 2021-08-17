@@ -48,6 +48,9 @@ type Validator struct {
 	nameIdxMap nameIndexMap
 	idxNameMap indexNameMap
 
+	// Field names in the struct.
+	Fields []string
+
 	valueExprs *valueExpressions
 	depsMap    dependenciesMap
 	preclsMap  preclusionsMap
@@ -67,11 +70,21 @@ func New(stringStruct interface{}) *Validator {
 		t:          t,
 		nameIdxMap: nameIdxMap,
 		idxNameMap: idxNameMap,
+		Fields:     buildFieldNames(idxNameMap),
 		valueExprs: buildValueExpressions(t, idxNameMap, nameIdxMap),
 		depsMap:    buildDependenciesMap(t, idxNameMap, nameIdxMap),
 		preclsMap:  buildPreclusionsMap(t, idxNameMap, nameIdxMap),
 		matchMap:   buildMatchRegexMap(t),
 	}
+}
+
+func buildFieldNames(m indexNameMap) []string {
+	s := make([]string, 0, len(m))
+	for _, fieldName := range m {
+		s = append(s, string(fieldName))
+	}
+
+	return s
 }
 
 // Populate validates input data and populates the output struct.
