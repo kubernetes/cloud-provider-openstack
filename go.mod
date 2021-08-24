@@ -1,6 +1,6 @@
 module k8s.io/cloud-provider-openstack
 
-go 1.15
+go 1.16
 
 require (
 	github.com/MichaelTJones/walk v0.0.0-20161122175330-4748e29d5718 // indirect
