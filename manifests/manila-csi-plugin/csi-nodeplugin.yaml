@@ -21,7 +21,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: registrar
-          image: "k8s.gcr.io/sig-storage/csi-node-driver-registrar:v1.3.0"
+          image: "k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.2.0"
           args:
             - "--csi-address=/csi/csi.sock"
             - "--kubelet-registration-path=/var/lib/kubelet/plugins/manila.csi.openstack.org/csi.sock"

@@ -18,32 +18,24 @@ package openstack
 
 import (
 	"context"
-	"errors"
+
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net"
 	"os"
-	"regexp"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/pagination"
-	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog/v2"
 )
@@ -53,23 +45,9 @@ const (
 	ProviderName = "openstack"
 
 	// TypeHostName is the name type of openstack instance
-	TypeHostName     = "hostname"
-	availabilityZone = "availability_zone"
-	defaultTimeOut   = 60 * time.Second
+	TypeHostName   = "hostname"
+	defaultTimeOut = 60 * time.Second
 )
-
-// ErrNotFound is used to inform that the object is missing
-var ErrNotFound = errors.New("failed to find object")
-
-// ErrMultipleResults is used when we unexpectedly get back multiple results
-var ErrMultipleResults = errors.New("multiple results where only one expected")
-
-// ErrNoAddressFound is used when we cannot find an ip address for the host
-var ErrNoAddressFound = errors.New("no address found for host")
-
-// ErrIPv6SupportDisabled is used when one tries to use IPv6 Addresses when
-// IPv6 support is disabled by config
-var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
 
 // userAgentData is used to add extra information to the gophercloud user-agent
 var userAgentData []string
@@ -193,6 +171,10 @@ func init() {
 	})
 }
 
+// Initialize passes a Kubernetes clientBuilder interface to the cloud provider
+func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+}
+
 // ReadConfig reads values from the cloud.conf
 func ReadConfig(config io.Reader) (Config, error) {
 	if config == nil {
@@ -257,29 +239,6 @@ func (c *caller) call(f func()) {
 	}
 }
 
-func readInstanceID(searchOrder string) (string, error) {
-	// First, try to get data from metadata service because local
-	// data might be changed by accident
-	md, err := metadata.Get(searchOrder)
-	if err == nil {
-		return md.UUID, nil
-	}
-
-	// Try to find instance ID on the local filesystem (created by cloud-init)
-	const instanceIDFile = "/var/lib/cloud/data/instance-id"
-	idBytes, err := ioutil.ReadFile(instanceIDFile)
-	if err == nil {
-		instanceID := string(idBytes)
-		instanceID = strings.TrimSpace(instanceID)
-		klog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" && instanceID != "iid-datasource-none" {
-			return instanceID, nil
-		}
-	}
-
-	return "", err
-}
-
 // check opts for OpenStack
 func checkOpenStackOpts(openstackOpts *OpenStack) error {
 	return metadata.CheckMetadataSearchOrder(openstackOpts.metadataOpts.SearchOrder)
@@ -320,271 +279,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 
 	return &os, nil
-}
-
-// Initialize passes a Kubernetes clientBuilder interface to the cloud provider
-func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-}
-
-// mapNodeNameToServerName maps a k8s NodeName to an OpenStack Server Name
-// This is a simple string cast.
-func mapNodeNameToServerName(nodeName types.NodeName) string {
-	return string(nodeName)
-}
-
-// GetNodeNameByID maps instanceid to types.NodeName
-func (os *OpenStack) GetNodeNameByID(instanceID string) (types.NodeName, error) {
-	client, err := client.NewComputeV2(os.provider, os.epOpts)
-	var nodeName types.NodeName
-	if err != nil {
-		return nodeName, err
-	}
-
-	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(client, instanceID).Extract()
-	if mc.ObserveRequest(err) != nil {
-		return nodeName, err
-	}
-	nodeName = mapServerToNodeName(server)
-	return nodeName, nil
-}
-
-// mapServerToNodeName maps an OpenStack Server to a k8s NodeName
-func mapServerToNodeName(server *servers.Server) types.NodeName {
-	// Node names are always lowercase, and (at least)
-	// routecontroller does case-sensitive string comparisons
-	// assuming this
-	return types.NodeName(strings.ToLower(server.Name))
-}
-
-func foreachServer(client *gophercloud.ServiceClient, opts servers.ListOptsBuilder, handler func(*servers.Server) (bool, error)) error {
-	mc := metrics.NewMetricContext("server", "list")
-	pager := servers.List(client, opts)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		s, err := servers.ExtractServers(page)
-		if err != nil {
-			return false, err
-		}
-		for _, server := range s {
-			ok, err := handler(&server)
-			if !ok || err != nil {
-				return false, err
-			}
-		}
-		return true, nil
-	})
-	return mc.ObserveRequest(err)
-}
-
-func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
-	opts := servers.ListOpts{
-		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
-	}
-
-	var s []ServerAttributesExt
-	serverList := make([]ServerAttributesExt, 0, 1)
-
-	mc := metrics.NewMetricContext("server", "list")
-	pager := servers.List(client, opts)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		if err := servers.ExtractServersInto(page, &s); err != nil {
-			return false, err
-		}
-		serverList = append(serverList, s...)
-		if len(serverList) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if mc.ObserveRequest(err) != nil {
-		return nil, err
-	}
-
-	if len(serverList) == 0 {
-		return nil, ErrNotFound
-	}
-
-	return &serverList[0], nil
-}
-
-// IP addresses order:
-// * interfaces private IPs
-// * access IPs
-// * metadata hostname
-// * server object Addresses (floating type)
-func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
-	addrs := []v1.NodeAddress{}
-
-	// parse private IP addresses first in an ordered manner
-	for _, iface := range interfaces {
-		for _, fixedIP := range iface.FixedIPs {
-			if iface.PortState == "ACTIVE" {
-				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
-				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-					AddToNodeAddresses(&addrs,
-						v1.NodeAddress{
-							Type:    v1.NodeInternalIP,
-							Address: fixedIP.IPAddress,
-						},
-					)
-				}
-			}
-		}
-	}
-
-	// process public IP addresses
-	if srv.AccessIPv4 != "" {
-		AddToNodeAddresses(&addrs,
-			v1.NodeAddress{
-				Type:    v1.NodeExternalIP,
-				Address: srv.AccessIPv4,
-			},
-		)
-	}
-
-	if srv.AccessIPv6 != "" && !networkingOpts.IPv6SupportDisabled {
-		AddToNodeAddresses(&addrs,
-			v1.NodeAddress{
-				Type:    v1.NodeExternalIP,
-				Address: srv.AccessIPv6,
-			},
-		)
-	}
-
-	if srv.Metadata[TypeHostName] != "" {
-		AddToNodeAddresses(&addrs,
-			v1.NodeAddress{
-				Type:    v1.NodeHostName,
-				Address: srv.Metadata[TypeHostName],
-			},
-		)
-	}
-
-	// process the rest
-	type Address struct {
-		IPType string `mapstructure:"OS-EXT-IPS:type"`
-		Addr   string
-	}
-
-	var addresses map[string][]Address
-	err := mapstructure.Decode(srv.Addresses, &addresses)
-	if err != nil {
-		return nil, err
-	}
-
-	var networks []string
-	for k := range addresses {
-		networks = append(networks, k)
-	}
-	sort.Strings(networks)
-
-	for _, network := range networks {
-		for _, props := range addresses[network] {
-			var addressType v1.NodeAddressType
-			if props.IPType == "floating" {
-				addressType = v1.NodeExternalIP
-			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
-				addressType = v1.NodeExternalIP
-				// removing already added address to avoid listing it as both ExternalIP and InternalIP
-				// may happen due to listing "private" network as "public" in CCM's config
-				RemoveFromNodeAddresses(&addrs,
-					v1.NodeAddress{
-						Address: props.Addr,
-					},
-				)
-			} else {
-				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
-					addressType = v1.NodeInternalIP
-				} else {
-					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
-					RemoveFromNodeAddresses(&addrs,
-						v1.NodeAddress{
-							Address: props.Addr,
-						},
-					)
-					continue
-				}
-			}
-
-			isIPv6 := net.ParseIP(props.Addr).To4() == nil
-			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
-				AddToNodeAddresses(&addrs,
-					v1.NodeAddress{
-						Type:    addressType,
-						Address: props.Addr,
-					},
-				)
-			}
-		}
-	}
-
-	return addrs, nil
-}
-
-func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
-	srv, err := getServerByName(client, name)
-	if err != nil {
-		return nil, err
-	}
-
-	interfaces, err := getAttachedInterfacesByID(client, srv.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	return nodeAddresses(&srv.Server, interfaces, networkingOpts)
-}
-
-func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
-	if needIPv6 && networkingOpts.IPv6SupportDisabled {
-		return "", ErrIPv6SupportDisabled
-	}
-
-	addrs, err := getAddressesByName(client, name, networkingOpts)
-	if err != nil {
-		return "", err
-	} else if len(addrs) == 0 {
-		return "", ErrNoAddressFound
-	}
-
-	for _, addr := range addrs {
-		isIPv6 := net.ParseIP(addr.Address).To4() == nil
-		if (addr.Type == v1.NodeInternalIP) && (isIPv6 == needIPv6) {
-			return addr.Address, nil
-		}
-	}
-
-	for _, addr := range addrs {
-		isIPv6 := net.ParseIP(addr.Address).To4() == nil
-		if (addr.Type == v1.NodeExternalIP) && (isIPv6 == needIPv6) {
-			return addr.Address, nil
-		}
-	}
-	// It should never return an address from a different IP Address family than the one needed
-	return "", ErrNoAddressFound
-}
-
-// getAttachedInterfacesByID returns the node interfaces of the specified instance.
-func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID string) ([]attachinterfaces.Interface, error) {
-	var interfaces []attachinterfaces.Interface
-
-	mc := metrics.NewMetricContext("server_os_interface", "list")
-	pager := attachinterfaces.List(client, serviceID)
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		s, err := attachinterfaces.ExtractInterfaces(page)
-		if err != nil {
-			return false, err
-		}
-		interfaces = append(interfaces, s...)
-		return true, nil
-	})
-	if mc.ObserveRequest(err) != nil {
-		return interfaces, err
-	}
-
-	return interfaces, nil
 }
 
 // Clusters is a no-op
@@ -704,7 +398,7 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 
 	srv, err := getServerByName(compute, nodeName)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == errors.ErrNotFound {
 			return cloudprovider.Zone{}, cloudprovider.InstanceNotFound
 		}
 		return cloudprovider.Zone{}, err
