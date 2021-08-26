@@ -213,7 +213,7 @@ func nodePublishEphemeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*c
 				fsType = mnt.FsType
 			}
 			mountFlags := mnt.GetMountFlags()
-			options = append(options, mountFlags...)
+			options = append(options, collectMountOptions(fsType, mountFlags)...)
 		}
 		// Mount
 		err = m.Mounter().FormatAndMount(devicePath, targetPath, fsType, nil)
@@ -402,7 +402,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 				fsType = mnt.FsType
 			}
 			mountFlags := mnt.GetMountFlags()
-			options = append(options, mountFlags...)
+			options = append(options, collectMountOptions(fsType, mountFlags)...)
 		}
 		// Mount
 		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
@@ -600,4 +600,16 @@ func getDevicePath(volumeID string, m mount.IMount) (string, error) {
 
 	return devicePath, nil
 
+}
+
+func collectMountOptions(fsType string, mntFlags []string) []string {
+	var options []string
+	options = append(options, mntFlags...)
+
+	// By default, xfs does not allow mounting of two volumes with the same filesystem uuid.
+	// Force ignore this uuid to be able to mount volume + its clone / restored snapshot on the same node.
+	if fsType == "xfs" {
+		options = append(options, "nouuid")
+	}
+	return options
 }
