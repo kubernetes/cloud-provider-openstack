@@ -1,0 +1,174 @@
+---
+- name: Ensure CPO source folder
+  shell:
+    executable: /bin/bash
+    cmd: |
+      rm -rf $GOPATH/src/k8s.io/cloud-provider-openstack
+      mkdir -p $GOPATH/src/k8s.io; cd $_
+      git clone https://github.com/kubernetes/cloud-provider-openstack
+      cd cloud-provider-openstack
+      git fetch origin +refs/pull/{{ github_pr }}/merge
+      git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+
+- name: Build and upload openstack-cloud-controller-manager image
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+
+      REGISTRY={{ image_registry_host }} \
+      VERSION={{ github_pr }} \
+      IMAGE_NAMES=openstack-cloud-controller-manager \
+      make upload-image-amd64
+
+- name: Prepare openstack-cloud-controller-manager config
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl -n kube-system get secret cloud-config >/dev/null 2>&1
+      if [ $? -eq 0 ]; then
+        exit 0
+      fi
+
+      set -ex
+
+      set +x; source {{ devstack_workdir }}/openrc admin admin > /dev/null; set -x
+      tenant_id=$(openstack project show demo -c id -f value)
+      sudnet_id=$(openstack subnet show private-subnet -c id -f value)
+      external_network_id=$(openstack network list --external -c ID -f value)
+
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      cat <<EOF > {{ ansible_user_dir }}/cloud.conf
+      [Global]
+      auth-url=${OS_AUTH_URL}/v3
+      username=${OS_USERNAME}
+      password=${OS_PASSWORD}
+      region=${OS_REGION_NAME}
+      tenant-id=$tenant_id
+      domain-id=default
+
+      [LoadBalancer]
+      use-octavia=true
+      subnet-id=$sudnet_id
+      floating-network-id=$external_network_id
+
+      [BlockStorage]
+      bs-version=v2
+      EOF
+
+      kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
+
+- name: Deploy openstack-cloud-controller-manager
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+
+      cat <<EOF | kubectl apply -f -
+      ---
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: cloud-controller-manager
+        namespace: kube-system
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: system:cloud-controller-manager
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: cloud-controller-manager
+        namespace: kube-system
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: openstack-cloud-controller-manager
+        namespace: kube-system
+        labels:
+          k8s-app: openstack-cloud-controller-manager
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            k8s-app: openstack-cloud-controller-manager
+        template:
+          metadata:
+            labels:
+              k8s-app: openstack-cloud-controller-manager
+          spec:
+            tolerations:
+            - key: node.cloudprovider.kubernetes.io/uninitialized
+              value: "true"
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/master
+              effect: NoSchedule
+            serviceAccountName: cloud-controller-manager
+            imagePullSecrets:
+            - name: openlab
+            containers:
+              - name: openstack-cloud-controller-manager
+                image: {{ remote_registry_host }}/openstack-cloud-controller-manager-amd64:{{ github_pr }}
+                args:
+                  - /bin/openstack-cloud-controller-manager
+                  - --v=4
+                  - --cloud-config=/etc/config/cloud.conf
+                  - --cloud-provider=openstack
+                  - --use-service-account-credentials=true
+                  - --bind-address=127.0.0.1
+                volumeMounts:
+                  - mountPath: /etc/config
+                    name: cloud-config-volume
+                    readOnly: true
+            hostNetwork: true
+            volumes:
+            - name: cloud-config-volume
+              secret:
+                secretName: cloud-config
+      EOF
+
+- name: Wait for openstack-cloud-controller-manager up and running
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl -n kube-system get pod | grep openstack-cloud-controller-manager | grep Running
+  register: check_occm
+  until: check_occm.rc == 0
+  retries: 24
+  delay: 5
+  ignore_errors: yes
+
+- name: Gather additional evidence if openstack-cloud-controller-manager failed to come up
+  when: check_occm.failed
+  block:
+    - name: Describe failed openstack-cloud-controller-manager
+      shell:
+        executable: /bin/bash
+        cmd: |
+          kubectl -n kube-system describe deployment openstack-cloud-controller-manager
+      register: describe_occm
+      changed_when: false
+
+    - name: Log failed openstack-cloud-controller-manager deployment
+      debug:
+        var: describe_occm.stdout_lines
+
+    - name: &failmsg Stop due to prior failure of openstack-cloud-controller-manager
+      fail:
+        msg: *failmsg
+
+- name: Run functional tests for openstack-cloud-controller-manager
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+
+      # GATEWAY_IP is the default value in devstack
+      GATEWAY_IP=172.24.5.1 \
+      OS_RC={{ devstack_workdir }}/openrc \
+      bash tests/e2e/cloudprovider/test-lb-service.sh

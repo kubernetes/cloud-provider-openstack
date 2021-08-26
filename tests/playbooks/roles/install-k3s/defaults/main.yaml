@@ -1,0 +1,11 @@
+---
+k8s_branch: "master"
+worker_node_count: 1
+cluster_token: "9a08jv.c0izixklcxtmnze7"
+devstack_workdir: "{{ ansible_user_dir }}/devstack"
+flavor_name: "ds2G"
+sg_name: "k3s_sg"
+keypair_name: "k3s_keypair"
+image_url: "https://cloud-images.ubuntu.com/releases/focal/release/ubuntu-20.04-server-cloudimg-amd64.img"
+image_name: "ubuntu-focal"
+master_port_name: "k3s_master"
