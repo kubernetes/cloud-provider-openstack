@@ -33,14 +33,6 @@ spec:
           args:
             - "--csi-address=/csi/csi.sock"
             - "--kubelet-registration-path=/var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi.sock"
-          lifecycle:
-            preStop:
-              exec:
-                  command: [
-                    "/bin/sh", "-c",
-                    'rm -rf /registration/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}
-                  /registration/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}-reg.sock'
-                  ]
           env:
             - name: KUBE_NODE_NAME
               valueFrom:

@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	vendorVersion = "1.3.2"
+	vendorVersion = "1.3.3"
 )
 
 func NewFakeDriver() *CinderDriver {

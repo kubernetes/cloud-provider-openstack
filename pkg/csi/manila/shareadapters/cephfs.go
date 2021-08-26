@@ -117,12 +117,22 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 
 	monitors, rootPath, err := splitExportLocationPath(args.Locations[chosenExportLocationIdx].Path)
 
-	return map[string]string{
+	volCtx := map[string]string{
 		"monitors":        monitors,
 		"rootPath":        rootPath,
 		"mounter":         args.Options.CephfsMounter,
 		"provisionVolume": "false",
-	}, err
+	}
+
+	if args.Options.CephfsKernelMountOptions != "" {
+		volCtx["kernelMountOptions"] = args.Options.CephfsKernelMountOptions
+	}
+
+	if args.Options.CephfsFuseMountOptions != "" {
+		volCtx["fuseMountOptions"] = args.Options.CephfsFuseMountOptions
+	}
+
+	return volCtx, err
 }
 
 func (Cephfs) BuildNodeStageSecret(args *SecretArgs) (secret map[string]string, err error) {
