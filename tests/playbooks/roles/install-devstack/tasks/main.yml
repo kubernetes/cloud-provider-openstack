@@ -1,0 +1,110 @@
+- name: Manage stack group
+  group:
+    name: "{{ user }}"
+    state: present
+
+- name: Manage stack user
+  user:
+    name: "{{ user }}"
+    group: "{{ user }}"
+    shell: /bin/bash
+    create_home: true
+    home: /home/{{ user }}
+
+- name: allow stack user to have passwordless sudo
+  lineinfile:
+    dest: /etc/sudoers
+    line: "{{ user }} ALL=(ALL) NOPASSWD: ALL"
+    validate: 'visudo -cf %s'
+
+- name: Check if devstack is already installed
+  shell:
+    executable: /bin/bash
+    cmd: |
+      output="not installed"
+      if [ -f /opt/stack/logs/stack.sh.log.summary ]; then
+        grep "stack.sh completed" /opt/stack/logs/stack.sh.log.summary > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+          output="installed"
+        fi
+      fi
+      echo $output
+  register: devstack
+
+- name: Install devstack
+  when: devstack.stdout != "installed"
+  block:
+    - name: Install packages
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+          - python3-pip
+          - build-essential
+          - python3-dev
+          - python3-setuptools
+          - libffi-dev
+          - libxslt1-dev
+          - libxml2-dev
+          - libyaml-dev
+          - libssl-dev
+          - zlib1g-dev
+          - unzip
+          - jq
+          - net-tools
+
+    - name: Git checkout devstack
+      git:
+        repo: "https://opendev.org/openstack/devstack"
+        dest: "{{ workdir }}"
+        version: "{{ branch }}"
+        force: false
+
+    - name: Prepare local.conf
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -ex
+          branch={{ branch }}
+          curl -sSL https://gist.github.com/lingxiankong/a109303f48e9a74fc8a7c01de4156d71/raw -o {{ workdir }}/local.conf
+          local_ip=$(ip route get 8.8.8.8 | head -1 | awk '{print $7}')
+          sed -i "s/LOCAL_IP_ADDRESS/$local_ip/g" {{ workdir }}/local.conf
+          sed -i "s,MYBRANCH,$branch,g" {{ workdir }}/local.conf
+
+    - name: Fix localhost
+      shell:
+        executable: /bin/bash
+        cmd: |
+          # https://bugs.launchpad.net/devstack/+bug/1891694
+          rm -rf /usr/lib/python3/dist-packages/PyYAML-*.egg-info
+          # https://bugs.launchpad.net/devstack/+bug/1906322
+          sed -i 's|$cmd_pip $upgrade |$cmd_pip $upgrade --ignore-installed |g' {{ workdir }}/inc/python
+          python3 -m pip install --upgrade pip==20.2.3
+
+    - name: Change devstack directory owner
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        recurse: true
+      loop:
+        - "{{ workdir }}"
+        - /opt/stack
+
+    - name: Install devstack
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          set -ex
+          sudo -u {{ user }} -H ./stack.sh
+
+    - name: Remove openstack CLI warnings
+      shell:
+        executable: /bin/bash
+        cmd: |
+          # To avoid the warning msg: "CryptographyDeprecationWarning: int_from_bytes is deprecated, use int.from_bytes instead"
+          python3 -m pip install cryptography==3.3.2

@@ -1,0 +1,6 @@
+---
+cfssl_version: 1.6.0
+cert_cn: example.com
+cert_hosts:
+  - example.com
+  - 127.0.0.1

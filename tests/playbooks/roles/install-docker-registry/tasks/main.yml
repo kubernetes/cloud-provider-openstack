@@ -1,0 +1,51 @@
+---
+- name: Ensure cert folder
+  file:
+    state: directory
+    path: "{{ ansible_user_dir }}/certs"
+
+- name: Ensure cfssl is installed
+  shell:
+    executable: /bin/bash
+    cmd: |
+      _=$(command -v cfssl)
+      if [[ "$?" != "0" ]]; then
+        curl -SL https://github.com/cloudflare/cfssl/releases/download/v{{ cfssl_version }}/cfssl_{{ cfssl_version }}_linux_amd64 -o /usr/local/bin/cfssl
+        chmod +x /usr/local/bin/cfssl
+        curl -SL https://github.com/cloudflare/cfssl/releases/download/v{{ cfssl_version }}/cfssljson_{{ cfssl_version }}_linux_amd64 -o /usr/local/bin/cfssljson
+        chmod +x /usr/local/bin/cfssljson
+        curl -SL https://github.com/cloudflare/cfssl/releases/download/v{{ cfssl_version }}/cfssl-certinfo_{{ cfssl_version }}_linux_amd64 -o /usr/local/bin/cfssl-certinfo
+        chmod +x /usr/local/bin/cfssl-certinfo
+      fi
+
+- name: Prepare cfssl config files
+  template:
+    src: "{{ item }}"
+    dest: "{{ ansible_user_dir }}/certs/{{ item | basename | regex_replace('.j2$', '') }}"
+  with_fileglob:
+    - ../templates/*.j2
+
+- name: Manage self-sign CA
+  shell:
+    executable: /bin/bash
+    chdir: "{{ ansible_user_dir }}/certs"
+    creates: "{{ ansible_user_dir }}/certs/ca.pem"
+    cmd: |
+      cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
+
+- name: Run docker registry container
+  shell:
+    executable: /bin/bash
+    cmd: |
+      docker ps --filter name=registry | grep registry
+      if [[ "$?" != "0" ]]; then
+        docker run -d \
+          --restart=always \
+          --name registry \
+          -v "{{ ansible_user_dir }}/certs":/certs \
+          -e REGISTRY_HTTP_ADDR=0.0.0.0:443 \
+          -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/ca.pem \
+          -e REGISTRY_HTTP_TLS_KEY=/certs/ca-key.pem \
+          -p 443:443 \
+          registry:2
+      fi
