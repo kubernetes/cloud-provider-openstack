@@ -7,14 +7,7 @@
               - pkg/identity/.*
               - go.mod$
               - go.sum$
-              - Makefile$
               - tests/e2e/k8s-keystone-auth/.*
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-e2e-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-e2e-test-csi-cinder:
@@ -22,33 +15,23 @@
               - cmd/cinder-csi-plugin/.*
               - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
-              - pkg/util/.*
               - tests/e2e/csi/cinder/.*
               - cmd/tests/.*
+              - pkg/util/blockdevice/.*
+              - pkg/util/mount/.*
               - go.mod$
               - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-sanity-test-csi-cinder:
       jobs:
         - cloud-provider-openstack-sanity-test-csi-cinder:
             files:
               - cmd/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
-              - pkg/util/.*
               - tests/sanity/cinder/.*
+              - pkg/util/blockdevice/.*
+              - pkg/util/mount/.*
               - go.mod$
               - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
     cloud-provider-openstack-multinode-csi-migration-test:
       jobs:
         - cloud-provider-openstack-multinode-csi-migration-test:
@@ -56,10 +39,10 @@
               - cmd/cinder-csi-plugin/.*
               - manifests/cinder-csi-plugin/.*
               - pkg/csi/cinder/.*
-              - pkg/util/.*
+              - pkg/util/blockdevice/.*
+              - pkg/util/mount/.*
               - go.mod$
               - go.sum$
-              - Makefile$
     cloud-provider-openstack-acceptance-test-csi-manila:
       jobs:
         - cloud-provider-openstack-acceptance-test-csi-manila:
@@ -72,78 +55,47 @@
               - pkg/share/manila/shareoptions/validator/.*
               - go.mod$
               - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/openstack/.*
-              - pkg/util/.*
+              - pkg/util/openstack/.*
+              - pkg/util/metadata/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
+    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.22:
+      jobs:
+        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.22:
+            files:
+              - cmd/openstack-cloud-controller-manager/.*
+              - pkg/openstack/.*
+              - pkg/util/openstack/.*
+              - pkg/util/metadata/.*
+              - tests/e2e/cloudprovider/.*
+              - go.mod$
+              - go.sum$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.21:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.21:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/openstack/.*
-              - pkg/util/.*
+              - pkg/util/openstack/.*
+              - pkg/util/metadata/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
     cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
       jobs:
         - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.20:
             files:
               - cmd/openstack-cloud-controller-manager/.*
               - pkg/openstack/.*
-              - pkg/util/.*
+              - pkg/util/openstack/.*
+              - pkg/util/metadata/.*
               - tests/e2e/cloudprovider/.*
               - go.mod$
               - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$
-    cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
-      jobs:
-        - cloud-provider-openstack-acceptance-test-e2e-conformance-stable-branch-v1.19:
-            files:
-              - cmd/openstack-cloud-controller-manager/.*
-              - pkg/openstack/.*
-              - pkg/util/.*
-              - tests/e2e/cloudprovider/.*
-              - go.mod$
-              - go.sum$
-              - Makefile$
-            irrelevant-files:
-              - ^docs/.*$
-              - ^.*\.md$
-              - ^OWNERS$
-              - ^SECURITY_CONTACTS$
-              - ^.gitignore$

@@ -1,10 +1,8 @@
 package util
 
 import (
-	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -70,23 +68,4 @@ func RoundUpSize(volumeSizeBytes int64, allocationUnitBytes int64) int64 {
 		roundedUp++
 	}
 	return roundedUp
-}
-
-// RoundUpSizeInt calculates how many allocation units are needed to accommodate
-// a volume of given size. It returns an int instead of an int64 and an error if
-// there's overflow
-func RoundUpSizeInt(volumeSizeBytes int64, allocationUnitBytes int64) (int, error) {
-	roundedUp := RoundUpSize(volumeSizeBytes, allocationUnitBytes)
-	roundedUpInt := int(roundedUp)
-	if int64(roundedUpInt) != roundedUp {
-		return 0, fmt.Errorf("capacity %v is too great, casting results in integer overflow", roundedUp)
-	}
-	return roundedUpInt, nil
-}
-
-// RoundUpToGiBInt rounds up given quantity upto chunks of GiB. It returns an
-// int instead of an int64 and an error if there's overflow
-func RoundUpToGiBInt(size resource.Quantity) (int, error) {
-	requestBytes := size.Value()
-	return RoundUpSizeInt(requestBytes, GIB)
 }
