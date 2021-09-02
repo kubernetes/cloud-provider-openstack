@@ -6,7 +6,7 @@ metadata:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
   clusterIP: None
----    
+---
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
@@ -15,7 +15,7 @@ metadata:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "cinder-csi.name" . }}-controllerplugin
-  replicas: 1
+  replicas: {{ .Values.csi.plugin.controllerPlugin.replicas }}
   selector:
     matchLabels:
       {{- include "cinder-csi.controllerplugin.matchLabels" . | nindent 6 }}
@@ -45,6 +45,7 @@ spec:
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
+            - "--leader-election=true"
             - "--default-fstype=ext4"
             - "--feature-gates=Topology={{ .Values.csi.provisioner.topology }}"
             - "--extra-create-metadata"
@@ -61,6 +62,7 @@ spec:
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
+            - "--leader-election=true"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -75,6 +77,7 @@ spec:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--handle-volume-inuse-error=false"
+            - "--leader-election=true"
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
