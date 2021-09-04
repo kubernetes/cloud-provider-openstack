@@ -1,21 +1,17 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "cinder-csi.name" . }}-controllerplugin
-  labels:
-    {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
-spec:
-  clusterIP: None
----
-kind: StatefulSet
+kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: {{ include "cinder-csi.name" . }}-controllerplugin
   labels:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "cinder-csi.name" . }}-controllerplugin
   replicas: {{ .Values.csi.plugin.controllerPlugin.replicas }}
+  strategy:
+    type: {{ .Values.csi.controllerPlugin.strategy.type }}
+{{- if eq .Values.csi.controllerPlugin.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.csi.controllerPlugin.strategy.rollingUpdate.maxUnavailable }}
+{{- end }}
   selector:
     matchLabels:
       {{- include "cinder-csi.controllerplugin.matchLabels" . | nindent 6 }}
