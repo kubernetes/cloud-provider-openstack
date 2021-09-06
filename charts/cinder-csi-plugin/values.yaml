@@ -75,7 +75,10 @@ csi:
         rollingUpdate:
           # maxUnavailable is the maximum number of pods that can be
           # unavailable during the update process.
-          maxUnavailable: 50%
+          maxUnavailable: 0
+          # maxSurge is the maximum number of pods that can be
+          # created over the desired number of pods
+          maxSurge: 1
       affinity: {}
       nodeSelector: {}
       tolerations: []
