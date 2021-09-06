@@ -11,6 +11,7 @@ spec:
 {{- if eq .Values.csi.controllerPlugin.strategy.type "RollingUpdate" }}
     rollingUpdate:
       maxUnavailable: {{ .Values.csi.controllerPlugin.strategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.csi.controllerPlugin.strategy.rollingUpdate.maxSurge }}
 {{- end }}
   selector:
     matchLabels:
