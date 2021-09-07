@@ -67,7 +67,7 @@ csi:
         - operator: Exists
       kubeletDir: /var/lib/kubelet
     controllerPlugin:
-      replicas: 3
+      replicas: 1
       strategy:
         # RollingUpdate strategy replaces old pods with new ones gradually,
         # without incurring downtime.
