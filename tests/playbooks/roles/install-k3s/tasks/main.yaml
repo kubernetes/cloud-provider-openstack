@@ -102,7 +102,7 @@
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
           - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
-          - INSTALL_K3S_SKIP_DOWNLOAD=true /var/lib/rancher/k3s/install.sh --docker --disable traefik --disable metrics-server --disable servicelb --disable-cloud-controller --kubelet-arg="cloud-provider=external" --tls-san {{ k3s_fip }} --token {{ cluster_token }}
+          - INSTALL_K3S_SKIP_DOWNLOAD=true /var/lib/rancher/k3s/install.sh --docker --disable traefik --disable metrics-server --disable servicelb --tls-san {{ k3s_fip }} --token {{ cluster_token }} {{ k3s_master_cloud_provider_config }}
         write_files:
           - path: /etc/docker/daemon.json
             content: |
@@ -140,7 +140,7 @@
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
           - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
-          - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
+          - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker {{ k3s_worker_cloud_provider_config }}
         write_files:
           - path: /etc/docker/daemon.json
             content: |
