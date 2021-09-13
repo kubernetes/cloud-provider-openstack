@@ -6,8 +6,8 @@ require (
 	github.com/MichaelTJones/walk v0.0.0-20161122175330-4748e29d5718 // indirect
 	github.com/container-storage-interface/spec v1.5.0
 	github.com/golang/protobuf v1.5.2
-	github.com/gophercloud/gophercloud v0.19.0
-	github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
+	github.com/gophercloud/gophercloud v0.21.0
+	github.com/gophercloud/utils v0.0.0-20210909165623-d7085207ff6d
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.2.0
 	github.com/imdario/mergo v0.3.7 // indirect
