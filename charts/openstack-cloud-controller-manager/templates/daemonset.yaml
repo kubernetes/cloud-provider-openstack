@@ -42,10 +42,8 @@ spec:
             {{- else }}
             - --address=127.0.0.1
             {{- end }}
-            {{- if .Values.controllerExtraArgs }}
-            {{- with .Values.controllerExtraArgs }}
-            {{- tpl . $ | trim | nindent 12 }}
-            {{- end }}
+            {{- range .Values.controllerExtraArgs }}
+            - {{ . }}
             {{- end }}
           {{- if .Values.serviceMonitor.enabled }}
           ports:

@@ -42,8 +42,8 @@ tolerations: []
 #     effect: NoExecute
 
 # Any extra arguments for openstack-cloud-controller-manager
-controllerExtraArgs: {}
-# controllerExtraArgs: |-
+controllerExtraArgs: []
+# controllerExtraArgs:
 #   - --cluster-name=my-cluster
 
 # Create a service monitor for Prometheus Operator
