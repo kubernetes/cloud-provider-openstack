@@ -1,0 +1,48 @@
+---
+# apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+- name: Install packages
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+  vars:
+    packages:
+      # allowing you to add external HTTPS sources to your APT sources list.
+      - apt-transport-https
+      - ca-certificates
+      - software-properties-common
+      - curl
+
+# curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+- name: Add Docker’s official GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+# add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+- name: Set up the stable repository
+  apt_repository:
+    repo: 'deb https://download.docker.com/linux/ubuntu {{ hostvars[inventory_hostname].ansible_distribution_release }} stable'
+    state: present
+
+# apt-get update; apt install -y docker-ce=<version>
+- name: Install docker-ce
+  apt:
+    name: docker-ce={{ docker_version }}
+    state: present
+    update_cache: yes
+
+- name: Config docker
+  copy:
+    content: |
+      {
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "50m"
+        },
+        "storage-driver": "overlay2"
+      }
+    dest: /etc/docker/daemon.json
+    mode: 0644
+  notify: "Restart Docker"
