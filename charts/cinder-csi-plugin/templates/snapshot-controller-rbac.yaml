@@ -12,7 +12,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: snapshot-controller
+  name: snapshot-controller-sa
   namespace: {{ .Release.Namespace }}
 ---
 kind: ClusterRole
@@ -76,7 +76,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 subjects:
   - kind: ServiceAccount
-    name: snapshot-controller
+    name: snapshot-controller-sa
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
