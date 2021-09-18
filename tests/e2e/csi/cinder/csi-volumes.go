@@ -19,7 +19,7 @@ var CSITestSuites = []func() storageframework.TestSuite{
 	testsuites.InitVolumeModeTestSuite,
 	testsuites.InitEphemeralTestSuite,
 	//testsuites.InitVolumeIOTestSuite,
-	testsuites.InitSnapshottableTestSuite,
+	//testsuites.InitSnapshottableTestSuite,
 	testsuites.InitMultiVolumeTestSuite,
 	testsuites.InitFsGroupChangePolicyTestSuite,
 	testsuites.InitTopologyTestSuite,
