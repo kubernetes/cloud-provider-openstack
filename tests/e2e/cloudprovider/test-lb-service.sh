@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# This script is used for the openlab CI job cloud-provider-openstack-test-occm.
+# This script is used for the CI job cloud-provider-openstack-test-occm.
 #
 # Prerequisites:
 #   - This script is supposed to be running on the CI host which is running devstack.
 #   - kubectl is ready to talk with the kubernetes cluster.
-#   - This script is not responsible for resource clean up if there is test case fails.
+#   - This script will delete all the resources created during testing if there is any test case fails.
 set -x
 
 TIMEOUT=${TIMEOUT:-300}
@@ -301,7 +301,6 @@ EOF
     wait_for_loadbalancer $lbid
 
     printf "\n>>>>>>> Validating openstack load balancer after updating the service.\n"
-    create_openstackcli_pod
     lb_info=$(openstack loadbalancer status show $lbid)
     listener_count=$(echo $lb_info | jq '.loadbalancer.listeners | length')
     member_port=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq)
@@ -321,11 +320,6 @@ EOF
     fi
     if [[ ${member_port} == ${member_ports} ]]; then
         printf "\n>>>>>>> FAIL: NodePort ${member_port} not changed.\n"
-        exit -1
-    fi
-    echo ${member_ports} | grep -w ${member_port}
-    if [[ $? -eq 0 ]]; then
-        printf "\n>>>>>>> FAIL: NodePort ${member_port} should not in ${member_ports}.\n"
         exit -1
     fi
 

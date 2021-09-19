@@ -77,7 +77,7 @@ var rootCmd = &cobra.Command{
 			Name: "k8s-auto-healer",
 		})
 
-		sigCh := make(chan os.Signal)
+		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 	},

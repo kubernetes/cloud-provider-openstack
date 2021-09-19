@@ -1,0 +1,197 @@
+- name: Install packages
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+  vars:
+    packages:
+      - jq
+
+- name: Get k3s release
+  shell:
+    executable: /bin/bash
+    cmd: |
+      # Get k3s release based on the given k8s branch.
+      branch={{ k8s_branch }}
+      if [[ "$branch" = "master" ]]; then
+        k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[0].name')
+      else
+        # release-1.20 --> 1.20
+        k8s_minor=${branch##*-}
+        # 1.20 --> v1.20.x+k3s1 or v1.20.1-rc1+k3s1
+        k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[].name' | grep -E "^v${k8s_minor}.[0-9a-z\+\-]+\+k3s1$" | awk 'NR==1 {print}')
+      fi
+      echo $k3s_release
+  register: release
+
+- name: Create openstack resources
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+      cd {{ devstack_workdir }}
+
+      set +x; source openrc admin admin > /dev/null; set -x
+      openstack image show {{ image_name }} > /dev/null 2>&1
+      if [[ "$?" != "0" ]]; then
+        curl -sSL {{ image_url }} -o {{ image_name }}.img
+        openstack image create {{ image_name }} --container-format bare --disk-format qcow2 --public --file {{ image_name }}.img
+      fi
+
+      set +x; source openrc demo demo > /dev/null; set -x
+      openstack keypair show {{ keypair_name }} > /dev/null 2>&1
+      if [[ "$?" != "0" ]]; then
+        test -e {{ ansible_user_dir }}/.ssh/id_rsa || ssh-keygen -t rsa -b 4096 -N "" -f {{ ansible_user_dir }}/.ssh/id_rsa
+        openstack keypair create --public-key {{ ansible_user_dir }}/.ssh/id_rsa.pub {{ keypair_name }}
+      fi
+
+      openstack security group show {{ sg_name }} > /dev/null 2>&1
+      if [[ "$?" != "0" ]]; then
+        openstack security group create {{ sg_name }}
+        openstack security group rule create --proto icmp {{ sg_name }}
+        openstack security group rule create --protocol tcp --dst-port 1:65535 {{ sg_name }}
+        openstack security group rule create --protocol udp --dst-port 1:65535 {{ sg_name }}
+      fi
+
+      openstack subnet set private-subnet --dns-nameserver 8.8.8.8 || true
+
+- name: Create port with floating IP
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+
+      openstack port show {{ master_port_name }}
+      if [ $? -ne 0 ]; then
+        port_id=$(openstack port create {{ master_port_name }} --network private --security-group {{ sg_name }} -f value -c id)
+        fip=$(openstack floating ip create public -c floating_ip_address -f value)
+        openstack floating ip set $fip --port $port_id
+      fi
+
+- name: Get floating IP
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null
+      openstack floating ip list --port {{ master_port_name }} -c "Floating IP Address" -f value
+  register: fip
+
+- name: Set fact for k3s master floating IP
+  set_fact:
+    k3s_fip: "{{ fip.stdout }}"
+
+- name: Run k3s master
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+
+      openstack server show k3s-master > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        # Prepare user data file for k3s master
+        cat <<EOF > {{ devstack_workdir }}/init_k3s.yaml
+        #cloud-config
+        manage_etc_hosts: "localhost"
+        package_update: true
+        runcmd:
+          - curl -sSL https://get.docker.com/ | sh
+          - mkdir -p /var/lib/rancher/k3s/agent/images/
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
+          - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
+          - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
+          - INSTALL_K3S_SKIP_DOWNLOAD=true /var/lib/rancher/k3s/install.sh --docker --disable traefik --disable metrics-server --disable servicelb --disable-cloud-controller --kubelet-arg="cloud-provider=external" --tls-san {{ k3s_fip }} --token {{ cluster_token }}
+        write_files:
+          - path: /etc/docker/daemon.json
+            content: |
+              {
+                "insecure-registries" : ["{{ ansible_default_ipv4.address }}"]
+              }
+      EOF
+
+        # Create k3s master
+        port_id=$(openstack port show {{ master_port_name }} -c id -f value)
+        openstack server create k3s-master --image {{ image_name }} --flavor {{ flavor_name }} --key-name {{ keypair_name }} --nic port-id=$port_id --user-data {{ devstack_workdir }}/init_k3s.yaml --wait
+      fi
+
+- name: Run k3s workers
+  when: worker_node_count|int > 0
+  loop: "{{ range(0, worker_node_count)|list }}"
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+
+      openstack server show k3s-worker{{ item }} > /dev/null 2>&1
+      if [ $? -ne 0 ]; then
+        # Prepare user data file for k3s worker
+        cat <<EOF > {{ devstack_workdir }}/init_k3s_worker{{ item }}.yaml
+        #cloud-config
+        manage_etc_hosts: "localhost"
+        package_update: true
+        runcmd:
+          - curl -sSL https://get.docker.com/ | sh
+          - mkdir -p /var/lib/rancher/k3s/agent/images/
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
+          - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
+          - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
+          - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
+        write_files:
+          - path: /etc/docker/daemon.json
+            content: |
+              {
+                "insecure-registries" : ["{{ ansible_default_ipv4.address }}"]
+              }
+      EOF
+
+        # Create k3s worker
+        openstack server create k3s-worker{{ item }} --image {{ image_name }} --flavor {{ flavor_name }} --key-name {{ keypair_name }} --network private --security-group {{ sg_name }} --user-data {{ devstack_workdir }}/init_k3s_worker{{ item }}.yaml --wait
+      fi
+
+- name: Wait for ssh ready for k3s VM
+  wait_for: port=22 host={{ k3s_fip }} search_regex=OpenSSH timeout=500 delay=5
+
+- name: Wait until k3s installation is finished
+  shell:
+    executable: /bin/bash
+    cmd: |
+      ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo chmod 777 /etc/rancher/k3s/k3s.yaml
+  register: result
+  until: result.rc == 0
+  retries: 100
+  delay: 5
+
+- name: Prepare kubectl and kubeconfig file
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -ex
+
+      mkdir -p {{ ansible_user_dir }}/.kube
+      scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }}:/etc/rancher/k3s/k3s.yaml {{ ansible_user_dir }}/.kube/config
+      curl -sLO# https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+      chmod +x ./kubectl; sudo mv ./kubectl /usr/local/bin/kubectl
+      kubectl config set-cluster default --server=https://{{ k3s_fip }}:6443 --kubeconfig {{ ansible_user_dir }}/.kube/config
+
+- name: Wait for k8s node ready
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl --kubeconfig {{ ansible_user_dir }}/.kube/config get node | grep " Ready " | wc -l
+  register: result
+  until: result.stdout == (worker_node_count + 1)|string
+  retries: 12
+  delay: 10
+
+- name: Set kubeconfig env
+  set_fact:
+    kubeconfig: "{{ ansible_user_dir }}/.kube/config"
+
+- name: Merge KUBECONFIG env vars into global env
+  set_fact:
+    global_env: "{{ global_env | combine({'KUBECONFIG': kubeconfig}) }}"
