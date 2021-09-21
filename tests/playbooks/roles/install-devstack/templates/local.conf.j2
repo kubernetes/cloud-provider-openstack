@@ -1,0 +1,116 @@
+[[local|localrc]]
+RECLONE=False
+HOST_IP={{ local_ip_address }}
+DEST=/opt/stack
+DATA_DIR=${DEST}/data
+USE_PYTHON3=True
+LOGFILE=$DEST/logs/stack.sh.log
+VERBOSE=True
+LOG_COLOR=False
+LOGDAYS=1
+SERVICE_TIMEOUT=300
+
+DATABASE_PASSWORD=password
+ADMIN_PASSWORD=password
+SERVICE_PASSWORD=password
+SERVICE_TOKEN=password
+RABBIT_PASSWORD=password
+
+TARGET_BRANCH={{ branch }}
+
+ENABLED_SERVICES={{ enable_services | join(',') }}
+
+{% if "nova" in enable_services %}
+# Nova
+enable_plugin nova https://opendev.org/openstack/nova.git {{ branch }}
+enable_service n-api
+enable_service n-cpu
+enable_service n-cond
+enable_service n-sch
+enable_service n-api-meta
+
+enable_service placement-api
+enable_service placement-client
+{% endif %}
+
+{% if "glance" in enable_services %}
+# Glance
+enable_plugin glance https://opendev.org/openstack/glance.git {{ branch }}
+enable_service g-api
+enable_service g-reg
+
+[[post-config|$GLANCE_API_CONF]]
+[glance_store]
+default_store = file
+{% endif %}
+
+{% if "cinder" in enable_services %}
+# Cinder
+enable_plugin cinder https://opendev.org/openstack/cinder.git {{ branch }}
+enable_service cinder
+enable_service c-api
+enable_service c-vol
+enable_service c-sch
+{% endif %}
+
+{% if "neutron" in enable_services %}
+# Neutron
+enable_plugin neutron https://opendev.org/openstack/neutron.git {{ branch }}
+enable_service q-svc
+enable_service q-agt
+enable_service q-dhcp
+enable_service q-l3
+enable_service q-meta
+IP_VERSION=4
+IPV4_ADDRS_SAFE_TO_USE=10.1.0.0/26
+FIXED_RANGE=10.1.0.0/26
+NETWORK_GATEWAY=10.1.0.1
+FLOATING_RANGE=172.24.5.0/24
+PUBLIC_NETWORK_GATEWAY=172.24.5.1
+Q_PLUGIN=ml2
+Q_ML2_TENANT_NETWORK_TYPE=vxlan
+Q_DVR_MODE=legacy
+Q_AGENT=openvswitch
+Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch
+
+[[post-config|$NEUTRON_CONF]]
+[DEFAULT]
+global_physnet_mtu = 1430
+{% endif %}
+
+{% if "octavia" in enable_services %}
+# Octavia
+enable_plugin octavia https://opendev.org/openstack/octavia.git {{ branch }}
+enable_service octavia
+enable_service o-cw
+enable_service o-hm
+enable_service o-hk
+enable_service o-api
+
+LIBS_FROM_GIT+=,python-octaviaclient
+
+OCTAVIA_MGMT_SUBNET=10.51.0.0/16
+OCTAVIA_MGMT_SUBNET_START=10.51.0.2
+OCTAVIA_MGMT_SUBNET_END=10.51.0.254
+
+[[post-config|$OCTAVIA_CONF]]
+[api_settings]
+allow_tls_terminated_listeners = True
+[controller_worker]
+loadbalancer_topology = SINGLE
+amp_active_retries = 60
+amp_active_wait_sec = 10
+[haproxy_amphora]
+rest_request_conn_timeout = 300
+rest_request_read_timeout = 600
+[health_manager]
+health_check_interval = 30
+{% endif %}
+
+{% if "barbican" in enable_services %}
+# Barbican
+enable_plugin barbican https://opendev.org/openstack/barbican.git {{ branch }}
+enable_service barbican-vault
+
+LIBS_FROM_GIT+=,python-barbicanclient
+{% endif %}

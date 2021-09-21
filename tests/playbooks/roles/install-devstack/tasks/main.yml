@@ -62,16 +62,21 @@
         version: "{{ branch }}"
         force: false
 
-    - name: Prepare local.conf
+    - name: Retrieve local IP address
       shell:
         executable: /bin/bash
         cmd: |
           set -ex
-          branch={{ branch }}
-          curl -sSL https://gist.github.com/lingxiankong/a109303f48e9a74fc8a7c01de4156d71/raw -o {{ workdir }}/local.conf
-          local_ip=$(ip route get 8.8.8.8 | head -1 | awk '{print $7}')
-          sed -i "s/LOCAL_IP_ADDRESS/$local_ip/g" {{ workdir }}/local.conf
-          sed -i "s,MYBRANCH,$branch,g" {{ workdir }}/local.conf
+          ip route get 8.8.8.8 | head -1 | awk '{print $7}'
+      register: local_ip_output
+
+    - set_fact:
+        local_ip_address: "{{ local_ip_output.stdout }}"
+
+    - name: Prepare local.conf
+      template:
+        src: local.conf.j2
+        dest: {{ workdir }}/local.conf
 
     - name: Fix localhost
       shell:
