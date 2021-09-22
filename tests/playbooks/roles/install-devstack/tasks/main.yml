@@ -76,7 +76,7 @@
     - name: Prepare local.conf
       template:
         src: local.conf.j2
-        dest: {{ workdir }}/local.conf
+        dest: "{{ workdir }}/local.conf"
 
     - name: Fix localhost
       shell:
