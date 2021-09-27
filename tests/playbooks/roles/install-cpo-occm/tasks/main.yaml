@@ -109,8 +109,6 @@
             - key: node-role.kubernetes.io/master
               effect: NoSchedule
             serviceAccountName: cloud-controller-manager
-            imagePullSecrets:
-            - name: openlab
             containers:
               - name: openstack-cloud-controller-manager
                 image: {{ remote_registry_host }}/openstack-cloud-controller-manager-amd64:{{ github_pr }}
