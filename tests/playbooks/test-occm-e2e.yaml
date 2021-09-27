@@ -13,9 +13,6 @@
     - role: install-golang
     - role: install-devstack
       enable_services:
-        - rabbit
-        - mysql
-        - key
         - nova
         - glance
         - cinder

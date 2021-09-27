@@ -18,11 +18,10 @@ RABBIT_PASSWORD=password
 
 TARGET_BRANCH={{ branch }}
 
-ENABLED_SERVICES={{ enable_services | join(',') }}
+ENABLED_SERVICES=rabbit,mysql,key
 
 {% if "nova" in enable_services %}
 # Nova
-enable_plugin nova https://opendev.org/openstack/nova.git {{ branch }}
 enable_service n-api
 enable_service n-cpu
 enable_service n-cond
@@ -35,7 +34,6 @@ enable_service placement-client
 
 {% if "glance" in enable_services %}
 # Glance
-enable_plugin glance https://opendev.org/openstack/glance.git {{ branch }}
 enable_service g-api
 enable_service g-reg
 
@@ -46,7 +44,6 @@ default_store = file
 
 {% if "cinder" in enable_services %}
 # Cinder
-enable_plugin cinder https://opendev.org/openstack/cinder.git {{ branch }}
 enable_service cinder
 enable_service c-api
 enable_service c-vol
