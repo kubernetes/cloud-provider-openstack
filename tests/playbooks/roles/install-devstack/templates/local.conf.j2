@@ -36,10 +36,6 @@ enable_service placement-client
 # Glance
 enable_service g-api
 enable_service g-reg
-
-[[post-config|$GLANCE_API_CONF]]
-[glance_store]
-default_store = file
 {% endif %}
 
 {% if "cinder" in enable_services %}
@@ -69,10 +65,6 @@ Q_ML2_TENANT_NETWORK_TYPE=vxlan
 Q_DVR_MODE=legacy
 Q_AGENT=openvswitch
 Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch
-
-[[post-config|$NEUTRON_CONF]]
-[DEFAULT]
-global_physnet_mtu = 1430
 {% endif %}
 
 {% if "octavia" in enable_services %}
@@ -89,7 +81,29 @@ LIBS_FROM_GIT+=,python-octaviaclient
 OCTAVIA_MGMT_SUBNET=10.51.0.0/16
 OCTAVIA_MGMT_SUBNET_START=10.51.0.2
 OCTAVIA_MGMT_SUBNET_END=10.51.0.254
+{% endif %}
 
+{% if "barbican" in enable_services %}
+# Barbican
+enable_plugin barbican https://opendev.org/openstack/barbican.git {{ branch }}
+enable_service barbican-vault
+
+LIBS_FROM_GIT+=,python-barbicanclient
+{% endif %}
+
+{% if "glance" in enable_services %}
+[[post-config|$GLANCE_API_CONF]]
+[glance_store]
+default_store = file
+{% endif %}
+
+{% if "neutron" in enable_services %}
+[[post-config|$NEUTRON_CONF]]
+[DEFAULT]
+global_physnet_mtu = 1430
+{% endif %}
+
+{% if "octavia" in enable_services %}
 [[post-config|$OCTAVIA_CONF]]
 [api_settings]
 allow_tls_terminated_listeners = True
@@ -102,12 +116,4 @@ rest_request_conn_timeout = 300
 rest_request_read_timeout = 600
 [health_manager]
 health_check_interval = 30
-{% endif %}
-
-{% if "barbican" in enable_services %}
-# Barbican
-enable_plugin barbican https://opendev.org/openstack/barbican.git {{ branch }}
-enable_service barbican-vault
-
-LIBS_FROM_GIT+=,python-barbicanclient
 {% endif %}
