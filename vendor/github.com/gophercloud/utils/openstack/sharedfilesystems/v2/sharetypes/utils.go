@@ -5,36 +5,43 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
 )
 
-// IDFromName is a convenience function that returns a share-type's ID given its name.
+// IDFromName is a convenience function that returns a share type's ID given
+// its name. Errors when the number of items found is not one.
 func IDFromName(client *gophercloud.ServiceClient, name string) (string, error) {
-	r, err := sharetypes.List(client, nil).AllPages()
-	if err != nil {
-		return "", nil
-	}
-
-	ss, err := sharetypes.ExtractShareTypes(r)
+	IDs, err := IDsFromName(client, name)
 	if err != nil {
 		return "", err
 	}
 
-	var (
-		count int
-		id    string
-	)
-
-	for _, s := range ss {
-		if s.Name == name {
-			count++
-			id = s.ID
-		}
-	}
-
-	switch count {
+	switch count := len(IDs); count {
 	case 0:
 		return "", gophercloud.ErrResourceNotFound{Name: name, ResourceType: "share type"}
 	case 1:
-		return id, nil
+		return IDs[0], nil
 	default:
 		return "", gophercloud.ErrMultipleResourcesFound{Name: name, Count: count, ResourceType: "share type"}
 	}
+}
+
+// IDsFromName returns zero or more IDs corresponding to a name. The returned
+// error is only non-nil in case of failure.
+func IDsFromName(client *gophercloud.ServiceClient, name string) ([]string, error) {
+	pages, err := sharetypes.List(client, nil).AllPages()
+	if err != nil {
+		return nil, err
+	}
+
+	all, err := sharetypes.ExtractShareTypes(pages)
+	if err != nil {
+		return nil, err
+	}
+
+	IDs := make([]string, 0, len(all))
+	for _, s := range all {
+		if s.Name == name {
+			IDs = append(IDs, s.ID)
+		}
+	}
+
+	return IDs, nil
 }

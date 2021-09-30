@@ -103,7 +103,7 @@ github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
 github.com/googleapis/gnostic/jsonschema
 github.com/googleapis/gnostic/openapiv2
-# github.com/gophercloud/gophercloud v0.19.0
+# github.com/gophercloud/gophercloud v0.21.0
 ## explicit
 github.com/gophercloud/gophercloud
 github.com/gophercloud/gophercloud/openstack
@@ -159,10 +159,12 @@ github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots
 github.com/gophercloud/gophercloud/openstack/utils
 github.com/gophercloud/gophercloud/pagination
 github.com/gophercloud/gophercloud/testhelper
-# github.com/gophercloud/utils v0.0.0-20200423144003-7c72efc7435d
+# github.com/gophercloud/utils v0.0.0-20210909165623-d7085207ff6d
 ## explicit
 github.com/gophercloud/utils/client
 github.com/gophercloud/utils/env
+github.com/gophercloud/utils/gnocchi
+github.com/gophercloud/utils/internal
 github.com/gophercloud/utils/openstack/clientconfig
 github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups
 github.com/gophercloud/utils/openstack/sharedfilesystems/v2/shares
