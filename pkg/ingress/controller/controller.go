@@ -592,7 +592,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		logger.Info("security group deleted")
 	}
 
-	err = openstackutil.DeleteLoadbalancer(c.osClient.Octavia, loadbalancer.ID)
+	err = openstackutil.DeleteLoadbalancer(c.osClient.Octavia, loadbalancer.ID, true)
 	logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("loadbalancer deleted")
 
 	return err

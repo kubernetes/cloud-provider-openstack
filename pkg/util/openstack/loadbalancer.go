@@ -26,6 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
+	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/pagination"
 	version "github.com/hashicorp/go-version"
@@ -43,9 +44,10 @@ const (
 	OctaviaFeatureTimeout           = 3
 	OctaviaFeatureAvailabilityZones = 4
 
-	loadbalancerActiveInitDelay = 1 * time.Second
-	loadbalancerActiveFactor    = 1.2
-	loadbalancerActiveSteps     = 19
+	waitLoadbalancerInitDelay   = 1 * time.Second
+	waitLoadbalancerFactor      = 1.2
+	waitLoadbalancerActiveSteps = 19
+	waitLoadbalancerDeleteSteps = 12
 
 	activeStatus = "ACTIVE"
 	errorStatus  = "ERROR"
@@ -145,11 +147,12 @@ func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int, l
 	return false
 }
 
-func waitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID string) error {
+func WaitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID string) error {
+	klog.InfoS("Waiting for load balancer ACTIVE", "lbID", loadbalancerID)
 	backoff := wait.Backoff{
-		Duration: loadbalancerActiveInitDelay,
-		Factor:   loadbalancerActiveFactor,
-		Steps:    loadbalancerActiveSteps,
+		Duration: waitLoadbalancerInitDelay,
+		Factor:   waitLoadbalancerFactor,
+		Steps:    waitLoadbalancerActiveSteps,
 	}
 
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
@@ -159,6 +162,7 @@ func waitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID st
 			return false, err
 		}
 		if loadbalancer.ProvisioningStatus == activeStatus {
+			klog.InfoS("Load balancer ACTIVE", "lbID", loadbalancerID)
 			return true, nil
 		} else if loadbalancer.ProvisioningStatus == errorStatus {
 			return true, fmt.Errorf("loadbalancer has gone into ERROR state")
@@ -168,7 +172,37 @@ func waitLoadbalancerActive(client *gophercloud.ServiceClient, loadbalancerID st
 
 	})
 
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("timeout waiting for the loadbalancer %s %s", loadbalancerID, activeStatus)
+	}
+
 	return err
+}
+
+// GetLoadBalancers returns all the filtered load balancer.
+func GetLoadBalancers(client *gophercloud.ServiceClient, opts loadbalancers.ListOpts) ([]loadbalancers.LoadBalancer, error) {
+	mc := metrics.NewMetricContext("loadbalancer", "list")
+	allPages, err := loadbalancers.List(client, opts).AllPages()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+	allLoadbalancers, err := loadbalancers.ExtractLoadBalancers(allPages)
+	if err != nil {
+		return nil, err
+	}
+
+	return allLoadbalancers, nil
+}
+
+// GetLoadbalancerByID retrieves loadbalancer object
+func GetLoadbalancerByID(client *gophercloud.ServiceClient, lbID string) (*loadbalancers.LoadBalancer, error) {
+	mc := metrics.NewMetricContext("loadbalancer", "get")
+	lb, err := loadbalancers.Get(client, lbID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+
+	return lb, nil
 }
 
 // GetLoadbalancerByName retrieves loadbalancer object
@@ -196,16 +230,72 @@ func GetLoadbalancerByName(client *gophercloud.ServiceClient, name string) (*loa
 	return &loadbalancerList[0], nil
 }
 
-// DeleteLoadbalancer deletes a loadbalancer with all its child objects.
-func DeleteLoadbalancer(client *gophercloud.ServiceClient, lbID string) error {
+// UpdateLoadBalancerTags updates tags for the load balancer
+func UpdateLoadBalancerTags(client *gophercloud.ServiceClient, lbID string, tags []string) error {
+	updateOpts := loadbalancers.UpdateOpts{
+		Tags: &tags,
+	}
+
+	mc := metrics.NewMetricContext("loadbalancer", "update")
+	_, err := loadbalancers.Update(client, lbID, updateOpts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return err
+	}
+
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating: %v", lbID, err)
+	}
+
+	return nil
+}
+
+func waitLoadbalancerDeleted(client *gophercloud.ServiceClient, loadbalancerID string) error {
+	klog.V(4).InfoS("Waiting for load balancer deleted", "lbID", loadbalancerID)
+	backoff := wait.Backoff{
+		Duration: waitLoadbalancerInitDelay,
+		Factor:   waitLoadbalancerFactor,
+		Steps:    waitLoadbalancerDeleteSteps,
+	}
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		mc := metrics.NewMetricContext("loadbalancer", "get")
+		_, err := loadbalancers.Get(client, loadbalancerID).Extract()
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				klog.V(4).InfoS("Load balancer deleted", "lbID", loadbalancerID)
+				return true, mc.ObserveRequest(nil)
+			}
+			return false, mc.ObserveRequest(err)
+		}
+		return false, mc.ObserveRequest(nil)
+	})
+
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("loadbalancer failed to delete within the allotted time")
+	}
+
+	return err
+}
+
+// DeleteLoadbalancer deletes a loadbalancer and wait for it's gone.
+func DeleteLoadbalancer(client *gophercloud.ServiceClient, lbID string, cascade bool) error {
+	opts := loadbalancers.DeleteOpts{}
+	if cascade {
+		opts.Cascade = true
+	}
+
 	mc := metrics.NewMetricContext("loadbalancer", "delete")
-	err := loadbalancers.Delete(client, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
+	err := loadbalancers.Delete(client, lbID, opts).ExtractErr()
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		_ = mc.ObserveRequest(err)
 		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
 	}
+	_ = mc.ObserveRequest(nil)
 
-	return mc.ObserveRequest(nil)
+	if err := waitLoadbalancerDeleted(client, lbID); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // UpdateListener updates a listener and wait for the lb active
@@ -216,8 +306,8 @@ func UpdateListener(client *gophercloud.ServiceClient, lbID string, listenerID s
 		return err
 	}
 
-	if err := waitLoadbalancerActive(client, lbID); err != nil {
-		return fmt.Errorf("failed to wait for load balancer ACTIVE after updating listener: %v", err)
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating listener: %v", lbID, err)
 	}
 
 	return nil
@@ -231,11 +321,30 @@ func CreateListener(client *gophercloud.ServiceClient, lbID string, opts listene
 		return nil, err
 	}
 
-	if err := waitLoadbalancerActive(client, lbID); err != nil {
-		return nil, fmt.Errorf("failed to wait for load balancer ACTIVE after creating listener: %v", err)
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return nil, fmt.Errorf("failed to wait for load balancer %s ACTIVE after creating listener: %v", lbID, err)
 	}
 
 	return listener, nil
+}
+
+// DeleteListener deletes a listener.
+func DeleteListener(client *gophercloud.ServiceClient, listenerID string, lbID string) error {
+	mc := metrics.NewMetricContext("loadbalancer_listener", "delete")
+	if err := listeners.Delete(client, listenerID).ExtractErr(); mc.ObserveRequest(err) != nil {
+		if cpoerrors.IsNotFound(err) {
+			klog.V(2).Infof("Listener %s for load balancer %s was already deleted: %v", listenerID, lbID, err)
+		} else {
+			_ = mc.ObserveRequest(err)
+			return fmt.Errorf("error deleting listener %s for load balancer %s: %v", listenerID, lbID, err)
+		}
+	}
+
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after deleting listener: %v", lbID, err)
+	}
+
+	return nil
 }
 
 // GetListenerByName gets a listener by its name, raise error if not found or get multiple ones.
@@ -273,6 +382,23 @@ func GetListenerByName(client *gophercloud.ServiceClient, name string, lbID stri
 	return &listenerList[0], nil
 }
 
+// GetListenersByLoadBalancerID returns listener list
+func GetListenersByLoadBalancerID(client *gophercloud.ServiceClient, lbID string) ([]listeners.Listener, error) {
+	mc := metrics.NewMetricContext("loadbalancer_listener", "list")
+	var lbListeners []listeners.Listener
+
+	allPages, err := listeners.List(client, listeners.ListOpts{LoadbalancerID: lbID}).AllPages()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+	lbListeners, err = listeners.ExtractListeners(allPages)
+	if err != nil {
+		return nil, err
+	}
+
+	return lbListeners, nil
+}
+
 // CreatePool creates a new pool.
 func CreatePool(client *gophercloud.ServiceClient, opts pools.CreateOptsBuilder, lbID string) (*pools.Pool, error) {
 	mc := metrics.NewMetricContext("loadbalancer_pool", "create")
@@ -281,7 +407,7 @@ func CreatePool(client *gophercloud.ServiceClient, opts pools.CreateOptsBuilder,
 		return nil, err
 	}
 
-	if err = waitLoadbalancerActive(client, lbID); err != nil {
+	if err = WaitLoadbalancerActive(client, lbID); err != nil {
 		return nil, fmt.Errorf("failed to wait for load balancer ACTIVE after creating pool: %v", err)
 	}
 
@@ -324,7 +450,8 @@ func GetPoolByName(client *gophercloud.ServiceClient, name string, lbID string) 
 	return &listenerPools[0], nil
 }
 
-// GetPoolsByListener finds pool for a listener. A listener always has exactly one pool.
+// GetPoolByListener finds pool for a listener.
+// A listener always has exactly one pool.
 func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID string) (*pools.Pool, error) {
 	listenerPools := make([]pools.Pool, 0, 1)
 	mc := metrics.NewMetricContext("loadbalancer_pool", "list")
@@ -404,11 +531,14 @@ func GetMembersbyPool(client *gophercloud.ServiceClient, poolID string) ([]pools
 func DeletePool(client *gophercloud.ServiceClient, poolID string, lbID string) error {
 	mc := metrics.NewMetricContext("loadbalancer_pool", "delete")
 	if err := pools.Delete(client, poolID).ExtractErr(); mc.ObserveRequest(err) != nil {
-		return err
+		if cpoerrors.IsNotFound(err) {
+			klog.V(2).Infof("Pool %s for load balancer %s was already deleted: %v", poolID, lbID, err)
+		} else {
+			return fmt.Errorf("error deleting pool %s for load balancer %s: %v", poolID, lbID, err)
+		}
 	}
-
-	if err := waitLoadbalancerActive(client, lbID); err != nil {
-		return fmt.Errorf("failed to wait for load balancer ACTIVE after deleting pool: %v", err)
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after deleting pool: %v", lbID, err)
 	}
 
 	return nil
@@ -422,8 +552,8 @@ func BatchUpdatePoolMembers(client *gophercloud.ServiceClient, lbID string, pool
 		return err
 	}
 
-	if err := waitLoadbalancerActive(client, lbID); err != nil {
-		return fmt.Errorf("failed to wait for load balancer ACTIVE after updating pool members for %s: %v", poolID, err)
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating pool members for %s: %v", lbID, poolID, err)
 	}
 
 	return nil
@@ -458,7 +588,7 @@ func CreateL7Policy(client *gophercloud.ServiceClient, opts l7policies.CreateOpt
 		return nil, err
 	}
 
-	if err = waitLoadbalancerActive(client, lbID); err != nil {
+	if err = WaitLoadbalancerActive(client, lbID); err != nil {
 		return nil, fmt.Errorf("failed to wait for load balancer ACTIVE after creating l7policy: %v", err)
 	}
 
@@ -472,8 +602,8 @@ func DeleteL7policy(client *gophercloud.ServiceClient, policyID string, lbID str
 		return err
 	}
 
-	if err := waitLoadbalancerActive(client, lbID); err != nil {
-		return fmt.Errorf("failed to wait for load balancer ACTIVE after deleting l7policy: %v", err)
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after deleting l7policy: %v", lbID, err)
 	}
 
 	return nil
@@ -502,9 +632,39 @@ func CreateL7Rule(client *gophercloud.ServiceClient, policyID string, opts l7pol
 		return err
 	}
 
-	if err = waitLoadbalancerActive(client, lbID); err != nil {
+	if err = WaitLoadbalancerActive(client, lbID); err != nil {
 		return fmt.Errorf("failed to wait for load balancer ACTIVE after creating l7policy rule: %v", err)
 	}
 
 	return nil
+}
+
+// DeleteHealthMonitor deletes a health monitor.
+func DeleteHealthMonitor(client *gophercloud.ServiceClient, monitorID string, lbID string) error {
+	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "delete")
+	err := monitors.Delete(client, monitorID).ExtractErr()
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		return mc.ObserveRequest(err)
+	}
+	_ = mc.ObserveRequest(nil)
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after deleting healthmonitor: %v", lbID, err)
+	}
+
+	return nil
+}
+
+// CreateHealthMonitor creates a health monitor in a pool.
+func CreateHealthMonitor(client *gophercloud.ServiceClient, opts monitors.CreateOpts, lbID string) (*monitors.Monitor, error) {
+	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "create")
+	monitor, err := monitors.Create(client, opts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, fmt.Errorf("failed to create healthmonitor: %v", err)
+	}
+
+	if err := WaitLoadbalancerActive(client, lbID); err != nil {
+		return nil, fmt.Errorf("failed to wait for load balancer %s ACTIVE after creating healthmonitor: %v", lbID, err)
+	}
+
+	return monitor, nil
 }
