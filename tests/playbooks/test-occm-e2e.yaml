@@ -12,6 +12,13 @@
   roles:
     - role: install-golang
     - role: install-devstack
+      enable_services:
+        - nova
+        - glance
+        - cinder
+        - neutron
+        - octavia
+        - barbican
     - role: install-k3s
       worker_node_count: 0
       k8s_branch: release-1.22
