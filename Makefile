@@ -23,7 +23,6 @@ DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 SOURCES := $(shell find $(DEST) -name '*.go' 2>/dev/null)
 HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
-HAS_IMPORT_BOSS := $(shell command -v import-boss;)
 GOX_PARALLEL ?= 3
 
 TARGETS		?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
@@ -156,7 +155,7 @@ build-cmd-%: work $(SOURCES)
 
 test: unit functional
 
-check: work fmt vet lint import-boss
+check: work fmt vet lint
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
@@ -176,16 +175,9 @@ fmt:
 lint:
 ifndef HAS_LINT
 	echo "installing lint"
-	GO111MODULE=off go get -u golang.org/x/lint/golint
+	go get -u golang.org/x/lint/golint
 endif
 	hack/verify-golint.sh
-
-import-boss:
-ifndef HAS_IMPORT_BOSS
-	echo "installing import-boss"
-	go install k8s.io/code-generator/cmd/import-boss@v0.22.0
-endif
-	hack/verify-import-boss.sh
 
 vet:
 	go vet ./...
@@ -333,5 +325,5 @@ dist: build-cross
 		$(DIST_DIRS) zip -r cloud-provider-openstack-$(VERSION)-{}.zip {} \; \
 	)
 
-.PHONY: bindep build clean cover work docs fmt functional lint import-boss realclean \
+.PHONY: bindep build clean cover work docs fmt functional lint realclean \
 	relnotes test translation version build-cross dist

@@ -117,7 +117,7 @@
                   - --v=4
                   - --cloud-config=/etc/config/cloud.conf
                   - --cloud-provider=openstack
-                  - --use-service-account-credentials=true
+                  - --use-service-account-credentials=false
                   - --bind-address=127.0.0.1
                 volumeMounts:
                   - mountPath: /etc/config
@@ -168,5 +168,5 @@
 
       # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
-      OS_RC={{ devstack_workdir }}/openrc \
+      DEVSTACK_OS_RC={{ devstack_workdir }}/openrc \
       bash tests/e2e/cloudprovider/test-lb-service.sh
