@@ -1,0 +1,22 @@
+- hosts: all
+  become: true
+  become_method: sudo
+  gather_facts: true
+
+  vars:
+    user: stack
+    github_pr: 123
+    global_env: {}
+    devstack_workdir: /home/{{ user }}/devstack
+
+  roles:
+    - role: install-golang
+    - role: install-devstack
+    - role: install-k3s
+      worker_node_count: 0
+      k8s_branch: release-1.22
+    - role: install-docker
+    - role: install-docker-registry
+      cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
+    - role: install-csi-cinder
+      environment: "{{ global_env }}"
