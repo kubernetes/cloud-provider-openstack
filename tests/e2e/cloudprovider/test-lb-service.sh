@@ -5,6 +5,7 @@
 # Prerequisites:
 #   - This script is supposed to be running on the CI host which is running devstack.
 #   - kubectl is ready to talk with the kubernetes cluster.
+#   - jq is needed.
 #   - This script will delete all the resources created during testing if there is any test case fails.
 set -x
 
@@ -12,20 +13,70 @@ TIMEOUT=${TIMEOUT:-300}
 FLOATING_IP=${FLOATING_IP:-""}
 NAMESPACE="octavia-lb-test"
 GATEWAY_IP=${GATEWAY_IP:-""}
-OS_RC=${OS_RC:-"/home/zuul/devstack/openrc"}
+DEVSTACK_OS_RC=${DEVSTACK_OS_RC:-"/home/zuul/devstack/openrc"}
+CLUSTER_TENANT=${CLUSTER_TENANT:-"demo"}
+CLUSTER_USER=${CLUSTER_USER:-"demo"}
+LB_SUBNET_NAME=${LB_SUBNET_NAME:-"private-subnet"}
 
 delete_resources() {
   ERROR_CODE="$?"
 
-  printf "\n>>>>>>> Deleting k8s resources\n"
-  for name in "test-basic" "test-x-forwarded-for" "test-update-port"; do
-    kubectl -n $NAMESPACE delete service ${name}
-  done
-  kubectl -n ${NAMESPACE} delete deploy echoserver
+  printf "\n>>>>>>> Deleting k8s services\n"
+  kubectl -n ${NAMESPACE} get svc -o name | xargs -r kubectl -n $NAMESPACE delete
+  printf "\n>>>>>>> Deleting k8s deployments\n"
+  kubectl -n ${NAMESPACE} get deploy -o name | xargs -r kubectl -n $NAMESPACE delete
+
+  printf "\n>>>>>>> Deleting openstack load balancer \n"
+  openstack loadbalancer delete test_shared_user_lb --cascade
+
+  if [[ "$ERROR_CODE" != "0" ]]; then
+    printf "\n>>>>>>> Dump openstack-cloud-controller-manager logs \n"
+    pod_name=$(kubectl -n kube-system get pod -l k8s-app=openstack-cloud-controller-manager -o name | awk 'NR==1 {print}')
+    kubectl -n kube-system logs ${pod_name}
+  fi
 
   exit ${ERROR_CODE}
 }
 trap "delete_resources" EXIT;
+
+function _check_lb_tags {
+  local lbID=$1
+  local svcName=$2
+  local tags=$3
+
+  if [ -z "$tags" ]; then
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+  fi
+  if [[ ! "$tags" =~ (^|[[:space:]])kube_service_(.+?)$svcName($|[[:space:]]) ]]; then
+    return 1
+  fi
+  return 0
+}
+
+function _check_service_lb_annotation {
+  local svcName=$1
+
+  for i in {1..3}; do
+    lbID=$(kubectl -n $NAMESPACE get svc ${svcName} -o jsonpath="{.metadata.annotations.loadbalancer\.openstack\.org/load-balancer-id}")
+    if [ -n "$lbID" ]; then
+      echo "$lbID"
+      return 0
+    fi
+    sleep 5
+  done
+
+  printf "\n>>>>>>> FAIL: Service annotation loadbalancer.openstack.org/load-balancer-id not found for service %s \n" $svcName
+  kubectl -n $NAMESPACE get svc ${service1} -o yaml
+  exit 1
+}
+
+function set_openstack_credentials {
+  local XTRACE
+  XTRACE=$(set +o | grep xtrace)
+  set +x; source $DEVSTACK_OS_RC $CLUSTER_TENANT $CLUSTER_USER
+  $XTRACE
+}
 
 ########################################################################
 ## Name: wait_for_service
@@ -33,7 +84,7 @@ trap "delete_resources" EXIT;
 ## Params:
 ##   - (required) A k8s service name
 ########################################################################
-function wait_for_service {
+function wait_for_service_address {
   local service_name=$1
 
   end=$(($(date +%s) + ${TIMEOUT}))
@@ -44,9 +95,9 @@ function wait_for_service {
       export ipaddr=${ipaddr}
       break
     fi
-    sleep 3
+    sleep 10
     now=$(date +%s)
-    [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Timeout when waiting for the Service ${service_name} created\n" && exit -1
+    [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Timeout when waiting for the Service ${service_name} created\n" && exit 1
   done
 }
 
@@ -59,6 +110,7 @@ function wait_for_service {
 function wait_for_loadbalancer {
   local lbid=$1
   local i=0
+  sleep 5
 
   end=$(($(date +%s) + ${TIMEOUT}))
   while true; do
@@ -73,9 +125,9 @@ function wait_for_loadbalancer {
       i=0
     fi
 
-    sleep 3
+    sleep 10
     now=$(date +%s)
-    [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Timeout when waiting for the load balancer ${lbid} ACTIVE\n" && exit -1
+    [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Timeout when waiting for the load balancer ${lbid} ACTIVE\n" && exit 1
   done
 }
 
@@ -97,7 +149,7 @@ function wait_for_service_deleted {
         fi
         sleep 3
         now=$(date +%s)
-        [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Failed to wait for the Service ${service_name} deleted\n" && exit -1
+        [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Failed to wait for the Service ${service_name} deleted\n" && exit 1
     done
 }
 
@@ -179,7 +231,7 @@ spec:
 EOF
 
     printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
-    wait_for_service ${service}
+    wait_for_service_address ${service}
 
     printf "\n>>>>>>> Sending request to the Service ${service}\n"
     podname=$(curl -s http://${ipaddr} | grep Hostname | awk -F':' '{print $2}' | cut -d ' ' -f2)
@@ -187,7 +239,7 @@ EOF
         printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
     else
         printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, expected: echoserver, actual: $podname\n"
-        exit -1
+        exit 1
     fi
 
     printf "\n>>>>>>> Delete Service ${service}\n"
@@ -225,13 +277,13 @@ spec:
 EOF
 
     printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
-    wait_for_service ${service}
+    wait_for_service_address ${service}
 
     printf "\n>>>>>>> Sending request to the Service ${service}\n"
     ip_in_header=$(curl -s http://${ipaddr} | grep  x-forwarded-for | awk -F'=' '{print $2}')
     if [[ "${ip_in_header}" != "${local_ip}" && "${ip_in_header}" != "${public_ip}" && "${ip_in_header}" != "${GATEWAY_IP}" ]]; then
         printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, ip_in_header: ${ip_in_header}, local_ip: ${local_ip}, gateway_ip: ${GATEWAY_IP}, public_ip: ${public_ip}\n"
-        exit -1
+        exit 1
     else
         printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
     fi
@@ -248,7 +300,7 @@ EOF
 function test_update_port {
     local service="test-update-port"
 
-    printf "\n>>>>>>> Creating Service ${service}\n"
+    printf "\n>>>>>>> Creating Service %s \n" "${service}"
     cat <<EOF | kubectl apply -f -
 kind: Service
 apiVersion: v1
@@ -272,24 +324,28 @@ spec:
       targetPort: 8080
 EOF
 
-    printf "\n>>>>>>> Waiting for the Service ${service} created\n"
-    wait_for_service ${service}
+    printf "\n>>>>>>> Waiting for the Service %s created \n" "${service}"
+    wait_for_service_address ${service}
 
-    printf "\n>>>>>>> Validating openstack load balancer\n"
-    set +x; source $OS_RC demo demo; set -x
+    printf "\n>>>>>>> Validating openstack load balancer \n"
     lbid=$(openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
+    if [[ -z $lbid ]]; then
+      printf "\n>>>>>>> FAIL: Load balancer not found for Service ${service}\n"
+      exit 1
+    fi
     lb_info=$(openstack loadbalancer status show $lbid)
     listener_count=$(echo $lb_info | jq '.loadbalancer.listeners | length')
-    member_ports=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq)
-    service_nodeports=$(kubectl -n $NAMESPACE get svc $service -o json | jq '.spec.ports | .[].nodePort')
+    member_ports=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq | tr '\n' ' ')
+    service_nodeports=$(kubectl -n $NAMESPACE get svc $service -o json | jq '.spec.ports | .[].nodePort' | tr '\n' ' ')
 
     if [[ ${listener_count} != 2 ]]; then
         printf "\n>>>>>>> FAIL: Unexpected number of listeners(${listener_count}) created for service ${service}\n"
-        exit -1
+        exit 1
     fi
-    if [[ ${member_ports} != ${service_nodeports} ]]; then
-        printf "\n>>>>>>> FAIL: Member ports ${member_ports} and service nodeport ${service_nodeports} not match\n"
-        exit -1
+    if [[ "${member_ports}" != "${service_nodeports}" ]]; then
+        printf "\n>>>>>>> FAIL: Load balancer member ports %s and service nodeports %s not match\n" "${member_ports}" "${service_nodeports}"
+        kubectl -n $NAMESPACE get svc $service -o yaml
+        exit 1
     fi
 
     printf "\n>>>>>>> Expected: NodePorts ${member_ports} before updating service.\n"
@@ -308,19 +364,19 @@ EOF
 
     if [[ ${listener_count} != 1 ]]; then
         printf "\n>>>>>>> FAIL: Unexpected number of listeners(${listener_count}) for service.\n"
-        exit -1
+        exit 1
     fi
     if [[ $(echo ${member_port} | wc -l) != 1 ]]; then
         printf "\n>>>>>>> FAIL: Unexpected number of member port(${member_port}) for service.\n"
-        exit -1
+        exit 1
     fi
     if [[ ${member_port} != ${service_nodeport} ]]; then
         printf "\n>>>>>>> FAIL: Member ports ${member_port} and service nodeport ${service_nodeport} not match.\n"
-        exit -1
+        exit 1
     fi
     if [[ ${member_port} == ${member_ports} ]]; then
         printf "\n>>>>>>> FAIL: NodePort ${member_port} not changed.\n"
-        exit -1
+        exit 1
     fi
 
     printf "\n>>>>>>> Expected: NodePort ${member_port} after updating service.\n"
@@ -329,9 +385,374 @@ EOF
     kubectl -n $NAMESPACE delete service ${service}
 }
 
+########################################################################
+## Name: test_shared_lb
+## Desc: The steps in this test case:
+##   1. Create service-1, lb-1 created.
+##   2. Create service-2 with lb-1.
+##   3. Update service-2.
+##   4. Delete service-2.
+##   5. Create service-3 with lb-1
+##   6. Create service-4 with lb-1, but with same port as service-3, should fail.
+##   7. Delete service-4.
+##   8. Delete service-1.
+##   9. Delete service-3.
+########################################################################
+function test_shared_lb {
+    local service1="test-shared-1"
+    printf "\n>>>>>>> Create Service ${service1}\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service1}
+  namespace: $NAMESPACE
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    loadbalancer.openstack.org/enable-health-monitor: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the Service %s creation finished \n" ${service1}
+    wait_for_service_address ${service1}
+
+    printf "\n>>>>>>> Checking Service %s annotation\n" ${service1}
+    lbID=$(_check_service_lb_annotation "${service1}")
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    service2="test-shared-2"
+    printf "\n>>>>>>> Create Service ${service2}\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service2}
+  namespace: $NAMESPACE
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    loadbalancer.openstack.org/enable-health-monitor: "false"
+    loadbalancer.openstack.org/load-balancer-id: "$lbID"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the Service ${service2} creation finished\n"
+    wait_for_service_address ${service2}
+
+    printf "\n>>>>>>> Checking Service %s annotation\n" ${service2}
+    svc2lbID=$(_check_service_lb_annotation "${service2}")
+    if [[ "$svc2lbID" != "$lbID" ]]; then
+      printf "\n>>>>>>> FAIL: Service annotation loadbalancer.openstack.org/load-balancer-id not equal. $lbID != $svc2lbID\n"
+      kubectl -n $NAMESPACE get svc ${service2} -o yaml
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+    _check_lb_tags $lbID $service2 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service2 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    service2="test-shared-2"
+    printf "\n>>>>>>> Updating Service ${service2} port\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service2}
+  namespace: $NAMESPACE
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    loadbalancer.openstack.org/enable-health-monitor: "false"
+    loadbalancer.openstack.org/load-balancer-id: "$lbID"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the load balancer ${lbID} update finished\n"
+    wait_for_loadbalancer $lbID
+
+    printf "\n>>>>>>> Checking the listener number for the load balancer $lbID\n"
+    listenerNum=$(openstack loadbalancer status show $lbID | jq '.loadbalancer.listeners | length')
+    if [[ $listenerNum != 2 ]]; then
+      printf "\n>>>>>>> FAIL: The listener number should be 2 for load balancer $lbID, actual: $listenerNum\n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Deleting Service ${service2}\n"
+    kubectl -n $NAMESPACE delete svc ${service2}
+
+    printf "\n>>>>>>> Waiting for the load balancer $lbID updated\n"
+    wait_for_loadbalancer $lbID
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+    _check_lb_tags $lbID $service2 "$tags"
+    if [ $? -eq 0 ]; then
+      printf "\n>>>>>>> FAIL: $service2 found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Checking the listener number for the load balancer $lbID\n"
+    listenerNum=$(openstack loadbalancer status show $lbID | jq '.loadbalancer.listeners | length')
+    if [[ $listenerNum != 1 ]]; then
+      printf "\n>>>>>>> FAIL: The listener number should be 1 for load balancer $lbID, actual: $listenerNum\n"
+      exit 1
+    fi
+
+    service3="test-shared-3"
+    printf "\n>>>>>>> Creating Service ${service3}\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service3}
+  namespace: $NAMESPACE
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    loadbalancer.openstack.org/enable-health-monitor: "false"
+    loadbalancer.openstack.org/load-balancer-id: "$lbID"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the Service ${service3} creation finished \n"
+    wait_for_service_address ${service3}
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service3 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service3 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    service4="test-shared-4"
+    printf "\n>>>>>>> Creating Service ${service4} with port collision \n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service4}
+  namespace: $NAMESPACE
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    loadbalancer.openstack.org/enable-health-monitor: "false"
+    loadbalancer.openstack.org/load-balancer-id: "$lbID"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+EOF
+
+    sleep 10
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+    _check_lb_tags $lbID $service3 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service3 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+    _check_lb_tags $lbID $service4 "$tags"
+    if [ $? -eq 0 ]; then
+      printf "\n>>>>>>> FAIL: $service4 found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Deleting Service ${service4}\n"
+    kubectl -n $NAMESPACE delete svc ${service4}
+    sleep 5
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+    _check_lb_tags $lbID $service3 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service3 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Deleting Service ${service1}\n"
+    kubectl -n $NAMESPACE delete svc ${service1}
+
+    printf "\n>>>>>>> Waiting for the load balancer ${lbID} update finished\n"
+    wait_for_loadbalancer $lbID
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -eq 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+    _check_lb_tags $lbID $service3 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service3 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Checking the listener number for the load balancer $lbID\n"
+    listenerNum=$(openstack loadbalancer status show $lbID | jq '.loadbalancer.listeners | length')
+    if [[ $listenerNum != 1 ]]; then
+      printf "\n>>>>>>> FAIL: The listener number should be 1 for load balancer $lbID, actual: $listenerNum\n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Deleting Service ${service3}\n"
+    kubectl -n $NAMESPACE delete svc ${service3}
+}
+
+########################################################################
+## Name: test_shared_user_lb
+## Desc: The steps in this test case:
+##   1. Create a load balancer lb-1 in Octavia.
+##   2. Create service-1 with lb-1.
+##   3. Delete service-1.
+########################################################################
+function test_shared_user_lb {
+    # Get subnet ID for creating the load balancer
+    subid=$(openstack subnet show ${LB_SUBNET_NAME} -f value -c id)
+    if [ $? -ne 0 ]; then
+        printf "\n>>>>>>> FAIL: failed to get subnet ${LB_SUBNET_NAME}\n"
+        exit 1
+    fi
+
+    printf "\n>>>>>>> Creating openstack load balancer: --vip-subnet-id $subid \n"
+    lbID=$(openstack loadbalancer create --vip-subnet-id $subid --name test_shared_user_lb -f value -c id)
+    if [ $? -ne 0 ]; then
+        printf "\n>>>>>>> FAIL: failed to create load balancer\n"
+        exit 1
+    fi
+    printf "\n>>>>>>> Waiting for openstack load balancer $lbID ACTIVE \n"
+    wait_for_loadbalancer $lbID
+    printf "\n>>>>>>> Creating openstack load balancer listener \n"
+    openstack loadbalancer listener create --protocol HTTP --protocol-port 80 $lbID
+    printf "\n>>>>>>> Waiting for openstack load balancer $lbID ACTIVE after creating listener \n"
+    wait_for_loadbalancer $lbID
+
+    local service1="test-shared-user-lb"
+    printf "\n>>>>>>> Create Service ${service1}\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service1}
+  namespace: $NAMESPACE
+  annotations:
+    loadbalancer.openstack.org/load-balancer-id: "$lbID"
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
+    loadbalancer.openstack.org/enable-health-monitor: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the Service ${service1} creation finished\n"
+    wait_for_service_address ${service1}
+
+    printf "\n>>>>>>> Checking Service %s annotation\n" ${service1}
+    lbID=$(_check_service_lb_annotation "${service1}")
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -ne 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 not found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+
+    printf "\n>>>>>>> Deleting Service ${service1}\n"
+    kubectl -n $NAMESPACE delete svc ${service1}
+    printf "\n>>>>>>> Waiting for Service ${service1} deleted \n"
+    wait_for_service_deleted ${service1}
+
+    printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
+    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(echo $tags)
+    _check_lb_tags $lbID $service1 "$tags"
+    if [ $? -eq 0 ]; then
+      printf "\n>>>>>>> FAIL: $service1 still found in load balancer tags ($tags) \n"
+      exit 1
+    fi
+}
+
 create_namespace
 create_deployment
+set_openstack_credentials
 
 test_basic
 test_forwarded
 test_update_port
+test_shared_lb
+test_shared_user_lb
