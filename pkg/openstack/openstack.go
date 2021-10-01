@@ -18,7 +18,6 @@ package openstack
 
 import (
 	"context"
-
 	"fmt"
 	"io"
 	"os"
@@ -29,15 +28,17 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
-
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/klog/v2"
+
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
-	"k8s.io/klog/v2"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
 const (
@@ -67,6 +68,7 @@ type LoadBalancer struct {
 	compute *gophercloud.ServiceClient
 	lb      *gophercloud.ServiceClient
 	opts    LoadBalancerOpts
+	kclient kubernetes.Interface
 }
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
@@ -94,6 +96,7 @@ type LoadBalancerOpts struct {
 	AvailabilityZone      string              `gcfg:"availability-zone"`
 	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"`   // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
 	TlsContainerRef       string              `gcfg:"default-tls-container-ref"` //  reference to a tls container
+	MaxSharedLB           int                 `gcfg:"max-shared-lb"`             //  Number of Services in maximum can share a single load balancer. Default 2
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -141,6 +144,7 @@ type OpenStack struct {
 	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
 	localInstanceID string
+	kclient         kubernetes.Interface
 }
 
 // Config is used to read and store information from the cloud configuration file
@@ -173,6 +177,8 @@ func init() {
 
 // Initialize passes a Kubernetes clientBuilder interface to the cloud provider
 func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+	clientset := clientBuilder.ClientOrDie("cloud-provider-openstack")
+	os.kclient = clientset
 }
 
 // ReadConfig reads values from the cloud.conf
@@ -195,6 +201,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.CascadeDelete = true
 	cfg.LoadBalancer.EnableIngressHostname = false
 	cfg.LoadBalancer.TlsContainerRef = ""
+	cfg.LoadBalancer.MaxSharedLB = 2
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
@@ -334,7 +341,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{secret, network, compute, lb, os.lbOpts}}, true
+	return &LbaasV2{LoadBalancer{secret, network, compute, lb, os.lbOpts, os.kclient}}, true
 }
 
 // Zones indicates that we support zones
@@ -422,7 +429,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	netExts, err := networkExtensions(network)
+	netExts, err := openstackutil.GetNetworkExtensions(network)
 	if err != nil {
 		klog.Warningf("Failed to list neutron extensions: %v", err)
 		return nil, false

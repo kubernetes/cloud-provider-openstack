@@ -11,6 +11,7 @@
         - [Build openstack-cloud-controller-manager image](#build-openstack-cloud-controller-manager-image)
         - [Troubleshooting](#troubleshooting)
         - [Review process](#review-process)
+        - [Helm charts](#helm-charts)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -133,3 +134,18 @@ Guidance for the code submitter:
 * If the PR is not ready for review, add `[WIP]` in the PR title to save reviewer's time.
 * If the job failure is unrelated to the PR, type `/test <job name>` in the comment to re-trigger the job, e.g. `/test cloud-provider-openstack-acceptance-test-lb-octavia`
 * If the job keeps failing and you are not sure what to do, contact the repo maintainers for help (either using `/cc` in the PR or in `#provider-openstack` Slack channel).
+
+### Helm Charts
+
+There are several helm charts maintained in this repository, the charts are placed under `/charts` directory at the top-level of the directory tree. To install the chart, e.g. openstack-cloud-controller-manager:
+
+```shell
+helm repo add cpo https://kubernetes.github.io/cloud-provider-openstack
+helm repo update
+helm install occm cpo/openstack-cloud-controller-manager
+```
+
+The chart version should be bumped in the following situations:
+
+* Official release following the new Kubernetes major/minor version, e.g. v1.22.0, v1.23.0, etc. The chart should bump its major or minor version based on the fact that if there are backward incompatible changes committed during the past development cycle.
+* cloud-provider-openstack own patch version release for stable branches, especially when backporting bugfix for the charts.

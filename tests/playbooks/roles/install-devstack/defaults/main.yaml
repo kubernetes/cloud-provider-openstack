@@ -2,3 +2,10 @@
 user: "stack"
 workdir: "/home/{{ user }}/devstack"
 branch: "stable/wallaby"
+enable_services:
+  - nova
+  - glance
+  - cinder
+  - neutron
+  - octavia
+  - barbican

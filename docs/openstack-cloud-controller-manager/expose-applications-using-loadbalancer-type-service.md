@@ -10,6 +10,7 @@
     - [Creating Service by specifying a floating IP](#creating-service-by-specifying-a-floating-ip)
     - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
     - [Use PROXY protocol to preserve client IP](#use-proxy-protocol-to-preserve-client-ip)
+    - [Sharing load balancer with multiple Services](#sharing-load-balancer-with-multiple-services)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -101,7 +102,7 @@ Request Body:
 - `loadbalancer.openstack.org/floating-subnet-tags`
 
   This annotation is the tag of a subnet belonging to the floating network.
-  
+
 - `loadbalancer.openstack.org/class`
 
   The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
@@ -170,10 +171,10 @@ Request Body:
 
 - `loadbalancer.openstack.org/enable-health-monitor`
 
-  Defines whether or not to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
+  Defines whether to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
-  
+
 - `loadbalancer.openstack.org/flavor-id`
 
   The id of the flavor that is used for creating the loadbalancer.
@@ -192,6 +193,14 @@ Request Body:
   Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
+- `loadbalancer.openstack.org/load-balancer-id`
+
+  This annotation is automatically added to the Service if it's not specified when creating. After the Service is created successfully it shouldn't be changed, otherwise the Service won't behave as expected.  
+
+  If this annotation is specified with a valid cloud load balancer ID when creating Service, the Service is reusing this load balancer rather than creating another one. Again, it shouldn't be changed after the Service is created.
+
+  If this annotation is specified, the other annotations which define the load balancer features will be ignored.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
@@ -232,7 +241,7 @@ floating-subnet-id="b374bed4-e920-4c40-b646-2d8927f7f67b"
 
 Within a `LoadBalancerClass` one of `floating-subnet-id`, `floating-subnet` or `floating-subnet-tags` is mandatory.
 `floating-subnet-id` takes precedence over the other ones with must all match if specified.
-If the pattern starts with a `!`, the match is negated. 
+If the pattern starts with a `!`, the match is negated.
 The rest of the pattern can either be a direct name, a glob or a regular expression if it starts with a `~`.
 `floating-subnet-tags` can be a comma separated list of tags. By default it matches a subnet if at least one tag is present.
 If the list is preceded by a `&` all tags must be present. Again with a preceding `!` the condition be be negated.
@@ -450,3 +459,110 @@ To enable PROXY protocol support, the openstack-cloud-controller-manager config 
    Request Body:
            -no body in request-
    ```
+
+### Sharing load balancer with multiple Services
+
+By default, different Services of LoadBalancer type should have different corresponding cloud load balancers, however, openstack-cloud-controller-manager allows multiple Services to share a single load balancer if the Octavia service supports the tag feature (since version 2.5).
+
+The shared load balancer can be created either by other Services or outside the cluster, e.g. created manually by the user in the cloud or by Services from the other Kubernetes clusters. The load balancer is deleted only when the last attached Service is deleted, unless the load balancer was created outside the Kubernetes cluster.
+
+The maximum number of Services that share a load balancer can be configured in `[LoadBalancer] max-shared-lb`, default value is 2. The ports of those Services shouldn't have collisions.
+
+For example, create a Service `service-1` as before:
+
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: service-1
+  namespace: default
+spec:
+  type: LoadBalancer
+  selector:
+    app: webserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+```
+
+When `service-1` is created successfully, check the load balancer created in the cloud, which has its name in its tags.
+
+```shell
+$ openstack loadbalancer show 2b224530-9414-4302-8163-5abebdcdc84f -c name -c tags
++-------+---------------------------------------------+
+| Field | Value                                       |
++-------+---------------------------------------------+
+| name  | kube_service_cluster-name_default_service-1 |
+| tags  | kube_service_cluster-name_default_service-1 |
++-------+---------------------------------------------+
+```
+
+Check the Service, you should notice a new annotation `loadbalancer.openstack.org/load-balancer-id` is added:
+
+```shell
+$ kubectl describe service service-1 | grep loadbalancer.openstack.org/load-balancer-id
+                          loadbalancer.openstack.org/load-balancer-id: 2b224530-9414-4302-8163-5abebdcdc84f
+```
+
+> NOTE: Do not update the annotation `loadbalancer.openstack.org/load-balancer-id` after the Service is created successfully or the relationship between Service and the load balancer will be broken.
+
+Now, create another Service `service-2` but re-use the load balancer created for `service-1` by specifying the annotation `loadbalancer.openstack.org/load-balancer-id`:
+
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: service-2
+  namespace: default
+  annotations:
+    loadbalancer.openstack.org/load-balancer-id: "2b224530-9414-4302-8163-5abebdcdc84f"
+spec:
+  type: LoadBalancer
+  selector:
+    app: webserver
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+```
+
+After `service-2` is created successfully, check the load balancer again, you'll see there is a new tag added. Now the load balancer should have 2 listeners, listening on the ports of the 2 Services respectively.
+
+```shell
+$ openstack loadbalancer show 2b224530-9414-4302-8163-5abebdcdc84f -c name -c tags
++-------+---------------------------------------------+
+| Field | Value                                       |
++-------+---------------------------------------------+
+| name  | kube_service_lingxian-k8s_default_service-1 |
+| tags  | kube_service_lingxian-k8s_default_service-1 |
+|       | kube_service_lingxian-k8s_default_service-2 |
++-------+---------------------------------------------+
+$ openstack loadbalancer listener list --loadbalancer 2b224530-9414-4302-8163-5abebdcdc84f -c id -c protocol -c protocol_port
++--------------------------------------+----------+---------------+
+| id                                   | protocol | protocol_port |
++--------------------------------------+----------+---------------+
+| 05fbcc93-61e5-4eb4-be21-632ab8022d46 | TCP      |            80 |
+| 50e94cc4-f08e-4c71-9ee4-4488350834f6 | TCP      |          8080 |
++--------------------------------------+----------+---------------+
+```
+
+Check the load balancer again after deleting `service-1`:
+
+```shell
+$ openstack loadbalancer show 2b224530-9414-4302-8163-5abebdcdc84f -c name -c tags
++-------+---------------------------------------------+
+| Field | Value                                       |
++-------+---------------------------------------------+
+| name  | kube_service_lingxian-k8s_default_service-1 |
+| tags  | kube_service_lingxian-k8s_default_service-2 |
++-------+---------------------------------------------+
+$ openstack loadbalancer listener list --loadbalancer 2b224530-9414-4302-8163-5abebdcdc84f -c id -c protocol -c protocol_port
++--------------------------------------+----------+---------------+
+| id                                   | protocol | protocol_port |
++--------------------------------------+----------+---------------+
+| 50e94cc4-f08e-4c71-9ee4-4488350834f6 | TCP      |          8080 |
++--------------------------------------+----------+---------------+
+```
+
+The load balancer will be deleted after `service-2` is deleted. 

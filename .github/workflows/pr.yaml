@@ -1,6 +1,9 @@
 name: Lint Charts
 
-on: pull_request
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
 
 jobs:
   lint:
@@ -25,4 +28,4 @@ jobs:
         uses: helm/chart-testing-action@v2.1.0
 
       - name: Run chart-testing (lint)
-        run: ct lint --target-branch ${GITHUB_BASE_REF}
+        run: ct lint --target-branch ${GITHUB_BASE_REF} --check-version-increment false
