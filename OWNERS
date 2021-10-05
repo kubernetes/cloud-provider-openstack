@@ -1,7 +1,6 @@
 approvers:
 - adisky
 - chrigl
-- dims
 - lingxiankong
 - ramineni
 - zetaab
@@ -9,7 +8,6 @@ approvers:
 reviewers:
 - adisky
 - chrigl
-- dims
 - Fedosin
 - jichenjc
 - lingxiankong
