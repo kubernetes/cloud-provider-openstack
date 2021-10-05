@@ -61,6 +61,17 @@ func Contains(list []string, strToSearch string) bool {
 	return false
 }
 
+// Contains searches if an integer list contains the given value or not.
+func ContainsInt(list []int32, intToSearch int32) bool {
+	for _, item := range list {
+		if item == intToSearch {
+			// match
+			return true
+		}
+	}
+	return false
+}
+
 // RoundUpSize calculates how many allocation units are needed to accommodate
 // a volume of given size. E.g. when user wants 1500MiB volume, while AWS EBS
 // allocates volumes in gibibyte-sized chunks,

@@ -194,6 +194,14 @@ Request Body:
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
+  To specify which ports should be served over https and not http use `loadbalancer.openstack.org/service-ssl-ports`
+
+- `loadbalancer.openstack.org/service-ssl-ports`
+
+  In conjunction with `loadbalancer.openstack.org/default-tls-container-ref`, a comma separated list of ports to terminate in https
+
+  example: `loadbalancer.openstack.org/service-ssl-ports: "443,8443"`
+
 - `loadbalancer.openstack.org/load-balancer-id`
 
   This annotation is automatically added to the Service if it's not specified when creating. After the Service is created successfully it shouldn't be changed, otherwise the Service won't behave as expected.  

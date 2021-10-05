@@ -87,6 +87,7 @@ const (
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
 	ServiceAnnotationTlsContainerRef                 = "loadbalancer.openstack.org/default-tls-container-ref"
+	ServiceAnnotationTlsServicePorts                 = "loadbalancer.openstack.org/service-ssl-ports"
 	// See https://nip.io
 	defaultProxyHostnameSuffix      = "nip.io"
 	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
@@ -334,6 +335,7 @@ type serviceConfig struct {
 	flavorID             string
 	availabilityZone     string
 	tlsContainerRef      string
+	tlsServicePorts      []int32
 	lbID                 string
 	lbName               string
 	supportLBTags        bool
@@ -465,11 +467,15 @@ func toRuleProtocol(protocol corev1.Protocol) rules.RuleProtocol {
 	}
 }
 
-func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) listeners.Protocol {
+func getListenerProtocol(protocol corev1.Protocol, port int32, svcConf *serviceConfig) listeners.Protocol {
 	// Make neutron-lbaas code work
 	if svcConf != nil {
 		if svcConf.tlsContainerRef != "" {
-			return listeners.ProtocolTerminatedHTTPS
+			if cpoutil.ContainsInt(svcConf.tlsServicePorts, port) {
+				return listeners.ProtocolTerminatedHTTPS
+			} else {
+				return listeners.ProtocolHTTP
+			}
 		} else if svcConf.keepClientIP {
 			return listeners.ProtocolHTTP
 		}
@@ -1301,7 +1307,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 // Make sure the listener is created for Service
 func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
 	listener, isPresent := curListenerMapping[listenerKey{
-		Protocol: getListenerProtocol(port.Protocol, svcConf),
+		Protocol: getListenerProtocol(port.Protocol, port.Port, svcConf),
 		Port:     int(port.Port),
 	}]
 	if !isPresent {
@@ -1349,7 +1355,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, curListenerMapping map[
 			}
 			listenerChanged = true
 		}
-		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
+		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef && cpoutil.ContainsInt(svcConf.tlsServicePorts, port.Port) {
 			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
 			listenerChanged = true
 		}
@@ -1415,12 +1421,12 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 		listenerCreateOpt.InsertHeaders = map[string]string{annotationXForwardedFor: "true"}
 	}
 
-	if svcConf.tlsContainerRef != "" {
+	if svcConf.tlsContainerRef != "" && cpoutil.ContainsInt(svcConf.tlsServicePorts, port.Port) {
 		listenerCreateOpt.DefaultTlsContainerRef = svcConf.tlsContainerRef
 	}
 
 	// protocol selection
-	if svcConf.tlsContainerRef != "" && listenerCreateOpt.Protocol != listeners.ProtocolTerminatedHTTPS {
+	if svcConf.tlsContainerRef != "" && listenerCreateOpt.Protocol != listeners.ProtocolTerminatedHTTPS && cpoutil.ContainsInt(svcConf.tlsServicePorts, port.Port) {
 		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolTerminatedHTTPS, ServiceAnnotationTlsContainerRef)
 		listenerCreateOpt.Protocol = listeners.ProtocolTerminatedHTTPS
 	} else if svcConf.keepClientIP && listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
@@ -1533,6 +1539,8 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		}
 		klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 	}
+
+	svcConf.tlsServicePorts = getTlsServicePorts(service)
 
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 
@@ -2750,7 +2758,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 
 	// Update pool members for each listener.
 	for _, port := range service.Spec.Ports {
-		proto := getListenerProtocol(port.Protocol, svcConf)
+		proto := getListenerProtocol(port.Protocol, port.Port, svcConf)
 		listener, ok := lbListeners[listenerKey{
 			Protocol: proto,
 			Port:     int(port.Port),
@@ -2855,7 +2863,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 	for portIndex, port := range ports {
 		// Get listener associated with this port
 		listener, ok := lbListeners[portKey{
-			Protocol: getListenerProtocol(port.Protocol, nil),
+			Protocol: getListenerProtocol(port.Protocol, port.Port, nil),
 			Port:     int(port.Port),
 		}]
 		if !ok {
@@ -3171,7 +3179,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 			}
 
 			for _, port := range service.Spec.Ports {
-				proto := getListenerProtocol(port.Protocol, svcConf)
+				proto := getListenerProtocol(port.Protocol, port.Port, svcConf)
 				listener, isPresent := curListenerMapping[listenerKey{
 					Protocol: proto,
 					Port:     int(port.Port),
@@ -3395,4 +3403,27 @@ func PreserveGopherError(rawError error) error {
 		return fmt.Errorf("%s: %s", rawError, details)
 	}
 	return rawError
+}
+
+// Gets a list of ports from the ServiceAnnotationTlsServicePorts
+// annotation
+// the format is a comma separated list of numeric ports
+func getTlsServicePorts(service *corev1.Service) ([]int32) {
+	var noPorts []int32
+	if annotationValue, ok := service.Annotations[ServiceAnnotationTlsServicePorts]; ok {
+		portStrArray := strings.Split(annotationValue, ",")
+		ports := make([]int32, len(portStrArray))
+		var validPorts int32
+		for _, value := range(portStrArray) {
+			port, err := strconv.Atoi(value)
+			if err != nil {
+				klog.Warningf("could not parse %v into int: %v", value, err)
+				continue
+			}
+			ports[validPorts] = int32(port)
+			validPorts++
+		}
+		return ports
+	}
+	return noPorts
 }
