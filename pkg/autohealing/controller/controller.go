@@ -407,7 +407,10 @@ func (c *Controller) Start(ctx context.Context) {
 			}
 
 			wg.Wait()
-			c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
+
+			if c.provider.Enabled() {
+				c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
+			}
 		}
 	}
 }
