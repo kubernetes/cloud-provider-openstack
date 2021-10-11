@@ -1,0 +1,7 @@
+---
+k8s_version: 'master'
+etcd_version: 'v3.5.0'
+
+k8s_src_dir: '{{ ansible_user_dir }}/src/k8s.io/kubernetes'
+k8s_log_dir: '{{ ansible_user_dir }}/workspace/logs/kubernetes'
+kubectl: '{{ ansible_user_dir }}/src/k8s.io/kubernetes/cluster/kubectl.sh'

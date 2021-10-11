@@ -1,0 +1,22 @@
+- name: Install etcd {{ etcd_version }}
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+      set -e
+
+      # Install etcd
+      wget https://github.com/coreos/etcd/releases/download/{{ etcd_version }}/etcd-{{ etcd_version }}-linux-amd64.tar.gz
+      tar -zxf etcd-{{ etcd_version }}-linux-amd64.tar.gz
+      cp etcd-{{ etcd_version }}-linux-amd64/etcd{,ctl} /usr/local/bin/
+
+- name: Install Kubernetes {{ k8s_version }}
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+      set -e
+
+      # Build Kubernetes binaries
+      git clone https://github.com/kubernetes/kubernetes '{{ k8s_src_dir }}' -b '{{ k8s_version }}'
+      make -C '{{ k8s_src_dir }}' WHAT="cmd/kubectl cmd/kube-apiserver cmd/kube-controller-manager cmd/cloud-controller-manager cmd/kubelet cmd/kube-proxy cmd/kube-scheduler"
