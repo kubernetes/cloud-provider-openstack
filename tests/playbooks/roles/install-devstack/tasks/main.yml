@@ -57,7 +57,7 @@
 
     - name: Git checkout devstack
       git:
-        repo: "https://opendev.org/openstack/devstack"
+        repo: "https://github.com/openstack/devstack"
         dest: "{{ workdir }}"
         version: "{{ branch }}"
         force: false
