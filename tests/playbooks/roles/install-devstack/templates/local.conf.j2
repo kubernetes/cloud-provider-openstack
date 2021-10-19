@@ -16,6 +16,7 @@ SERVICE_PASSWORD=password
 SERVICE_TOKEN=password
 RABBIT_PASSWORD=password
 
+GIT_BASE=https://github.com
 TARGET_BRANCH={{ branch }}
 
 ENABLED_SERVICES=rabbit,mysql,key
@@ -48,7 +49,7 @@ enable_service c-sch
 
 {% if "neutron" in enable_services %}
 # Neutron
-enable_plugin neutron https://opendev.org/openstack/neutron.git {{ branch }}
+enable_plugin neutron ${GIT_BASE}/openstack/neutron.git {{ branch }}
 enable_service q-svc
 enable_service q-agt
 enable_service q-dhcp
@@ -69,7 +70,7 @@ Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch
 
 {% if "octavia" in enable_services %}
 # Octavia
-enable_plugin octavia https://opendev.org/openstack/octavia.git {{ branch }}
+enable_plugin octavia ${GIT_BASE}/openstack/octavia.git {{ branch }}
 enable_service octavia
 enable_service o-cw
 enable_service o-hm
@@ -85,7 +86,7 @@ OCTAVIA_MGMT_SUBNET_END=10.51.0.254
 
 {% if "barbican" in enable_services %}
 # Barbican
-enable_plugin barbican https://opendev.org/openstack/barbican.git {{ branch }}
+enable_plugin barbican ${GIT_BASE}/openstack/barbican.git {{ branch }}
 enable_service barbican-vault
 
 LIBS_FROM_GIT+=,python-barbicanclient
