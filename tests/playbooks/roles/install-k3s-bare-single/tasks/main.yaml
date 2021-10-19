@@ -15,7 +15,7 @@
       branch={{ k8s_branch }}
       if [[ "$branch" = "master" ]]; then
         k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[0].name')
-      else if [[ "$branch" = "latest-stable" ]]; then
+      elif [[ "$branch" = "latest-stable" ]]; then
         # If no k3s version is provided, the installation script will pull
         # the latest version from the stable channel.
         k3s_release=''
