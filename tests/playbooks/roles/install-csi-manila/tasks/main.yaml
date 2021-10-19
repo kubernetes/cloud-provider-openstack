@@ -3,8 +3,8 @@
   shell:
     executable: /bin/bash
     cmd: |
-      rm -rf src/k8s.io/cloud-provider-openstack
-      mkdir -p src/k8s.io; cd $_
+      rm -rf {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+      mkdir -p {{ ansible_user_dir }}/src/k8s.io; cd $_
       git clone https://github.com/kubernetes/cloud-provider-openstack
       cd cloud-provider-openstack
       git fetch origin +refs/pull/{{ github_pr }}/merge
@@ -14,7 +14,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      cd src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
       REGISTRY={{ image_registry_host }} \
       VERSION={{ github_pr }} \
@@ -77,7 +77,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      cd src/cloud-provider-openstack/charts/manila-csi-plugin
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack/charts/manila-csi-plugin
       cat <<EOF >> override-helm-values.yaml
       csimanila:
         image:
@@ -164,7 +164,7 @@
       set -e
       set -o pipefail
 
-      cd src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
       # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
