@@ -94,7 +94,7 @@ LIBS_FROM_GIT+=,python-barbicanclient
 
 {% if "manila" in enable_services %}
 # Manila
-enable_plugin manila https://opendev.org/openstack/manila {{ branch }}
+enable_plugin manila ${GIT_BASE}/openstack/manila {{ branch }}
 MANILA_SERVICE_IMAGE_ENABLED=False
 SHARE_DRIVER=manila.share.drivers.lvm.LVMShareDriver
 MANILA_ENABLED_BACKENDS=chicago,denver
