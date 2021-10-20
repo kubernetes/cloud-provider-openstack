@@ -248,6 +248,8 @@
   shell:
     executable: /bin/bash
     cmd: |
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+
       cat <<EOF | kubectl create -f -
       apiVersion: v1
       kind: Secret
