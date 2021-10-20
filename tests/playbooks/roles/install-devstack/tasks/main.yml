@@ -87,6 +87,7 @@
           # https://bugs.launchpad.net/devstack/+bug/1906322
           sed -i 's|$cmd_pip $upgrade |$cmd_pip $upgrade --ignore-installed |g' {{ workdir }}/inc/python
           python3 -m pip install --upgrade pip==20.2.3
+          pip install wheel
 
     - name: Change devstack directory owner
       file:
