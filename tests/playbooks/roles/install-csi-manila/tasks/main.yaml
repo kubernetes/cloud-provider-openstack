@@ -124,6 +124,8 @@
           kubectl get pods -A
           kubectl describe statefulset -l app=openstack-manila-csi,component=controllerplugin
           kubectl describe daemonset -l app=openstack-manila-csi,component=nodeplugin
+          kubectl describe pod -l app=openstack-manila-csi,component=controllerplugin
+          kubectl describe pod -l app=openstack-manila-csi,component=nodeplugin
       register: describe_csi
       changed_when: false
 
