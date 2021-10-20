@@ -104,6 +104,7 @@
         executable: /bin/bash
         chdir: "{{ workdir }}"
         cmd: |
+          pip install --upgrade setuptools==54.1.1
           set -ex
           sudo -u {{ user }} -H ./stack.sh
 
