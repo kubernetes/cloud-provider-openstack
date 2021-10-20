@@ -97,23 +97,25 @@
     executable: /bin/bash
     cmd: |
       kubectl get pod -l app=openstack-manila-csi,component=controllerplugin | grep Running
-  register: check_csi
-  until: check_csi.rc == 0
+  register: check_csi_controller
+  until: check_csi_controller.rc == 0
   retries: 24
   delay: 5
+  ignore_errors: yes
 
 - name: Wait for manila-csi-plugin node plugin up and running
   shell:
     executable: /bin/bash
     cmd: |
       kubectl get pod -l app=openstack-manila-csi,component=nodeplugin | grep Running
-  register: check_csi
-  until: check_csi.rc == 0
+  register: check_csi_node
+  until: check_csi_node.rc == 0
   retries: 24
   delay: 5
+  ignore_errors: yes
 
 - name: Gather additional evidence if csi-manila-plugin failed to come up
-  when: check_csi.failed
+  when: check_csi_controller.failed or check_csi_node.failed
   block:
     - name: Describe failed manila-csi-plugin
       shell:
