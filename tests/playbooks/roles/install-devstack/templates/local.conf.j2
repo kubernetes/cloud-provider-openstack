@@ -92,6 +92,23 @@ enable_service barbican-vault
 LIBS_FROM_GIT+=,python-barbicanclient
 {% endif %}
 
+{% if "manila" in enable_services %}
+# Manila
+enable_plugin manila ${GIT_BASE}/openstack/manila {{ branch }}
+MANILA_SERVICE_IMAGE_ENABLED=False
+SHARE_DRIVER=manila.share.drivers.lvm.LVMShareDriver
+MANILA_ENABLED_BACKENDS=chicago,denver
+MANILA_BACKEND1_CONFIG_GROUP_NAME=chicago
+MANILA_BACKEND2_CONFIG_GROUP_NAME=denver
+MANILA_SHARE_BACKEND1_NAME=CHICAGO
+MANILA_SHARE_BACKEND2_NAME=DENVER
+MANILA_OPTGROUP_chicago_driver_handles_share_servers=False
+MANILA_OPTGROUP_denver_driver_handles_share_servers=False
+SHARE_BACKING_FILE_SIZE=32000M
+MANILA_DEFAULT_SHARE_TYPE_EXTRA_SPECS='snapshot_support=True create_share_from_snapshot_support=True revert_to_snapshot_support=True mount_snapshot_support=True'
+MANILA_CONFIGURE_DEFAULT_TYPES=True
+{% endif %}
+
 {% if "glance" in enable_services %}
 [[post-config|$GLANCE_API_CONF]]
 [glance_store]
