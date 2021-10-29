@@ -52,9 +52,11 @@ serviceMonitor: {}
 #   enabled: true
 
 # Create a secret resource cloud-config (or other name) to store credentials and settings from cloudConfig
+# You can also provide your own secret (not created by the Helm chart), in this case set create to false
+# and adjust the name of the secret as necessary
 secret:
   create: true
-#  name:
+  name: cloud-config
 
 # Specify settings with the same key as the CCM config: https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#config-openstack-cloud-controller-manager
 cloudConfig:
@@ -63,3 +65,28 @@ cloudConfig:
   loadBalancer:
   blockStorage:
   metadata:
+
+# The following three volumes are required to use all OCCM controllers,
+# but might not be needed if you just use a specific controller
+# Additional volumes that should be available to the pods:
+extraVolumes:
+  - name: flexvolume-dir
+    hostPath:
+      path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
+  - name: ca-certs
+    hostPath:
+      path: /etc/ssl/certs
+  - name: k8s-certs
+    hostPath:
+      path: /etc/kubernetes/pki
+# Where the additional volumes should be mounted into the pods:
+extraVolumeMounts:
+  - name: flexvolume-dir
+    mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
+    readOnly: true
+  - name: ca-certs
+    mountPath: /etc/ssl/certs
+    readOnly: true
+  - name: k8s-certs
+    mountPath: /etc/kubernetes/pki
+    readOnly: true

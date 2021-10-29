@@ -38,9 +38,9 @@ spec:
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
             {{- if .Values.serviceMonitor.enabled }}
-            - --address=0.0.0.0
+            - --bind-address=0.0.0.0
             {{- else }}
-            - --address=127.0.0.1
+            - --bind-address=127.0.0.1
             {{- end }}
             {{- if .Values.controllerExtraArgs }}
             {{- with .Values.controllerExtraArgs }}
@@ -55,17 +55,12 @@ spec:
             protocol: TCP
           {{- end }}
           volumeMounts:
-            - mountPath: /etc/kubernetes/pki
-              name: k8s-certs
-              readOnly: true
-            - mountPath: /etc/ssl/certs
-              name: ca-certs
-              readOnly: true
             - mountPath: /etc/config
               name: cloud-config-volume
               readOnly: true
-            - mountPath: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
-              name: flexvolume-dir
+          {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+          {{- end }}
           {{- if .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
@@ -83,18 +78,9 @@ spec:
               value: /etc/config/cloud.conf
       hostNetwork: true
       volumes:
-      - hostPath:
-          path: /usr/libexec/kubernetes/kubelet-plugins/volume/exec
-          type: DirectoryOrCreate
-        name: flexvolume-dir
-      - hostPath:
-          path: /etc/kubernetes/pki
-          type: DirectoryOrCreate
-        name: k8s-certs
-      - hostPath:
-          path: /etc/ssl/certs
-          type: DirectoryOrCreate
-        name: ca-certs
       - name: cloud-config-volume
         secret:
-          secretName: {{ .Values.secret.name | default "cloud-config" }}
+          secretName: {{ .Values.secret.name }}
+      {{- if .Values.extraVolumes }}
+        {{ toYaml .Values.extraVolumes | nindent 6 }}
+      {{- end }}
