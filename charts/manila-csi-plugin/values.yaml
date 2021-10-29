@@ -96,3 +96,8 @@ controllerplugin:
   affinity: {}
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
+
+# Log verbosity level.
+# See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
+# for description of individual verbosity levels.
+logVerbosityLevel: 0
