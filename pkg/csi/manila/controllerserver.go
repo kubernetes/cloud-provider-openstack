@@ -445,7 +445,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 	}
 
 	// Check for pending operations on this volume
-	if _, isPending := pendingVolumes.LoadOrStore(req.GetVolumeId(), true); isPending {
+	if _, isPending := pendingVolumes.LoadOrStore(share.Name, true); isPending {
 		return nil, status.Errorf(codes.Aborted, "volume %s is already being processed", share.Name)
 	}
 	defer pendingVolumes.Delete(share.Name)
