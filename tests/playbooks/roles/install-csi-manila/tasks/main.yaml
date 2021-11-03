@@ -1,0 +1,285 @@
+---
+- name: Ensure CPO source folder
+  shell:
+    executable: /bin/bash
+    cmd: |
+      rm -rf {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+      mkdir -p {{ ansible_user_dir }}/src/k8s.io; cd $_
+      git clone https://github.com/kubernetes/cloud-provider-openstack
+      cd cloud-provider-openstack
+      git fetch origin +refs/pull/{{ github_pr }}/merge
+      git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+
+- name: Build and upload manila-csi-plugin image
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+
+      REGISTRY={{ image_registry_host }} \
+      VERSION={{ github_pr }} \
+      IMAGE_NAMES=manila-csi-plugin \
+      make upload-image-amd64
+
+- name: Prepare cloud config
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl -n kube-system get secret cloud-config >/dev/null 2>&1
+      if [ $? -eq 0 ]; then
+        exit 0
+      fi
+
+      set -ex
+
+      set +x; source {{ devstack_workdir }}/openrc admin admin > /dev/null; set -x
+      tenant_id=$(openstack project show demo -c id -f value)
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      cat <<EOF > {{ ansible_user_dir }}/cloud.conf
+      [Global]
+      auth-url=${OS_AUTH_URL}
+      username=${OS_USERNAME}
+      password=${OS_PASSWORD}
+      region=${OS_REGION_NAME}
+      tenant-id=$tenant_id
+      domain-id=default
+      EOF
+
+      kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
+
+- name: Deploy openstack-cloud-controller-manager
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+
+      cat <<EOF | kubectl apply -f -
+      ---
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: cloud-controller-manager
+        namespace: kube-system
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: system:cloud-controller-manager
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+      - kind: ServiceAccount
+        name: cloud-controller-manager
+        namespace: kube-system
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: openstack-cloud-controller-manager
+        namespace: kube-system
+        labels:
+          k8s-app: openstack-cloud-controller-manager
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            k8s-app: openstack-cloud-controller-manager
+        template:
+          metadata:
+            labels:
+              k8s-app: openstack-cloud-controller-manager
+          spec:
+            tolerations:
+            - key: node.cloudprovider.kubernetes.io/uninitialized
+              value: "true"
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/master
+              effect: NoSchedule
+            serviceAccountName: cloud-controller-manager
+            containers:
+              - name: openstack-cloud-controller-manager
+                image: docker.io/k8scloudprovider/openstack-cloud-controller-manager:latest
+                args:
+                  - /bin/openstack-cloud-controller-manager
+                  - --cloud-config=/etc/config/cloud.conf
+                  - --cloud-provider=openstack
+                  - --use-service-account-credentials=true
+                  - --bind-address=127.0.0.1
+                volumeMounts:
+                  - mountPath: /etc/config
+                    name: cloud-config-volume
+                    readOnly: true
+            hostNetwork: true
+            volumes:
+            - name: cloud-config-volume
+              secret:
+                secretName: cloud-config
+      EOF
+
+- name: Wait for openstack-cloud-controller-manager up and running
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl -n kube-system get pod | grep openstack-cloud-controller-manager | grep Running
+  register: check_occm
+  until: check_occm.rc == 0
+  retries: 24
+  delay: 5
+
+- name: Deploy nfs-csi Node Plugin
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cat <<EOF | kubectl create -f -
+      kind: DaemonSet
+      apiVersion: apps/v1
+      metadata:
+        name: csi-nodeplugin-nfsplugin
+      spec:
+        selector:
+          matchLabels:
+            app: csi-nodeplugin-nfsplugin
+        template:
+          metadata:
+            labels:
+              app: csi-nodeplugin-nfsplugin
+          spec:
+            containers:
+              - name: nfs
+                securityContext:
+                  privileged: true
+                  capabilities:
+                    add: ["SYS_ADMIN"]
+                  allowPrivilegeEscalation: true
+                image: quay.io/k8scsi/nfsplugin:v2.0.0
+                args:
+                  - "--nodeid=\$(NODE_ID)"
+                  - "--endpoint=unix://plugin/csi.sock"
+                env:
+                  - name: NODE_ID
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: spec.nodeName
+                imagePullPolicy: IfNotPresent
+                volumeMounts:
+                  - name: plugin-dir
+                    mountPath: /plugin
+                  - name: pods-mount-dir
+                    mountPath: /var/lib/kubelet/pods
+                    mountPropagation: Bidirectional
+            volumes:
+              - name: plugin-dir
+                hostPath:
+                  path: /var/lib/kubelet/plugins/csi-nfsplugin
+                  type: DirectoryOrCreate
+              - name: pods-mount-dir
+                hostPath:
+                  path: /var/lib/kubelet/pods
+                  type: Directory
+      EOF
+
+- name: Deploy manila-csi-plugin
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack/charts/manila-csi-plugin
+      cat <<EOF >> override-helm-values.yaml
+      csimanila:
+        image:
+          repository: {{ remote_registry_host }}/manila-csi-plugin-amd64
+          tag: {{ github_pr }}
+      shareProtocols:
+        - protocolSelector: NFS
+          fwdNodePluginEndpoint:
+            dir: /var/lib/kubelet/plugins/csi-nfsplugin
+            sockFile: csi.sock
+      EOF
+
+      helm install shares . -f override-helm-values.yaml
+
+- name: Wait for manila-csi-plugin controller plugin up and running
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl get pod -l app=openstack-manila-csi,component=controllerplugin | grep Running
+  register: check_csi_controller
+  until: check_csi_controller.rc == 0
+  retries: 24
+  delay: 5
+  ignore_errors: yes
+
+- name: Wait for manila-csi-plugin node plugin up and running
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl get pod -l app=openstack-manila-csi,component=nodeplugin | grep Running
+  register: check_csi_node
+  until: check_csi_node.rc == 0
+  retries: 24
+  delay: 5
+  ignore_errors: yes
+
+- name: Gather additional evidence if csi-manila-plugin failed to come up
+  when: check_csi_controller.failed or check_csi_node.failed
+  block:
+    - name: Describe failed manila-csi-plugin
+      shell:
+        executable: /bin/bash
+        cmd: |
+          kubectl get pods -A
+          kubectl describe statefulset -l app=openstack-manila-csi,component=controllerplugin
+          kubectl describe daemonset -l app=openstack-manila-csi,component=nodeplugin
+          kubectl describe pod -l app=openstack-manila-csi,component=controllerplugin
+          kubectl describe pod -l app=openstack-manila-csi,component=nodeplugin
+      register: describe_csi
+      changed_when: false
+
+    - name: Log failed manila-csi-plugin deployment
+      debug:
+        var: describe_csi.stdout_lines
+
+    - name: &failmsg Stop due to prior failure of manila-csi-plugin
+      fail:
+        msg: *failmsg
+
+- name: Prepare devstack secrets
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+
+      cat <<EOF | kubectl create -f -
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: csi-manila-secrets
+        namespace: default
+      # Use the devstack ``demo`` user in the ``demo`` project rather than ``admin``
+      # since regular users should be able to use the cloud-provider-openstack
+      # APIs without OpenStack administrative privileges.  Devstack sets up
+      # up the same password for both users.
+      stringData:
+        os-authURL: "$OS_AUTH_URL"
+        os-region: "$OS_REGION_NAME"
+        os-userName: "demo"
+        os-password: "$OS_PASSWORD"
+        os-projectName: "demo"
+        os-domainID: "$OS_USER_DOMAIN_ID"
+      EOF
+
+- name: Run functional tests for manila-csi-plugin
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+      set -e
+      set -o pipefail
+
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+
+      # GATEWAY_IP is the default value in devstack
+      GATEWAY_IP=172.24.5.1 \
+      OS_RC={{ devstack_workdir }}/openrc \
+      go test -v ./cmd/tests/manila-csi-e2e-suite/manila_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[manila-csi-e2e\]" -ginkgo.noColor -timeout=0

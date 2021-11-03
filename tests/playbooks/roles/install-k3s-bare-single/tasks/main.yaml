@@ -1,0 +1,54 @@
+- name: Install packages
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+  vars:
+    packages:
+      - jq
+
+- name: Get k3s release
+  shell:
+    executable: /bin/bash
+    cmd: |
+      # Get k3s release based on the given k8s branch.
+      branch={{ k8s_branch }}
+      if [[ "$branch" = "master" ]]; then
+        k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[0].name')
+      elif [[ "$branch" = "latest-stable" ]]; then
+        # If no k3s version is provided, the installation script will pull
+        # the latest version from the stable channel.
+        k3s_release=''
+      else
+        # release-1.20 --> 1.20
+        k8s_minor=${branch##*-}
+        # 1.20 --> v1.20.x+k3s1 or v1.20.1-rc1+k3s1
+        k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[].name' | grep -E "^v${k8s_minor}.[0-9a-z\+\-]+\+k3s1$" | awk 'NR==1 {print}')
+      fi
+      echo $k3s_release
+  register: release
+
+- name: Install single-node k3s on host
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -xe
+      curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ release.stdout }}" sh -
+
+- name: Wait for k8s node ready
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get node | grep " Ready " | wc -l
+  register: result
+  until: result.stdout == "1"
+  retries: 12
+  delay: 10
+
+- name: Set kubeconfig env
+  set_fact:
+    kubeconfig: "/etc/rancher/k3s/k3s.yaml"
+
+- name: Merge KUBECONFIG env vars into global env
+  set_fact:
+    global_env: "{{ global_env | combine({'KUBECONFIG': kubeconfig}) }}"
