@@ -207,4 +207,4 @@
       set -o pipefail
 
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
-      go test -v ./cmd/tests/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0
+      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0

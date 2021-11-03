@@ -1,0 +1,5 @@
+- name: Install Helm v3
+  shell:
+    executable: /bin/bash
+    cmd: |
+      curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
