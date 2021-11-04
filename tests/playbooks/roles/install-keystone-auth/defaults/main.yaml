@@ -1,0 +1,10 @@
+---
+github_pr: 123
+devstack_workdir: "{{ ansible_user_dir }}/devstack"
+
+# Used for uploading image to local registry.
+image_registry_host: localhost
+# Used for access the private registry image from k8s
+remote_registry_host: "{{ ansible_default_ipv4.address }}"
+
+k8s_log_dir: "/var/log/"

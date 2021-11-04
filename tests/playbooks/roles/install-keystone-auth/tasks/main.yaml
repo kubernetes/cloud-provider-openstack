@@ -1,0 +1,144 @@
+---
+- name: Ensure CPO source folder
+  shell:
+    executable: /bin/bash
+    cmd: |
+      rm -rf $GOPATH/src/k8s.io/cloud-provider-openstack
+      mkdir -p $GOPATH/src/k8s.io; cd $_
+      git clone https://github.com/kubernetes/cloud-provider-openstack
+      cd cloud-provider-openstack
+      git fetch origin +refs/pull/{{ github_pr }}/merge
+      git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+
+- name: Build k8s-keystone-auth binary
+  environment: "{{ global_env }}"
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      set -ex
+
+      export ARCH=${ARCH:-amd64}
+      export BUILD_CMDS='k8s-keystone-auth'
+      make build
+
+- name: Deploy config maps for k8s-keystone-auth
+  environment: "{{ global_env }}"
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -ex
+
+      cat <<EOF | kubectl apply -f -
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: keystone-auth-policy
+        namespace: kube-system
+      data:
+        policies: |
+          [
+            {
+              "users": {
+                "projects": ["demo"],
+                "roles": ["member"]
+              },
+              "resource_permissions": {
+                "default/pods": ["get", "list"]
+              }
+            }
+          ]
+      EOF
+
+      cat <<EOF | kubectl apply -f -
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: keystone-sync-policy
+        namespace: kube-system
+      data:
+        syncConfig: |
+          role-mappings:
+            - keystone-role: member
+              groups: ["member"]
+      EOF
+
+# global_env is needed to access openstack credentials.
+- name: Deploy k8s-keystone-auth
+  environment: "{{ global_env }}"
+  shell:
+    creates: "{{ k8s_log_dir }}/keystone-auth.log"
+    executable: /bin/bash
+    cmd: |
+      set -ex
+
+      mkdir -p {{ k8s_log_dir }}
+      export LOG_DIR={{ k8s_log_dir }}
+      export keystone_auth_conf={{ ansible_user_dir }}/keystone-auth
+      mkdir -p ${keystone_auth_conf}
+      export kubeconfig={{ ansible_user_dir }}/.kube/config
+      [ ! -f ${keystone_auth_conf}/ca.crt ] && openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ${keystone_auth_conf}/ca.key -out ${keystone_auth_conf}/ca.crt -subj "/CN=keystone-auth"
+
+      keystone_auth_url=${OS_AUTH_URL}/v3
+      nohup ./k8s-keystone-auth \
+            --tls-cert-file ${keystone_auth_conf}/ca.crt \
+            --tls-private-key-file ${keystone_auth_conf}/ca.key \
+            --policy-configmap-name keystone-auth-policy \
+            --sync-configmap-name keystone-sync-policy \
+            --log-dir=${LOG_DIR} \
+            --v=2 \
+            --kubeconfig ${kubeconfig} \
+            --keystone-url ${keystone_auth_url} >"${LOG_DIR}/keystone-auth.log" 2>&1 &
+
+- name: Get kubeconfig contexts
+  shell:
+    executable: /bin/bash
+    cmd: |
+      export KUBECONFIG={{ ansible_user_dir }}/.kube/config
+      kubectl config get-contexts --no-headers=true -o name
+  register: contexts_ret
+
+- name: Config openstack user in kubeconfig
+  when: '"openstack" not in contexts_ret.stdout_lines'
+  blockinfile:
+    path: "{{ ansible_user_dir }}/.kube/config"
+    insertafter: "users:"
+    block: |
+      - name: openstackuser
+        user:
+          exec:
+            command: /bin/bash
+            apiVersion: client.authentication.k8s.io/v1beta1
+            args:
+            - -c
+            - >
+              if [ -z ${OS_TOKEN} ]; then
+                  echo 'Error: Missing OpenStack credential from environment variable $OS_TOKEN' > /dev/stderr
+                  exit 1
+              else
+                  echo '{ "apiVersion": "client.authentication.k8s.io/v1beta1", "kind": "ExecCredential", "status": { "token": "'"${OS_TOKEN}"'"}}'
+              fi
+
+- name: Config openstack context in kubeconfig
+  when: '"openstack" not in contexts_ret.stdout_lines'
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -ex
+      export KUBECONFIG={{ ansible_user_dir }}/.kube/config
+      kubectl config set-context --cluster=default --user=openstackuser openstack
+
+- name: Run e2e tests for k8s-keystone-auth webhook
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -e
+
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+
+      source {{ devstack_workdir }}/openrc demo demo > /dev/null
+      # The default Keystone token expiration time in devstack is 3 hours.
+      token=$(openstack token issue -f yaml -c id | awk '{print $2}')
+      export OS_TOKEN=$token
+
+      OS_TOKEN=$token OS_CONTEXT_NAME=openstack AUTH_POLICY_CONFIGMAP=keystone-auth-policy ROLE_MAPPING_CONFIGMAP=keystone-sync-policy tests/e2e/k8s-keystone-auth/test-authz.sh
