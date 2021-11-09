@@ -27,5 +27,6 @@ jobs:
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.1.0
 
+      # https://github.com/helm/chart-testing/blob/main/doc/ct_lint.md
       - name: Run chart-testing (lint)
-        run: ct lint --target-branch ${GITHUB_BASE_REF} --check-version-increment false
+        run: ct lint --target-branch=${GITHUB_BASE_REF} --check-version-increment=false
