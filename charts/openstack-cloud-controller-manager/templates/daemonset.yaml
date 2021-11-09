@@ -33,7 +33,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
           args:
             - /bin/openstack-cloud-controller-manager
-            - --v=1
+            - --v={{ .Values.logVerbosityLevel }}
             - --cloud-config=$(CLOUD_CONFIG)
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
