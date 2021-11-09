@@ -93,6 +93,11 @@ csi:
     nodeSelector: {}
     tolerations: []
 
+# Log verbosity level.
+# See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
+# for description of individual verbosity levels.
+logVerbosityLevel: 2
+
 secret:
   enabled: false
   create: false

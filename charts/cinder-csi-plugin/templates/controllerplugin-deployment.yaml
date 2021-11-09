@@ -27,6 +27,7 @@ spec:
           image: "{{ .Values.csi.attacher.image.repository }}:{{ .Values.csi.attacher.image.tag }}"
           imagePullPolicy: {{ .Values.csi.attacher.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
@@ -41,6 +42,7 @@ spec:
           image: "{{ .Values.csi.provisioner.image.repository }}:{{ .Values.csi.provisioner.image.tag }}"
           imagePullPolicy: {{ .Values.csi.provisioner.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
@@ -58,6 +60,7 @@ spec:
           image: "{{ .Values.csi.snapshotter.image.repository }}:{{ .Values.csi.snapshotter.image.tag }}"
           imagePullPolicy: {{ .Values.csi.snapshotter.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
@@ -72,6 +75,7 @@ spec:
           image: "{{ .Values.csi.resizer.image.repository }}:{{ .Values.csi.resizer.image.tag }}"
           imagePullPolicy: {{ .Values.csi.resizer.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--handle-volume-inuse-error=false"
@@ -87,6 +91,7 @@ spec:
           image: "{{ .Values.csi.livenessprobe.image.repository }}:{{ .Values.csi.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.csi.livenessprobe.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
@@ -100,6 +105,7 @@ spec:
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
           args:
             - /bin/cinder-csi-plugin
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
