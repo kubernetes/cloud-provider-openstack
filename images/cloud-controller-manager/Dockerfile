@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.16-openshift-4.10
+FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.17-openshift-4.10
 WORKDIR /go/src/k8s.io/cloud-provider-openstack
 COPY . .
 RUN go build -o openstack-cloud-controller-manager ./cmd/openstack-cloud-controller-manager
