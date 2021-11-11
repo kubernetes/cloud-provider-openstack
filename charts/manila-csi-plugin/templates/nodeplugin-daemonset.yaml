@@ -31,6 +31,7 @@ spec:
         - name: {{ .protocolSelector | lower }}-registrar
           image: "{{ $.Values.nodeplugin.registrar.image.repository }}:{{ $.Values.nodeplugin.registrar.image.tag }}"
           args:
+            - "-v={{ $.Values.logVerbosityLevel }}"
             - "--csi-address=/csi/csi.sock"
             - "--kubelet-registration-path=/var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi.sock"
           env:
@@ -55,6 +56,7 @@ spec:
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
+            -v={{ $.Values.logVerbosityLevel }}
             --nodeid=$(NODE_ID)
             {{- if $.Values.csimanila.runtimeConfig.enabled }}
             --runtime-config-file=/runtimeconfig/runtimeconfig.json

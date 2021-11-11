@@ -20,6 +20,7 @@ spec:
           image: "{{ .Values.csi.nodeDriverRegistrar.image.repository }}:{{ .Values.csi.nodeDriverRegistrar.image.tag }}"
           imagePullPolicy: {{ .Values.csi.nodeDriverRegistrar.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
           env:
@@ -41,6 +42,7 @@ spec:
           image: "{{ .Values.csi.livenessprobe.image.repository }}:{{ .Values.csi.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.csi.livenessprobe.image.pullPolicy }}
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - --csi-address=/csi/csi.sock
           volumeMounts:
             - name: socket-dir
@@ -56,6 +58,7 @@ spec:
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
           args:
             - /bin/cinder-csi-plugin
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
           env:
