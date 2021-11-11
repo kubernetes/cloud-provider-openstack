@@ -58,7 +58,7 @@ func TestCreateVolume(t *testing.T) {
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessMode: &csi.VolumeCapability_AccessMode{
-					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 				},
 			},
 		},
@@ -165,7 +165,7 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessMode: &csi.VolumeCapability_AccessMode{
-					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 				},
 			},
 		},
@@ -211,7 +211,7 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessMode: &csi.VolumeCapability_AccessMode{
-					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 				},
 			},
 		},
@@ -259,7 +259,7 @@ func TestCreateVolumeFromSourceVolume(t *testing.T) {
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessMode: &csi.VolumeCapability_AccessMode{
-					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 				},
 			},
 		},
@@ -297,7 +297,7 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessMode: &csi.VolumeCapability_AccessMode{
-					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 				},
 			},
 		},
@@ -620,7 +620,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessMode: &csi.VolumeCapability_AccessMode{
-					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 				},
 			},
 		},
@@ -632,7 +632,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 			VolumeCapabilities: []*csi.VolumeCapability{
 				{
 					AccessMode: &csi.VolumeCapability_AccessMode{
-						Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+						Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_SINGLE_WRITER,
 					},
 				},
 			},

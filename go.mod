@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-version v1.2.0
 	github.com/kubernetes-csi/csi-lib-utils v0.6.1
 	github.com/kubernetes-csi/csi-test v2.2.0+incompatible
-	github.com/kubernetes-csi/csi-test/v4 v4.2.0
+	github.com/kubernetes-csi/csi-test/v4 v4.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/onsi/ginkgo v1.14.2
