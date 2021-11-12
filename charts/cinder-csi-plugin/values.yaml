@@ -77,7 +77,7 @@ csi:
           # unavailable during the update process.
           maxUnavailable: 0
           # maxSurge is the maximum number of pods that can be
-          # created over the desired number of pods
+          # created over the desired number of pods.
           maxSurge: 1
       affinity: {}
       nodeSelector: {}
@@ -92,6 +92,11 @@ csi:
     affinity: {}
     nodeSelector: {}
     tolerations: []
+
+# Log verbosity level.
+# See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
+# for description of individual verbosity levels.
+logVerbosityLevel: 2
 
 secret:
   enabled: false

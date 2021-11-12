@@ -23,6 +23,7 @@ var CSITestSuites = []func() storageframework.TestSuite{
 	testsuites.InitMultiVolumeTestSuite,
 	testsuites.InitFsGroupChangePolicyTestSuite,
 	testsuites.InitTopologyTestSuite,
+	testsuites.InitVolumeExpandTestSuite,
 }
 
 // This executes testSuites for csi volumes.

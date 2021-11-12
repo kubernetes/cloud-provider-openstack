@@ -29,6 +29,7 @@ spec:
         - name: snapshot-controller
           image: "{{ .Values.csi.snapshotController.image.repository }}:{{ .Values.csi.snapshotController.image.tag }}"
           args:
+            - "-v={{ .Values.logVerbosityLevel }}"
             - "--leader-election=false"
           imagePullPolicy: IfNotPresent
           resources: {{ toYaml .Values.csi.snapshotController.resources | nindent 12 }}
