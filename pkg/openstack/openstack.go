@@ -95,6 +95,7 @@ type LoadBalancerOpts struct {
 	FlavorID              string              `gcfg:"flavor-id"`
 	AvailabilityZone      string              `gcfg:"availability-zone"`
 	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"`   // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
+	IngressHostnameSuffix string              `gcfg:"ingress-hostname-suffix"`   // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
 	TlsContainerRef       string              `gcfg:"default-tls-container-ref"` //  reference to a tls container
 	MaxSharedLB           int                 `gcfg:"max-shared-lb"`             //  Number of Services in maximum can share a single load balancer. Default 2
 }
@@ -200,6 +201,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorMaxRetries = 1
 	cfg.LoadBalancer.CascadeDelete = true
 	cfg.LoadBalancer.EnableIngressHostname = false
+	cfg.LoadBalancer.IngressHostnameSuffix = defaultProxyHostnameSuffix
 	cfg.LoadBalancer.TlsContainerRef = ""
 	cfg.LoadBalancer.MaxSharedLB = 2
 
