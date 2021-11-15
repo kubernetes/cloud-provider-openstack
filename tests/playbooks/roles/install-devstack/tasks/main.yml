@@ -73,6 +73,21 @@
     - set_fact:
         local_ip_address: "{{ local_ip_output.stdout }}"
 
+    - name: Download octavia amphora image
+      when: octavia_amphora_url != ""
+      block:
+        - name: Ensure amphora image dest folder
+          file:
+            path: "{{ octavia_amphora_dir }}"
+            state: directory
+            mode: '0755'
+        - name: Download octavia amphora image
+          get_url:
+            url: "{{ octavia_amphora_url }}"
+            dest: "{{ octavia_amphora_dir }}/{{ octavia_amphora_filename }}"
+            mode: 0755
+            force: no
+
     - name: Prepare local.conf
       template:
         src: local.conf.j2

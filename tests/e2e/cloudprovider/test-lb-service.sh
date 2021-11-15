@@ -17,8 +17,13 @@ DEVSTACK_OS_RC=${DEVSTACK_OS_RC:-"/home/zuul/devstack/openrc"}
 CLUSTER_TENANT=${CLUSTER_TENANT:-"demo"}
 CLUSTER_USER=${CLUSTER_USER:-"demo"}
 LB_SUBNET_NAME=${LB_SUBNET_NAME:-"private-subnet"}
+AUTO_CLEAN_UP=${AUTO_CLEAN_UP:-"true"}
 
-delete_resources() {
+function delete_resources() {
+  if [[ ${AUTO_CLEAN_UP} != "true" ]]; then
+    exit ${ERROR_CODE}
+  fi
+
   ERROR_CODE="$?"
 
   printf "\n>>>>>>> Deleting k8s services\n"
@@ -98,6 +103,27 @@ function wait_for_service_address {
     sleep 10
     now=$(date +%s)
     [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Timeout when waiting for the Service ${service_name} created\n" && exit 1
+  done
+}
+
+########################################################################
+## Name: wait_address_accessible
+## Desc: Waits for the IP address accessible (port 80).
+## Params:
+##   - (required) An IP address
+########################################################################
+function wait_address_accessible {
+  local addr=$1
+
+  end=$(($(date +%s) + ${TIMEOUT}))
+  while true; do
+    curl -sS http://${ipaddr}
+    if [ $? -eq 0 ]; then
+      break
+    fi
+    sleep 5
+    now=$(date +%s)
+    [ $now -gt $end ] && printf "\n>>>>>>> FAIL: Timeout when waiting for the IP address ${addr} accessible\n" && exit 1
   done
 }
 
@@ -232,13 +258,15 @@ EOF
 
     printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
     wait_for_service_address ${service}
+    wait_address_accessible $ipaddr
 
     printf "\n>>>>>>> Sending request to the Service ${service}\n"
-    podname=$(curl -s http://${ipaddr} | grep Hostname | awk -F':' '{print $2}' | cut -d ' ' -f2)
+    podname=$(curl -sS http://${ipaddr} | grep Hostname | awk -F':' '{print $2}' | cut -d ' ' -f2)
     if [[ "$podname" =~ "echoserver" ]]; then
         printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
     else
         printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, expected: echoserver, actual: $podname\n"
+        curl -sS http://${ipaddr}
         exit 1
     fi
 
@@ -253,7 +281,7 @@ EOF
 ########################################################################
 function test_forwarded {
     local service="test-x-forwarded-for"
-    local public_ip=$(curl -s ifconfig.me)
+    local public_ip=$(curl -sS ifconfig.me)
     local local_ip=$(ip route get 8.8.8.8 | head -1 | awk '{print $7}')
 
     printf "\n>>>>>>> Create the Service ${service}\n"
@@ -278,11 +306,13 @@ EOF
 
     printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
     wait_for_service_address ${service}
+    wait_address_accessible $ipaddr
 
     printf "\n>>>>>>> Sending request to the Service ${service}\n"
-    ip_in_header=$(curl -s http://${ipaddr} | grep  x-forwarded-for | awk -F'=' '{print $2}')
+    ip_in_header=$(curl -sS http://${ipaddr} | grep  x-forwarded-for | awk -F'=' '{print $2}')
     if [[ "${ip_in_header}" != "${local_ip}" && "${ip_in_header}" != "${public_ip}" && "${ip_in_header}" != "${GATEWAY_IP}" ]]; then
         printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, ip_in_header: ${ip_in_header}, local_ip: ${local_ip}, gateway_ip: ${GATEWAY_IP}, public_ip: ${public_ip}\n"
+        curl -sS http://${ipaddr}
         exit 1
     else
         printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
