@@ -36,7 +36,7 @@ PR_BRANCH="${PULL_BASE_REF:-master}"
 CONFIG_ANSIBLE="${CONFIG_ANSIBLE:-"true"}"
 RESOURCE_TYPE="${RESOURCE_TYPE:-"gce-project"}"
 ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
-mkdir -p "${ARTIFACTS}/logs/devstack"
+mkdir -p "${ARTIFACTS}/logs"
 
 cleanup() {
   # stop boskos heartbeat
@@ -113,6 +113,11 @@ exit_code=$?
 #scp -i ~/.ssh/google_compute_engine \
 #  -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
 #  -r ${USERNAME}@${PUBLIC_IP}:/opt/stack/logs $ARTIFACTS/logs/devstack || true
+
+# Fetch octavia amphora image build logs for debugging purpose
+scp -i ~/.ssh/google_compute_engine \
+    -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+    -r ${USERNAME}@${PUBLIC_IP}:/var/log/dib-build/amphora-x64-haproxy.qcow2.log $ARTIFACTS/logs/octavia-image-build.log || true
 
 # If Boskos is being used then release the resource back to Boskos.
 [ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
