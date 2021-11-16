@@ -208,7 +208,7 @@ func ReadClouds(authOpts *AuthOpts) error {
 		co.Cloud = authOpts.Cloud
 	}
 	cloud, err := clientconfig.GetCloudFromYAML(co)
-	if err != nil && err.Error() != "unable to load clouds.yaml: no clouds.yaml file found" {
+	if err != nil {
 		return err
 	}
 
