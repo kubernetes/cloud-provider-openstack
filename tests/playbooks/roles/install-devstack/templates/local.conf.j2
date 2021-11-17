@@ -78,10 +78,15 @@ enable_service o-hk
 enable_service o-api
 
 LIBS_FROM_GIT+=,python-octaviaclient
+DIB_REPOLOCATION_amphora_agent=https://github.com/openstack/octavia.git
+DIB_REPOLOCATION_octavia_lib=https://github.com/openstack/octavia-lib.git
 
 OCTAVIA_MGMT_SUBNET=10.51.0.0/16
 OCTAVIA_MGMT_SUBNET_START=10.51.0.2
 OCTAVIA_MGMT_SUBNET_END=10.51.0.254
+{% if octavia_amphora_url %}
+OCTAVIA_AMP_IMAGE_FILE={{ octavia_amphora_dir }}/{{ octavia_amphora_filename }}
+{% endif %}
 {% endif %}
 
 {% if "barbican" in enable_services %}

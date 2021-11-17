@@ -1129,7 +1129,7 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 	return lb.VipAddress, nil
 }
 
-func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
 	monitorID := pool.MonitorID
 
 	if monitorID == "" && svcConf.enableMonitor {
@@ -1138,6 +1138,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, pool *v2pools.Pool
 		createOpts := lbaas.buildMonitorCreateOpts(port)
 		// Populate PoolID, attribute is omitted for consumption of the createOpts for fully populated Loadbalancer
 		createOpts.PoolID = pool.ID
+		createOpts.Name = name
 		monitor, err := openstackutil.CreateHealthMonitor(lbaas.lb, createOpts, lbID)
 		if err != nil {
 			return err
@@ -1173,7 +1174,7 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(port corev1.ServicePort) v2monitors
 }
 
 // Make sure the pool is created for the Service, nodes are added as pool members.
-func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listener, service *corev1.Service, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) (*v2pools.Pool, error) {
+func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *listeners.Listener, service *corev1.Service, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) (*v2pools.Pool, error) {
 	pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
 	if err != nil && err != openstackutil.ErrNotFound {
 		return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
@@ -1201,6 +1202,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, listener *listeners.Listene
 	if pool == nil {
 		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf)
 		createOpt.ListenerID = listener.ID
+		createOpt.Name = name
 
 		klog.InfoS("Creating pool", "listenerID", listener.ID, "protocol", createOpt.Protocol)
 		pool, err = openstackutil.CreatePool(lbaas.lb, createOpt, lbID)
@@ -1299,7 +1301,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 }
 
 // Make sure the listener is created for Service
-func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
+func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
 	listener, isPresent := curListenerMapping[listenerKey{
 		Protocol: getListenerProtocol(port.Protocol, svcConf),
 		Port:     int(port.Port),
@@ -1307,6 +1309,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, curListenerMapping map[
 	if !isPresent {
 		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
 		listenerCreateOpt.LoadbalancerID = lbID
+		listenerCreateOpt.Name = name
 
 		klog.V(2).Infof("Creating listener for port %d using protocol %s", int(port.Port), listenerCreateOpt.Protocol)
 
@@ -1821,8 +1824,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, err
 		}
 
-		for _, port := range service.Spec.Ports {
-			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, curListenerMapping, port, svcConf, service)
+		for portIndex, port := range service.Spec.Ports {
+			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cutString(fmt.Sprintf("listener_%d_%s", portIndex, lbName)), curListenerMapping, port, svcConf, service)
 			if err != nil {
 				return nil, err
 			}
@@ -1830,12 +1833,12 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			// After all ports have been processed, remaining listeners are removed if they were created by this Service.
 			curListeners = popListener(curListeners, listener.ID)
 
-			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, listener, service, port, nodes, svcConf)
+			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, lbName)), listener, service, port, nodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
 
-			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, pool, port, svcConf); err != nil {
+			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cutString(fmt.Sprintf("monitor_%d_%s)", portIndex, lbName)), pool, port, svcConf); err != nil {
 				return nil, err
 			}
 		}
@@ -1874,7 +1877,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
 	// is implemented (maybe in v1.22).
 	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
-		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, defaultProxyHostnameSuffix)
+		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, lbaas.opts.IngressHostnameSuffix)
 		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
 	}
 
@@ -2749,7 +2752,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	// Update pool members for each listener.
-	for _, port := range service.Spec.Ports {
+	for portIndex, port := range service.Spec.Ports {
 		proto := getListenerProtocol(port.Protocol, svcConf)
 		listener, ok := lbListeners[listenerKey{
 			Protocol: proto,
@@ -2759,7 +2762,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, &listener, service, port, nodes, svcConf)
+		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, loadbalancer.Name)), &listener, service, port, nodes, svcConf)
 		if err != nil {
 			return err
 		}
