@@ -95,6 +95,10 @@ const (
 	// Default to true.
 	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
 
+	// IngressAnnotationSourceRangesKey is the key of the annotation on an ingress to set allowed IP ranges on their LoadBalancers.
+	// It should be a comma-separated list of CIDRs.
+	IngressAnnotationSourceRangesKey = "ingress.kubernetes.io/whitelist-source-range"
+
 	// IngressControllerTag is added to the related resources.
 	IngressControllerTag = "octavia.ingress.kubernetes.io"
 
@@ -312,6 +316,10 @@ func NewController(conf config.Config) *Controller {
 				// Two different versions of the same Ingress will always have different RVs.
 				return
 			}
+			newAnnotations := newIng.ObjectMeta.Annotations
+			oldAnnotations := oldIng.ObjectMeta.Annotations
+			delete(newAnnotations, "kubectl.kubernetes.io/last-applied-configuration")
+			delete(oldAnnotations, "kubectl.kubernetes.io/last-applied-configuration")
 
 			key := fmt.Sprintf("%s/%s", newIng.Namespace, newIng.Name)
 			validOld := IsValid(oldIng)
@@ -322,7 +330,7 @@ func NewController(conf config.Config) *Controller {
 			} else if validOld && !validCur {
 				recorder.Event(newIng, apiv1.EventTypeNormal, "Deleting", fmt.Sprintf("Ingress %s", key))
 				controller.queue.AddRateLimited(Event{Obj: newIng, Type: DeleteEvent})
-			} else if validCur && !reflect.DeepEqual(newIng.Spec, oldIng.Spec) {
+			} else if validCur && (!reflect.DeepEqual(newIng.Spec, oldIng.Spec) || !reflect.DeepEqual(newAnnotations, oldAnnotations)) {
 				recorder.Event(newIng, apiv1.EventTypeNormal, "Updating", fmt.Sprintf("Ingress %s", key))
 				controller.queue.AddRateLimited(Event{Obj: newIng, Type: UpdateEvent})
 			} else {
@@ -695,7 +703,12 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	}
 
 	// Create listener
-	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs)
+	sourceRanges := getStringFromIngressAnnotation(ing, IngressAnnotationSourceRangesKey, "0.0.0.0/0")
+	listenerAllowedCIDRs := strings.Split(sourceRanges, ",")
+	if err != nil {
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationSourceRangesKey, err)
+	}
+	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs, listenerAllowedCIDRs)
 	if err != nil {
 		return err
 	}

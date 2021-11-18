@@ -14,6 +14,7 @@
     - [Create a backend service](#create-a-backend-service)
     - [Create an Ingress resource](#create-an-ingress-resource)
   - [Enable TLS encryption](#enable-tls-encryption)
+  - [Allow CIDRs](#allow-cidrs)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -449,3 +450,33 @@ Ingress and enable the more secure HTTPS protocol.
 > NOTE: octavia-ingress-controller currently doesn't support to integrate with
 > `cert-manager` to create the non-existing secret dynamically. Could be improved
 > in the future.
+
+## Allow CIDRs
+
+You can use the key `ingress.kubernetes.io/whitelist-source-range` annotations to whitelist CIDRs.
+The value should be a comma-separated list of CIDRs.
+
+Example:
+
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: test-octavia-ingress
+      annotations:
+        kubernetes.io/ingress.class: "openstack"
+        octavia.ingress.kubernetes.io/internal: "false"
+        ingress.kubernetes.io/whitelist-source-range: 192.168.1.0/23
+    spec:
+      rules:
+        - host: foo.bar.com
+          http:
+            paths:
+            - path: /ping
+              pathType: Exact
+              backend:
+                service:
+                  name: webserver
+                  port:
+                    number: 8080
+    ```

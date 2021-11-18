@@ -335,7 +335,7 @@ func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription s
 }
 
 // EnsureListener creates a loadbalancer listener in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
-func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []string) (*listeners.Listener, error) {
+func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []string, listenerAllowedCIDRs []string) (*listeners.Listener, error) {
 	listener, err := openstackutil.GetListenerByName(os.Octavia, name, lbID)
 	if err != nil {
 		if err != openstackutil.ErrNotFound {
@@ -356,12 +356,26 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 			opts.ProtocolPort = 443
 			opts.Protocol = "TERMINATED_HTTPS"
 		}
+		if len(listenerAllowedCIDRs) > 0 {
+			opts.AllowedCIDRs = listenerAllowedCIDRs
+		}
 		listener, err = listeners.Create(os.Octavia, opts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating listener: %v", err)
 		}
 
 		log.WithFields(log.Fields{"lbID": lbID, "listenerName": name}).Info("listener created")
+	} else {
+		if len(listenerAllowedCIDRs) > 0 {
+			_, err := listeners.Update(os.Octavia, listener.ID, listeners.UpdateOpts{
+				AllowedCIDRs: &listenerAllowedCIDRs,
+			}).Extract()
+			if err != nil {
+				return nil, fmt.Errorf("failed to update listener allowed CIDRs: %v", err)
+			}
+
+			log.WithFields(log.Fields{"listenerID": listener.ID}).Debug("listener allowed CIDRs updated")
+		}
 	}
 
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
