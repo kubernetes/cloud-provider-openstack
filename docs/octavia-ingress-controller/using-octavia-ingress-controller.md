@@ -453,7 +453,7 @@ Ingress and enable the more secure HTTPS protocol.
 
 ## Allow CIDRs
 
-You can use the key `ingress.kubernetes.io/whitelist-source-range` annotations to whitelist CIDRs.
+You can use the key `octavia.ingress.kubernetes.io/whitelist-source-range` annotations to whitelist CIDRs.
 The value should be a comma-separated list of CIDRs.
 
 Example:
@@ -466,7 +466,7 @@ Example:
       annotations:
         kubernetes.io/ingress.class: "openstack"
         octavia.ingress.kubernetes.io/internal: "false"
-        ingress.kubernetes.io/whitelist-source-range: 192.168.1.0/23
+        octavia.ingress.kubernetes.io/whitelist-source-range: 192.168.1.0/23
     spec:
       rules:
         - host: foo.bar.com

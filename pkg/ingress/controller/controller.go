@@ -97,7 +97,7 @@ const (
 
 	// IngressAnnotationSourceRangesKey is the key of the annotation on an ingress to set allowed IP ranges on their LoadBalancers.
 	// It should be a comma-separated list of CIDRs.
-	IngressAnnotationSourceRangesKey = "ingress.kubernetes.io/whitelist-source-range"
+	IngressAnnotationSourceRangesKey = "octavia.ingress.kubernetes.io/whitelist-source-range"
 
 	// IngressControllerTag is added to the related resources.
 	IngressControllerTag = "octavia.ingress.kubernetes.io"
