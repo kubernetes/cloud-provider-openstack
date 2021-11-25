@@ -626,7 +626,11 @@ func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretNam
 	}
 
 	var caCerts []*x509.Certificate
-	// TODO(lingxiankong): We assume the 'tls.cert' data only contains the end user certificate.
+	// We assume that the rest of the PEM bundle contains the CA certificate.
+	if len(cb) > 1 {
+		caCerts = append(caCerts, cb[1:]...)
+	}
+
 	pfxData, err := pkcs12.Encode(rand.Reader, pk, cb[0], caCerts, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create PKCS#12 bundle: %v", err)
