@@ -6,5 +6,5 @@ devstack_workdir: "{{ ansible_user_dir }}/devstack"
 image_registry_host: localhost
 # Used for access the private registry image from k8s
 remote_registry_host: "{{ ansible_default_ipv4.address }}"
-
+cpo_src_dir: "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack"
 k8s_log_dir: "/var/log/"

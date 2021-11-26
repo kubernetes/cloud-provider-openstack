@@ -8,6 +8,8 @@
     github_pr: 123
     global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
+    cpo_src_dir: "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack"
+
 
   roles:
     - role: install-golang
@@ -25,3 +27,14 @@
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
     - role: install-csi-cinder
       environment: "{{ global_env }}"
+
+  tasks:
+    - name: Run functional tests for csi-cinder-plugin
+      environment: "{{ global_env }}"
+      shell:
+        executable: /bin/bash
+        chdir: '{{ cpo_src_dir }}'
+        cmd: |
+          set -ex
+          set -o pipefail
+          go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0

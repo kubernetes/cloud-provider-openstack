@@ -3,8 +3,8 @@
   shell:
     executable: /bin/bash
     cmd: |
-      rm -rf $GOPATH/src/k8s.io/cloud-provider-openstack
-      mkdir -p $GOPATH/src/k8s.io; cd $_
+      rm -rf {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+      mkdir -p {{ ansible_user_dir }}/src/k8s.io; cd $_
       git clone https://github.com/kubernetes/cloud-provider-openstack
       cd cloud-provider-openstack
       git fetch origin +refs/pull/{{ github_pr }}/merge
@@ -13,9 +13,8 @@
 - name: Build and upload cinder-csi-plugin image
   shell:
     executable: /bin/bash
+    chdir: '{{ cpo_src_dir }}'
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
-
       REGISTRY={{ image_registry_host }} \
       VERSION={{ github_pr }} \
       IMAGE_NAMES=cinder-csi-plugin \
@@ -44,8 +43,6 @@
       tenant-id=$tenant_id
       domain-id=default
 
-      [BlockStorage]
-      bs-version=v3
       EOF
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
@@ -53,89 +50,24 @@
 - name: Replace manifests
   shell:
     executable: /bin/bash
+    chdir: '{{ cpo_src_dir }}'
     cmd: |
       # replace manifest cloud secret file
-
       b64data=`cat {{ ansible_user_dir }}/cloud.conf | base64 -w 0`
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
-
       sed -i "/cloud\.conf/c\  cloud.conf: $b64data" manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml
-
       # replace image with built image
       sed -i "s#docker.io/k8scloudprovider/cinder-csi-plugin:latest#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-
       sed -i "s#docker.io/k8scloudprovider/cinder-csi-plugin:latest#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
 - name: Deploy openstack-cloud-controller-manager
   shell:
     executable: /bin/bash
+    chdir: '{{ cpo_src_dir }}'
     cmd: |
-      set -x
-
-      cat <<EOF | kubectl apply -f -
-      ---
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: cloud-controller-manager
-        namespace: kube-system
-      ---
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: system:cloud-controller-manager
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: cluster-admin
-      subjects:
-      - kind: ServiceAccount
-        name: cloud-controller-manager
-        namespace: kube-system
-      ---
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: openstack-cloud-controller-manager
-        namespace: kube-system
-        labels:
-          k8s-app: openstack-cloud-controller-manager
-      spec:
-        replicas: 1
-        selector:
-          matchLabels:
-            k8s-app: openstack-cloud-controller-manager
-        template:
-          metadata:
-            labels:
-              k8s-app: openstack-cloud-controller-manager
-          spec:
-            tolerations:
-            - key: node.cloudprovider.kubernetes.io/uninitialized
-              value: "true"
-              effect: NoSchedule
-            - key: node-role.kubernetes.io/master
-              effect: NoSchedule
-            serviceAccountName: cloud-controller-manager
-            containers:
-              - name: openstack-cloud-controller-manager
-                image: docker.io/k8scloudprovider/openstack-cloud-controller-manager:latest
-                args:
-                  - /bin/openstack-cloud-controller-manager
-                  - --cloud-config=/etc/config/cloud.conf
-                  - --cloud-provider=openstack
-                  - --use-service-account-credentials=true
-                  - --bind-address=127.0.0.1
-                volumeMounts:
-                  - mountPath: /etc/config
-                    name: cloud-config-volume
-                    readOnly: true
-            hostNetwork: true
-            volumes:
-            - name: cloud-config-volume
-              secret:
-                secretName: cloud-config
-      EOF
+      set -ex
+      kubectl apply -f manifests/controller-manager/cloud-controller-manager-roles.yaml
+      kubectl apply -f manifests/controller-manager/cloud-controller-manager-role-bindings.yaml
+      kubectl apply -f manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
 
 - name: Wait for openstack-cloud-controller-manager up and running
   shell:
@@ -146,12 +78,32 @@
   until: check_occm.rc == 0
   retries: 24
   delay: 5
+  ignore_errors: yes
+
+- name: Gather additional evidence if openstack-cloud-controller-manager failed to come up
+  when: check_occm.failed
+  block:
+    - name: Describe failed openstack-cloud-controller-manager
+      shell:
+        executable: /bin/bash
+        cmd: |
+          kubectl -n kube-system describe ds openstack-cloud-controller-manager
+      register: describe_occm
+      changed_when: false
+
+    - name: Log failed openstack-cloud-controller-manager ds
+      debug:
+        var: describe_occm.stdout_lines
+
+    - name: &failmsg Stop due to prior failure of openstack-cloud-controller-manager
+      fail:
+        msg: *failmsg
 
 - name: Deploy cinder-csi-plugin
   shell:
     executable: /bin/bash
+    chdir: '{{ cpo_src_dir }}'
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
       kubectl apply -f manifests/cinder-csi-plugin
   ignore_errors: yes
 
@@ -194,17 +146,6 @@
       debug:
         var: describe_csi.stdout_lines
 
-    - name: &failmsg Stop due to prior failure of csi-cinder-plugin
+    - name: &failmsg1 Stop due to prior failure of csi-cinder-plugin
       fail:
-        msg: *failmsg
-
-- name: Run functional tests for csi-cinder-plugin
-  shell:
-    executable: /bin/bash
-    cmd: |
-      set -x
-      set -e
-      set -o pipefail
-
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
-      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0
+        msg: *failmsg1
