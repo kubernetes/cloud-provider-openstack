@@ -76,6 +76,9 @@ spec:
           env:
             - name: CLOUD_CONFIG
               value: /etc/config/cloud.conf
+      {{- if .Values.extraInitContainers }}
+      initContainers: {{ toYaml .Values.extraInitContainers | nindent 6 }}
+      {{- end }}
       hostNetwork: true
       volumes:
       - name: cloud-config-volume
