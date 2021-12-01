@@ -11,6 +11,7 @@
       git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
 
 - name: Build and upload openstack-cloud-controller-manager image
+  when: build_image
   shell:
     executable: /bin/bash
     cmd: |
@@ -51,10 +52,27 @@
       use-octavia=true
       subnet-id=$sudnet_id
       floating-network-id=$external_network_id
-
       EOF
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
+
+# - name: Set image url
+#   shell:
+#     executable: /bin/bash
+#     cmd: |
+#       check={{ build_image }}
+#       if ["$check" = true] ; then
+#           image_url="{{ remote_registry_host }}/openstack-cloud-controller-manager-amd64:{{ github_pr }}"
+#       else
+#           image_url="docker.io/k8scloudprovider/openstack-cloud-controller-manager:latest"
+#       fi
+
+#       echo $image_url
+#   register: image_url
+
+- name: Get image url
+  debug:
+    msg: "{{ image_url }}"
 
 - name: Deploy openstack-cloud-controller-manager
   shell:
@@ -109,7 +127,7 @@
             serviceAccountName: cloud-controller-manager
             containers:
               - name: openstack-cloud-controller-manager
-                image: {{ remote_registry_host }}/openstack-cloud-controller-manager-amd64:{{ github_pr }}
+                image: "{{ image_url }}"
                 args:
                   - /bin/openstack-cloud-controller-manager
                   - --v=4
@@ -136,8 +154,8 @@
   register: check_occm
   until: check_occm.rc == 0
   retries: 24
-  delay: 5
-  ignore_errors: yes
+  delay: 5  
+  ignore_errors: true
 
 - name: Gather additional evidence if openstack-cloud-controller-manager failed to come up
   when: check_occm.failed
@@ -159,6 +177,7 @@
         msg: *failmsg
 
 - name: Run functional tests for openstack-cloud-controller-manager
+  when: run_e2e
   shell:
     executable: /bin/bash
     cmd: |
