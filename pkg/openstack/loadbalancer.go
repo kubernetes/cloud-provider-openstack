@@ -1514,6 +1514,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
 	if lbaas.opts.InternalLB {
+		if !getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, false) {
+			klog.V(1).Infof("Annotation %q is set to false (default) but internal-lb=true, enforcing internal LB", ServiceAnnotationLoadBalancerInternal)
+		}
 		svcConf.internal = true
 	} else {
 		svcConf.internal = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
