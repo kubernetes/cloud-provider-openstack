@@ -7,6 +7,12 @@ image:
   repository: docker.io/k8scloudprovider/openstack-cloud-controller-manager
   tag: ""
 
+# Additional containers which are run before the app containers are started.
+extraInitContainers: []
+# - name: wait
+#   image: busybox
+#   command: ['sh', '-c', 'echo waiting for 10 seconds; sleep 10;']
+
 # Set resources for Kubernetes daemonset
 resources: {}
 # resources:
