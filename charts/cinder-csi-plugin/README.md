@@ -19,3 +19,4 @@ If you are using Helm v3:
 If you are using Helm v2:
 
     helm install --name cinder-csi cpo/openstack-cinder-csi
+
