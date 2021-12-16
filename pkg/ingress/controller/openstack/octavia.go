@@ -19,6 +19,7 @@ package openstack
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -366,7 +367,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 
 		log.WithFields(log.Fields{"lbID": lbID, "listenerName": name}).Info("listener created")
 	} else {
-		if len(listenerAllowedCIDRs) > 0 {
+		if len(listenerAllowedCIDRs) > 0 && !reflect.DeepEqual(listener.AllowedCIDRs, listenerAllowedCIDRs) {
 			_, err := listeners.Update(os.Octavia, listener.ID, listeners.UpdateOpts{
 				AllowedCIDRs: &listenerAllowedCIDRs,
 			}).Extract()
