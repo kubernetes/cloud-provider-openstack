@@ -705,9 +705,6 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	// Create listener
 	sourceRanges := getStringFromIngressAnnotation(ing, IngressAnnotationSourceRangesKey, "0.0.0.0/0")
 	listenerAllowedCIDRs := strings.Split(sourceRanges, ",")
-	if err != nil {
-		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationSourceRangesKey, err)
-	}
 	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs, listenerAllowedCIDRs)
 	if err != nil {
 		return err
