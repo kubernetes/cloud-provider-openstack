@@ -668,3 +668,14 @@ func CreateHealthMonitor(client *gophercloud.ServiceClient, opts monitors.Create
 
 	return monitor, nil
 }
+
+// GetHealthMonitor gets details about loadbalancer health monitor.
+func GetHealthMonitor(client *gophercloud.ServiceClient, monitorID string) (*monitors.Monitor, error) {
+	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "get")
+	monitor, err := monitors.Get(client, monitorID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, fmt.Errorf("failed to get healthmonitor: %v", err)
+	}
+
+	return monitor, nil
+}
