@@ -16,7 +16,6 @@
   - [Metrics](#metrics)
   - [Limitation](#limitation)
     - [OpenStack availability zone must not contain blank](#openstack-availability-zone-must-not-contain-blank)
-    - [externalTrafficPolicy support](#externaltrafficpolicy-support)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -289,9 +288,3 @@ Refer to [Metrics for openstack-cloud-controller-manager](../metrics.md)
 ### OpenStack availability zone must not contain blank
 
 `topology.kubernetes.io/zone` is used to label node and its value comes from availability zone of the node, according to [label spec](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set) it does not support blank (' ') but OpenStack availability zone supports blank. So your OpenStack availability zone must not contain blank otherwise it will lead to node that belongs to this availability zone register failure, see [#1379](https://github.com/kubernetes/cloud-provider-openstack/issues/1379) for further information.
-
-### externalTrafficPolicy support
-
-`externalTrafficPolicy` denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints. "Local" preserves the client source IP and avoids a second hop for LoadBalancer and Nodeport type services, but risks potentially imbalanced traffic spreading. "Cluster" obscures the client source IP and may cause a second hop to another node, but should have good overall load-spreading.
-
-openstack-cloud-controller-manager only supports `externalTrafficPolicy: Cluster` for now.
