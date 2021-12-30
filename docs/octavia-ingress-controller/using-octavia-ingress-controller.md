@@ -139,7 +139,7 @@ Here are several other config options are not included in the example configurat
 
     Notes for the security group:
 
-    - The security group name is in the format: `k8s_ing_<cluster-name>_<ingress-namespace>_<ingress-name>`
+    - The security group name is in the format: `kube_ingress_<cluster-name>_<ingress-namespace>_<ingress-name>`
     - The security group description is in the format: `Security group created for Ingress <ingress-namespace>/<ingress-name> from cluster <cluster-name>`
     - The security group has tags: `["octavia.ingress.kubernetes.io", "<ingress-namespace>_<ingress-name>"]`
     - The security group is associated with all the Neutron ports of the Kubernetes worker nodes. 
