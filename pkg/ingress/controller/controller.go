@@ -563,7 +563,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		return fmt.Errorf("failed to delete floating IP: %v", err)
 	}
 
-	logger.Info("floating IP deleted")
+	logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("VIP or floating IP deleted")
 
 	// Delete security group managed for the Ingress backend service
 	if c.config.Octavia.ManageSecurityGroups {
@@ -589,11 +589,15 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 			}
 		}
 
-		logger.Info("security group deleted")
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("security group deleted")
 	}
 
 	err = openstackutil.DeleteLoadbalancer(c.osClient.Octavia, loadbalancer.ID, true)
-	logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("loadbalancer deleted")
+	if err != nil {
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Infof("loadbalancer delete failed: %s", err)
+	} else {
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("loadbalancer deleted")
+	}
 
 	return err
 }
