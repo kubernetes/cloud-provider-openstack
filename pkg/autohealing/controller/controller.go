@@ -63,6 +63,9 @@ const (
 	// LabelNodeRoleMaster specifies that a node is a master
 	// Related discussion: https://github.com/kubernetes/kubernetes/pull/39112
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+
+	leaderElectionResourceLockNamespace = "kube-system"
+	leaderElectionResourceLockName      = "magnum-auto-healer"
 )
 
 var (
@@ -212,9 +215,10 @@ func (c *Controller) GetLeaderElectionLock() (resourcelock.Interface, error) {
 	id = id + "_" + string(uuid.NewUUID())
 
 	rl, err := resourcelock.New(
-		"configmaps",
-		"kube-system",
-		"magnum-auto-healer",
+		//TODO(acumino): Migrate configmapsleases to leases in vesrion 1.24.
+		resourcelock.ConfigMapsLeasesResourceLock,
+		leaderElectionResourceLockNamespace,
+		leaderElectionResourceLockName,
 		c.leaderElectionClient.CoreV1(),
 		c.leaderElectionClient.CoordinationV1(),
 		resourcelock.ResourceLockConfig{
