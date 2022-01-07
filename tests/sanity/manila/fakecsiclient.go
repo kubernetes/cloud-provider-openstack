@@ -22,6 +22,8 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 )
 
@@ -60,6 +62,10 @@ func (c fakeNodeSvcClient) GetCapabilities(context.Context) (*csi.NodeGetCapabil
 			},
 		},
 	}, nil
+}
+
+func (c fakeNodeSvcClient) GetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (c fakeNodeSvcClient) StageVolume(context.Context, *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {

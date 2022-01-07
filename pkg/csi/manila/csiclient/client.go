@@ -37,6 +37,10 @@ func (c *NodeSvcClient) GetCapabilities(ctx context.Context) (*csi.NodeGetCapabi
 	return c.cl.NodeGetCapabilities(ctx, &csi.NodeGetCapabilitiesRequest{})
 }
 
+func (c *NodeSvcClient) GetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	return c.cl.NodeGetVolumeStats(ctx, req)
+}
+
 func (c *NodeSvcClient) StageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	return c.cl.NodeStageVolume(ctx, req)
 }
