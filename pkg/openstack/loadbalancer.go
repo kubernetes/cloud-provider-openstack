@@ -1995,43 +1995,18 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
 
-	var keepClientIP bool
-	var useProxyProtocol bool
-	var timeoutClientData int
-	var timeoutMemberConnect int
-	var timeoutMemberData int
-	var timeoutTCPInspect int
-	if !lbaas.opts.UseOctavia {
-		// Check for TCP protocol on each port
-		for _, port := range ports {
-			if port.Protocol != corev1.ProtocolTCP {
-				return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
-			}
+	// Check for TCP protocol on each port
+	for _, port := range ports {
+		if port.Protocol != corev1.ProtocolTCP {
+			return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
 		}
-	} else {
-		//setting http headers and proxy protocol is only supported by Octavia
-		keepClientIP = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerXForwardedFor, false)
-		useProxyProtocol = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
-
-		if useProxyProtocol && keepClientIP {
-			return nil, fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
-		}
-
-		timeoutClientData = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
-		timeoutMemberConnect = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberConnect, 5000)
-		timeoutMemberData = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberData, 50000)
-		timeoutTCPInspect = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutTCPInspect, 0)
 	}
 
-	var listenerAllowedCIDRs []string
 	sourceRanges, err := GetLoadBalancerSourceRanges(apiService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
-	if lbaas.opts.UseOctavia && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
-		klog.V(4).Info("loadBalancerSourceRanges is supported")
-		listenerAllowedCIDRs = sourceRanges.StringSlice()
-	} else if !IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
+	if !IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
 		return nil, fmt.Errorf("source range restrictions are not supported for openstack load balancers without managing security groups")
 	}
 
@@ -2104,26 +2079,6 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 				LoadbalancerID: loadbalancer.ID,
 			}
 
-			if lbaas.opts.UseOctavia {
-				if keepClientIP {
-					if listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
-						klog.V(4).Infof("Forcing to use %q protocol for listener because %q "+
-							"annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-						listenerCreateOpt.Protocol = listeners.ProtocolHTTP
-					}
-					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
-				}
-
-				listenerCreateOpt.TimeoutClientData = &timeoutClientData
-				listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
-				listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
-				listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
-
-				if len(listenerAllowedCIDRs) > 0 {
-					listenerCreateOpt.AllowedCIDRs = listenerAllowedCIDRs
-				}
-			}
-
 			klog.V(4).Infof("Creating listener for port %d using protocol: %s", int(port.Port), listenerProtocol)
 
 			listener, err = openstackutil.CreateListener(lbaas.lb, loadbalancer.ID, listenerCreateOpt)
@@ -2139,15 +2094,6 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			if connLimit != listener.ConnLimit {
 				updateOpts.ConnLimit = &connLimit
 				listenerChanged = true
-			}
-
-			if lbaas.opts.UseOctavia {
-				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
-					if !cpoutil.StringListEqual(listenerAllowedCIDRs, listener.AllowedCIDRs) {
-						updateOpts.AllowedCIDRs = &listenerAllowedCIDRs
-						listenerChanged = true
-					}
-				}
 			}
 
 			if listenerChanged {
@@ -2170,16 +2116,6 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		if pool == nil {
 			// Use the protocol of the listener
 			poolProto := v2pools.Protocol(listener.Protocol)
-
-			if lbaas.opts.UseOctavia {
-				if useProxyProtocol {
-					poolProto = v2pools.ProtocolPROXY
-				} else if keepClientIP && poolProto != v2pools.ProtocolHTTP {
-					klog.V(4).Infof("Forcing to use %q protocol for pool because %q "+
-						"annotation is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-					poolProto = v2pools.ProtocolHTTP
-				}
-			}
 
 			lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
 			createOpt := v2pools.CreateOpts{
