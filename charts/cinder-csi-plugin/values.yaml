@@ -140,4 +140,8 @@ storageClass:
 #     driver: cinder.csi.openstack.org
 #     deletionPolicy: Delete
 
+# You may set ID of the cluster where openstack-cinder-csi is deployed. This value will be appended
+# to volume metadata in newly provisioned volumes as `cinder.csi.openstack.org/cluster=<cluster ID>`.
+clusterID: "kubernetes"
+
 priorityClassName: ""
