@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -30,6 +29,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller"
+	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
 
@@ -59,10 +59,8 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	code := cli.Run(rootCmd)
+	os.Exit(code)
 }
 
 func init() {
@@ -79,9 +77,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ingress_openstack.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&isDebug, "debug", false, "Print more detailed information.")
 
-	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(klogFlags)
-	rootCmd.PersistentFlags().AddGoFlagSet(klogFlags)
+	klog.InitFlags(nil)
 }
 
 // initConfig reads in config file and ENV variables if set.

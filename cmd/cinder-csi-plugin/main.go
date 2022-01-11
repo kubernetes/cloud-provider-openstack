@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -27,7 +26,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
-	"k8s.io/component-base/logs"
+	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
 
@@ -87,15 +86,8 @@ func main() {
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
-	logs.InitLogs()
-	defer logs.FlushLogs()
-
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
-		os.Exit(1)
-	}
-
-	os.Exit(0)
+	code := cli.Run(cmd)
+	os.Exit(code)
 }
 
 func handle() {

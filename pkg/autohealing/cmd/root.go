@@ -30,6 +30,7 @@ import (
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/component-base/cli"
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
@@ -86,10 +87,8 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
+	code := cli.Run(rootCmd)
+	os.Exit(code)
 }
 
 func init() {
