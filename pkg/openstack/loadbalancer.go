@@ -1141,7 +1141,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 		//Recreate health monitor with correct protocol if externalTrafficPolicy was changed
 		if (svcConf.healthCheckNodePort > 0 && monitor.Type != "HTTP") ||
 			(svcConf.healthCheckNodePort == 0 && monitor.Type == "HTTP") {
-			klog.Infof("Recreating health monitor %s for pool %s", monitorID, pool.ID)
+			klog.InfoS("Recreating health monitor for the pool", "pool", pool.ID, "oldMonitor", monitorID)
 			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, lbID); err != nil {
 				return err
 			}
@@ -1697,7 +1697,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
-	if lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
+	if svcConf.enableMonitor && lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
 	}
 
