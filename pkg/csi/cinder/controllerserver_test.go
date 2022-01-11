@@ -46,9 +46,10 @@ func TestCreateVolume(t *testing.T) {
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", &properties).Return(&FakeVol, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", "", &properties).Return(&FakeVol, nil)
 
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+
 	// Init assert
 	assert := assert.New(t)
 
@@ -62,7 +63,110 @@ func TestCreateVolume(t *testing.T) {
 				},
 			},
 		},
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+				},
+			},
+		},
+	}
 
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert
+	assert.NotNil(actualRes.Volume)
+	assert.NotNil(actualRes.Volume.CapacityBytes)
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
+	assert.NotNil(actualRes.Volume.AccessibleTopology)
+	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
+
+}
+
+// Test CreateVolumeWithAZ
+func TestCreateVolumeWithAZ(t *testing.T) {
+
+	// mock OpenStack
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "dummy", "", "", &properties).Return(&FakeVol, nil)
+
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+
+	// overwrite opts
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{IgnoreVolumeAZ: true})
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+		Parameters: map[string]string{
+			"availability": "dummy",
+		},
+
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+				},
+			},
+		},
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert
+	assert.NotNil(actualRes.Volume)
+	assert.NotNil(actualRes.Volume.CapacityBytes)
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
+	assert.NotNil(actualRes.Volume.AccessibleTopology)
+	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
+
+}
+
+// Test CreateVolumeWithIgnoreAZFalse
+func TestCreateVolumeWithIngoreAZFalse(t *testing.T) {
+
+	// mock OpenStack
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", "", &properties).Return(&FakeVol, nil)
+
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+
+	// overwrite opts
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{IgnoreVolumeAZ: false})
+
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
@@ -97,8 +201,9 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 		"csi.storage.k8s.io/pvc/namespace": FakePVCNamespace,
 	}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", &properties).Return(&FakeVol, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", "", &properties).Return(&FakeVol, nil)
 
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{IgnoreVolumeAZ: false})
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 
 	// Fake request

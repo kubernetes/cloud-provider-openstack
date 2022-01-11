@@ -76,15 +76,16 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Required, incase vol AZ is different from node AZ
 	volAvailability = req.GetParameters()["availability"]
 
+	cloud := cs.Cloud
+	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
+
 	if len(volAvailability) == 0 {
-		// Check from Topology
-		if req.GetAccessibilityRequirements() != nil {
+		// Check from Topology, if ignore-volume-az=true is set in cloud config
+		// then the AZ of compute will not be used, see #1735 for further info
+		if req.GetAccessibilityRequirements() != nil && ignoreVolumeAZ {
 			volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
 		}
 	}
-
-	cloud := cs.Cloud
-	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
 
 	// Verify a volume with the provided name doesn't already exist for this tenant
 	volumes, err := cloud.GetVolumesByName(volName)
