@@ -173,7 +173,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/enable-health-monitor`
 
-  Defines whether to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically.
+  Defines whether to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically. A health monitor is required for services with `externalTrafficPolicy: Local`.
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
