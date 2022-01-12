@@ -34,6 +34,7 @@ func main() {
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
 
+	logs.AddFlags(pflag.CommandLine)
 	keystone.AddExtraFlags(pflag.CommandLine)
 
 	// Sync the glog and klog flags.
