@@ -85,9 +85,14 @@ const (
 	// IngressClass specifies which Ingress class we accept
 	IngressClass = "openstack"
 
-	// LabelNodeRoleMaster specifies that a node is a master
+	// LabelNodeExcludeLB specifies that a node should not be used to create a Loadbalancer on
+	// https://github.com/kubernetes/cloud-provider/blob/25867882d509131a6fdeaf812ceebfd0f19015dd/controllers/service/controller.go#L673
+	LabelNodeExcludeLB = "node.kubernetes.io/exclude-from-external-load-balancers"
+
+	// DepcreatedLabelNodeRoleMaster specifies that a node is a master
 	// It's copied over to kubeadm until it's merged in core: https://github.com/kubernetes/kubernetes/pull/39112
-	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+	// Deprecated in favor of LabelNodeExcludeLB
+	DeprecatedLabelNodeRoleMaster = "node-role.kubernetes.io/master"
 
 	// IngressAnnotationInternal is the annotation used on the Ingress
 	// to indicate that we want an internal loadbalancer service so that octavia-ingress-controller won't associate
@@ -209,9 +214,13 @@ func getNodeConditionPredicate() NodeConditionPredicate {
 			return false
 		}
 
-		// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
-		// Recognize nodes labeled as master, and filter them also, as we were doing previously.
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		// Recognize nodes labeled as not suitable for LB, and filter them also, as we were doing previously.
+		if _, hasExcludeLBRoleLabel := node.Labels[LabelNodeExcludeLB]; hasExcludeLBRoleLabel {
+			return false
+		}
+
+		// Deprecated in favor of LabelNodeExcludeLB, kept for consistency and will be removed later
+		if _, hasNodeRoleMasterLabel := node.Labels[DeprecatedLabelNodeRoleMaster]; hasNodeRoleMasterLabel {
 			return false
 		}
 
