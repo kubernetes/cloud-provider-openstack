@@ -115,7 +115,7 @@ spec:
             - name: CLOUD_CONFIG
               value: /etc/kubernetes/cloud-config
             - name: CLUSTER_NAME
-              value: kubernetes
+              value: "{{ .Values.clusterID }}"
           ports:
             - containerPort: 9808
               name: healthz
