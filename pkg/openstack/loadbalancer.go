@@ -337,6 +337,7 @@ type serviceConfig struct {
 	lbID                 string
 	lbName               string
 	supportLBTags        bool
+	healthCheckNodePort  int
 }
 
 type listenerKey struct {
@@ -623,7 +624,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		poolCreateOpt.Name = fmt.Sprintf("%s_%d_pool", listenerCreateOpt.Protocol, int(port.Port))
 		var withHealthMonitor string
 		if svcConf.enableMonitor {
-			opts := lbaas.buildMonitorCreateOpts(port)
+			opts := lbaas.buildMonitorCreateOpts(svcConf, port)
 			poolCreateOpt.Monitor = &opts
 			withHealthMonitor = " with healthmonitor"
 		}
@@ -1132,10 +1133,25 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
 	monitorID := pool.MonitorID
 
+	if monitorID != "" {
+		monitor, err := openstackutil.GetHealthMonitor(lbaas.lb, monitorID)
+		if err != nil {
+			return err
+		}
+		//Recreate health monitor with correct protocol if externalTrafficPolicy was changed
+		if (svcConf.healthCheckNodePort > 0 && monitor.Type != "HTTP") ||
+			(svcConf.healthCheckNodePort == 0 && monitor.Type == "HTTP") {
+			klog.InfoS("Recreating health monitor for the pool", "pool", pool.ID, "oldMonitor", monitorID)
+			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, lbID); err != nil {
+				return err
+			}
+			monitorID = ""
+		}
+	}
 	if monitorID == "" && svcConf.enableMonitor {
 		klog.V(2).Infof("Creating monitor for pool %s", pool.ID)
 
-		createOpts := lbaas.buildMonitorCreateOpts(port)
+		createOpts := lbaas.buildMonitorCreateOpts(svcConf, port)
 		// Populate PoolID, attribute is omitted for consumption of the createOpts for fully populated Loadbalancer
 		createOpts.PoolID = pool.ID
 		createOpts.Name = name
@@ -1144,6 +1160,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 			return err
 		}
 		monitorID = monitor.ID
+		klog.Infof("Health monitor %s for pool %s created.", monitorID, pool.ID)
 	} else if monitorID != "" && !svcConf.enableMonitor {
 		klog.Infof("Deleting health monitor %s for pool %s", monitorID, pool.ID)
 
@@ -1152,18 +1169,17 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 		}
 	}
 
-	if monitorID != "" {
-		klog.Infof("Health monitor %s for pool %s created.", monitorID, pool.ID)
-	}
-
 	return nil
 }
 
 //buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
-func (lbaas *LbaasV2) buildMonitorCreateOpts(port corev1.ServicePort) v2monitors.CreateOpts {
+func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
 	monitorProtocol := string(port.Protocol)
 	if port.Protocol == corev1.ProtocolUDP {
 		monitorProtocol = "UDP-CONNECT"
+	}
+	if svcConf.healthCheckNodePort > 0 {
+		monitorProtocol = "HTTP"
 	}
 	return v2monitors.CreateOpts{
 		Type:       monitorProtocol,
@@ -1209,9 +1225,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		if err != nil {
 			return nil, err
 		}
+		klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
 	}
-
-	klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
 
 	curMembers := sets.NewString()
 	poolMembers, err := openstackutil.GetMembersbyPool(lbaas.lb, pool.ID)
@@ -1219,7 +1234,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		klog.Errorf("failed to get members in the pool %s: %v", pool.ID, err)
 	}
 	for _, m := range poolMembers {
-		curMembers.Insert(fmt.Sprintf("%s-%d", m.Address, m.ProtocolPort))
+		curMembers.Insert(fmt.Sprintf("%s-%d-%d", m.Address, m.ProtocolPort, m.MonitorPort))
 	}
 
 	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
@@ -1294,8 +1309,11 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			Name:         &node.Name,
 			SubnetID:     &svcConf.lbMemberSubnetID,
 		}
+		if svcConf.healthCheckNodePort > 0 {
+			member.MonitorPort = &svcConf.healthCheckNodePort
+		}
 		members = append(members, member)
-		newMembers.Insert(fmt.Sprintf("%s-%d", addr, member.ProtocolPort))
+		newMembers.Insert(fmt.Sprintf("%s-%d-%d", addr, member.ProtocolPort, svcConf.healthCheckNodePort))
 	}
 	return members, newMembers, nil
 }
@@ -1679,6 +1697,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
+	if svcConf.enableMonitor && lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
+		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
+	}
 
 	return nil
 }
