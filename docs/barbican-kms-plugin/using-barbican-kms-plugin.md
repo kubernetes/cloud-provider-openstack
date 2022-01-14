@@ -83,7 +83,7 @@ $ docker run -d --volume=/var/lib/kms:/var/lib/kms \
 --volume=/etc/kubernetes:/etc/kubernetes \
 -e socketpath=/var/lib/kms/kms.sock \
 -e cloudconfig=/etc/kubernetes/cloud-config \
-docker.io/k8scloudprovider/barbican-kms-plugin-amd64:latest
+docker.io/k8scloudprovider/barbican-kms-plugin-amd64:v1.23.0
 ```
 6. Create /etc/kubernetes/encryption-config.yaml
 ```

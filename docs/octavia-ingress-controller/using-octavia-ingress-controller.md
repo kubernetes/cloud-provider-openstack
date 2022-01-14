@@ -148,7 +148,7 @@ Here are several other config options are not included in the example configurat
 ### Deploy octavia-ingress-controller
 
 ```shell
-image="docker.io/k8scloudprovider/octavia-ingress-controller:latest"
+image="docker.io/k8scloudprovider/octavia-ingress-controller:v1.23.0"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
