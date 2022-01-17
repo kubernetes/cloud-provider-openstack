@@ -25,7 +25,7 @@ HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
 GOX_PARALLEL ?= 3
 
-TARGETS		?= darwin/amd64 linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
+TARGETS		?= linux/amd64 linux/386 linux/arm linux/arm64 linux/ppc64le linux/s390x
 DIST_DIRS	= find * -type d -exec
 
 TEMP_DIR	:=$(shell mktemp -d)
