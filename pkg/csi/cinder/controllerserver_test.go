@@ -87,6 +87,59 @@ func TestCreateVolume(t *testing.T) {
 
 }
 
+// Test CreateVolume with additional param
+func TestCreateVolumeWithParam(t *testing.T) {
+
+	// mock OpenStack
+	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	// Vol type and availability comes from CreateVolumeRequest.Parameters
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), "dummyVolType", "cinder", "", "", &properties).Return(&FakeVol, nil)
+
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+
+		Parameters: map[string]string{
+			"availability": "cinder",
+			"type":         "dummyVolType",
+		},
+
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+				},
+			},
+		},
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert
+	assert.NotNil(actualRes.Volume)
+	assert.NotNil(actualRes.Volume.CapacityBytes)
+	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
+	assert.NotNil(actualRes.Volume.AccessibleTopology)
+	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
+
+}
+
 func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 
 	// mock OpenStack
