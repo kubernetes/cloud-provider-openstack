@@ -85,15 +85,24 @@ const (
 	// IngressClass specifies which Ingress class we accept
 	IngressClass = "openstack"
 
-	// LabelNodeRoleMaster specifies that a node is a master
+	// LabelNodeExcludeLB specifies that a node should not be used to create a Loadbalancer on
+	// https://github.com/kubernetes/cloud-provider/blob/25867882d509131a6fdeaf812ceebfd0f19015dd/controllers/service/controller.go#L673
+	LabelNodeExcludeLB = "node.kubernetes.io/exclude-from-external-load-balancers"
+
+	// DepcreatedLabelNodeRoleMaster specifies that a node is a master
 	// It's copied over to kubeadm until it's merged in core: https://github.com/kubernetes/kubernetes/pull/39112
-	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+	// Deprecated in favor of LabelNodeExcludeLB
+	DeprecatedLabelNodeRoleMaster = "node-role.kubernetes.io/master"
 
 	// IngressAnnotationInternal is the annotation used on the Ingress
 	// to indicate that we want an internal loadbalancer service so that octavia-ingress-controller won't associate
 	// floating ip to the load balancer VIP.
 	// Default to true.
 	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
+
+	// IngressAnnotationSourceRangesKey is the key of the annotation on an ingress to set allowed IP ranges on their LoadBalancers.
+	// It should be a comma-separated list of CIDRs.
+	IngressAnnotationSourceRangesKey = "octavia.ingress.kubernetes.io/whitelist-source-range"
 
 	// IngressControllerTag is added to the related resources.
 	IngressControllerTag = "octavia.ingress.kubernetes.io"
@@ -205,9 +214,13 @@ func getNodeConditionPredicate() NodeConditionPredicate {
 			return false
 		}
 
-		// As of 1.6, we will taint the master, but not necessarily mark it unschedulable.
-		// Recognize nodes labeled as master, and filter them also, as we were doing previously.
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		// Recognize nodes labeled as not suitable for LB, and filter them also, as we were doing previously.
+		if _, hasExcludeLBRoleLabel := node.Labels[LabelNodeExcludeLB]; hasExcludeLBRoleLabel {
+			return false
+		}
+
+		// Deprecated in favor of LabelNodeExcludeLB, kept for consistency and will be removed later
+		if _, hasNodeRoleMasterLabel := node.Labels[DeprecatedLabelNodeRoleMaster]; hasNodeRoleMasterLabel {
 			return false
 		}
 
@@ -312,6 +325,10 @@ func NewController(conf config.Config) *Controller {
 				// Two different versions of the same Ingress will always have different RVs.
 				return
 			}
+			newAnnotations := newIng.ObjectMeta.Annotations
+			oldAnnotations := oldIng.ObjectMeta.Annotations
+			delete(newAnnotations, "kubectl.kubernetes.io/last-applied-configuration")
+			delete(oldAnnotations, "kubectl.kubernetes.io/last-applied-configuration")
 
 			key := fmt.Sprintf("%s/%s", newIng.Namespace, newIng.Name)
 			validOld := IsValid(oldIng)
@@ -322,7 +339,7 @@ func NewController(conf config.Config) *Controller {
 			} else if validOld && !validCur {
 				recorder.Event(newIng, apiv1.EventTypeNormal, "Deleting", fmt.Sprintf("Ingress %s", key))
 				controller.queue.AddRateLimited(Event{Obj: newIng, Type: DeleteEvent})
-			} else if validCur && !reflect.DeepEqual(newIng.Spec, oldIng.Spec) {
+			} else if validCur && (!reflect.DeepEqual(newIng.Spec, oldIng.Spec) || !reflect.DeepEqual(newAnnotations, oldAnnotations)) {
 				recorder.Event(newIng, apiv1.EventTypeNormal, "Updating", fmt.Sprintf("Ingress %s", key))
 				controller.queue.AddRateLimited(Event{Obj: newIng, Type: UpdateEvent})
 			} else {
@@ -703,7 +720,9 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	}
 
 	// Create listener
-	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs)
+	sourceRanges := getStringFromIngressAnnotation(ing, IngressAnnotationSourceRangesKey, "0.0.0.0/0")
+	listenerAllowedCIDRs := strings.Split(sourceRanges, ",")
+	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs, listenerAllowedCIDRs)
 	if err != nil {
 		return err
 	}

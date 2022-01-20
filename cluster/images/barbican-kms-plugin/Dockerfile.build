@@ -1,5 +1,5 @@
 ARG ALPINE_ARCH=amd64
-FROM ${ALPINE_ARCH}/alpine:3.11
+FROM ${ALPINE_ARCH}/alpine:3.15
 LABEL maintainers="Kubernetes Authors"
 LABEL description="Barbican KMS Plugin"
 

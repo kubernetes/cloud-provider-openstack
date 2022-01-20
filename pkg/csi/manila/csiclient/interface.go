@@ -25,6 +25,7 @@ import (
 
 type Node interface {
 	GetCapabilities(ctx context.Context) (*csi.NodeGetCapabilitiesResponse, error)
+	GetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error)
 
 	StageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error)
 	UnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error)

@@ -26,6 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/spf13/pflag"
+	"k8s.io/component-base/logs"
 
 	"golang.org/x/crypto/ssh/terminal"
 
@@ -177,6 +178,11 @@ func main() {
 	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
 	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
 	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
+
+	logs.AddFlags(pflag.CommandLine)
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
 	pflag.CommandLine.AddGoFlagSet(klogFlags)
 	kflag.InitFlags()
 

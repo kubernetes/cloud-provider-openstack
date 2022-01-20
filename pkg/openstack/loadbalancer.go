@@ -337,6 +337,7 @@ type serviceConfig struct {
 	lbID                 string
 	lbName               string
 	supportLBTags        bool
+	healthCheckNodePort  int
 }
 
 type listenerKey struct {
@@ -623,7 +624,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		poolCreateOpt.Name = fmt.Sprintf("%s_%d_pool", listenerCreateOpt.Protocol, int(port.Port))
 		var withHealthMonitor string
 		if svcConf.enableMonitor {
-			opts := lbaas.buildMonitorCreateOpts(port)
+			opts := lbaas.buildMonitorCreateOpts(svcConf, port)
 			poolCreateOpt.Monitor = &opts
 			withHealthMonitor = " with healthmonitor"
 		}
@@ -1132,10 +1133,25 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
 	monitorID := pool.MonitorID
 
+	if monitorID != "" {
+		monitor, err := openstackutil.GetHealthMonitor(lbaas.lb, monitorID)
+		if err != nil {
+			return err
+		}
+		//Recreate health monitor with correct protocol if externalTrafficPolicy was changed
+		if (svcConf.healthCheckNodePort > 0 && monitor.Type != "HTTP") ||
+			(svcConf.healthCheckNodePort == 0 && monitor.Type == "HTTP") {
+			klog.InfoS("Recreating health monitor for the pool", "pool", pool.ID, "oldMonitor", monitorID)
+			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, lbID); err != nil {
+				return err
+			}
+			monitorID = ""
+		}
+	}
 	if monitorID == "" && svcConf.enableMonitor {
 		klog.V(2).Infof("Creating monitor for pool %s", pool.ID)
 
-		createOpts := lbaas.buildMonitorCreateOpts(port)
+		createOpts := lbaas.buildMonitorCreateOpts(svcConf, port)
 		// Populate PoolID, attribute is omitted for consumption of the createOpts for fully populated Loadbalancer
 		createOpts.PoolID = pool.ID
 		createOpts.Name = name
@@ -1144,6 +1160,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 			return err
 		}
 		monitorID = monitor.ID
+		klog.Infof("Health monitor %s for pool %s created.", monitorID, pool.ID)
 	} else if monitorID != "" && !svcConf.enableMonitor {
 		klog.Infof("Deleting health monitor %s for pool %s", monitorID, pool.ID)
 
@@ -1152,18 +1169,17 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 		}
 	}
 
-	if monitorID != "" {
-		klog.Infof("Health monitor %s for pool %s created.", monitorID, pool.ID)
-	}
-
 	return nil
 }
 
 //buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
-func (lbaas *LbaasV2) buildMonitorCreateOpts(port corev1.ServicePort) v2monitors.CreateOpts {
+func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
 	monitorProtocol := string(port.Protocol)
 	if port.Protocol == corev1.ProtocolUDP {
 		monitorProtocol = "UDP-CONNECT"
+	}
+	if svcConf.healthCheckNodePort > 0 {
+		monitorProtocol = "HTTP"
 	}
 	return v2monitors.CreateOpts{
 		Type:       monitorProtocol,
@@ -1209,9 +1225,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		if err != nil {
 			return nil, err
 		}
+		klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
 	}
-
-	klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
 
 	curMembers := sets.NewString()
 	poolMembers, err := openstackutil.GetMembersbyPool(lbaas.lb, pool.ID)
@@ -1219,7 +1234,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		klog.Errorf("failed to get members in the pool %s: %v", pool.ID, err)
 	}
 	for _, m := range poolMembers {
-		curMembers.Insert(fmt.Sprintf("%s-%d", m.Address, m.ProtocolPort))
+		curMembers.Insert(fmt.Sprintf("%s-%d-%d", m.Address, m.ProtocolPort, m.MonitorPort))
 	}
 
 	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
@@ -1294,8 +1309,11 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			Name:         &node.Name,
 			SubnetID:     &svcConf.lbMemberSubnetID,
 		}
+		if svcConf.healthCheckNodePort > 0 {
+			member.MonitorPort = &svcConf.healthCheckNodePort
+		}
 		members = append(members, member)
-		newMembers.Insert(fmt.Sprintf("%s-%d", addr, member.ProtocolPort))
+		newMembers.Insert(fmt.Sprintf("%s-%d-%d", addr, member.ProtocolPort, svcConf.healthCheckNodePort))
 	}
 	return members, newMembers, nil
 }
@@ -1679,6 +1697,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
+	if svcConf.enableMonitor && lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
+		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
+	}
 
 	return nil
 }
@@ -1995,43 +2016,18 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
 
-	var keepClientIP bool
-	var useProxyProtocol bool
-	var timeoutClientData int
-	var timeoutMemberConnect int
-	var timeoutMemberData int
-	var timeoutTCPInspect int
-	if !lbaas.opts.UseOctavia {
-		// Check for TCP protocol on each port
-		for _, port := range ports {
-			if port.Protocol != corev1.ProtocolTCP {
-				return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
-			}
+	// Check for TCP protocol on each port
+	for _, port := range ports {
+		if port.Protocol != corev1.ProtocolTCP {
+			return nil, fmt.Errorf("only TCP LoadBalancer is supported for openstack load balancers")
 		}
-	} else {
-		//setting http headers and proxy protocol is only supported by Octavia
-		keepClientIP = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerXForwardedFor, false)
-		useProxyProtocol = getBoolFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerProxyEnabled, false)
-
-		if useProxyProtocol && keepClientIP {
-			return nil, fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
-		}
-
-		timeoutClientData = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
-		timeoutMemberConnect = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberConnect, 5000)
-		timeoutMemberData = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutMemberData, 50000)
-		timeoutTCPInspect = getIntFromServiceAnnotation(apiService, ServiceAnnotationLoadBalancerTimeoutTCPInspect, 0)
 	}
 
-	var listenerAllowedCIDRs []string
 	sourceRanges, err := GetLoadBalancerSourceRanges(apiService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
-	if lbaas.opts.UseOctavia && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
-		klog.V(4).Info("loadBalancerSourceRanges is supported")
-		listenerAllowedCIDRs = sourceRanges.StringSlice()
-	} else if !IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
+	if !IsAllowAll(sourceRanges) && !lbaas.opts.ManageSecurityGroups {
 		return nil, fmt.Errorf("source range restrictions are not supported for openstack load balancers without managing security groups")
 	}
 
@@ -2104,26 +2100,6 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 				LoadbalancerID: loadbalancer.ID,
 			}
 
-			if lbaas.opts.UseOctavia {
-				if keepClientIP {
-					if listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
-						klog.V(4).Infof("Forcing to use %q protocol for listener because %q "+
-							"annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-						listenerCreateOpt.Protocol = listeners.ProtocolHTTP
-					}
-					listenerCreateOpt.InsertHeaders = map[string]string{"X-Forwarded-For": "true"}
-				}
-
-				listenerCreateOpt.TimeoutClientData = &timeoutClientData
-				listenerCreateOpt.TimeoutMemberData = &timeoutMemberData
-				listenerCreateOpt.TimeoutMemberConnect = &timeoutMemberConnect
-				listenerCreateOpt.TimeoutTCPInspect = &timeoutTCPInspect
-
-				if len(listenerAllowedCIDRs) > 0 {
-					listenerCreateOpt.AllowedCIDRs = listenerAllowedCIDRs
-				}
-			}
-
 			klog.V(4).Infof("Creating listener for port %d using protocol: %s", int(port.Port), listenerProtocol)
 
 			listener, err = openstackutil.CreateListener(lbaas.lb, loadbalancer.ID, listenerCreateOpt)
@@ -2139,15 +2115,6 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			if connLimit != listener.ConnLimit {
 				updateOpts.ConnLimit = &connLimit
 				listenerChanged = true
-			}
-
-			if lbaas.opts.UseOctavia {
-				if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
-					if !cpoutil.StringListEqual(listenerAllowedCIDRs, listener.AllowedCIDRs) {
-						updateOpts.AllowedCIDRs = &listenerAllowedCIDRs
-						listenerChanged = true
-					}
-				}
 			}
 
 			if listenerChanged {
@@ -2170,16 +2137,6 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		if pool == nil {
 			// Use the protocol of the listener
 			poolProto := v2pools.Protocol(listener.Protocol)
-
-			if lbaas.opts.UseOctavia {
-				if useProxyProtocol {
-					poolProto = v2pools.ProtocolPROXY
-				} else if keepClientIP && poolProto != v2pools.ProtocolHTTP {
-					klog.V(4).Infof("Forcing to use %q protocol for pool because %q "+
-						"annotation is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-					poolProto = v2pools.ProtocolHTTP
-				}
-			}
 
 			lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
 			createOpt := v2pools.CreateOpts{

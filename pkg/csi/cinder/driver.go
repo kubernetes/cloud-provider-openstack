@@ -44,7 +44,8 @@ var (
 	// * 1.3.1: Bump for 1.21 release
 	// * 1.3.2: Allow --cloud-config to be given multiple times
 	// * 1.3.3: Bump for 1.22 release
-	Version = "1.3.3"
+	// * 2.0.0: Bump for 1.23 release
+	Version = "2.0.0"
 )
 
 type CinderDriver struct {
