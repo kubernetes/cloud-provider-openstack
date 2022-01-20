@@ -1130,7 +1130,7 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 	return lb.VipAddress, nil
 }
 
-func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool *v2pools.Pool, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	monitorID := pool.MonitorID
 
 	if monitorID != "" {
@@ -1146,6 +1146,18 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 				return err
 			}
 			monitorID = ""
+
+			// we need update members to have monitor_port
+			members, _, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+			if err != nil {
+				return err
+			}
+
+			err = openstackutil.BatchUpdatePoolMembers(lbaas.lb, lbID, pool.ID, members)
+			if err != nil {
+				return err
+			}
+
 		}
 	}
 	if monitorID == "" && svcConf.enableMonitor {
@@ -1859,7 +1871,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cutString(fmt.Sprintf("monitor_%d_%s)", portIndex, lbName)), pool, port, svcConf); err != nil {
+			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cutString(fmt.Sprintf("monitor_%d_%s", portIndex, lbName)), pool, port, nodes, svcConf); err != nil {
 				return nil, err
 			}
 		}
