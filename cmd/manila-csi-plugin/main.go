@@ -29,7 +29,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
-	"k8s.io/component-base/logs"
+	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
 
@@ -182,13 +182,6 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "The identifier of the cluster that the plugin is running in.")
 
-	logs.InitLogs()
-	defer logs.FlushLogs()
-
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-		os.Exit(1)
-	}
-
-	os.Exit(0)
+	code := cli.Run(cmd)
+	os.Exit(code)
 }

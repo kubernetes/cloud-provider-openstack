@@ -18,14 +18,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 	"k8s.io/cloud-provider-openstack/pkg/kms/server"
-	"k8s.io/component-base/logs"
+	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
 
@@ -55,9 +54,6 @@ func main() {
 		}
 	})
 
-	logs.InitLogs()
-	defer logs.FlushLogs()
-
 	cmd := &cobra.Command{
 		Use:   "barbican-kms-plugin",
 		Short: "Barbican KMS plugin for kubernetes",
@@ -77,10 +73,6 @@ func main() {
 	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "Barbican KMS Plugin cloud config")
 	cmd.MarkPersistentFlagRequired("cloud-config")
 
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
-		os.Exit(1)
-	}
-
-	os.Exit(0)
+	code := cli.Run(cmd)
+	os.Exit(code)
 }
