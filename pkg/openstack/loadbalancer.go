@@ -1764,8 +1764,10 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	svcConf := new(serviceConfig)
 
 	// Update the service annotations(e.g. add loadbalancer.openstack.org/load-balancer-id) in the end if it doesn't exist.
-	patcher := newServicePatcher(lbaas.kclient, service)
-	defer func() { err = patcher.Patch(ctx, err) }()
+	if lbaas.opts.MaxSharedLB > 0 {
+		patcher := newServicePatcher(lbaas.kclient, service)
+		defer func() { err = patcher.Patch(ctx, err) }()
+	}
 
 	if err := lbaas.checkService(service, nodes, svcConf); err != nil {
 		return nil, err
