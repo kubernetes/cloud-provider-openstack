@@ -468,7 +468,9 @@ By default, different Services of LoadBalancer type should have different corres
 
 The shared load balancer can be created either by other Services or outside the cluster, e.g. created manually by the user in the cloud or by Services from the other Kubernetes clusters. The load balancer is deleted only when the last attached Service is deleted, unless the load balancer was created outside the Kubernetes cluster.
 
-The maximum number of Services that share a load balancer can be configured in `[LoadBalancer] max-shared-lb`, default value is 2. The ports of those Services shouldn't have collisions.
+The maximum number of Services that share a load balancer can be configured in `[LoadBalancer] max-shared-lb`, default value is 2.
+This feature can be disabled by setting the value to 0.
+The ports of those Services shouldn't have collisions.
 
 For example, create a Service `service-1` as before:
 

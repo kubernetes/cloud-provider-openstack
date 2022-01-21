@@ -661,7 +661,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service) (*corev1.LoadBalancerStatus, bool, error) {
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	legacyName := lbaas.getLoadBalancerLegacyName(ctx, clusterName, service)
-	lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	lbID := lbaas.getLoadBalancerIDAnnotation(service)
 	var loadbalancer *loadbalancers.LoadBalancer
 	var err error
 
@@ -1461,7 +1461,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	}
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	svcConf.lbID = lbaas.getLoadBalancerIDAnnotation(service)
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Find subnet ID for creating members
@@ -1507,8 +1507,16 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	return nil
 }
 
+func (lbaas *LbaasV2) getLoadBalancerIDAnnotation(service *corev1.Service) string {
+	// this feature can be disabled by setting max-shared-lb to 0
+	if lbaas.opts.MaxSharedLB > 0 {
+		return getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	}
+	return ""
+}
+
 func (lbaas *LbaasV2) checkServiceDelete(service *corev1.Service, svcConf *serviceConfig) error {
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	svcConf.lbID = lbaas.getLoadBalancerIDAnnotation(service)
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// This affects the protocol of listener and pool
@@ -1530,7 +1538,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		return fmt.Errorf("no service ports provided")
 	}
 
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	svcConf.lbID = lbaas.getLoadBalancerIDAnnotation(service)
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
@@ -1879,7 +1887,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	// Add annotation to Service and add LB name to load balancer tags.
-	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, loadbalancer.ID)
+	if lbaas.opts.MaxSharedLB > 0 {
+		lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, loadbalancer.ID)
+	}
 	if svcConf.supportLBTags {
 		lbTags := loadbalancer.Tags
 		if !cpoutil.Contains(lbTags, lbName) {
