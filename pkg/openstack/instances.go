@@ -216,8 +216,9 @@ func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloud
 		return nil, err
 	}
 
+	mc := metrics.NewMetricContext("server", "get")
 	srv, err := servers.Get(i.compute, instanceID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
