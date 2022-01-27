@@ -1,6 +1,9 @@
 package test
 
 import (
+	"fmt"
+
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -10,24 +13,44 @@ import (
 	"k8s.io/kubernetes/test/e2e/storage/utils"
 )
 
+const (
+	driverName = "nfs.manila.csi.openstack.org"
+
+	// Common secret for all operations that access Manila API.
+	manilaSecretName      = "csi-manila-secrets"
+	manilaSecretNamespace = "default"
+
+	// Parameters used for volume provisioning.
+	manilaShareProto      = "NFS"
+	manilaShareType       = "default"
+	manilaShareAccessType = "ip"
+	manilaShareAccessTo   = "0.0.0.0/0"
+	manilaShareSizeGiB    = 1
+)
+
 type manilaTestDriver struct {
-	driverInfo storageframework.DriverInfo
+	driverInfo       storageframework.DriverInfo
+	volumeAttributes []map[string]string
 }
 
 var (
-	_ storageframework.TestDriver              = &manilaTestDriver{}
-	_ storageframework.DynamicPVTestDriver     = &manilaTestDriver{}
-	_ storageframework.SnapshottableTestDriver = &manilaTestDriver{}
+	_ storageframework.TestDriver                 = &manilaTestDriver{}
+	_ storageframework.DynamicPVTestDriver        = &manilaTestDriver{}
+	_ storageframework.SnapshottableTestDriver    = &manilaTestDriver{}
+	_ storageframework.EphemeralTestDriver        = &manilaTestDriver{}
+	_ storageframework.PreprovisionedPVTestDriver = &manilaTestDriver{}
 )
 
-func newManilaTestDriver(name string) storageframework.TestDriver {
+func newManilaTestDriver() storageframework.TestDriver {
 	return &manilaTestDriver{
 		driverInfo: storageframework.DriverInfo{
-			Name:            name,
-			MaxFileSize:     storageframework.FileSizeLarge,
+			Name: driverName,
+			// Either MaxFileSize needs to be set to FileSizeMedium at most, or larger volumes
+			// need to be created -- otherwise VolumeIOTestSuite fails.
+			MaxFileSize:     storageframework.FileSizeMedium,
 			SupportedFsType: sets.NewString(""),
 			SupportedSizeRange: e2evolume.SizeRange{
-				Min: "1Gi",
+				Min: fmt.Sprintf("%dGi", manilaShareSizeGiB),
 			},
 			Capabilities: map[storageframework.Capability]bool{
 				storageframework.CapPersistence:         true,
@@ -40,6 +63,31 @@ func newManilaTestDriver(name string) storageframework.TestDriver {
 				storageframework.CapOnlineExpansion:     true,
 			},
 		},
+		volumeAttributes: []map[string]string{
+			{
+				"type": manilaShareType,
+				"csi.storage.k8s.io/provisioner-secret-name":            manilaSecretName,
+				"csi.storage.k8s.io/provisioner-secret-namespace":       manilaSecretNamespace,
+				"csi.storage.k8s.io/controller-expand-secret-name":      manilaSecretName,
+				"csi.storage.k8s.io/controller-expand-secret-namespace": manilaSecretNamespace,
+				"csi.storage.k8s.io/node-stage-secret-name":             manilaSecretName,
+				"csi.storage.k8s.io/node-stage-secret-namespace":        manilaSecretNamespace,
+				"csi.storage.k8s.io/node-publish-secret-name":           manilaSecretName,
+				"csi.storage.k8s.io/node-publish-secret-namespace":      manilaSecretNamespace,
+			},
+		},
+	}
+}
+
+func validateVolumeType(volumeType storageframework.TestVolType) {
+	unsupported := []storageframework.TestVolType{
+		storageframework.CSIInlineVolume,
+	}
+
+	for _, t := range unsupported {
+		if t == volumeType {
+			framework.Failf("Unsupported test volume type %s", t)
+		}
 	}
 }
 
@@ -68,26 +116,28 @@ func (d *manilaTestDriver) PrepareTest(f *framework.Framework) (*storageframewor
 
 func (d *manilaTestDriver) GetDynamicProvisionStorageClass(config *storageframework.PerTestConfig, fsType string) *storagev1.StorageClass {
 	parameters := map[string]string{
-		"type": "default",
-		"csi.storage.k8s.io/provisioner-secret-name":            "csi-manila-secrets",
-		"csi.storage.k8s.io/provisioner-secret-namespace":       "default",
-		"csi.storage.k8s.io/controller-expand-secret-name":      "csi-manila-secrets",
-		"csi.storage.k8s.io/controller-expand-secret-namespace": "default",
-		"csi.storage.k8s.io/node-stage-secret-name":             "csi-manila-secrets",
-		"csi.storage.k8s.io/node-stage-secret-namespace":        "default",
-		"csi.storage.k8s.io/node-publish-secret-name":           "csi-manila-secrets",
-		"csi.storage.k8s.io/node-publish-secret-namespace":      "default",
-	}
-	if fsType != "" {
-		parameters["fsType"] = fsType
+		"type": manilaShareType,
+		"csi.storage.k8s.io/provisioner-secret-name":            manilaSecretName,
+		"csi.storage.k8s.io/provisioner-secret-namespace":       manilaSecretNamespace,
+		"csi.storage.k8s.io/controller-expand-secret-name":      manilaSecretName,
+		"csi.storage.k8s.io/controller-expand-secret-namespace": manilaSecretNamespace,
+		"csi.storage.k8s.io/node-stage-secret-name":             manilaSecretName,
+		"csi.storage.k8s.io/node-stage-secret-namespace":        manilaSecretNamespace,
+		"csi.storage.k8s.io/node-publish-secret-name":           manilaSecretName,
+		"csi.storage.k8s.io/node-publish-secret-namespace":      manilaSecretNamespace,
 	}
 
-	return storageframework.GetStorageClass(
+	sc := storageframework.GetStorageClass(
 		d.driverInfo.Name,
 		parameters,
 		nil,
 		config.Framework.Namespace.Name,
 	)
+
+	allowVolumeExpansion := true
+	sc.AllowVolumeExpansion = &allowVolumeExpansion
+
+	return sc
 }
 
 //
@@ -98,12 +148,64 @@ func (d *manilaTestDriver) GetSnapshotClass(config *storageframework.PerTestConf
 	if parameters == nil {
 		parameters = make(map[string]string)
 	}
-	parameters["csi.storage.k8s.io/snapshotter-secret-name"] = "csi-manila-secrets"
-	parameters["csi.storage.k8s.io/snapshotter-secret-namespace"] = "default"
+	parameters["csi.storage.k8s.io/snapshotter-secret-name"] = manilaSecretName
+	parameters["csi.storage.k8s.io/snapshotter-secret-namespace"] = manilaSecretNamespace
 
 	return utils.GenerateSnapshotClassSpec(
 		d.driverInfo.Name,
 		parameters,
 		config.Framework.Namespace.Name,
 	)
+}
+
+//
+// storageframework.EphemeralTestDriver interface implementation
+//
+
+func (d *manilaTestDriver) GetVolume(config *storageframework.PerTestConfig, volumeNumber int) (attributes map[string]string, shared bool, readOnly bool) {
+	return d.volumeAttributes[volumeNumber%len(d.volumeAttributes)], true /* shared */, false /* readOnly */
+}
+
+func (d *manilaTestDriver) GetCSIDriverName(config *storageframework.PerTestConfig) string {
+	return d.driverInfo.Name
+}
+
+//
+// storageframework.PreprovisionedVolumeTestDriver interface implementation
+//
+
+func (d *manilaTestDriver) CreateVolume(config *storageframework.PerTestConfig, volumeType storageframework.TestVolType) storageframework.TestVolume {
+	validateVolumeType(volumeType)
+
+	return manilaCreateVolume(manilaShareProto, manilaShareAccessType, manilaShareAccessTo, manilaShareSizeGiB, config)
+}
+
+//
+// storageframework.PreprovisionedPVTestDriver interface implementation
+//
+
+func (d *manilaTestDriver) GetPersistentVolumeSource(readOnly bool, fsType string, testVolume storageframework.TestVolume) (*v1.PersistentVolumeSource, *v1.VolumeNodeAffinity) {
+	v, ok := testVolume.(*manilaVolume)
+	framework.ExpectEqual(ok, true, "Failed to cast test volume to Manila test volume")
+
+	return &v1.PersistentVolumeSource{
+		CSI: &v1.CSIPersistentVolumeSource{
+			Driver:       d.driverInfo.Name,
+			VolumeHandle: v.shareID,
+			ReadOnly:     readOnly,
+			FSType:       fsType,
+			VolumeAttributes: map[string]string{
+				"shareID":       v.shareID,
+				"shareAccessID": v.accessID,
+			},
+			NodeStageSecretRef: &v1.SecretReference{
+				Name:      manilaSecretName,
+				Namespace: manilaSecretNamespace,
+			},
+			NodePublishSecretRef: &v1.SecretReference{
+				Name:      manilaSecretName,
+				Namespace: manilaSecretNamespace,
+			},
+		},
+	}, nil
 }

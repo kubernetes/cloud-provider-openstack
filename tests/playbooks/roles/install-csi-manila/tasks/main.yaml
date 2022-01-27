@@ -128,6 +128,21 @@
   retries: 24
   delay: 5
 
+- name: Deploy Kubernetes VolumeSnapshot CRDs and snapshot controller
+  shell:
+    executable: /bin/bash
+    cmd: |
+      # TODO: Consider using kustomize once we move to external-snapshotter v5.
+      for f in \
+        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml' \
+        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml' \
+        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml' \
+        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml' \
+        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml'
+      do
+        kubectl create -f "$f"
+      done
+
 - name: Deploy nfs-csi Node Plugin
   shell:
     executable: /bin/bash
@@ -276,6 +291,8 @@
       set -x
       set -e
       set -o pipefail
+
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
 
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
