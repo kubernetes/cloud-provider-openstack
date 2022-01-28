@@ -452,24 +452,23 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 
 	// Try to expand the share
 
-	currentSizeInBytes := int64(share.Size * bytesInGiB)
+	desiredSizeInGiB := bytesToGiB(req.GetCapacityRange().GetRequiredBytes())
 
-	if currentSizeInBytes >= req.GetCapacityRange().GetRequiredBytes() {
+	if share.Size >= desiredSizeInGiB {
 		// Share is already larger than requested size
 
 		return &csi.ControllerExpandVolumeResponse{
-			CapacityBytes: currentSizeInBytes,
+			CapacityBytes: int64(share.Size) * bytesInGiB,
 		}, nil
 	}
 
-	desiredSizeInGiB := int(req.GetCapacityRange().GetRequiredBytes() / bytesInGiB)
-
-	if err = extendShare(share, desiredSizeInGiB, manilaClient); err != nil {
+	share, err = extendShare(share.ID, desiredSizeInGiB, manilaClient)
+	if err != nil {
 		return nil, err
 	}
 
 	return &csi.ControllerExpandVolumeResponse{
-		CapacityBytes: int64(desiredSizeInGiB * bytesInGiB),
+		CapacityBytes: int64(share.Size) * bytesInGiB,
 	}, nil
 }
 

@@ -122,25 +122,25 @@ func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 	}
 }
 
-func extendShare(share *shares.Share, newSizeInGiB int, manilaClient manilaclient.Interface) error {
+func extendShare(shareID string, newSizeInGiB int, manilaClient manilaclient.Interface) (*shares.Share, error) {
 	opts := shares.ExtendOpts{
 		NewSize: newSizeInGiB,
 	}
 
-	if err := manilaClient.ExtendShare(share.ID, opts); err != nil {
-		return err
+	if err := manilaClient.ExtendShare(shareID, opts); err != nil {
+		return nil, err
 	}
 
-	share, manilaErrCode, err := waitForShareStatus(share.ID, []string{shareExtending}, shareAvailable, false, manilaClient)
+	share, manilaErrCode, err := waitForShareStatus(shareID, []string{shareExtending}, shareAvailable, false, manilaClient)
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
 		}
 
-		return status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to resize volume %s: %v", share.Name, err)
+		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to resize volume %s: %v", share.Name, err)
 	}
 
-	return nil
+	return share, nil
 }
 
 func waitForShareStatus(shareID string, validTransientStates []string, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
