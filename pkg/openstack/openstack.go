@@ -178,7 +178,7 @@ func init() {
 
 // Initialize passes a Kubernetes clientBuilder interface to the cloud provider
 func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-	clientset := clientBuilder.ClientOrDie("cloud-provider-openstack")
+	clientset := clientBuilder.ClientOrDie("cloud-controller-manager")
 	os.kclient = clientset
 }
 
