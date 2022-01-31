@@ -38,7 +38,7 @@ type (
 )
 
 const (
-	bytesInGiB = 1024 * 1024 * 1024
+	bytesInGiB int64 = 1024 * 1024 * 1024
 )
 
 type manilaError int
@@ -122,9 +122,9 @@ func fmtGrpcConnError(fwdEndpoint string, err error) string {
 func bytesToGiB(sizeInBytes int64) int {
 	sizeInGiB := int(sizeInBytes / bytesInGiB)
 
-	if int64(sizeInGiB)*bytesInGiB < sizeInBytes {
+	if sizeInBytes%bytesInGiB > 0 {
 		// Round up
-		return sizeInGiB + 1
+		sizeInGiB++
 	}
 
 	return sizeInGiB

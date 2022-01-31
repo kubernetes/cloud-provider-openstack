@@ -194,9 +194,9 @@ cinder.csi.openstack.org   2019-07-29T09:02:40Z
 
 ### Using the Helm chart
 
-> NOTE: With default values, this chart assumes that the `cloud-config` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
+> NOTE: With default values, this chart assumes that the `cloud.conf` is found on the host under `/etc/kubernetes/` and that your OpenStack cloud has cert under `/etc/cacert`.
 
-You can specify a K8S Secret for `cloud-config` :
+You can specify a K8S Secret for `cloud.conf` :
 ```
 secret:
   enabled: true
@@ -210,7 +210,7 @@ secret:
   enabled: true
   name: cinder-csi-cloud-config
   data:
-    cloud-config: |-
+    cloud.conf: |-
       ...
 ```
 
