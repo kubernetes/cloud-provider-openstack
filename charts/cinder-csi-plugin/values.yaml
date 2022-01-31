@@ -103,7 +103,7 @@ secret:
   create: false
 #  name: cinder-csi-cloud-config
 #  data:
-#    cloud-config: |-
+#    cloud.conf: |-
 #      [Global]
 #      auth-url=http://openstack-control-plane
 #      user-id=user-id
