@@ -3,15 +3,15 @@
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Getting Started with Cloud Provider OpenStack Development](#getting-started-with-cloud-provider-openstack-development)
-    - [Prerequisites](#prerequisites)
-        - [OpenStack Cloud](#openstack-cloud)
-        - [Kubernetes cluster](#kubernetes-cluster)
-    - [Contribution](#contribution)
-    - [Development](#development)
-        - [Build openstack-cloud-controller-manager image](#build-openstack-cloud-controller-manager-image)
-        - [Troubleshooting](#troubleshooting)
-        - [Review process](#review-process)
-        - [Helm charts](#helm-charts)
+  - [Prerequisites](#prerequisites)
+    - [OpenStack Cloud](#openstack-cloud)
+    - [Kubernetes cluster](#kubernetes-cluster)
+  - [Contribution](#contribution)
+  - [Development](#development)
+    - [Build openstack-cloud-controller-manager image](#build-openstack-cloud-controller-manager-image)
+    - [Troubleshooting](#troubleshooting)
+    - [Review process](#review-process)
+    - [Helm Charts](#helm-charts)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
