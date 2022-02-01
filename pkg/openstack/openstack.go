@@ -73,6 +73,7 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
+	Enabled               bool                `gcfg:"enabled"`              // if false, disables the controller
 	LBVersion             string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
 	UseOctavia            bool                `gcfg:"use-octavia"`          // uses Octavia V2 service catalog endpoint
 	SubnetID              string              `gcfg:"subnet-id"`            // overrides autodetection.
@@ -190,6 +191,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	var cfg Config
 
 	// Set default values explicitly
+	cfg.LoadBalancer.Enabled = true
 	cfg.LoadBalancer.UseOctavia = true
 	cfg.LoadBalancer.InternalLB = false
 	cfg.LoadBalancer.LBProvider = "amphora"
