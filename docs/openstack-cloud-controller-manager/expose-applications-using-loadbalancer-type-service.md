@@ -177,6 +177,18 @@ Request Body:
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
+- `loadbalancer.openstack.org/health-monitor-delay`
+
+  Defines the health monitor delay in seconds for the loadbalancer pools.
+
+- `loadbalancer.openstack.org/health-monitor-timeout`
+
+  Defines the health monitor timeout in seconds for the loadbalancer pools. This value should be less than delay
+
+- `loadbalancer.openstack.org/health-monitor-max-retries`
+
+  Defines the health monitor retry count for the loadbalancer pools.
+
 - `loadbalancer.openstack.org/flavor-id`
 
   The id of the flavor that is used for creating the loadbalancer.
