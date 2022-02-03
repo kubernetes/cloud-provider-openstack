@@ -639,6 +639,17 @@ func CreateL7Rule(client *gophercloud.ServiceClient, policyID string, opts l7pol
 	return nil
 }
 
+// UpdateHealthMonitor updates a health monitor.
+func UpdateHealthMonitor(client *gophercloud.ServiceClient, monitorID string, opts monitors.UpdateOpts) error {
+	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "update")
+	_, err := monitors.Update(client, monitorID, opts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf("failed to update healthmonitor: %v", err)
+	}
+
+	return nil
+}
+
 // DeleteHealthMonitor deletes a health monitor.
 func DeleteHealthMonitor(client *gophercloud.ServiceClient, monitorID string, lbID string) error {
 	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "delete")

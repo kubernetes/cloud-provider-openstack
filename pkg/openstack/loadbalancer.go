@@ -85,8 +85,11 @@ const (
 	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
-	ServiceAnnotationLoadBalancerEnableHealthMonitor = "loadbalancer.openstack.org/enable-health-monitor"
-	ServiceAnnotationTlsContainerRef                 = "loadbalancer.openstack.org/default-tls-container-ref"
+	ServiceAnnotationLoadBalancerEnableHealthMonitor     = "loadbalancer.openstack.org/enable-health-monitor"
+	ServiceAnnotationLoadBalancerHealthMonitorDelay      = "loadbalancer.openstack.org/health-monitor-delay"
+	ServiceAnnotationLoadBalancerHealthMonitorTimeout    = "loadbalancer.openstack.org/health-monitor-timeout"
+	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries = "loadbalancer.openstack.org/health-monitor-max-retries"
+	ServiceAnnotationTlsContainerRef                     = "loadbalancer.openstack.org/default-tls-container-ref"
 	// See https://nip.io
 	defaultProxyHostnameSuffix      = "nip.io"
 	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
@@ -315,29 +318,32 @@ func tagList(tags string) ([]string, bool, bool) {
 
 // serviceConfig contains configurations for creating a Service.
 type serviceConfig struct {
-	internal             bool
-	connLimit            int
-	configClassName      string
-	lbNetworkID          string
-	lbSubnetID           string
-	lbMemberSubnetID     string
-	lbPublicNetworkID    string
-	lbPublicSubnetSpec   *floatingSubnetSpec
-	keepClientIP         bool
-	enableProxyProtocol  bool
-	timeoutClientData    int
-	timeoutMemberConnect int
-	timeoutMemberData    int
-	timeoutTCPInspect    int
-	allowedCIDR          []string
-	enableMonitor        bool
-	flavorID             string
-	availabilityZone     string
-	tlsContainerRef      string
-	lbID                 string
-	lbName               string
-	supportLBTags        bool
-	healthCheckNodePort  int
+	internal                bool
+	connLimit               int
+	configClassName         string
+	lbNetworkID             string
+	lbSubnetID              string
+	lbMemberSubnetID        string
+	lbPublicNetworkID       string
+	lbPublicSubnetSpec      *floatingSubnetSpec
+	keepClientIP            bool
+	enableProxyProtocol     bool
+	timeoutClientData       int
+	timeoutMemberConnect    int
+	timeoutMemberData       int
+	timeoutTCPInspect       int
+	allowedCIDR             []string
+	enableMonitor           bool
+	flavorID                string
+	availabilityZone        string
+	tlsContainerRef         string
+	lbID                    string
+	lbName                  string
+	supportLBTags           bool
+	healthCheckNodePort     int
+	healthMonitorDelay      int
+	healthMonitorTimeout    int
+	healthMonitorMaxRetries int
 }
 
 type listenerKey struct {
@@ -401,15 +407,13 @@ func memberExists(members []v2pools.Member, addr string, port int) bool {
 }
 
 func popListener(existingListeners []listeners.Listener, id string) []listeners.Listener {
-	for i, existingListener := range existingListeners {
-		if existingListener.ID == id {
-			existingListeners[i] = existingListeners[len(existingListeners)-1]
-			existingListeners = existingListeners[:len(existingListeners)-1]
-			break
+	newListeners := []listeners.Listener{}
+	for _, existingListener := range existingListeners {
+		if existingListener.ID != id {
+			newListeners = append(newListeners, existingListener)
 		}
 	}
-
-	return existingListeners
+	return newListeners
 }
 
 func popMember(members []v2pools.Member, addr string, port int) []v2pools.Member {
@@ -1147,6 +1151,17 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 			}
 			monitorID = ""
 		}
+		if svcConf.healthMonitorDelay != monitor.Delay || svcConf.healthMonitorTimeout != monitor.Timeout || svcConf.healthMonitorMaxRetries != monitor.MaxRetries {
+			updateOpts := v2monitors.UpdateOpts{
+				Delay:      svcConf.healthMonitorDelay,
+				Timeout:    svcConf.healthMonitorTimeout,
+				MaxRetries: svcConf.healthMonitorMaxRetries,
+			}
+			klog.Infof("Updating health monitor %s updateOpts %+v", monitorID, updateOpts)
+			if err := openstackutil.UpdateHealthMonitor(lbaas.lb, monitorID, updateOpts); err != nil {
+				return err
+			}
+		}
 	}
 	if monitorID == "" && svcConf.enableMonitor {
 		klog.V(2).Infof("Creating monitor for pool %s", pool.ID)
@@ -1183,9 +1198,9 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1
 	}
 	return v2monitors.CreateOpts{
 		Type:       monitorProtocol,
-		Delay:      int(lbaas.opts.MonitorDelay.Duration.Seconds()),
-		Timeout:    int(lbaas.opts.MonitorTimeout.Duration.Seconds()),
-		MaxRetries: int(lbaas.opts.MonitorMaxRetries),
+		Delay:      svcConf.healthMonitorDelay,
+		Timeout:    svcConf.healthMonitorTimeout,
+		MaxRetries: svcConf.healthMonitorMaxRetries,
 	}
 }
 
@@ -1504,6 +1519,9 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	if svcConf.enableMonitor && lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
 	}
+	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
+	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
+	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
 	return nil
 }
 
@@ -1703,7 +1721,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	if svcConf.enableMonitor && lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
 	}
-
+	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
+	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
+	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
 	return nil
 }
 
