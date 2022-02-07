@@ -10,6 +10,7 @@ Any contribution to improving this documentation or adding sample usages will be
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Metrics for openstack-cloud-controller-manager](#metrics-for-openstack-cloud-controller-manager)
+  - [Exposing metrics to prometheus operator](#exposing-metrics-to-prometheus-operator)
   - [OpenStack API calls](#openstack-api-calls)
   - [OpenStack cloud controller manager reconciliation](#openstack-cloud-controller-manager-reconciliation)
   - [Additional metrics](#additional-metrics)
