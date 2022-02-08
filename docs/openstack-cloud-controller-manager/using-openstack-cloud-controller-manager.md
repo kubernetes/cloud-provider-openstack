@@ -83,7 +83,6 @@ Implementation of openstack-cloud-controller-manager relies on several OpenStack
 
 | Service                        | API Version(s) | Deprecated | Required |
 |--------------------------------|----------------|------------|----------|
-| Identity (Keystone)            | v2             | Yes        | No       |
 | Identity (Keystone)            | v3             | No         | Yes      |
 | Compute (Nova)                 | v2             | No         | Yes      |
 | Load Balancing (Neutron-LBaaS) | v1, v2         | Yes        | No       |

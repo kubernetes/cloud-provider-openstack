@@ -14,6 +14,3 @@ domain-id=
 use-octavia=true
 subnet-id=9c018814-f2a8-45dd-9679-5400d49b333a
 floating-network-id=80c9fc78-a2be-45d5-a85b-f17a6c98df92
-
-[BlockStorage]
-bs-version=v2

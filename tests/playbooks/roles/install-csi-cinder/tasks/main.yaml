@@ -44,8 +44,6 @@
       tenant-id=$tenant_id
       domain-id=default
 
-      [BlockStorage]
-      bs-version=v3
       EOF
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf

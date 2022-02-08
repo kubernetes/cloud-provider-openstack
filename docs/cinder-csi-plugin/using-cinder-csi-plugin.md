@@ -96,7 +96,6 @@ Implementation of `cinder-csi-plugin` relies on following OpenStack services.
 
 | Service                        | API Version(s) | Deprecated | Required |
 |--------------------------------|----------------|------------|----------|
-| Identity (Keystone)            | v2             | Yes        | No       |
 | Identity (Keystone)            | v3             | No         | Yes      |
 | Compute (Nova)                 | v2             | No         | Yes      |
 | Block Storage (Cinder)         | v3             | No         | Yes      |
