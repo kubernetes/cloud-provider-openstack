@@ -65,7 +65,7 @@ spec:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
-              value: /etc/kubernetes/cloud.conf
+              value: /etc/kubernetes/{{ .Values.secret.filename }}
           ports:
             - containerPort: 9808
               name: healthz
