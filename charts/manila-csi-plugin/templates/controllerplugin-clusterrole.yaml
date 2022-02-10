@@ -8,6 +8,7 @@ metadata:
     component: {{ .Values.controllerplugin.name }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
+    {{- include "openstack-manila-csi.extraLabels" . }}
 aggregationRule:
   clusterRoleSelectors:
     - matchLabels:
