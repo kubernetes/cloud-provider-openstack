@@ -9,6 +9,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
     rbac.manila.csi.openstack.org/aggregate-to-{{ include "openstack-manila-csi.controllerplugin.fullname" . }}: "true"
+    {{- include "openstack-manila-csi.extraLabels" . }}
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
