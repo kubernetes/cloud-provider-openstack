@@ -86,7 +86,7 @@ Create chart name and version as used by the chart label.
 Extra labels for all resources.
 */}}
 {{- define "openstack-manila-csi.extraLabels" -}}
-    {{- if .Values.extraLabels.enabled }}
-{{ toYaml .Values.extraLabels.labels | indent 4 -}}
+    {{- if .Values.extraLabels }}
+{{ toYaml .Values.extraLabels | indent 4 -}}
     {{- end }}
 {{- end }}

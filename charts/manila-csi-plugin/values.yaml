@@ -15,9 +15,7 @@ shareProtocols:
  #     dir: /var/lib/kubelet/plugins/cephfs.csi.ceph.com
  #     sockFile: csi.sock
 
-extraLabels:
-  enabled: false
-  labels: {}
+extraLabels: {}
 # CSI Manila spec
 csimanila:
   # Set topologyAwarenessEnabled to true to enable topology awareness
