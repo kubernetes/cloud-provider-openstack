@@ -62,14 +62,14 @@ Create unified labels for cinder-csi components
 {{- define "cinder-csi.common.matchLabels" -}}
 app: {{ template "cinder-csi.name" . }}
 release: {{ .Release.Name }}
-{{- if .Values.extraLabels }}
-{{ toYaml .Values.extraLabels -}}
-{{- end }}
 {{- end -}}
 
 {{- define "cinder-csi.common.metaLabels" -}}
 chart: {{ template "cinder-csi.chart" . }}
 heritage: {{ .Release.Service }}
+{{- if .Values.extraLabels }}
+{{ toYaml .Values.extraLabels -}}
+{{- end }}
 {{- end -}}
 
 {{- define "cinder-csi.controllerplugin.matchLabels" -}}
