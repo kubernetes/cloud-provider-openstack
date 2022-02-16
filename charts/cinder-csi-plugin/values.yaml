@@ -1,3 +1,5 @@
+extraLabels: {}
+
 nameOverride: ""
 fullnameOverride: ""
 timeout: 3m
