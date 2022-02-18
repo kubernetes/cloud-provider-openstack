@@ -103,6 +103,7 @@ logVerbosityLevel: 2
 secret:
   enabled: false
   create: false
+  filename: cloud.conf
 #  name: cinder-csi-cloud-config
 #  data:
 #    cloud.conf: |-
