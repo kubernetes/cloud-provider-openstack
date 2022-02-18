@@ -47,6 +47,20 @@ tolerations: []
 #     value: "true"
 #     effect: NoExecute
 
+# Set security settings for the controller pods
+# For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
+podSecurityContext:
+  runAsUser: 1001
+
+# List of controllers should be enabled.
+# Use '*' to enable all controllers.
+# Prefix a controller with '-' to disable it.
+enabledControllers:
+  - cloud-node
+  - cloud-node-lifecycle
+  - route
+  - service
+
 # Any extra arguments for openstack-cloud-controller-manager
 controllerExtraArgs: {}
 # controllerExtraArgs: |-

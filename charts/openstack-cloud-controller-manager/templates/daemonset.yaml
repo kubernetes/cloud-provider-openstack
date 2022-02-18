@@ -21,8 +21,10 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
-        runAsUser: 1001
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -37,6 +39,7 @@ spec:
             - --cloud-config=$(CLOUD_CONFIG)
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
+            - --controllers={{- trimAll "," (include "occm.enabledControllers" . ) -}}
             {{- if .Values.serviceMonitor.enabled }}
             - --bind-address=0.0.0.0
             {{- else }}
