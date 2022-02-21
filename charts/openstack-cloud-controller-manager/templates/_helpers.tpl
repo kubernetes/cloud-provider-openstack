@@ -74,3 +74,11 @@ Create cloud-config makro.
 {{ $key }} = {{ $value }}
 {{- end }}
 {{- end }}
+
+
+{{/*
+Generate string of enabled controllers. Might have a trailing comma (,) which needs to be trimmed.
+*/}}
+{{- define "occm.enabledControllers" }}
+{{- range .Values.enabledControllers -}}{{ . }},{{- end -}}
+{{- end }}

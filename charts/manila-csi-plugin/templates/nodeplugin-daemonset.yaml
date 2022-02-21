@@ -3,25 +3,15 @@ apiVersion: apps/v1
 metadata:
   name: {{ include "openstack-manila-csi.nodeplugin.fullname" . }}
   labels:
-    app: {{ include "openstack-manila-csi.name" . }}
-    chart: {{ include "openstack-manila-csi.chart" . }}
-    component: {{ .Values.nodeplugin.name }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "openstack-manila-csi.nodeplugin.labels" .  | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      app: {{ include "openstack-manila-csi.name" . }}
-      component: {{ .Values.nodeplugin.name }}
-      release: {{ .Release.Name }}
+      {{- include "openstack-manila-csi.nodeplugin.matchLabels" .  | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ include "openstack-manila-csi.name" . }}
-        chart: {{ include "openstack-manila-csi.chart" . }}
-        component: {{ .Values.nodeplugin.name }}
-        release: {{ .Release.Name }}
-        heritage: {{ .Release.Service }}
+        {{- include "openstack-manila-csi.nodeplugin.labels" .  | nindent 8 }}
     spec:
       serviceAccountName: {{ include "openstack-manila-csi.serviceAccountName.nodeplugin" . }}
       hostNetwork: true

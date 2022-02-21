@@ -82,7 +82,6 @@ func ConfigFromEnv() Config {
 	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
 
 	// Set default values for config params
-	cfg.BlockStorage.BSVersion = "auto"
 	cfg.BlockStorage.TrustDevicePath = false
 	cfg.BlockStorage.IgnoreVolumeAZ = false
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
@@ -113,7 +112,6 @@ func TestReadConfig(t *testing.T) {
  monitor-timeout = 30s
  monitor-max-retries = 3
  [BlockStorage]
- bs-version = auto
  trust-device-path = yes
  ignore-volume-az = yes
  [Metadata]
@@ -161,9 +159,6 @@ func TestReadConfig(t *testing.T) {
 	}
 	if cfg.BlockStorage.TrustDevicePath != true {
 		t.Errorf("incorrect bs.trustdevicepath: %v", cfg.BlockStorage.TrustDevicePath)
-	}
-	if cfg.BlockStorage.BSVersion != "auto" {
-		t.Errorf("incorrect bs.bs-version: %v", cfg.BlockStorage.BSVersion)
 	}
 	if cfg.BlockStorage.IgnoreVolumeAZ != true {
 		t.Errorf("incorrect bs.IgnoreVolumeAZ: %v", cfg.BlockStorage.IgnoreVolumeAZ)
@@ -215,7 +210,6 @@ clouds:
  monitor-timeout = 30s
  monitor-max-retries = 3
  [BlockStorage]
- bs-version = auto
  trust-device-path = yes
  ignore-volume-az = yes
  [Metadata]
@@ -258,9 +252,6 @@ clouds:
 	// Make non-global sections dont get overwritten
 	if cfg.BlockStorage.TrustDevicePath != true {
 		t.Errorf("incorrect bs.trustdevicepath: %v", cfg.BlockStorage.TrustDevicePath)
-	}
-	if cfg.BlockStorage.BSVersion != "auto" {
-		t.Errorf("incorrect bs.bs-version: %v", cfg.BlockStorage.BSVersion)
 	}
 	if !cfg.LoadBalancer.CreateMonitor {
 		t.Errorf("incorrect lb.createmonitor: %t", cfg.LoadBalancer.CreateMonitor)
