@@ -52,8 +52,6 @@
       subnet-id=$sudnet_id
       floating-network-id=$external_network_id
 
-      [BlockStorage]
-      bs-version=v2
       EOF
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf

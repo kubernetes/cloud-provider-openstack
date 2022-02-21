@@ -11,5 +11,5 @@ spec:
     port: 10258
     protocol: TCP
   selector:
-    {{- include "occm.labels" . | nindent 4 }}
+    {{- include "occm.controllermanager.matchLabels" . | nindent 4 }}
 {{- end }}

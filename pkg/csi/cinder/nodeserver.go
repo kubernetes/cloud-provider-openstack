@@ -67,6 +67,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
 	if ephemeralVolume {
+		klog.Warningf("CSI inline ephemeral volumes support is deprecated in 1.24 release.")
 		return nodePublishEphemeral(req, ns)
 	}
 

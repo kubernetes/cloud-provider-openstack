@@ -81,3 +81,45 @@ Create chart name and version as used by the chart label.
 {{- define "openstack-manila-csi.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{/*
+Create unified labels for manila-csi components
+*/}}
+
+{{- define "openstack-manila-csi.common.matchLabels" -}}
+app: {{ template "openstack-manila-csi.name" . }}
+release: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "openstack-manila-csi.common.metaLabels" -}}
+chart: {{ template "openstack-manila-csi.chart" . }}
+heritage: {{ .Release.Service }}
+{{- if .Values.extraLabels }}
+{{ toYaml .Values.extraLabels }}
+{{- end }}
+{{- end -}}
+
+{{- define "openstack-manila-csi.common.labels" -}}
+{{ include "openstack-manila-csi.common.metaLabels" . }}
+{{ include "openstack-manila-csi.common.matchLabels" . }}
+{{- end -}}
+
+{{- define "openstack-manila-csi.controllerplugin.matchLabels" -}}
+component: controllerplugin
+{{ include "openstack-manila-csi.common.matchLabels" . }}
+{{- end -}}
+
+{{- define "openstack-manila-csi.controllerplugin.labels" -}}
+{{ include "openstack-manila-csi.common.metaLabels" . }}
+{{ include "openstack-manila-csi.controllerplugin.matchLabels" . }}
+{{- end -}}
+
+{{- define "openstack-manila-csi.nodeplugin.matchLabels" -}}
+component: nodeplugin
+{{ include "openstack-manila-csi.common.matchLabels" . }}
+{{- end -}}
+
+{{- define "openstack-manila-csi.nodeplugin.labels" -}}
+{{ include "openstack-manila-csi.common.metaLabels" . }}
+{{ include "openstack-manila-csi.nodeplugin.matchLabels" . }}
+{{- end -}}

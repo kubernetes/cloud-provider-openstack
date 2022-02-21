@@ -10,7 +10,7 @@
     - [Rescan on in-use volume resize](#rescan-on-in-use-volume-resize)
   - [Volume Snapshots](#volume-snapshots)
   - [Ephemeral Volumes](#ephemeral-volumes)
-    - [CSI Ephemeral Volumes](#csi-ephemeral-volumes)
+    - [[DEPRECATED] CSI Ephemeral Volumes](#deprecated-csi-ephemeral-volumes)
     - [Generic Ephemeral Volumes](#generic-ephemeral-volumes)
   - [Volume Cloning](#volume-cloning)
   - [Multi-Attach Volumes](#multi-attach-volumes)
@@ -72,7 +72,9 @@ This feature enables creating volume snapshots and restore volume from snapshot.
 
 Two different Kubernetes features allow volumes to follow the Pod's lifecycle: CSI Ephemeral Volumes and Generic Ephemeral Volumes
 
-### CSI Ephemeral Volumes
+### [DEPRECATED] CSI Ephemeral Volumes
+
+**Note: This feature support is deprecated in 1.24 release in favor of [Generic Ephemeral Volumes](#generic-ephemeral-volumes) and will no longer be available from 1.27.**
 
 This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts.
 

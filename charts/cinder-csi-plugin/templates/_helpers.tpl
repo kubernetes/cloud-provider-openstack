@@ -67,6 +67,9 @@ release: {{ .Release.Name }}
 {{- define "cinder-csi.common.metaLabels" -}}
 chart: {{ template "cinder-csi.chart" . }}
 heritage: {{ .Release.Service }}
+{{- if .Values.extraLabels }}
+{{ toYaml .Values.extraLabels -}}
+{{- end }}
 {{- end -}}
 
 {{- define "cinder-csi.controllerplugin.matchLabels" -}}
