@@ -56,24 +56,6 @@
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
 
-# - name: Set image url
-#   shell:
-#     executable: /bin/bash
-#     cmd: |
-#       check={{ build_image }}
-#       if ["$check" = true] ; then
-#           image_url="{{ remote_registry_host }}/openstack-cloud-controller-manager-amd64:{{ github_pr }}"
-#       else
-#           image_url="docker.io/k8scloudprovider/openstack-cloud-controller-manager:latest"
-#       fi
-
-#       echo $image_url
-#   register: image_url
-
-- name: Get image url
-  debug:
-    msg: "{{ image_url }}"
-
 - name: Deploy openstack-cloud-controller-manager
   shell:
     executable: /bin/bash
