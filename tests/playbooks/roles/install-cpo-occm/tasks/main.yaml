@@ -169,3 +169,31 @@
       GATEWAY_IP=172.24.5.1 \
       DEVSTACK_OS_RC={{ devstack_workdir }}/openrc \
       bash tests/e2e/cloudprovider/test-lb-service.sh
+
+- name: Run e2e conformance tests
+  when: run_e2e_conformance
+  block:
+     - name: Install kubetest
+       shell:
+         executable: /bin/bash
+         cmd: |
+           set -o pipefail
+           set -ex
+           git clone https://github.com/kubernetes/test-infra --depth 1
+           cd test-infra
+           go install ./kubetest
+
+     - name: Run tests
+       shell:
+        executable: /bin/bash
+        cmd: |
+          set -ex
+          K8S_VERSION=$(kubectl version -o json | jq -r '.serverVersion.gitVersion')
+          export KUBERNETES_CONFORMANCE_TEST=y
+          kubetest --dump=/var/log/ \
+            --test \
+            --provider=skeleton \
+            --ginkgo-parallel=1 \
+            --test_args="--ginkgo.focus=\\[Conformance\\] --ginkgo.noColor=true --ginkgo.v=true --ginkgo.trace=true --disable-log-dump=true --ginkgo.skip=\\[sig\\-apps\\]\\sDaemon\\sset\\s\\[Serial\\]\\sshould\\srollback\\swithout\\sunnecessary\\srestarts\\s\\[Conformance\\]|\\[sig\\-network\\]\\sServices\\sshould\\sbe\\sable\\sto\\schange\\sthe\\stype\\sfrom\\sExternalName\\sto\\sNodePort\\s\\[Conformance\\]|\\[sig\\-network\\]\\sServices\\sshould\\sbe\\sable\\sto\\screate\\sa\\sfunctioning\\sNodePort\\sservice\\s\\[Conformance\\]|\\[sig\\-network\\]\\sServices\\sshould\\shave\\ssession\\saffinity\\swork\\sfor\\sNodePort\\sservice\\s\\[LinuxOnly\\]\\s\\[Conformance\\]|\\[sig\\-network\\]\\sServices\\sshould\\sbe\\sable\\sto\\sswitch\\ssession\\saffinity\\sfor\\sNodePort\\sservice\\s\\[LinuxOnly\\]\\s\\[Conformance\\]|\\[sig\\-network\\]\\sServices\\sshould\\shave\\ssession\\saffinity\\stimeout\\swork\\sfor\\sNodePort\\sservice\\s\\[LinuxOnly\\]\\s\\[Conformance\\]" \
+            --extract ${K8S_VERSION} \
+            --timeout=150m | tee /var/log/conformance-e2e.log
