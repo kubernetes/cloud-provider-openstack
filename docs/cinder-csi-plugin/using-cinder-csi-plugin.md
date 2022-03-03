@@ -170,8 +170,8 @@ To get information about CSI Drivers running in a cluster -
 
 ```
 $ kubectl get csidrivers.storage.k8s.io
-NAME                       CREATED AT
-cinder.csi.openstack.org   2019-07-29T09:02:40Z
+NAME                       ATTACHREQUIRED   PODINFOONMOUNT   STORAGECAPACITY   TOKENREQUESTS   REQUIRESREPUBLISH   MODES                  AGE
+cinder.csi.openstack.org   true             true             false             <unset>         false               Persistent,Ephemeral   19h
 
 ```
 
