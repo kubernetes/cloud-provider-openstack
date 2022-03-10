@@ -66,7 +66,7 @@ Not all hypervizors have a `/sys/class/block/XXX/device/rescan` location, theref
 This feature enables creating volume snapshots and restore volume from snapshot. The corresponding CSI feature (VolumeSnapshotDataSource) is GA since kubernetes 1.20.
 
 * To avail the feature. deploy the snapshot-controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver) . For more info, refer [Snapshot Controller](https://kubernetes-csi.github.io/docs/snapshot-controller.html)
-* For example on using snapshot feature, refer [sample app](./examples#snapshot-create-and-restore)
+* For example on using snapshot feature, refer [sample app](./examples.md#snapshot-create-and-restore)
 
 ## Ephemeral Volumes
 

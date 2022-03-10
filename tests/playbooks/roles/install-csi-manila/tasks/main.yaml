@@ -47,87 +47,6 @@
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
 
-- name: Deploy openstack-cloud-controller-manager
-  shell:
-    executable: /bin/bash
-    cmd: |
-      set -x
-
-      cat <<EOF | kubectl apply -f -
-      ---
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: cloud-controller-manager
-        namespace: kube-system
-      ---
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: system:cloud-controller-manager
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: cluster-admin
-      subjects:
-      - kind: ServiceAccount
-        name: cloud-controller-manager
-        namespace: kube-system
-      ---
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: openstack-cloud-controller-manager
-        namespace: kube-system
-        labels:
-          k8s-app: openstack-cloud-controller-manager
-      spec:
-        replicas: 1
-        selector:
-          matchLabels:
-            k8s-app: openstack-cloud-controller-manager
-        template:
-          metadata:
-            labels:
-              k8s-app: openstack-cloud-controller-manager
-          spec:
-            tolerations:
-            - key: node.cloudprovider.kubernetes.io/uninitialized
-              value: "true"
-              effect: NoSchedule
-            - key: node-role.kubernetes.io/master
-              effect: NoSchedule
-            serviceAccountName: cloud-controller-manager
-            containers:
-              - name: openstack-cloud-controller-manager
-                image: docker.io/k8scloudprovider/openstack-cloud-controller-manager:latest
-                args:
-                  - /bin/openstack-cloud-controller-manager
-                  - --cloud-config=/etc/config/cloud.conf
-                  - --cloud-provider=openstack
-                  - --use-service-account-credentials=true
-                  - --bind-address=127.0.0.1
-                volumeMounts:
-                  - mountPath: /etc/config
-                    name: cloud-config-volume
-                    readOnly: true
-            hostNetwork: true
-            volumes:
-            - name: cloud-config-volume
-              secret:
-                secretName: cloud-config
-      EOF
-
-- name: Wait for openstack-cloud-controller-manager up and running
-  shell:
-    executable: /bin/bash
-    cmd: |
-      kubectl -n kube-system get pod | grep openstack-cloud-controller-manager | grep Running
-  register: check_occm
-  until: check_occm.rc == 0
-  retries: 24
-  delay: 5
-
 - name: Deploy Kubernetes VolumeSnapshot CRDs and snapshot controller
   shell:
     executable: /bin/bash
@@ -223,7 +142,7 @@
   until: check_csi_controller.rc == 0
   retries: 24
   delay: 5
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Wait for manila-csi-plugin node plugin up and running
   shell:
@@ -234,7 +153,7 @@
   until: check_csi_node.rc == 0
   retries: 24
   delay: 5
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Gather additional evidence if csi-manila-plugin failed to come up
   when: check_csi_controller.failed or check_csi_node.failed
