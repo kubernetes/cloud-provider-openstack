@@ -55,6 +55,7 @@ func initCinderDriver(name string, manifests ...string) storageframework.TestDri
 				storageframework.CapTopology:            true,
 				storageframework.CapControllerExpansion: true,
 				storageframework.CapNodeExpansion:       true,
+				storageframework.CapOnlineExpansion:     true,
 				//storageframework.CapSnapshotDataSource: true,
 
 			},
