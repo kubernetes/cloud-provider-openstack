@@ -115,3 +115,7 @@ extraVolumeMounts:
   - name: k8s-certs
     mountPath: /etc/kubernetes/pki
     readOnly: true
+
+# cluster name that used for created cluster
+cluster:
+  name: kubernetes
