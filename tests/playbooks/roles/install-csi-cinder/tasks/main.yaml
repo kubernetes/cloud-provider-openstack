@@ -61,7 +61,6 @@
 
       # replace image with built image
       sed -i "s#docker.io/k8scloudprovider/cinder-csi-plugin:latest#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-
       sed -i "s#docker.io/k8scloudprovider/cinder-csi-plugin:latest#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
 - name: Deploy cinder-csi-plugin
@@ -70,7 +69,7 @@
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
       kubectl apply -f manifests/cinder-csi-plugin
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Wait for csi-cinder-controllerplugin up and running
   shell:
@@ -81,7 +80,7 @@
   until: check_csi_controller.rc == 0
   retries: 24
   delay: 5
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Wait for csi-cinder-nodeplugin up and running
   shell:
@@ -92,7 +91,7 @@
   until: check_csi_node.rc == 0
   retries: 24
   delay: 5
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Gather additional evidence if csi-cinder-plugin failed to come up
   when: check_csi_controller.failed or check_csi_node.failed
@@ -124,4 +123,4 @@
       set -o pipefail
 
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
-      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0
+      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0 -report-dir="/var/log/" | tee "/var/log/cinder-csi-e2e.log"
