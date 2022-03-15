@@ -109,10 +109,10 @@ ansible-playbook -v \
   -e github_pr_branch=${PR_BRANCH}
 exit_code=$?
 
-# Fetch devstack logs for debugging purpose
-#scp -i ~/.ssh/google_compute_engine \
-#  -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-#  -r ${USERNAME}@${PUBLIC_IP}:/opt/stack/logs $ARTIFACTS/logs/devstack || true
+# Fetch cinder-csi e2e tests logs for debugging purpose
+scp -i ~/.ssh/google_compute_engine \
+  -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+  -r ${USERNAME}@${PUBLIC_IP}:/var/log/cinder-csi-e2e.log $ARTIFACTS/logs/cinder-csi-e2e.log || true
 
 # If Boskos is being used then release the resource back to Boskos.
 [ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
