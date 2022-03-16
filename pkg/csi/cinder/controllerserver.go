@@ -354,7 +354,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Error(codes.AlreadyExists, "Snapshot with given name already exists, with different source volume ID")
 		}
 
-		klog.V(3).Infof("Found existing snapshot %s on %s", name, volumeID)
+		klog.V(3).Infof("Found existing snapshot %s from volume with ID: %s", name, volumeID)
 
 	} else if len(snapshots) > 1 {
 		klog.Errorf("found multiple existing snapshots with selected name (%s) during create", name)
@@ -381,7 +381,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
 		}
 
-		klog.V(3).Infof("CreateSnapshot %s on %s", name, volumeID)
+		klog.V(3).Infof("CreateSnapshot %s from volume with ID: %s", name, volumeID)
 	}
 
 	ctime := timestamppb.New(snap.CreatedAt)
