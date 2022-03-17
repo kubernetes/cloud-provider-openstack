@@ -365,7 +365,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
 
 		// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
-		for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name"} {
+		// Also, we don't want to tag every param but we still want to send the
+		// 'force-create' flag to openstack layer so that we will honor the
+		// force create functions
+		for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name", openstack.SnapshotForceCreate} {
 			if v, ok := req.Parameters[mKey]; ok {
 				properties[mKey] = v
 			}
