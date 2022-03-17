@@ -40,6 +40,7 @@ spec:
           args:
             - /bin/openstack-cloud-controller-manager
             - --v=1
+            - --cluster-name=$(CLUSTER_NAME)
             - --cloud-config=$(CLOUD_CONFIG)
             - --cloud-provider=openstack
             - --use-service-account-credentials=true
@@ -60,6 +61,8 @@ spec:
           env:
             - name: CLOUD_CONFIG
               value: /etc/config/cloud.conf
+            - name: CLUSTER_NAME
+              value: kubernetes
       hostNetwork: true
       volumes:
       - hostPath:
