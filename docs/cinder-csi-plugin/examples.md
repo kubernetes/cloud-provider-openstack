@@ -8,6 +8,7 @@
   - [Volume Expansion Example](#volume-expansion-example)
   - [Using Block Volume](#using-block-volume)
   - [Snapshot Create and Restore](#snapshot-create-and-restore)
+  - [Use Topology](#use-topology)
   - [Disaster recovery of PV and PVC](#disaster-recovery-of-pv-and-pvc)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -255,6 +256,61 @@ $ openstack volume list
 | 07522a3b-95db-4bfa-847c-ffa179d08c39 | pvc-400b1ca8-8786-435f-a6cc-f684afddbbea | available |    1 |                                                 |
 | bf8f9ae9-87b4-42bb-b74c-ba4645634be6 | pvc-4699fa78-4149-4772-b900-9536891fe200 | available |    1 |                                                 |
 ```
+
+## Use Topology
+
+Check [sample app](../../examples/cinder-csi-plugin/topology/example.yaml) for how to use Topology.
+
+Prerequisites:
+Deployed CSI and for CSI provisioner need make feature gate Topology enabled ("--feature-gates=Topology=true", which is by default True now)
+
+apply the example definition file:
+
+```
+$ kubectl apply -f example.yaml
+storageclass.storage.k8s.io/topology-aware-standard created
+persistentvolumeclaim/pvc1 created
+pod/app created
+```
+
+As the storageclass is looking for availability zone `nova1` through `topology.cinder.csi.openstack.org/zone=nova1` label,
+likely it will not be satisfied by default, so the pod and pvc are pending:
+
+```
+$ kubectl get pvc | grep pvc1
+pvc1                    Pending                                                                        topology-aware-standard   2m1s
+
+$ kubectl get pods app
+NAME   READY   STATUS    RESTARTS   AGE
+app    0/1     Pending   0          2m15s
+```
+
+This is because CSI cinder can't find a availability zone `nova1` so no volume can be created as `pv`.
+
+Now, edit the storageclass `topology-aware-standard` and updated the topology.cinder.csi.openstack.org/zone value from `nova1` to `nova`:
+
+```
+$ kubectl edit storageclass topology-aware-standard
+...
+allowedTopologies:
+- matchLabelExpressions:
+  - key: topology.cinder.csi.openstack.org/zone
+    values:
+    - nova
+...
+```
+
+The pod and pvc will be created. 
+```
+$ kubectl get pvc | grep pvc1
+pvc1                    Bound    pvc-c0a84f78-380f-4210-89df-8d616e9b99b6   1Gi        RWO            topology-aware-standard   4m44s
+
+$ kubectl get pods app
+NAME   READY   STATUS    RESTARTS   AGE
+app    1/1     Running   0          5m11s
+```
+
+Of course, A new availability zone `nova1` can be created in openstack side to satisify the requirement as well.
 
 ## Disaster recovery of PV and PVC
 

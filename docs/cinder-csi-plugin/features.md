@@ -36,6 +36,8 @@ This feature enables driver to consider the topology constraints while creating 
 * `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
 * To disable: set `--feature-gates=Topology=false` in external-provisioner (container `csi-provisioner` of `csi-cinder-controllerplugin`).
 
+For usage, refer [sample app](./examples.md#use-topology)
+
 ## Block Volume
 
 Cinder volumes to be exposed inside containers as a block device instead of as a mounted file system. The corresponding CSI feature (CSIBlockVolume) is GA since Kubernetes 1.18.

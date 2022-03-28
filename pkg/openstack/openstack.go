@@ -111,13 +111,6 @@ type LBClass struct {
 	SubnetID           string `gcfg:"subnet-id,omitempty"`
 }
 
-// BlockStorageOpts is used to talk to Cinder service
-type BlockStorageOpts struct {
-	BSVersion       string `gcfg:"bs-version"`        // overrides autodetection. v1 or v2. Defaults to auto
-	TrustDevicePath bool   `gcfg:"trust-device-path"` // See Issue #33128
-	IgnoreVolumeAZ  bool   `gcfg:"ignore-volume-az"`
-}
-
 // NetworkingOpts is used for networking settings
 type NetworkingOpts struct {
 	IPv6SupportDisabled bool     `gcfg:"ipv6-support-disabled"`
@@ -140,7 +133,6 @@ type OpenStack struct {
 	provider       *gophercloud.ProviderClient
 	epOpts         *gophercloud.EndpointOpts
 	lbOpts         LoadBalancerOpts
-	bsOpts         BlockStorageOpts
 	routeOpts      RouterOpts
 	metadataOpts   metadata.MetadataOpts
 	networkingOpts NetworkingOpts
@@ -154,7 +146,6 @@ type Config struct {
 	Global            client.AuthOpts
 	LoadBalancer      LoadBalancerOpts
 	LoadBalancerClass map[string]*LBClass
-	BlockStorage      BlockStorageOpts
 	Route             RouterOpts
 	Metadata          metadata.MetadataOpts
 	Networking        NetworkingOpts
@@ -274,7 +265,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 			Availability: cfg.Global.EndpointType,
 		},
 		lbOpts:         cfg.LoadBalancer,
-		bsOpts:         cfg.BlockStorage,
 		routeOpts:      cfg.Route,
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
