@@ -82,8 +82,6 @@ func ConfigFromEnv() Config {
 	cfg.Global.ApplicationCredentialSecret = os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET")
 
 	// Set default values for config params
-	cfg.BlockStorage.TrustDevicePath = false
-	cfg.BlockStorage.IgnoreVolumeAZ = false
 	cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	cfg.Networking.IPv6SupportDisabled = false
 	cfg.Networking.PublicNetworkName = []string{"public"}
@@ -111,9 +109,6 @@ func TestReadConfig(t *testing.T) {
  monitor-delay = 1m
  monitor-timeout = 30s
  monitor-max-retries = 3
- [BlockStorage]
- trust-device-path = yes
- ignore-volume-az = yes
  [Metadata]
  search-order = configDrive, metadataService
  `))
@@ -156,12 +151,6 @@ func TestReadConfig(t *testing.T) {
 	}
 	if cfg.LoadBalancer.MonitorMaxRetries != 3 {
 		t.Errorf("incorrect lb.monitormaxretries: %d", cfg.LoadBalancer.MonitorMaxRetries)
-	}
-	if cfg.BlockStorage.TrustDevicePath != true {
-		t.Errorf("incorrect bs.trustdevicepath: %v", cfg.BlockStorage.TrustDevicePath)
-	}
-	if cfg.BlockStorage.IgnoreVolumeAZ != true {
-		t.Errorf("incorrect bs.IgnoreVolumeAZ: %v", cfg.BlockStorage.IgnoreVolumeAZ)
 	}
 	if cfg.Metadata.SearchOrder != "configDrive, metadataService" {
 		t.Errorf("incorrect md.search-order: %v", cfg.Metadata.SearchOrder)
@@ -209,9 +198,6 @@ clouds:
  monitor-delay = 1m
  monitor-timeout = 30s
  monitor-max-retries = 3
- [BlockStorage]
- trust-device-path = yes
- ignore-volume-az = yes
  [Metadata]
  search-order = configDrive, metadataService
 `))
@@ -250,9 +236,6 @@ clouds:
 	}
 
 	// Make non-global sections dont get overwritten
-	if cfg.BlockStorage.TrustDevicePath != true {
-		t.Errorf("incorrect bs.trustdevicepath: %v", cfg.BlockStorage.TrustDevicePath)
-	}
 	if !cfg.LoadBalancer.CreateMonitor {
 		t.Errorf("incorrect lb.createmonitor: %t", cfg.LoadBalancer.CreateMonitor)
 	}
