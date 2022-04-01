@@ -71,6 +71,14 @@
       kubectl apply -f manifests/cinder-csi-plugin
   ignore_errors: true
 
+- name: Deploy snapshot manifests
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl apply -k 'github.com/kubernetes-csi/external-snapshotter/client/config/crd?ref=release-5.0'
+      kubectl apply -k 'github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/snapshot-controller?ref=release-5.0'
+  ignore_errors: yes
+
 - name: Wait for csi-cinder-controllerplugin up and running
   shell:
     executable: /bin/bash
@@ -93,8 +101,19 @@
   delay: 5
   ignore_errors: true
 
+- name: Wait for snapshot-controller deployment up and running
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl -n kube-system get pod | grep snapshot-controller  | grep Running
+  register: check_csi_snapshot
+  until: check_csi_snapshot.rc == 0
+  retries: 24
+  delay: 5
+  ignore_errors: yes
+
 - name: Gather additional evidence if csi-cinder-plugin failed to come up
-  when: check_csi_controller.failed or check_csi_node.failed
+  when: check_csi_controller.failed or check_csi_node.failed or check_csi_snapshot.failed
   block:
     - name: Describe failed csi-cinder-plugin
       shell:
@@ -103,6 +122,7 @@
           kubectl get pods -A
           kubectl -n kube-system describe deployment csi-cinder-controllerplugin
           kubectl -n kube-system describe daemonset csi-cinder-nodeplugin
+          kubectl -n kube-system describe deployment snapshot-controller
       register: describe_csi
       changed_when: false
 
