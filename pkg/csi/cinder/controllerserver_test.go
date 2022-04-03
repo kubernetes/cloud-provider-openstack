@@ -494,6 +494,7 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 		"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
 		"csi.storage.k8s.io/volumesnapshotcontent/name": FakeSnapshotContentName,
 		"csi.storage.k8s.io/volumesnapshot/namespace":   FakeSnapshotNamespace,
+		openstack.SnapshotForceCreate:                   "true",
 	}
 
 	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &properties).Return(&FakeSnapshotRes, nil)
@@ -511,6 +512,7 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 			"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
 			"csi.storage.k8s.io/volumesnapshotcontent/name": FakeSnapshotContentName,
 			"csi.storage.k8s.io/volumesnapshot/namespace":   FakeSnapshotNamespace,
+			openstack.SnapshotForceCreate:                   "true",
 		},
 	}
 
