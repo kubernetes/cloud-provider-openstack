@@ -37,7 +37,7 @@ const (
 	snapReadySteps      = 10
 
 	snapshotDescription = "Created by OpenStack Cinder CSI driver"
-	snapshotForceCreate = "force-create"
+	SnapshotForceCreate = "force-create"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
@@ -47,14 +47,14 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 	force := false
 	// if no flag given, then force will be false by default
 	// if flag it given , check it
-	if item, ok := (*tags)[snapshotForceCreate]; ok {
+	if item, ok := (*tags)[SnapshotForceCreate]; ok {
 		var err error
 		force, err = strconv.ParseBool(item)
 		if err != nil {
 			klog.V(5).Infof("Make force create flag to false due to: %v", err)
 		}
 
-		delete(*tags, snapshotForceCreate)
+		delete(*tags, SnapshotForceCreate)
 	}
 	// Force the creation of snapshot even the Volume is in in-use state
 	opts := &snapshots.CreateOpts{
