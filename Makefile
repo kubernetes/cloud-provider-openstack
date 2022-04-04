@@ -32,8 +32,8 @@ TEMP_DIR	:=$(shell mktemp -d)
 TAR_FILE	?= rootfs.tar
 
 GOOS		?= $(shell go env GOOS)
-VERSION		?= $(shell git describe --exact-match 2> /dev/null || \
-			   git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
+GIT_VERSION     := $(shell git describe --dirty --tags --match='v*')
+VERSION         ?= $(GIT_VERSION)
 ALPINE_ARCH	:=
 DEBIAN_ARCH	:=
 QEMUARCH	:=
@@ -41,7 +41,7 @@ QEMUVERSION	:= "v4.2.0-4"
 GOARCH		:=
 GOFLAGS		:=
 TAGS		:=
-LDFLAGS		:= "-w -s -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=${VERSION}'"
+LDFLAGS		:= "-w -s -X 'k8s.io/component-base/version.gitVersion=$(VERSION)'"
 GOX_LDFLAGS	:= $(shell echo "$(LDFLAGS) -extldflags \"-static\"")
 REGISTRY	?= k8scloudprovider
 IMAGE_OS	?= linux
