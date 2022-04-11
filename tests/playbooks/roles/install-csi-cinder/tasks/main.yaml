@@ -143,4 +143,21 @@
       set -o pipefail
 
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
-      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0 -report-dir="/var/log/" | tee "/var/log/cinder-csi-e2e.log"
+      mkdir /var/log/csi-pod
+      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0 -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
+  register: functional_test_result
+  ignore_errors: true
+
+- name: Collect pod logs for debug purpose
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -x
+      set -e
+      
+      kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
+      kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
+  ignore_errors: true
+
+- fail: msg="The execution has failed because of errors."
+  when: functional_test_result.failed

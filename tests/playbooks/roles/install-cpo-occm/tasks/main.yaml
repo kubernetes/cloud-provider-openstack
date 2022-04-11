@@ -18,7 +18,7 @@
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
 
       REGISTRY={{ image_registry_host }} \
-      VERSION={{ github_pr }} \
+      VERSION=v0.0.{{ github_pr }} \
       IMAGE_NAMES=openstack-cloud-controller-manager \
       make upload-image-amd64
 
@@ -136,7 +136,7 @@
   register: check_occm
   until: check_occm.rc == 0
   retries: 24
-  delay: 5  
+  delay: 5
   ignore_errors: true
 
 - name: Gather additional evidence if openstack-cloud-controller-manager failed to come up
@@ -153,6 +153,12 @@
     - name: Log failed openstack-cloud-controller-manager deployment
       debug:
         var: describe_occm.stdout_lines
+
+    - name: Show openstack-cloud-controller-manager pod logs
+      shell:
+        executable: /bin/bash
+        cmd: |
+          kubectl -n kube-system logs deployment/openstack-cloud-controller-manager
 
     - name: &failmsg Stop due to prior failure of openstack-cloud-controller-manager
       fail:
