@@ -126,6 +126,7 @@
           tag: {{ github_pr }}
       shareProtocols:
         - protocolSelector: NFS
+          fsGroupPolicy: None
           fwdNodePluginEndpoint:
             dir: /var/lib/kubelet/plugins/csi-nfsplugin
             sockFile: csi.sock
