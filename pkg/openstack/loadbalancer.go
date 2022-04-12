@@ -1877,9 +1877,6 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			// After all ports have been processed, remaining listeners are removed if they were created by this Service.
-			curListeners = popListener(curListeners, listener.ID)
-
 			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, lbName)), listener, service, port, nodes, svcConf)
 			if err != nil {
 				return nil, err
@@ -1888,6 +1885,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cutString(fmt.Sprintf("monitor_%d_%s", portIndex, lbName)), pool, port, svcConf); err != nil {
 				return nil, err
 			}
+
+			// After all ports have been processed, remaining listeners are removed if they were created by this Service.
+			// The remove of the listener must always happen at the end of the loop to avoid wrong assignment.
+			// Modifying the curListeners would also change the mapping.
+			curListeners = popListener(curListeners, listener.ID)
 		}
 
 		// Deal with the remaining listeners, delete the listener if it was created by this Service previously.
