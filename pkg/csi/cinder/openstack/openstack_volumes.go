@@ -369,16 +369,26 @@ func (os *OpenStack) GetMaxVolLimit() int64 {
 
 // diskIsAttached queries if a volume is attached to a compute instance
 func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
-	volume, err := os.GetVolume(volumeID)
-	if err != nil {
-		return false, err
-	}
-	for _, att := range volume.Attachments {
-		if att.ServerID == instanceID {
-			return true, nil
+	foundAttachment := false
+	err := volumeattach.List(os.compute, instanceID).EachPage(func(page pagination.Page) (bool, error) {
+		attachments, err := volumeattach.ExtractVolumeAttachments(page)
+		if err != nil {
+			return false, err
 		}
+		for _, attachment := range attachments {
+			if attachment.VolumeID == volumeID && attachment.ServerID == instanceID {
+				klog.V(4).Infof("Found volume attachment %s for server %s and volume %s", attachment.ID, instanceID, volumeID)
+				foundAttachment = true
+				return false, nil
+			}
+		}
+		klog.V(4).Infof("Unable to find volume attachment for server %s and volume %s", instanceID, volumeID)
+		return false, nil
+	})
+	if err != nil {
+		return foundAttachment, err
 	}
-	return false, nil
+	return foundAttachment, nil
 }
 
 // diskIsUsed returns true a disk is attached to any node.
