@@ -359,7 +359,7 @@ func getLoadbalancerByName(client *gophercloud.ServiceClient, name string, legac
 		Name: name,
 	}
 	allLoadbalancers, err := openstackutil.GetLoadBalancers(client, opts)
-	if err != nil {
+	if err != nil && !cpoerrors.IsNotFound(err) {
 		return nil, err
 	}
 
@@ -370,7 +370,7 @@ func getLoadbalancerByName(client *gophercloud.ServiceClient, name string, legac
 				Name: legacyName,
 			}
 			allLoadbalancers, err = openstackutil.GetLoadBalancers(client, opts)
-			if err != nil {
+			if err != nil && !cpoerrors.IsNotFound(err) {
 				return nil, err
 			}
 		} else {
