@@ -162,16 +162,14 @@ func (i *Instances) InstanceExists(ctx context.Context, node *v1.Node) (bool, er
 	return i.InstanceExistsByProviderID(ctx, node.Spec.ProviderID)
 }
 
-// InstanceExistsByProviderID returns true if the instance with the given provider id still exists.
-// If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
-func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
+func instanceExistsByProviderID(ctx context.Context, compute *gophercloud.ServiceClient, providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 	if err != nil {
 		return false, err
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	_, err = servers.Get(i.compute, instanceID).Extract()
+	_, err = servers.Get(compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
@@ -182,22 +180,26 @@ func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID s
 	return true, nil
 }
 
+// InstanceExistsByProviderID returns true if the instance with the given provider id still exists.
+// If false is returned with no error, the instance will be immediately deleted by the cloud controller manager.
+func (i *Instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
+	return instanceExistsByProviderID(ctx, i.compute, providerID)
+}
+
 // InstanceShutdown returns true if the instances is in safe state to detach volumes.
 // It is the only state, where volumes can be detached immediately.
 func (i *Instances) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
 	return i.InstanceShutdownByProviderID(ctx, node.Spec.ProviderID)
 }
 
-// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes.
-// It is the only state, where volumes can be detached immediately.
-func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
+func instanceShutdownByProviderID(ctx context.Context, compute *gophercloud.ServiceClient, providerID string) (bool, error) {
 	instanceID, err := instanceIDFromProviderID(providerID)
 	if err != nil {
 		return false, err
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(i.compute, instanceID).Extract()
+	server, err := servers.Get(compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return false, err
 	}
@@ -207,6 +209,12 @@ func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID
 		return true, nil
 	}
 	return false, nil
+}
+
+// InstanceShutdownByProviderID returns true if the instances is in safe state to detach volumes.
+// It is the only state, where volumes can be detached immediately.
+func (i *Instances) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
+	return instanceShutdownByProviderID(ctx, i.compute, providerID)
 }
 
 // InstanceMetadata returns metadata of the specified instance.
