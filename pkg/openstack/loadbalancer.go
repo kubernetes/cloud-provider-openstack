@@ -1930,6 +1930,13 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
 	}
 
+	if lbaas.opts.ManageSecurityGroups {
+		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer)
+		if err != nil {
+			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
+		}
+	}
+
 	return status, nil
 }
 
@@ -2754,6 +2761,13 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, loadbalancer.Name)), &listener, service, port, nodes, svcConf)
 		if err != nil {
 			return err
+		}
+	}
+
+	if lbaas.opts.ManageSecurityGroups {
+		err := lbaas.updateSecurityGroup(clusterName, service, nodes)
+		if err != nil {
+			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
 	}
 
