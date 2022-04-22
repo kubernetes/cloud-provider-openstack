@@ -2253,7 +2253,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 				monitorProtocol = "UDP-CONNECT"
 			}
 			createOpts := v2monitors.CreateOpts{
-				Name:       cutString(fmt.Sprintf("monitor_%d_%s)", portIndex, name)),
+				Name:       cutString(fmt.Sprintf("monitor_%d_%s", portIndex, name)),
 				PoolID:     pool.ID,
 				Type:       monitorProtocol,
 				Delay:      int(lbaas.opts.MonitorDelay.Duration.Seconds()),
