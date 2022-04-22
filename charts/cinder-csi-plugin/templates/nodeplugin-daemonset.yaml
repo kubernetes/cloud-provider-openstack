@@ -89,6 +89,9 @@ spec:
               mountPath: /dev
               mountPropagation: "HostToContainer"
             {{- .Values.csi.plugin.volumeMounts | toYaml | trimSuffix "\n" | nindent 12 }}
+            - name: cloud-config
+              mountPath: /etc/kubernetes
+              readOnly: true
           resources: {{ toYaml .Values.csi.plugin.resources | nindent 12 }}
       volumes:
         - name: socket-dir
