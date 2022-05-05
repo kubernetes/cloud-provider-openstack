@@ -2,6 +2,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: {{ include "cinder-csi.name" . }}-controllerplugin
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 spec:
