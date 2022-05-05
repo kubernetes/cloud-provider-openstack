@@ -11,7 +11,7 @@
 # limitations under the License.
 
 ARG ALPINE_ARCH=amd64
-FROM ${ALPINE_ARCH}/alpine:3.15
+FROM ${ALPINE_ARCH}/alpine:3.15.4
 
 ARG ARCH=amd64
 
