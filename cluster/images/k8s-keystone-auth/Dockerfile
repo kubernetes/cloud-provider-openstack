@@ -13,7 +13,7 @@
 ARG ALPINE_ARCH=amd64
 # We not using scratch because we need to keep the basic image information
 # from parent image
-FROM ${ALPINE_ARCH}/alpine:3.15
+FROM ${ALPINE_ARCH}/alpine:3.15.4
 
 ARG ARCH=amd64
 
