@@ -175,7 +175,7 @@ fmt:
 lint:
 ifndef HAS_LINT
 	echo "installing lint"
-	go get -u golang.org/x/lint/golint
+	go install golang.org/x/lint/golint@latest
 endif
 	hack/verify-golint.sh
 
