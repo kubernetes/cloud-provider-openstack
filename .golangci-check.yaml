@@ -1,0 +1,14 @@
+run:
+  timeout: 10m0s
+linters:
+  disable:
+    - megacheck
+    - ineffassign
+    - structcheck
+    - errcheck
+    - deadcode
+    - varcheck
+  enable:
+    - gofmt
+output:
+  format: line-number

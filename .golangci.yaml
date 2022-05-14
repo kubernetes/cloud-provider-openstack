@@ -1,0 +1,7 @@
+run:
+  timeout: 10m0s
+linters:
+  enable:
+    - gofmt
+output:
+  format: line-number

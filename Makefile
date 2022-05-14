@@ -21,7 +21,6 @@ export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk '/^module/ { print $$2 }' go.mod)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
 SOURCES := $(shell find $(DEST) -name '*.go' 2>/dev/null)
-HAS_LINT := $(shell command -v golint;)
 HAS_GOX := $(shell command -v gox;)
 GOX_PARALLEL ?= 3
 
@@ -155,7 +154,14 @@ build-cmd-%: work $(SOURCES)
 
 test: unit functional
 
-check: work fmt vet lint
+check: work
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.1 run ./... --config .golangci-check.yaml
+
+# NOTE(chrigl): ci actually runs make check. Because golint didn't run on the code for quite some
+# time, most linters in make check are disabled. codehygiene serves as a helper to further
+# improve the quality of the code base.
+codeclimate: work
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.1 run ./...
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
@@ -169,18 +175,10 @@ test-cinder-csi-sanity: work
 test-manila-csi-sanity: work
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
 
-fmt:
-	hack/verify-gofmt.sh
-
-lint:
-ifndef HAS_LINT
-	echo "installing lint"
-	go install golang.org/x/lint/golint@latest
-endif
-	hack/verify-golint.sh
-
-vet:
-	go vet ./...
+# kept for compatibility reasons.
+fmt: check
+lint: check
+vet: check
 
 cover: work
 	go test -tags=unit $(shell go list ./...) -cover
@@ -326,4 +324,4 @@ dist: build-cross
 	)
 
 .PHONY: bindep build clean cover work docs fmt functional lint realclean \
-	relnotes test translation version build-cross dist
+	relnotes test translation version build-cross dist codeclimate
