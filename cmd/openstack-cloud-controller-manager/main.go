@@ -37,7 +37,6 @@ import (
 	_ "k8s.io/component-base/metrics/prometheus/restclient" // for client metric registration
 	_ "k8s.io/component-base/metrics/prometheus/version"    // for version metric registration
 	"k8s.io/klog/v2"
-	_ "k8s.io/kubernetes/pkg/features" // add the kubernetes feature gates
 
 	"k8s.io/cloud-provider-openstack/pkg/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/version"

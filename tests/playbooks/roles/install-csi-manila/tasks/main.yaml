@@ -213,9 +213,9 @@
 
       set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
 
-      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack/tests/e2e
 
       # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
       OS_RC={{ devstack_workdir }}/openrc \
-      go test -v ./cmd/tests/manila-csi-e2e-suite/manila_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[manila-csi-e2e\]" -ginkgo.noColor -timeout=0
+      go test -v ./cmd/manila-csi-e2e-suite/ -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[manila-csi-e2e\]" -ginkgo.noColor -timeout=0

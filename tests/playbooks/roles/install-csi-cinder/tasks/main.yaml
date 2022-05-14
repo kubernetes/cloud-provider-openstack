@@ -142,9 +142,9 @@
       set -e
       set -o pipefail
 
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack/tests/e2e
       mkdir /var/log/csi-pod
-      go test -v ./cmd/tests/cinder-csi-e2e-suite/cinder_csi_e2e_suite_test.go -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0 -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
+      go test -v ./cmd/cinder-csi-e2e-suite/ -ginkgo.v -ginkgo.progress -ginkgo.skip="\[Disruptive\]" -ginkgo.focus="\[cinder-csi-e2e\]" -ginkgo.noColor -timeout=0 -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
   ignore_errors: true
 
