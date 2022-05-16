@@ -183,6 +183,10 @@ func LoadPublicCloudsYAML() (map[string]Cloud, error) {
 
 // GetCloudFromYAML will return a cloud entry from a clouds.yaml file.
 func GetCloudFromYAML(opts *ClientOpts) (*Cloud, error) {
+	if opts == nil {
+		opts = new(ClientOpts)
+	}
+
 	if opts.YAMLOpts == nil {
 		opts.YAMLOpts = new(YAMLOpts)
 	}
@@ -197,19 +201,18 @@ func GetCloudFromYAML(opts *ClientOpts) (*Cloud, error) {
 	// Determine which cloud to use.
 	// First see if a cloud name was explicitly set in opts.
 	var cloudName string
-	if opts != nil && opts.Cloud != "" {
+	if opts.Cloud != "" {
 		cloudName = opts.Cloud
-	}
+	} else {
+		// If not, see if a cloud name was specified as an environment variable.
+		envPrefix := "OS_"
+		if opts.EnvPrefix != "" {
+			envPrefix = opts.EnvPrefix
+		}
 
-	// Next see if a cloud name was specified as an environment variable.
-	// This is supposed to override an explicit opts setting.
-	envPrefix := "OS_"
-	if opts.EnvPrefix != "" {
-		envPrefix = opts.EnvPrefix
-	}
-
-	if v := env.Getenv(envPrefix + "CLOUD"); v != "" {
-		cloudName = v
+		if v := env.Getenv(envPrefix + "CLOUD"); v != "" {
+			cloudName = v
+		}
 	}
 
 	var cloud *Cloud
@@ -351,16 +354,17 @@ func AuthOptions(opts *ClientOpts) (*gophercloud.AuthOptions, error) {
 	var cloudName string
 	if opts.Cloud != "" {
 		cloudName = opts.Cloud
-	}
+	} else {
+		// If not, see if a cloud name was specified as an environment
+		// variable.
+		envPrefix := "OS_"
+		if opts.EnvPrefix != "" {
+			envPrefix = opts.EnvPrefix
+		}
 
-	// Next see if a cloud name was specified as an environment variable.
-	envPrefix := "OS_"
-	if opts.EnvPrefix != "" {
-		envPrefix = opts.EnvPrefix
-	}
-
-	if v := env.Getenv(envPrefix + "CLOUD"); v != "" {
-		cloudName = v
+		if v := env.Getenv(envPrefix + "CLOUD"); v != "" {
+			cloudName = v
+		}
 	}
 
 	// If a cloud name was determined, try to look it up in clouds.yaml.
@@ -912,7 +916,7 @@ func NewServiceClient(service string, opts *ClientOpts) (*gophercloud.ServiceCli
 	case "sharev2":
 		return openstack.NewSharedFileSystemV2(pClient, eo)
 	case "volume":
-		volumeVersion := "2"
+		volumeVersion := "3"
 		if v := cloud.VolumeAPIVersion; v != "" {
 			volumeVersion = v
 		}
