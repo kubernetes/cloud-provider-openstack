@@ -2,6 +2,7 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: {{ include "cinder-csi.name" . }}-nodeplugin
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "cinder-csi.nodeplugin.labels" . | nindent 4 }}
 spec:
