@@ -113,6 +113,8 @@ exit_code=$?
 scp -i ~/.ssh/google_compute_engine \
   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
   -r ${USERNAME}@${PUBLIC_IP}:/var/log/csi-pod/* $ARTIFACTS/logs/ || true
+# Place junit files in a propper location to be picked up by testgrid
+mv $ARTIFACTS/logs/junit* $ARTIFACTS/ || true
 
 # If Boskos is being used then release the resource back to Boskos.
 [ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
