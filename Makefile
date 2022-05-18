@@ -123,7 +123,7 @@ manila-csi-plugin: work $(SOURCES)
 # Remove this individual go build target, once we remove
 # image-controller-manager below.
 openstack-cloud-controller-manager: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
 		-ldflags $(LDFLAGS) \
 		-o openstack-cloud-controller-manager-$(ARCH) \
 		cmd/openstack-cloud-controller-manager/main.go
@@ -305,7 +305,7 @@ version:
 build-cross: work
 ifndef HAS_GOX
 	echo "installing gox"
-	go get -u github.com/mitchellh/gox
+	go install github.com/mitchellh/gox
 endif
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(GOX_LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/openstack-cloud-controller-manager/
 	CGO_ENABLED=0 gox -parallel=$(GOX_PARALLEL) -output="_dist/{{.OS}}-{{.Arch}}/{{.Dir}}" -osarch='$(TARGETS)' $(GOFLAGS) $(if $(TAGS),-tags '$(TAGS)',) -ldflags '$(GOX_LDFLAGS)' $(GIT_HOST)/$(BASE_DIR)/cmd/cinder-csi-plugin/
