@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-    - 'v[0-9]+.[0-9]+.[0-9]+'
+    - 'v[0-9]+.[0-9]+.[0-9]+.*'
 
 jobs:
   release:
@@ -31,10 +31,6 @@ jobs:
       run: |
         REGISTRY=docker.io/k8scloudprovider ARCHS='amd64 arm arm64 ppc64le s390x' GOOS=linux VERSION=${{ github.event.release.tag_name }} make upload-images
 
-    - name: build dist
-      run: |
-        VERSION=${{ github.event.release.tag_name }} make dist
-
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -47,10 +43,3 @@ jobs:
           todo
         draft: true
         prerelease: false
-
-    - name: upload assets
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          _dist/*.tar.gz
-          _dist/*.zip
