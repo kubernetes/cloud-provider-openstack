@@ -22,7 +22,7 @@ $ git tag -m "Release for cloud-provider-openstack to support Kubernetes release
 $ git push upstream vX.Y.Z
 ```
 
-3. Github Actions will make the new docker images, build the binary packages and make new draft release to repository.
+3. Github Actions will make the new docker images and make new draft release to repository.
 
 4. Update manifests with new release images, create a PR against release branch to update.
 
