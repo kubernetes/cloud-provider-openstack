@@ -30,6 +30,7 @@ Project Co-Leads:
 * @lxkong - Lingxian Kong
 * @ramineni - Anusha Ramineni
 * @chrigl - Christoph Glaubitz
+* @jichenjc - Chen Ji
 
 ## License
 
