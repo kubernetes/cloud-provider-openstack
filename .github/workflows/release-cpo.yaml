@@ -27,9 +27,13 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: Get the version from ref
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
     - name: build & publish images
       run: |
-        REGISTRY=docker.io/k8scloudprovider ARCHS='amd64 arm arm64 ppc64le s390x' GOOS=linux VERSION=${{ github.event.release.tag_name }} make upload-images
+        REGISTRY=docker.io/k8scloudprovider ARCHS='amd64 arm arm64 ppc64le s390x' GOOS=linux VERSION=${{ steps.get_version.outputs.VERSION }} make upload-images
 
     - name: Create Release
       id: create_release
