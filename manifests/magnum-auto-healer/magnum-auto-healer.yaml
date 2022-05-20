@@ -85,7 +85,7 @@ spec:
         - effect: NoExecute
           operator: Exists
       nodeSelector:
-        node-role.kubernetes.io/master: ""
+        node-role.kubernetes.io/control-plane: ""
       containers:
         - name: magnum-auto-healer
           image: docker.io/k8scloudprovider/magnum-auto-healer:latest

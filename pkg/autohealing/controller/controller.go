@@ -62,7 +62,11 @@ const (
 
 	// LabelNodeRoleMaster specifies that a node is a master
 	// Related discussion: https://github.com/kubernetes/kubernetes/pull/39112
+	// TODO: remove >= k8s 1.25
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+
+	// LabelNodeRoleControlPlane specifies that a node is control-plane
+	LabelNodeRoleControlPlane = "node-role.kubernetes.io/control-plane"
 
 	leaderElectionResourceLockNamespace = "kube-system"
 	leaderElectionResourceLockName      = "magnum-auto-healer"
@@ -248,7 +252,9 @@ func (c *Controller) getUnhealthyMasterNodes() ([]healthcheck.NodeInfo, error) {
 		return nil, err
 	}
 	for _, node := range nodeList.Items {
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		_, masterLabel := node.Labels[LabelNodeRoleMaster]
+		_, controlPlaneLabel := node.Labels[LabelNodeRoleControlPlane]
+		if masterLabel || controlPlaneLabel {
 			if time.Now().Before(node.ObjectMeta.GetCreationTimestamp().Add(c.config.CheckDelayAfterAdd)) {
 				log.V(4).Infof("The node %s is created less than the configured check delay, skip", node.Name)
 				continue
@@ -280,7 +286,9 @@ func (c *Controller) getUnhealthyWorkerNodes() ([]healthcheck.NodeInfo, error) {
 		return nil, err
 	}
 	for _, node := range nodeList.Items {
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		_, masterLabel := node.Labels[LabelNodeRoleMaster]
+		_, controlPlaneLabel := node.Labels[LabelNodeRoleControlPlane]
+		if masterLabel || controlPlaneLabel {
 			continue
 		}
 		if len(node.Status.Conditions) == 0 {
