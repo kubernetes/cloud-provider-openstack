@@ -21,7 +21,6 @@ import (
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
@@ -29,6 +28,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -37,7 +37,7 @@ import (
 )
 
 type controllerServer struct {
-	Driver *CinderDriver
+	Driver *Driver
 	Cloud  openstack.IOpenStack
 }
 
@@ -327,13 +327,13 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
 
 	name := req.Name
-	volumeId := req.GetSourceVolumeId()
+	volumeID := req.GetSourceVolumeId()
 
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
 	}
 
-	if volumeId == "" {
+	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided in CreateSnapshot request")
 	}
 
@@ -350,11 +350,11 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	if len(snapshots) == 1 {
 		snap = &snapshots[0]
 
-		if snap.VolumeID != volumeId {
+		if snap.VolumeID != volumeID {
 			return nil, status.Error(codes.AlreadyExists, "Snapshot with given name already exists, with different source volume ID")
 		}
 
-		klog.V(3).Infof("Found existing snapshot %s on %s", name, volumeId)
+		klog.V(3).Infof("Found existing snapshot %s on %s", name, volumeID)
 
 	} else if len(snapshots) > 1 {
 		klog.Errorf("found multiple existing snapshots with selected name (%s) during create", name)
@@ -375,17 +375,17 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		}
 
 		// TODO: Delegate the check to openstack itself and ignore the conflict
-		snap, err = cs.Cloud.CreateSnapshot(name, volumeId, &properties)
+		snap, err = cs.Cloud.CreateSnapshot(name, volumeID, &properties)
 		if err != nil {
 			klog.Errorf("Failed to Create snapshot: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot failed with error %v", err))
 		}
 
-		klog.V(3).Infof("CreateSnapshot %s on %s", name, volumeId)
+		klog.V(3).Infof("CreateSnapshot %s on %s", name, volumeID)
 	}
 
-	ctime, err := ptypes.TimestampProto(snap.CreatedAt)
-	if err != nil {
+	ctime := timestamppb.New(snap.CreatedAt)
+	if err := ctime.CheckValid(); err != nil {
 		klog.Errorf("Error to convert time to timestamp: %v", err)
 	}
 
@@ -441,7 +441,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 			return nil, status.Errorf(codes.Internal, "Failed to GetSnapshot %s : %v", snapshotID, err)
 		}
 
-		ctime, err := ptypes.TimestampProto(snap.CreatedAt)
+		ctime := timestamppb.New(snap.CreatedAt)
 
 		entry := &csi.ListSnapshotsResponse_Entry{
 			Snapshot: &csi.Snapshot{
@@ -456,7 +456,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		entries := []*csi.ListSnapshotsResponse_Entry{entry}
 		return &csi.ListSnapshotsResponse{
 			Entries: entries,
-		}, err
+		}, ctime.CheckValid()
 
 	}
 
@@ -484,8 +484,8 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 
 	var sentries []*csi.ListSnapshotsResponse_Entry
 	for _, v := range slist {
-		ctime, err := ptypes.TimestampProto(v.CreatedAt)
-		if err != nil {
+		ctime := timestamppb.New(v.CreatedAt)
+		if err := ctime.CheckValid(); err != nil {
 			klog.Errorf("Error to convert time to timestamp: %v", err)
 		}
 		sentry := csi.ListSnapshotsResponse_Entry{
@@ -520,7 +520,7 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 
 	reqVolCap := req.GetVolumeCapabilities()
 
-	if reqVolCap == nil || len(reqVolCap) == 0 {
+	if len(reqVolCap) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "ValidateVolumeCapabilities Volume Capabilities must be provided")
 	}
 	volumeID := req.GetVolumeId()
@@ -558,7 +558,7 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 }
 
 func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	return nil, status.Error(codes.Unimplemented, fmt.Sprintf("GetCapacity is not yet implemented"))
+	return nil, status.Error(codes.Unimplemented, "GetCapacity is not yet implemented")
 }
 
 func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {

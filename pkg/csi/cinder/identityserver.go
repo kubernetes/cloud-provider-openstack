@@ -25,7 +25,7 @@ import (
 )
 
 type identityServer struct {
-	Driver *CinderDriver
+	Driver *Driver
 }
 
 func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {

@@ -19,7 +19,6 @@ package openstack
 import (
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/gophercloud/gophercloud"
@@ -31,7 +30,7 @@ var fakeFileName = "cloud.conf"
 var fakeOverrideFileName = "cloud-override.conf"
 var fakeUserName = "user"
 var fakePassword = "pass"
-var fakeAuthUrl = "https://169.254.169.254/identity/v3"
+var fakeAuthURL = "https://169.254.169.254/identity/v3"
 var fakeTenantID = "c869168a828847f39f7f06edd7305637"
 var fakeDomainID = "2a73b8f597c04551a0fdc8e95544be8a"
 var fakeRegion = "RegionOne"
@@ -45,7 +44,7 @@ func TestGetConfigFromFiles(t *testing.T) {
 [Global]
 username=` + fakeUserName + `
 password=` + fakePassword + `
-auth-url=` + fakeAuthUrl + `
+auth-url=` + fakeAuthURL + `
 tenant-id=` + fakeTenantID + `
 domain-id=` + fakeDomainID + `
 ca-file=` + fakeCAfile + `
@@ -71,7 +70,7 @@ rescan-on-resize=true`
 	expectedOpts.Global.Username = fakeUserName
 	expectedOpts.Global.Password = fakePassword
 	expectedOpts.Global.DomainID = fakeDomainID
-	expectedOpts.Global.AuthURL = fakeAuthUrl
+	expectedOpts.Global.AuthURL = fakeAuthURL
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
@@ -152,7 +151,7 @@ rescan-on-resize=true`
 	expectedOpts.Global.Username = fakeUserName
 	expectedOpts.Global.Password = fakePassword
 	expectedOpts.Global.DomainID = fakeDomainID
-	expectedOpts.Global.AuthURL = fakeAuthUrl
+	expectedOpts.Global.AuthURL = fakeAuthURL
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
@@ -206,26 +205,5 @@ func TestUserAgentFlag(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func clearEnviron(t *testing.T) []string {
-	env := os.Environ()
-	for _, pair := range env {
-		if strings.HasPrefix(pair, "OS_") {
-			i := strings.Index(pair, "=") + 1
-			os.Unsetenv(pair[:i-1])
-		}
-	}
-	return env
-}
-func resetEnviron(t *testing.T, items []string) {
-	for _, pair := range items {
-		if strings.HasPrefix(pair, "OS_") {
-			i := strings.Index(pair, "=") + 1
-			if err := os.Setenv(pair[:i-1], pair[i:]); err != nil {
-				t.Errorf("Setenv(%q, %q) failed during reset: %v", pair[:i-1], pair[i:], err)
-			}
-		}
 	}
 }

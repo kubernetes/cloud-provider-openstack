@@ -60,7 +60,7 @@ type IOpenStack interface {
 	GetInstanceByID(instanceID string) (*servers.Server, error)
 	ExpandVolume(volumeID string, status string, size int) error
 	GetMaxVolLimit() int64
-	GetMetadataOpts() metadata.MetadataOpts
+	GetMetadataOpts() metadata.Opts
 	GetBlockStorageOpts() BlockStorageOpts
 }
 
@@ -69,7 +69,7 @@ type OpenStack struct {
 	blockstorage *gophercloud.ServiceClient
 	bsOpts       BlockStorageOpts
 	epOpts       gophercloud.EndpointOpts
-	metadataOpts metadata.MetadataOpts
+	metadataOpts metadata.Opts
 }
 
 type BlockStorageOpts struct {
@@ -80,7 +80,7 @@ type BlockStorageOpts struct {
 
 type Config struct {
 	Global       client.AuthOpts
-	Metadata     metadata.MetadataOpts
+	Metadata     metadata.Opts
 	BlockStorage BlockStorageOpts
 }
 
@@ -127,9 +127,8 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 
 const defaultMaxVolAttachLimit int64 = 256
 
-var OsInstance IOpenStack = nil
+var OsInstance IOpenStack
 var configFiles = []string{"/etc/cloud.conf"}
-var cfg Config
 
 func InitOpenStackProvider(cfgFiles []string) {
 	configFiles = cfgFiles
@@ -200,6 +199,6 @@ func GetOpenStackProvider() (IOpenStack, error) {
 }
 
 // GetMetadataOpts returns metadataopts
-func (os *OpenStack) GetMetadataOpts() metadata.MetadataOpts {
+func (os *OpenStack) GetMetadataOpts() metadata.Opts {
 	return os.metadataOpts
 }
