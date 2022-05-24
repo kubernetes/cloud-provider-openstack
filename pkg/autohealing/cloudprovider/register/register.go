@@ -70,8 +70,7 @@ func registerOpenStack(cfg config.Config, kubeClient kubernetes.Interface) (clou
 		return nil, fmt.Errorf("failed to find Cinder service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
 	}
 
-	var p cloudprovider.CloudProvider
-	p = openstack.OpenStackCloudProvider{
+	p := openstack.CloudProvider{
 		KubeClient: kubeClient,
 		Nova:       novaClient,
 		Heat:       heatClient,

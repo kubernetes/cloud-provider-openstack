@@ -37,7 +37,9 @@ import (
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
+	// revive:disable:blank-imports
 	_ "k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/register"
+	// revive:enable:blank-imports
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
 )
@@ -329,7 +331,7 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 					newNode.Spec.Unschedulable = true
 
 					// Skip cordon for master node
-					if node.IsWorker == false {
+					if !node.IsWorker {
 						continue
 					}
 					if _, err := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
@@ -407,21 +409,22 @@ func (c *Controller) Start(ctx context.Context) {
 	for {
 		masterUnhealthyNodes = []healthcheck.NodeInfo{}
 		workerUnhealthyNodes = []healthcheck.NodeInfo{}
-		select {
-		case <-ticker.C:
-			if c.config.MasterMonitorEnabled {
-				wg.Add(1)
-				go c.startMasterMonitor(&wg)
-			}
-			if c.config.WorkerMonitorEnabled {
-				wg.Add(1)
-				go c.startWorkerMonitor(&wg)
-			}
+		<-ticker.C
+		if c.config.MasterMonitorEnabled {
+			wg.Add(1)
+			go c.startMasterMonitor(&wg)
+		}
+		if c.config.WorkerMonitorEnabled {
+			wg.Add(1)
+			go c.startWorkerMonitor(&wg)
+		}
 
-			wg.Wait()
+		wg.Wait()
 
-			if c.provider.Enabled() {
-				c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
+		if c.provider.Enabled() {
+			err := c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
+			if err != nil {
+				log.Warningf("Unable to update health status. Retrying. %v", err)
 			}
 		}
 	}
