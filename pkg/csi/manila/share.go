@@ -137,7 +137,7 @@ func extendShare(shareID string, newSizeInGiB int, manilaClient manilaclient.Int
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
 		}
 
-		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to resize volume %s: %v", share.Name, err)
+		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to resize volume %s: %v", share.Name, err)
 	}
 
 	return share, nil

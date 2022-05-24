@@ -28,11 +28,10 @@ import (
 )
 
 const (
-	snapshotCreating      = "creating"
-	snapshotDeleting      = "deleting"
-	snapshotError         = "error"
-	snapshotErrorDeleting = "error_deleting"
-	snapshotAvailable     = "available"
+	snapshotCreating  = "creating"
+	snapshotDeleting  = "deleting"
+	snapshotError     = "error"
+	snapshotAvailable = "available"
 
 	snapshotDescription = "snapshotted-by=manila.csi.openstack.org"
 )
