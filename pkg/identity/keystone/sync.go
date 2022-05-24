@@ -215,7 +215,7 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 				Name: namespaceName,
 			},
 		}
-		namespace, err = s.k8sClient.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+		_, err := s.k8sClient.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
 		if err != nil {
 			klog.Warningf("Cannot create a namespace for the user: %v", err)
 			return errors.New("internal server error")
@@ -296,7 +296,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 				Name:     roleName,
 			},
 		}
-		roleBinding, err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
+		_, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
 		if err != nil {
 			klog.Warningf("Cannot create a role binding for the user: %v", err)
 			return errors.New("internal server error")
