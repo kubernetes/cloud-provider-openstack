@@ -182,9 +182,6 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Whether or not to enable the LoadBalancer type of Services integration at all.
    Default: true
 
-* `use-octavia`
-  Whether or not to use Octavia for LoadBalancer type of Service implementation instead of using Neutron-LBaaS. Default: true
-
 * `floating-network-id`
   Optional. The external network used to create floating IP for the load balancer VIP. If there are multiple external networks in the cloud, either this option must be set or user must specify `loadbalancer.openstack.org/floating-network-id` in the Service annotation.
 
@@ -240,7 +237,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   The id of the loadbalancer flavor to use. Uses octavia default if not set.
 
 * `availability-zone`
-  The name of the loadbalancer availability zone to use. It is applicable if use-octavia is set to True and requires Octavia API version 2.14 or later (Ussuri release). The Octavia availability zone capabilities will not be used if it is not set. The parameter will be ignored if the Octavia version doesn't support availability zones yet.
+  The name of the loadbalancer availability zone to use. The Octavia availability zone capabilities will not be used if it is not set. The parameter will be ignored if the Octavia version doesn't support availability zones yet.
 
 * `LoadBalancerClass "ClassName"`
   This is a config section including a set of config options. User can choose the `ClassName` by specifying the Service annotation `loadbalancer.openstack.org/class`. The following options are supported:
