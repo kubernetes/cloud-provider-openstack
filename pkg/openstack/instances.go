@@ -47,7 +47,7 @@ import (
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
 	compute        *gophercloud.ServiceClient
-	opts           metadata.MetadataOpts
+	opts           metadata.Opts
 	networkingOpts NetworkingOpts
 }
 

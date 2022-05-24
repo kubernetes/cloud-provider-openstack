@@ -93,7 +93,7 @@ func runTag(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, expec
 	spec.subnetTags = "!" + spec.subnetTags
 	runMatch(t, subnet, spec, !expected)
 
-	if strings.Index(spec.subnetTags, ",") < 0 {
+	if !strings.Contains(spec.subnetTags, ",") {
 		spec.subnetTags = "other"
 		runMatch(t, subnet, spec, !expected)
 
