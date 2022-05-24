@@ -155,12 +155,6 @@ build-cmd-%: work $(SOURCES)
 test: unit functional
 
 check: work
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.1 run ./... --config .golangci-check.yaml
-
-# NOTE(chrigl): ci actually runs make check. Because golint didn't run on the code for quite some
-# time, most linters in make check are disabled. codehygiene serves as a helper to further
-# improve the quality of the code base.
-codeclimate: work
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.46.1 run ./...
 
 unit: work
