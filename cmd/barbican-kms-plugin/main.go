@@ -33,24 +33,21 @@ var (
 	cloudconfig string
 )
 
-func init() {
-	flag.Set("logtostderr", "true")
-}
-
 func main() {
 	// Glog requires this otherwise it complains.
-	flag.CommandLine.Parse(nil)
+	if err := flag.CommandLine.Parse(nil); err != nil {
+		klog.Fatalf("Unable to parse flags: %v", err)
+	}
 	// This is a temporary hack to enable proper logging until upstream dependencies
 	// are migrated to fully utilize klog instead of glog.
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
-
 	// Sync the glog and klog flags.
 	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
 		f2 := klogFlags.Lookup(f1.Name)
 		if f2 != nil {
 			value := f1.Value.String()
-			f2.Value.Set(value)
+			_ = f2.Value.Set(value)
 		}
 	})
 
@@ -68,10 +65,14 @@ func main() {
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	cmd.PersistentFlags().StringVar(&socketpath, "socketpath", "", "Barbican KMS Plugin unix socket endpoint")
-	cmd.MarkPersistentFlagRequired("socketpath")
+	if err := cmd.MarkPersistentFlagRequired("socketpath"); err != nil {
+		klog.Fatalf("Unable to mark flag socketpath to be required: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "Barbican KMS Plugin cloud config")
-	cmd.MarkPersistentFlagRequired("cloud-config")
+	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
+		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
+	}
 
 	code := cli.Run(cmd)
 	os.Exit(code)
