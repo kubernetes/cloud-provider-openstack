@@ -64,8 +64,13 @@ var MetadataService IMetadata
 // Metadata is fixed for the current host, so cache the value process-wide
 var metadataCache *Metadata
 
-// MetadataOpts is used for configuring how to talk to metadata service or config drive
-type MetadataOpts struct {
+// revive:disable:exported
+// Deprecated: use Opts instead
+type MetadataOpts = Opts
+
+// revive:enable:exported
+// Opts is used for configuring how to talk to metadata service or config drive
+type Opts struct {
 	SearchOrder    string          `gcfg:"search-order"`
 	RequestTimeout util.MyDuration `gcfg:"request-timeout"`
 }
@@ -173,7 +178,7 @@ func getFromConfigDrive(metadataVersion string) (*Metadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error mounting configdrive %s: %v", dev, err)
 	}
-	defer mounter.Unmount(mntdir)
+	defer func() { _ = mounter.Unmount(mntdir) }()
 
 	klog.V(4).Infof("Configdrive mounted on %s", mntdir)
 
