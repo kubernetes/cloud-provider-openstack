@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	pb "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1"
-	"os"
 )
 
 //This client is for test purpose only, Kubernetes api server will call to kms plugin grpc server
@@ -13,7 +15,7 @@ import (
 func main() {
 
 	connection, err := grpc.Dial("unix:///var/lib/kms/kms.sock", grpc.WithInsecure())
-	defer connection.Close()
+	defer func() { _ = connection.Close() }()
 	if err != nil {
 		fmt.Printf("\nConnection to KMS plugin failed, error: %v", err)
 	}
@@ -49,6 +51,9 @@ func main() {
 	}
 
 	decResponse, err := kmsClient.Decrypt(context.TODO(), decRequest)
+	if err != nil {
+		log.Fatalf("Unable to decrypt response: %v", err)
+	}
 
 	fmt.Printf("\n\ndecryption response %v", decResponse)
 }

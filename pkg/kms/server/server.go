@@ -22,15 +22,19 @@ const (
 	runtimeversion = "0.0.1"
 )
 
+type BarbicanService interface {
+	GetSecret(keyID string) ([]byte, error)
+}
+
 // KMSserver struct
 type KMSserver struct {
 	cfg      barbican.Config
-	barbican barbican.BarbicanService
+	barbican BarbicanService
 }
 
 func initConfig(configFilePath string, cfg *barbican.Config) error {
 	config, err := os.Open(configFilePath)
-	defer config.Close()
+	defer func() { _ = config.Close() }()
 	if err != nil {
 		return err
 	}
@@ -72,14 +76,25 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 	gServer := grpc.NewServer()
 	pb.RegisterKeyManagementServiceServer(gServer, s)
 
-	go gServer.Serve(listener)
+	serverCh := make(chan error, 1)
+	go func() {
+		err := gServer.Serve(listener)
+		serverCh <- err
+		close(serverCh)
+	}()
 
 	for {
-		sig := <-sigchan
-		if sig == unix.SIGINT || sig == unix.SIGTERM {
-			fmt.Println("force stop, shutting down grpc server")
-			gServer.GracefulStop()
-			return nil
+		select {
+		case sig := <-sigchan:
+			if sig == unix.SIGINT || sig == unix.SIGTERM {
+				fmt.Println("force stop, shutting down grpc server")
+				gServer.GracefulStop()
+				return nil
+			}
+		case err := <-serverCh:
+			if err != nil {
+				return fmt.Errorf("Failed to listen: %w", err)
+			}
 		}
 	}
 }
