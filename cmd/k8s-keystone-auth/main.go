@@ -28,7 +28,10 @@ import (
 
 func main() {
 	// Glog requires this otherwise it complains.
-	flag.CommandLine.Parse(nil)
+	err := flag.CommandLine.Parse(nil)
+	if err != nil {
+		klog.Fatalf("Unable to parse flags: %v", err)
+	}
 	// This is a temporary hack to enable proper logging until upstream dependencies
 	// are migrated to fully utilize klog instead of glog.
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
@@ -42,7 +45,7 @@ func main() {
 		f2 := klogFlags.Lookup(f1.Name)
 		if f2 != nil {
 			value := f1.Value.String()
-			f2.Value.Set(value)
+			_ = f2.Value.Set(value)
 		}
 	})
 

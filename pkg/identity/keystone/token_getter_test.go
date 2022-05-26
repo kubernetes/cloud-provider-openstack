@@ -47,7 +47,7 @@ func TestTokenGetter(t *testing.T) {
 		}
 		var x AuthRequest
 		body, _ := ioutil.ReadAll(r.Body)
-		json.Unmarshal(body, &x)
+		_ = json.Unmarshal(body, &x)
 		domainName := x.Auth.Identity.Password.User.Domain.Name
 		userName := x.Auth.Identity.Password.User.Name
 		password := x.Auth.Identity.Password.User.Password
@@ -73,7 +73,7 @@ func TestTokenGetter(t *testing.T) {
 							"issued_at": "2015-11-09T00:42:57.527404Z"
 						}
 					}`
-			fmt.Fprintf(w, resp)
+			fmt.Fprint(w, resp)
 		} else {
 			w.WriteHeader(http.StatusUnauthorized)
 		}
@@ -97,7 +97,7 @@ func TestTokenGetter(t *testing.T) {
 	// Incorrect password
 	options.AuthOptions.Password = "wrongpw"
 
-	token, err = GetToken(options)
+	_, err = GetToken(options)
 	if _, ok := err.(gophercloud.ErrDefault401); !ok {
 		t.FailNow()
 	}
@@ -105,6 +105,6 @@ func TestTokenGetter(t *testing.T) {
 	// Invalid auth data
 	options.AuthOptions.Password = ""
 
-	token, err = GetToken(options)
+	_, err = GetToken(options)
 	th.AssertEquals(t, "You must provide a password to authenticate", err.Error())
 }
