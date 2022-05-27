@@ -35,7 +35,10 @@ var (
 		grpc.WithInsecure(),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
-				MaxDelay: time.Second,
+				BaseDelay:  1.0 * time.Second,
+				Multiplier: 1.6,
+				Jitter:     0.2,
+				MaxDelay:   time.Second,
 			},
 		}),
 		grpc.WithBlock(),
