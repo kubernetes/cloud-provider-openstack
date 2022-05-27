@@ -95,10 +95,12 @@ type LoadBalancerOpts struct {
 	CascadeDelete         bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
 	FlavorID              string              `gcfg:"flavor-id"`
 	AvailabilityZone      string              `gcfg:"availability-zone"`
-	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"`   // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
-	IngressHostnameSuffix string              `gcfg:"ingress-hostname-suffix"`   // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
-	TlsContainerRef       string              `gcfg:"default-tls-container-ref"` //  reference to a tls container
-	MaxSharedLB           int                 `gcfg:"max-shared-lb"`             //  Number of Services in maximum can share a single load balancer. Default 2
+	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
+	IngressHostnameSuffix string              `gcfg:"ingress-hostname-suffix"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
+	MaxSharedLB           int                 `gcfg:"max-shared-lb"`           //  Number of Services in maximum can share a single load balancer. Default 2
+	// revive:disable:var-naming
+	TlsContainerRef string `gcfg:"default-tls-container-ref"` //  reference to a tls container
+	// revive:enable:var-naming
 }
 
 // LBClass defines the corresponding floating network, floating subnet or internal subnet ID
@@ -134,7 +136,7 @@ type OpenStack struct {
 	epOpts         *gophercloud.EndpointOpts
 	lbOpts         LoadBalancerOpts
 	routeOpts      RouterOpts
-	metadataOpts   metadata.MetadataOpts
+	metadataOpts   metadata.Opts
 	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
 	localInstanceID string
@@ -147,7 +149,7 @@ type Config struct {
 	LoadBalancer      LoadBalancerOpts
 	LoadBalancerClass map[string]*LBClass
 	Route             RouterOpts
-	Metadata          metadata.MetadataOpts
+	Metadata          metadata.Opts
 	Networking        NetworkingOpts
 }
 
