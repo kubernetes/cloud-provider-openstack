@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 
 	"k8s.io/klog/v2"
@@ -65,8 +66,9 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		opts.Metadata = *tags
 	}
 
+	mc := metrics.NewMetricContext("volume", "create")
 	vol, err := volumes.Create(os.blockstorage, opts).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -79,6 +81,7 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 	var vols []volumes.Volume
 
 	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
+	mc := metrics.NewMetricContext("volume", "list")
 	err := volumes.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
 		var err error
 
@@ -102,7 +105,7 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 
 		return false, nil
 	})
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, nextPageToken, err
 	}
 
@@ -125,8 +128,9 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 	}
 
 	opts := volumes.ListOpts{Name: n}
+	mc := metrics.NewMetricContext("volume", "list")
 	pages, err := volumes.List(blockstorageClient, opts).AllPages()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -148,15 +152,16 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 		return fmt.Errorf("Cannot delete the volume %q, it's still attached to a node", volumeID)
 	}
 
+	mc := metrics.NewMetricContext("volume", "delete")
 	err = volumes.Delete(os.blockstorage, volumeID, nil).ExtractErr()
-	return err
+	return mc.ObserveRequest(err)
 }
 
 // GetVolume retrieves Volume by its ID.
 func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
-
+	mc := metrics.NewMetricContext("volume", "get")
 	vol, err := volumes.Get(os.blockstorage, volumeID).Extract()
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
 
@@ -189,11 +194,12 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 		computeServiceClient.Microversion = "2.60"
 	}
 
+	mc := metrics.NewMetricContext("volume", "attach")
 	_, err = volumeattach.Create(computeServiceClient, instanceID, &volumeattach.CreateOpts{
 		VolumeID: volume.ID,
 	}).Extract()
 
-	if err != nil {
+	if mc.ObserveRequest(err) != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
 
@@ -276,8 +282,9 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 	// Incase volume is of type multiattach, it could be attached to more than one instance
 	for _, att := range volume.Attachments {
 		if att.ServerID == instanceID {
+			mc := metrics.NewMetricContext("volume", "detach")
 			err = volumeattach.Delete(os.compute, instanceID, volume.ID).ExtractErr()
-			if err != nil {
+			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to detach volume %s from compute %s : %v", volume.ID, instanceID, err)
 			}
 			klog.V(2).Infof("Successfully detached volume: %s from compute: %s", volume.ID, instanceID)
@@ -357,9 +364,11 @@ func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) e
 		// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id40
 		blockstorageClient.Microversion = "3.42"
 
-		return volumeexpand.ExtendSize(blockstorageClient, volumeID, extendOpts).ExtractErr()
+		mc := metrics.NewMetricContext("volume", "expand")
+		return mc.ObserveRequest(volumeexpand.ExtendSize(blockstorageClient, volumeID, extendOpts).ExtractErr())
 	case VolumeAvailableStatus:
-		return volumeexpand.ExtendSize(os.blockstorage, volumeID, extendOpts).ExtractErr()
+		mc := metrics.NewMetricContext("volume", "expand")
+		return mc.ObserveRequest(volumeexpand.ExtendSize(os.blockstorage, volumeID, extendOpts).ExtractErr())
 	}
 
 	// cinder volume can not be expanded when volume status is not volumeInUseStatus or not volumeAvailableStatus
