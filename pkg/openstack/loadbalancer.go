@@ -48,6 +48,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
+	netutils "k8s.io/utils/net"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
@@ -59,10 +60,11 @@ import (
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
 // this timeout is used for waiting until the Loadbalancer provisioning status goes to ACTIVE state.
 const (
-	servicePrefix                   = "kube_service_"
-	defaultLoadBalancerSourceRanges = "0.0.0.0/0"
-	activeStatus                    = "ACTIVE"
-	annotationXForwardedFor         = "X-Forwarded-For"
+	servicePrefix                       = "kube_service_"
+	defaultLoadBalancerSourceRangesIPv4 = "0.0.0.0/0"
+	defaultLoadBalancerSourceRangesIPv6 = "::/0"
+	activeStatus                        = "ACTIVE"
+	annotationXForwardedFor             = "X-Forwarded-For"
 
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
 	ServiceAnnotationLoadBalancerConnLimit            = "loadbalancer.openstack.org/connection-limit"
@@ -346,6 +348,7 @@ type serviceConfig struct {
 	healthMonitorDelay      int
 	healthMonitorTimeout    int
 	healthMonitorMaxRetries int
+	preferredIPFamily       corev1.IPFamily
 }
 
 type listenerKey struct {
@@ -651,8 +654,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 	}
 
 	// In case subnet ID is not configured
-	if lbaas.opts.SubnetID == "" {
-		lbaas.opts.SubnetID = loadbalancer.VipSubnetID
+	if svcConf.lbMemberSubnetID == "" {
 		svcConf.lbMemberSubnetID = loadbalancer.VipSubnetID
 	}
 
@@ -726,7 +728,8 @@ func cutString(original string) string {
 // In case no InternalIP can be found, ExternalIP is tried.
 // If neither InternalIP nor ExternalIP can be found an error is
 // returned.
-func nodeAddressForLB(node *corev1.Node) (string, error) {
+// If preferredIPFamily is specified, only address of the specified IP family can be returned.
+func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
 	addrs := node.Status.Addresses
 	if len(addrs) == 0 {
 		return "", cpoerrors.ErrNoAddressFound
@@ -737,7 +740,18 @@ func nodeAddressForLB(node *corev1.Node) (string, error) {
 	for _, allowedAddrType := range allowedAddrTypes {
 		for _, addr := range addrs {
 			if addr.Type == allowedAddrType {
-				return addr.Address, nil
+				switch preferredIPFamily {
+				case corev1.IPv4Protocol:
+					if netutils.IsIPv4String(addr.Address) {
+						return addr.Address, nil
+					}
+				case corev1.IPv6Protocol:
+					if netutils.IsIPv6String(addr.Address) {
+						return addr.Address, nil
+					}
+				default:
+					return addr.Address, nil
+				}
 			}
 		}
 	}
@@ -801,8 +815,8 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
-func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node) (string, error) {
-	ipAddress, err := nodeAddressForLB(&node)
+func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
+	ipAddress, err := nodeAddressForLB(&node, preferredIPFamily)
 	if err != nil {
 		return "", err
 	}
@@ -1308,7 +1322,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 	newMembers := sets.NewString()
 
 	for _, node := range nodes {
-		addr, err := nodeAddressForLB(node)
+		addr, err := nodeAddressForLB(node, svcConf.preferredIPFamily)
 		if err != nil {
 			if err == cpoerrors.ErrNoAddressFound {
 				// Node failure, do not create member
@@ -1477,6 +1491,10 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	}
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
+	if len(service.Spec.IPFamilies) > 0 {
+		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
+	}
+
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
@@ -1497,7 +1515,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 		} else {
 			svcConf.lbMemberSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 			if len(svcConf.lbMemberSubnetID) == 0 && len(nodes) > 0 {
-				subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+				subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], svcConf.preferredIPFamily)
 				if err != nil {
 					return fmt.Errorf("no subnet-id found for service %s: %v", serviceName, err)
 				}
@@ -1549,6 +1567,10 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		return fmt.Errorf("no service ports provided")
 	}
 
+	if len(service.Spec.IPFamilies) > 0 {
+		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
+	}
+
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
@@ -1557,6 +1579,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		if !getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, false) {
 			klog.V(3).InfoS("Enforcing internal LB", "annotation", true, "config", false)
 		}
+		svcConf.internal = true
+	} else if svcConf.preferredIPFamily == corev1.IPv6Protocol {
+		// floating IPs are not supported in IPv6 networks
 		svcConf.internal = true
 	} else {
 		svcConf.internal = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
@@ -1590,13 +1615,12 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.lbMemberSubnetID = svcConf.lbSubnetID
 	}
 	if len(svcConf.lbNetworkID) == 0 && len(svcConf.lbSubnetID) == 0 {
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], svcConf.preferredIPFamily)
 		if err != nil {
 			return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
 		}
 		svcConf.lbSubnetID = subnetID
 		svcConf.lbMemberSubnetID = subnetID
-		lbaas.opts.SubnetID = subnetID
 	}
 
 	if !svcConf.internal {
@@ -1698,7 +1722,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 
 	var listenerAllowedCIDRs []string
-	sourceRanges, err := GetLoadBalancerSourceRanges(service)
+	sourceRanges, err := GetLoadBalancerSourceRanges(service, svcConf.preferredIPFamily)
 	if err != nil {
 		return fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
@@ -1932,7 +1956,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer)
+		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer, svcConf.preferredIPFamily, svcConf.lbMemberSubnetID)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
@@ -1972,7 +1996,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 	if len(lbaas.opts.SubnetID) == 0 && len(lbaas.opts.NetworkID) == 0 {
 		// Get SubnetID automatically.
 		// The LB needs to be configured with instance addresses on the same subnet, so get SubnetID by one node.
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], "")
 		if err != nil {
 			klog.Warningf("Failed to find subnet-id for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 			return nil, fmt.Errorf("no subnet-id for service %s/%s : subnet-id not set in cloud provider config, "+
@@ -2063,7 +2087,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		}
 	}
 
-	sourceRanges, err := GetLoadBalancerSourceRanges(apiService)
+	sourceRanges, err := GetLoadBalancerSourceRanges(apiService, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
@@ -2201,7 +2225,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			return nil, fmt.Errorf("error getting pool members %s: %v", pool.ID, err)
 		}
 		for _, node := range nodes {
-			addr, err := nodeAddressForLB(node)
+			addr, err := nodeAddressForLB(node, "")
 			if err != nil {
 				if err == cpoerrors.ErrNotFound {
 					// Node failure, do not create member
@@ -2418,7 +2442,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureSecurityGroup(clusterName, apiService, nodes, loadbalancer)
+		err := lbaas.ensureSecurityGroup(clusterName, apiService, nodes, loadbalancer, "", lbaas.opts.SubnetID)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", apiService.Namespace, apiService.Name, err)
 		}
@@ -2476,7 +2500,8 @@ func (lbaas *LbaasV2) getSubnet(subnet string) (*subnets.Subnet, error) {
 
 // ensureSecurityGroup ensures security group exist for specific loadbalancer service.
 // Creating security group for specific loadbalancer service when it does not exist.
-func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, loadbalancer *loadbalancers.LoadBalancer) error {
+func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node,
+	loadbalancer *loadbalancers.LoadBalancer, preferredIPFamily corev1.IPFamily, memberSubnetID string) error {
 	// find node-security-group for service
 	var err error
 	if len(lbaas.opts.NodeSecurityGroupIDs) == 0 && !lbaas.opts.UseOctavia {
@@ -2495,7 +2520,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 	}
 
 	// get service source ranges
-	sourceRanges, err := GetLoadBalancerSourceRanges(apiService)
+	sourceRanges, err := GetLoadBalancerSourceRanges(apiService, preferredIPFamily)
 	if err != nil {
 		return fmt.Errorf("failed to get source ranges for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 	}
@@ -2628,9 +2653,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 		// traffic from Octavia amphorae to the node port on the worker nodes.
 		if lbaas.opts.UseOctavia {
 			mc := metrics.NewMetricContext("subnet", "get")
-			subnet, err := subnets.Get(lbaas.network, lbaas.opts.SubnetID).Extract()
+			subnet, err := subnets.Get(lbaas.network, memberSubnetID).Extract()
 			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to find subnet %s from openstack: %v", lbaas.opts.SubnetID, err)
+				return fmt.Errorf("failed to find subnet %s from openstack: %v", memberSubnetID, err)
 			}
 
 			sgListopts := rules.ListOpts{
@@ -2649,6 +2674,11 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 				continue
 			}
 
+			ethertype := rules.EtherType4
+			if netutils.IsIPv6CIDRString(subnet.CIDR) {
+				ethertype = rules.EtherType6
+			}
+
 			// The Octavia amphorae and worker nodes are supposed to be in the same subnet. We allow the ingress traffic
 			// from the amphorae to the specific node port on the nodes.
 			sgRuleCreateOpts := rules.CreateOpts{
@@ -2658,7 +2688,7 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 				Protocol:       toRuleProtocol(port.Protocol),
 				RemoteIPPrefix: subnet.CIDR,
 				SecGroupID:     lbSecGroupID,
-				EtherType:      rules.EtherType4,
+				EtherType:      ethertype,
 			}
 			mc = metrics.NewMetricContext("security_group_rule", "create")
 			_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
@@ -2797,7 +2827,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 	if len(lbaas.opts.SubnetID) == 0 && len(nodes) > 0 {
 		// Get SubnetID automatically.
 		// The LB needs to be configured with instance addresses on the same subnet, so get SubnetID by one node.
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0])
+		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], "")
 		if err != nil {
 			klog.Warningf("Failed to find subnet-id for loadbalancer service %s/%s: %v", service.Namespace, service.Name, err)
 			return fmt.Errorf("no subnet-id for service %s/%s : subnet-id not set in cloud provider config, "+
@@ -2851,7 +2881,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 	// Compose Set of member (addresses) that _should_ exist
 	addrs := make(map[string]*corev1.Node)
 	for _, node := range nodes {
-		addr, err := nodeAddressForLB(node)
+		addr, err := nodeAddressForLB(node, "")
 		if err != nil {
 			return err
 		}
@@ -3332,7 +3362,7 @@ func IsAllowAll(ipnets netsets.IPNet) bool {
 // GetLoadBalancerSourceRanges first try to parse and verify LoadBalancerSourceRanges field from a service.
 // If the field is not specified, turn to parse and verify the AnnotationLoadBalancerSourceRangesKey annotation from a service,
 // extracting the source ranges to allow, and if not present returns a default (allow-all) value.
-func GetLoadBalancerSourceRanges(service *corev1.Service) (netsets.IPNet, error) {
+func GetLoadBalancerSourceRanges(service *corev1.Service, preferredIPFamily corev1.IPFamily) (netsets.IPNet, error) {
 	var ipnets netsets.IPNet
 	var err error
 	// if SourceRange field is specified, ignore sourceRange annotation
@@ -3347,7 +3377,11 @@ func GetLoadBalancerSourceRanges(service *corev1.Service) (netsets.IPNet, error)
 		val := service.Annotations[corev1.AnnotationLoadBalancerSourceRangesKey]
 		val = strings.TrimSpace(val)
 		if val == "" {
-			val = defaultLoadBalancerSourceRanges
+			if preferredIPFamily == corev1.IPv6Protocol {
+				val = defaultLoadBalancerSourceRangesIPv6
+			} else {
+				val = defaultLoadBalancerSourceRangesIPv4
+			}
 		}
 		specs := strings.Split(val, ",")
 		ipnets, err = netsets.ParseIPNets(specs...)
