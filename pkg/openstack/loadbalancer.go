@@ -348,7 +348,7 @@ type serviceConfig struct {
 	healthMonitorDelay      int
 	healthMonitorTimeout    int
 	healthMonitorMaxRetries int
-	preferredIPFamily       corev1.IPFamily
+	preferredIPFamily       corev1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
 }
 
 type listenerKey struct {
@@ -1492,6 +1492,8 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
 	if len(service.Spec.IPFamilies) > 0 {
+		// Since OCCM does not support multiple load-balancers per service yet,
+		// the first IP family will determine the IP family of the load-balancer
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
 	}
 
@@ -1568,6 +1570,8 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 
 	if len(service.Spec.IPFamilies) > 0 {
+		// Since OCCM does not support multiple load-balancers per service yet,
+		// the first IP family will determine the IP family of the load-balancer
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
 	}
 
