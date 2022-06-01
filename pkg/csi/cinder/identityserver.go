@@ -21,7 +21,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/klog/v2"
 )
 
@@ -47,15 +46,6 @@ func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPlugin
 }
 
 func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
-	oProvider, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.Errorf("Failed to GetOpenStackProvider: %v", err)
-		return nil, status.Error(codes.FailedPrecondition, "Failed to retrieve openstack provider")
-	}
-	if err := oProvider.CheckBlockStorageAPI(); err != nil {
-		klog.Errorf("Failed to query blockstorage API: %v", err)
-		return nil, status.Error(codes.FailedPrecondition, "Failed to communicate with OpenStack BlockStorage API")
-	}
 	return &csi.ProbeResponse{}, nil
 }
 
