@@ -19,7 +19,7 @@
         - manila
     - role: install-k3s
       worker_node_count: 0
-      k8s_branch: release-1.23
+      k3s_release: v1.23.6+k3s1
     - role: install-docker
     - role: install-docker-registry
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
