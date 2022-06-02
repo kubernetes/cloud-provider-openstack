@@ -56,10 +56,6 @@ func (cloud *cloud) DeleteVolume(volumeID string) error {
 	return nil
 }
 
-func (cloud *cloud) CheckBlockStorageAPI() error {
-	return nil
-}
-
 func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
 	// update the volume with attachement
 
