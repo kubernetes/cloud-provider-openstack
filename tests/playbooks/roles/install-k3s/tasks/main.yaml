@@ -7,23 +7,6 @@
     packages:
       - jq
 
-- name: Get k3s release
-  shell:
-    executable: /bin/bash
-    cmd: |
-      # Get k3s release based on the given k8s branch.
-      branch={{ k8s_branch }}
-      if [[ "$branch" = "master" ]]; then
-        k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[0].name')
-      else
-        # release-1.20 --> 1.20
-        k8s_minor=${branch##*-}
-        # 1.20 --> v1.20.x+k3s1 or v1.20.1-rc1+k3s1
-        k3s_release=$(curl -s "https://api.github.com/repos/k3s-io/k3s/tags" | jq -r '.[].name' | grep -E "^v${k8s_minor}.[0-9a-z\+\-]+\+k3s1$" | awk 'NR==1 {print}')
-      fi
-      echo $k3s_release
-  register: release
-
 - name: Create openstack resources
   shell:
     executable: /bin/bash
@@ -98,8 +81,8 @@
         runcmd:
           - curl -sSL https://get.docker.com/ | sh
           - mkdir -p /var/lib/rancher/k3s/agent/images/
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s -o /usr/local/bin/k3s
           - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
           - INSTALL_K3S_SKIP_DOWNLOAD=true /var/lib/rancher/k3s/install.sh --docker --disable traefik --disable metrics-server --disable servicelb --disable-cloud-controller --kubelet-arg="cloud-provider=external" --tls-san {{ k3s_fip }} --token {{ cluster_token }}
