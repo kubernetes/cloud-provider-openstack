@@ -5,8 +5,13 @@ on:
     tags:
     - v1.*
 
+permissions:
+  contents: read
+
 jobs:
   release:
+    permissions:
+      contents: write  # for actions/create-release to create a release
     runs-on: ubuntu-latest
 
     steps:
