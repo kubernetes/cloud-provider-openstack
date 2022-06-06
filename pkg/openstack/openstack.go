@@ -374,7 +374,7 @@ func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 // This is particularly useful in external cloud providers where the kubelet
 // does not initialize node data.
 func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string) (cloudprovider.Zone, error) {
-	instanceID, err := instanceIDFromProviderID(providerID)
+	instanceID, _, err := instanceIDFromProviderID(providerID)
 	if err != nil {
 		return cloudprovider.Zone{}, err
 	}
