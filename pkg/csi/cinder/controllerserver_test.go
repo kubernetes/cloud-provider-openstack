@@ -657,6 +657,10 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 
 	// Invoke ValidateVolumeCapabilties
 	actualRes, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq)
+	if err != nil {
+		t.Errorf("failed to ValidateVolumeCapabilties: %v", err)
+	}
+
 	actualRes2, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq2)
 
 	if err != nil {

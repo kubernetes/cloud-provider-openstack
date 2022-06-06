@@ -254,8 +254,8 @@ func (cloud *cloud) GetMaxVolLimit() int64 {
 	return 256
 }
 
-func (cloud *cloud) GetMetadataOpts() metadata.MetadataOpts {
-	var m metadata.MetadataOpts
+func (cloud *cloud) GetMetadataOpts() metadata.Opts {
+	var m metadata.Opts
 	m.SearchOrder = fmt.Sprintf("%s,%s", "configDrive", "metadataService")
 	return m
 }

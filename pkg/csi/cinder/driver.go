@@ -48,12 +48,17 @@ var (
 	Version = "2.0.0"
 )
 
-type CinderDriver struct {
-	name        string
-	fqVersion   string //Fully qualified version in format {Version}@{CPO version}
-	endpoint    string
-	cloudconfig string
-	cluster     string
+//revive:disable:exported
+// Deprecated: use Driver instead
+type CinderDriver = Driver
+
+//revive:enable:exported
+
+type Driver struct {
+	name      string
+	fqVersion string //Fully qualified version in format {Version}@{CPO version}
+	endpoint  string
+	cluster   string
 
 	ids *identityServer
 	cs  *controllerServer
@@ -64,9 +69,9 @@ type CinderDriver struct {
 	nscap []*csi.NodeServiceCapability
 }
 
-func NewDriver(endpoint, cluster string) *CinderDriver {
+func NewDriver(endpoint, cluster string) *Driver {
 
-	d := &CinderDriver{}
+	d := &Driver{}
 	d.name = driverName
 	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
 	d.endpoint = endpoint
@@ -90,7 +95,9 @@ func NewDriver(endpoint, cluster string) *CinderDriver {
 		})
 	d.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
 
-	d.AddNodeServiceCapabilities(
+	// ignoring error, because AddNodeServiceCapabilities is public
+	// and so potentially used somewhere else.
+	_ = d.AddNodeServiceCapabilities(
 		[]csi.NodeServiceCapability_RPC_Type{
 			csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 			csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
@@ -100,7 +107,7 @@ func NewDriver(endpoint, cluster string) *CinderDriver {
 	return d
 }
 
-func (d *CinderDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) {
+func (d *Driver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) {
 	var csc []*csi.ControllerServiceCapability
 
 	for _, c := range cl {
@@ -109,11 +116,9 @@ func (d *CinderDriver) AddControllerServiceCapabilities(cl []csi.ControllerServi
 	}
 
 	d.cscap = csc
-
-	return
 }
 
-func (d *CinderDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) []*csi.VolumeCapability_AccessMode {
+func (d *Driver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) []*csi.VolumeCapability_AccessMode {
 	var vca []*csi.VolumeCapability_AccessMode
 	for _, c := range vc {
 		klog.Infof("Enabling volume access mode: %v", c.String())
@@ -123,7 +128,7 @@ func (d *CinderDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_
 	return vca
 }
 
-func (d *CinderDriver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error {
+func (d *Driver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error {
 	var nsc []*csi.NodeServiceCapability
 	for _, n := range nl {
 		klog.Infof("Enabling node service capability: %v", n.String())
@@ -133,7 +138,7 @@ func (d *CinderDriver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability
 	return nil
 }
 
-func (d *CinderDriver) ValidateControllerServiceRequest(c csi.ControllerServiceCapability_RPC_Type) error {
+func (d *Driver) ValidateControllerServiceRequest(c csi.ControllerServiceCapability_RPC_Type) error {
 	if c == csi.ControllerServiceCapability_RPC_UNKNOWN {
 		return nil
 	}
@@ -143,14 +148,14 @@ func (d *CinderDriver) ValidateControllerServiceRequest(c csi.ControllerServiceC
 			return nil
 		}
 	}
-	return status.Error(codes.InvalidArgument, fmt.Sprintf("%s", c))
+	return status.Error(codes.InvalidArgument, c.String())
 }
 
-func (d *CinderDriver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_AccessMode {
+func (d *Driver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_AccessMode {
 	return d.vcap
 }
 
-func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {
+func (d *Driver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {
 
 	d.ids = NewIdentityServer(d)
 	d.cs = NewControllerServer(d, cloud)
@@ -158,7 +163,7 @@ func (d *CinderDriver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMoun
 
 }
 
-func (d *CinderDriver) Run() {
+func (d *Driver) Run() {
 
 	RunControllerandNodePublishServer(d.endpoint, d.ids, d.cs, d.ns)
 }

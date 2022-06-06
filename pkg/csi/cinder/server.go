@@ -54,8 +54,6 @@ func (s *nonBlockingGRPCServer) Start(endpoint string, ids csi.IdentityServer, c
 	s.wg.Add(1)
 
 	go s.serve(endpoint, ids, cs, ns)
-
-	return
 }
 
 func (s *nonBlockingGRPCServer) Wait() {
@@ -107,6 +105,8 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 
 	klog.Infof("Listening for connections on address: %#v", listener.Addr())
 
-	server.Serve(listener)
-
+	if err := server.Serve(listener); err != nil {
+		klog.Infof("Server stopped with: %v", err)
+		return
+	}
 }

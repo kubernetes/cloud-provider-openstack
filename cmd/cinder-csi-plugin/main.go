@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -37,20 +38,19 @@ var (
 	cluster     string
 )
 
-func init() {
-	flag.Set("logtostderr", "true")
-}
-
 func main() {
-
-	flag.CommandLine.Parse([]string{})
+	if err := flag.CommandLine.Parse([]string{}); err != nil {
+		klog.Fatalf("Unable to parse flags: %v", err)
+	}
 
 	cmd := &cobra.Command{
 		Use:   "Cinder",
 		Short: "CSI based Cinder driver",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Glog requires this otherwise it complains.
-			flag.CommandLine.Parse(nil)
+			if err := flag.CommandLine.Parse(nil); err != nil {
+				return fmt.Errorf("unable to parse flags: %w", err)
+			}
 
 			// This is a temporary hack to enable proper logging until upstream dependencies
 			// are migrated to fully utilize klog instead of glog.
@@ -62,25 +62,30 @@ func main() {
 				f2 := klogFlags.Lookup(f1.Name)
 				if f2 != nil {
 					value := f1.Value.String()
-					f2.Value.Set(value)
+					_ = f2.Value.Set(value)
 				}
 			})
+			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
 	}
 
-	cmd.Flags().AddGoFlagSet(flag.CommandLine)
-
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
-	cmd.PersistentFlags().MarkDeprecated("nodeid", "This flag would be removed in future. Currently, the value is ignored by the driver")
+	if err := cmd.PersistentFlags().MarkDeprecated("nodeid", "This flag would be removed in future. Currently, the value is ignored by the driver"); err != nil {
+		klog.Fatalf("Unable to mark flag nodeid to be deprecated: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "CSI endpoint")
-	cmd.MarkPersistentFlagRequired("endpoint")
+	if err := cmd.MarkPersistentFlagRequired("endpoint"); err != nil {
+		klog.Fatalf("Unable to mark flag endpoint to be required: %v", err)
+	}
 
 	cmd.PersistentFlags().StringSliceVar(&cloudconfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
-	cmd.MarkPersistentFlagRequired("cloud-config")
+	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
+		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 
