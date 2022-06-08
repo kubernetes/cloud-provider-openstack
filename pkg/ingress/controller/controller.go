@@ -1025,8 +1025,8 @@ func privateKeyFromPEM(pemData []byte) (crypto.PrivateKey, error) {
 			return x509.ParsePKCS1PrivateKey(result.Bytes)
 		case "EC PRIVATE KEY":
 			return x509.ParseECPrivateKey(result.Bytes)
-                case "PRIVATE KEY":
-                        return x509.ParsePKCS8PrivateKey(result.Bytes)
+		case "PRIVATE KEY":
+			return x509.ParsePKCS8PrivateKey(result.Bytes)
 		}
 	}
 }
