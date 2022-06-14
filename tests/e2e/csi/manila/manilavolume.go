@@ -31,7 +31,6 @@ func runCmd(name string, args ...string) ([]byte, error) {
 // are accessible from $PATH on the node.
 
 type manilaVolume struct {
-	proto    string
 	shareID  string
 	accessID string
 }

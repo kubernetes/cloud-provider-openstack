@@ -283,14 +283,6 @@ func (s *nonBlockingGRPCServer) wait() {
 	s.wg.Wait()
 }
 
-func (s *nonBlockingGRPCServer) stop() {
-	s.server.GracefulStop()
-}
-
-func (s *nonBlockingGRPCServer) forceStop() {
-	s.server.Stop()
-}
-
 func (s *nonBlockingGRPCServer) serve(endpoint string, ids *identityServer, cs *controllerServer, ns *nodeServer) {
 	proto, addr, err := parseGRPCEndpoint(endpoint)
 	if err != nil {

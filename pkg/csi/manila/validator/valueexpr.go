@@ -29,7 +29,6 @@ const (
 	valueOptionalTag   = "optional"
 	valueOptionalIfTag = "optionalIf:"
 	valueDefaultTag    = "default:"
-	valueCoalesceTag   = "coalesce:"
 
 	valueExprDelim = '='
 )
@@ -122,7 +121,7 @@ func parseValueExpr(value string, selfStructName string, fName fieldName, nameId
 		expr.exprType = valueOptionalIf
 		expr.fName, expr.arg = parseCondValueExpr(value, valueOptionalIfTag, selfStructName, nameIdxMap, fName)
 	} else {
-		panic(invalidValueExprError(fmt.Sprintf("unrecognized value expression"), value, selfStructName, fName))
+		panic(invalidValueExprError("unrecognized value expression", value, selfStructName, fName))
 	}
 
 	return expr
