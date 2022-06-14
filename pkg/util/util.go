@@ -14,7 +14,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 )
 
-// MyDuration is the encoding.TextUnmarshaler interface for time.Duration
+// MyDuration is the encoding.TextUnmarshaler interface for time.Duratio
 type MyDuration struct {
 	time.Duration
 }
