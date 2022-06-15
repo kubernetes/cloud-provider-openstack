@@ -670,7 +670,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	} else {
 		loadbalancer, err = getLoadbalancerByName(lbaas.lb, name, legacyName)
 	}
-	if err == cpoerrors.ErrNotFound {
+	if err != nil && cpoerrors.IsNotFound(err) {
 		return nil, false, nil
 	}
 	if loadbalancer == nil {
