@@ -22,8 +22,8 @@ $ git tag -m "Release for cloud-provider-openstack to support Kubernetes release
 $ git push upstream vX.Y.Z
 ```
 
-3. Github Actions will make the new docker images and make new draft release to repository.
+3. [Github Actions](https://github.com/kubernetes/cloud-provider-openstack/actions/workflows/release-cpo.yaml) will make the new docker images and make [new draft release](https://github.com/kubernetes/cloud-provider-openstack/releases) to repository.
 
-4. Update manifests with new release images, create a PR against release branch to update.
+4. Update manifests with new release images, create a PR against release branch to update. This will be a chicked and egg problem as we already created vX.Y.Z tag, but we recommend to do such update on the manifests file.
 
 5. Make release notes and publish the release.
