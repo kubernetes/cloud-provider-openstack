@@ -7,6 +7,7 @@ driverName: manila.csi.openstack.org
 # Enabled Manila share protocols
 shareProtocols:
   - protocolSelector: NFS
+    fsGroupPolicy: None
     fwdNodePluginEndpoint:
       dir: /var/lib/kubelet/plugins/csi-nfsplugin
       sockFile: csi.sock
