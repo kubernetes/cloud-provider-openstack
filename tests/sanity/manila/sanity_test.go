@@ -28,7 +28,7 @@ import (
 )
 
 func TestDriver(t *testing.T) {
-	basePath, err := ioutil.TempDir("", "manila.csi.openstack.org")
+	basePath, err := os.MkdirTemp("", "manila.csi.openstack.org")
 	if err != nil {
 		t.Fatalf("failed create base path in %s: %v", basePath, err)
 	}
