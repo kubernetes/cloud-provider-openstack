@@ -1,0 +1,27 @@
+StorageClass:
+  FromName: true
+SnapshotClass:
+  FromName: true
+ClaimSize: "2Gi"
+DriverInfo:
+  Name: cinder.csi.openstack.org
+  SupportedFsType:
+    ext2: null
+    ext3: null
+    ext4: null
+    xfs: null
+  SupportedSizeRange:
+    Min: "1Gi"
+  TopologyKeys:
+    - "topology.cinder.csi.openstack.org/zone"
+  Capabilities:
+    persistence: true
+    fsGroup: true
+    exec: true
+    multipods: true
+    block: true
+    pvcDataSource: true
+    topology: true
+    controllerExpansion: true
+    nodeExpansion: true
+    snapshotDataSource: true

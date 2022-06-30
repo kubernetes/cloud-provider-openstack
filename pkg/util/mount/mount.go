@@ -70,7 +70,7 @@ type Mount struct {
 
 var _ IMount = &Mount{}
 
-var MInstance IMount = nil
+var MInstance IMount
 
 func getBaseMounter() *mount.SafeFormatAndMount {
 	nMounter := mount.New("")
@@ -102,7 +102,9 @@ func probeVolume() error {
 		for _, f := range dirs {
 			name := scsiPath + f.Name() + "/scan"
 			data := []byte("- - -")
-			ioutil.WriteFile(name, data, 0666)
+			if err := ioutil.WriteFile(name, data, 0666); err != nil {
+				return fmt.Errorf("Unable to scan %s: %w", f.Name(), err)
+			}
 		}
 	}
 
@@ -132,7 +134,10 @@ func (m *Mount) GetDevicePath(volumeID string) (string, error) {
 			return true, nil
 		}
 		// see issue https://github.com/kubernetes/cloud-provider-openstack/issues/705
-		probeVolume()
+		if err := probeVolume(); err != nil {
+			// log the error, but continue. Might not happen in edge cases
+			klog.V(5).Infof("Unable to probe attached disk: %v", err)
+		}
 		return false, nil
 	})
 
@@ -191,7 +196,10 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 		select {
 		case <-ticker.C:
 			klog.V(5).Infof("Checking Cinder disk %q is attached.", devicePath)
-			probeVolume()
+			if err := probeVolume(); err != nil {
+				// log the error, but continue. Might not happen in edge cases
+				klog.V(5).Infof("Unable to probe attached disk: %v", err)
+			}
 
 			exists, err := mount.PathExists(devicePath)
 			if exists && err == nil {
@@ -199,7 +207,7 @@ func (m *Mount) ScanForAttach(devicePath string) error {
 			}
 			klog.V(3).Infof("Could not find attached Cinder disk %s", devicePath)
 		case <-timer.C:
-			return fmt.Errorf("Could not find attached Cinder disk %s. Timeout waiting for mount paths to be created.", devicePath)
+			return fmt.Errorf("could not find attached Cinder disk %s. Timeout waiting for mount paths to be created", devicePath)
 		}
 	}
 }
@@ -242,7 +250,7 @@ func (m *Mount) MakeDir(pathname string) error {
 // MakeFile creates an empty file
 func (m *Mount) MakeFile(pathname string) error {
 	f, err := os.OpenFile(pathname, os.O_CREATE, os.FileMode(0644))
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if err != nil {
 		if !os.IsExist(err) {
 			return err
@@ -253,6 +261,9 @@ func (m *Mount) MakeFile(pathname string) error {
 
 func (m *Mount) GetDeviceStats(path string) (*DeviceStats, error) {
 	isBlock, err := blockdevice.IsBlockDevice(path)
+	if err != nil {
+		return nil, err
+	}
 
 	if isBlock {
 		size, err := blockdevice.GetBlockDeviceSize(path)

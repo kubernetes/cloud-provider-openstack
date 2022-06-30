@@ -56,7 +56,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 			tryDeleteShare(share, manilaClient)
 		}
 
-		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to create volume %s: %v", shareName, err)
+		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to create volume %s: %v", shareName, err)
 	}
 
 	return share, err
@@ -111,7 +111,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 			tryDeleteShare(share, manilaClient)
 		}
 
-		return nil, status.Errorf(manilaErrCode.toRpcErrorCode(), "failed to restore snapshot %s into volume %s: %v", snapshotSource.GetSnapshotId(), shareName, err)
+		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to restore snapshot %s into volume %s: %v", snapshotSource.GetSnapshotId(), shareName, err)
 	}
 
 	return share, err

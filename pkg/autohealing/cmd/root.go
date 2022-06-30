@@ -96,7 +96,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kube_autohealer_config.yaml)")
 
 	log.InitFlags(nil)
-	goflag.CommandLine.Parse(nil)
+	_ = goflag.CommandLine.Parse(nil)
 	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 }
 

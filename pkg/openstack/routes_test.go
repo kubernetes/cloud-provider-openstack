@@ -86,6 +86,9 @@ func TestRoutes(t *testing.T) {
 
 func getServers(os *OpenStack) []servers.Server {
 	c, err := client.NewComputeV2(os.provider, os.epOpts)
+	if err != nil {
+		panic(err)
+	}
 	opts := servers.ListOpts{
 		Status: "ACTIVE",
 	}

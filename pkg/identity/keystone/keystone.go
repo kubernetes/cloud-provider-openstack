@@ -78,8 +78,14 @@ type status struct {
 	User          userInfo `json:"user"`
 }
 
-// KeystoneAuth manages authentication and authorization
-type KeystoneAuth struct {
+// revive:disable:exported
+// Deprecated: use Auth instead
+type KeystoneAuth = Auth
+
+// revive:enable:exported
+
+// Auth manages authentication and authorization
+type Auth struct {
 	authn          *Authenticator
 	authz          *Authorizer
 	k8sClient      *kubernetes.Clientset
@@ -93,7 +99,7 @@ type KeystoneAuth struct {
 }
 
 // Run starts the keystone webhook server.
-func (k *KeystoneAuth) Run() {
+func (k *Auth) Run() {
 	defer close(k.stopCh)
 
 	if k.k8sClient != nil {
@@ -117,7 +123,7 @@ func (k *KeystoneAuth) Run() {
 	klog.Fatal(http.ListenAndServeTLS(k.config.Address, k.config.CertFile, k.config.KeyFile, r))
 }
 
-func (k *KeystoneAuth) enqueueConfigMap(obj interface{}) {
+func (k *Auth) enqueueConfigMap(obj interface{}) {
 	// obj could be an *v1.ConfigMap, or a DeletionFinalStateUnknown marker item.
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
@@ -135,13 +141,13 @@ func (k *KeystoneAuth) enqueueConfigMap(obj interface{}) {
 	}
 }
 
-func (k *KeystoneAuth) runWorker() {
+func (k *Auth) runWorker() {
 	for k.processNextItem() {
 		// continue looping
 	}
 }
 
-func (k *KeystoneAuth) processNextItem() bool {
+func (k *Auth) processNextItem() bool {
 	key, quit := k.queue.Get()
 
 	if quit {
@@ -166,7 +172,7 @@ func (k *KeystoneAuth) processNextItem() bool {
 	return true
 }
 
-func (k *KeystoneAuth) updatePolicies(cm *apiv1.ConfigMap, key string) {
+func (k *Auth) updatePolicies(cm *apiv1.ConfigMap, key string) {
 	klog.Info("ConfigMap created or updated, will update the authorization policy.")
 
 	var policy policyList
@@ -186,7 +192,7 @@ func (k *KeystoneAuth) updatePolicies(cm *apiv1.ConfigMap, key string) {
 	klog.Infof("Authorization policy updated.")
 }
 
-func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
+func (k *Auth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
 	klog.Info("ConfigMap created or updated, will update the sync configuration.")
 
 	var sc *syncConfig
@@ -203,7 +209,7 @@ func (k *KeystoneAuth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
 	klog.Infof("Sync configuration updated.")
 }
 
-func (k *KeystoneAuth) processItem(key string) error {
+func (k *Auth) processItem(key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -240,7 +246,7 @@ func (k *KeystoneAuth) processItem(key string) error {
 }
 
 // Handler serves the http requests
-func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
+func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
 	var data map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -277,7 +283,7 @@ func (k *KeystoneAuth) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
+func (k *Auth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
 	user, authenticated, err := k.authn.AuthenticateToken(token)
 	klog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
 
@@ -293,7 +299,7 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write(output)
+		_, _ = w.Write(output)
 		return nil
 	}
 
@@ -318,15 +324,12 @@ func (k *KeystoneAuth) authenticateToken(w http.ResponseWriter, r *http.Request,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(output)
+	_, _ = w.Write(output)
 
 	return &info
 }
 
-func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
-	output, err := json.MarshalIndent(data, "", "  ")
-	klog.V(4).Infof("authorizeToken data : %s\n", string(output))
-
+func (k *Auth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
 	spec := data["spec"].(map[string]interface{})
 
 	username := spec["user"]
@@ -374,6 +377,7 @@ func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, da
 	var allowed authorizer.Decision
 	if len(k.authz.pl) > 0 {
 		var reason string
+		var err error
 		allowed, reason, err = k.authz.Authorize(attrs)
 		klog.V(4).Infof("<<<< authorizeToken: %v, %v, %v\n", allowed, reason, err)
 		if err != nil {
@@ -389,18 +393,18 @@ func (k *KeystoneAuth) authorizeToken(w http.ResponseWriter, r *http.Request, da
 	data["status"] = map[string]interface{}{
 		"allowed": allowed == authorizer.DecisionAllow,
 	}
-	output, err = json.MarshalIndent(data, "", "  ")
+	output, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(output)
+	_, _ = w.Write(output)
 }
 
 // NewKeystoneAuth returns a new KeystoneAuth controller
-func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
+func NewKeystoneAuth(c *Config) (*Auth, error) {
 	keystoneClient, err := createKeystoneClient(c.KeystoneURL, c.KeystoneCA)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize keystone client: %v", err)
@@ -470,10 +474,13 @@ func NewKeystoneAuth(c *Config) (*KeystoneAuth, error) {
 	}
 	if sc != nil {
 		// Validate that config data is correct
-		sc.validate()
+		err := sc.validate()
+		if err != nil {
+			return nil, fmt.Errorf("config invalid: %w", err)
+		}
 	}
 
-	keystoneAuth := &KeystoneAuth{
+	keystoneAuth := &Auth{
 		authn:     &Authenticator{keystoner: NewKeystoner(keystoneClient)},
 		authz:     &Authorizer{authURL: c.KeystoneURL, client: keystoneClient, pl: policy},
 		syncer:    &Syncer{k8sClient: k8sClient, syncConfig: sc},

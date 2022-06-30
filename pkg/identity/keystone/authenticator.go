@@ -51,6 +51,7 @@ func NewKeystoner(client *gophercloud.ServiceClient) *Keystoner {
 	}
 }
 
+// revive:disable:unexported-return
 func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 	k.client.ProviderClient.SetToken(token)
 	ret := tokens.Get(k.client, token)
@@ -85,6 +86,8 @@ func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 		domainName:  tokenUser.Domain.Name,
 	}, nil
 }
+
+// revive:enable:unexported-return
 
 func (k *Keystoner) GetGroups(token string, userID string) ([]string, error) {
 	var userGroups []string

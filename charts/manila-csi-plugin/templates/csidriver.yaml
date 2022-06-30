@@ -6,5 +6,6 @@ metadata:
 spec:
   attachRequired: false
   podInfoOnMount: false
+  fsGroupPolicy: {{ printf "%s" .fsGroupPolicy }}
 ---
 {{- end }}

@@ -18,12 +18,14 @@ package csiclient
 
 import (
 	"context"
+	"sync/atomic"
+	"time"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"k8s.io/klog/v2"
-	"sync/atomic"
-	"time"
 )
 
 var (
@@ -31,7 +33,14 @@ var (
 
 	dialOptions = []grpc.DialOption{
 		grpc.WithInsecure(),
-		grpc.WithBackoffMaxDelay(time.Second),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  1.0 * time.Second,
+				Multiplier: 1.6,
+				Jitter:     0.2,
+				MaxDelay:   time.Second,
+			},
+		}),
 		grpc.WithBlock(),
 		// CSI connections use unix:// so should ignore proxy settings
 		// WithNoProxy can be removed when we update to gRPC >= v1.34,

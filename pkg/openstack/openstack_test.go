@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -40,14 +39,6 @@ import (
 
 const (
 	testClusterName = "testCluster"
-
-	// volumeStatus* is configuration of exponential backoff for
-	// waiting for specified volume status. Starting with 1
-	// seconds, multiplying by 1.2 with each step and taking 13 steps at maximum
-	// it will time out after 32s, which roughly corresponds to 30s
-	volumeStatusInitDelay = 1 * time.Second
-	volumeStatusFactor    = 1.2
-	volumeStatusSteps     = 13
 )
 
 // ConfigFromEnv allows setting up credentials etc using the
@@ -883,8 +874,6 @@ func TestZones(t *testing.T) {
 	}
 }
 
-var diskPathRegexp = regexp.MustCompile("/dev/disk/(?:by-id|by-path)/")
-
 func TestInstanceIDFromProviderID(t *testing.T) {
 	testCases := []struct {
 		providerID string
@@ -1083,27 +1072,6 @@ func TestUserAgentFlag(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func clearEnviron(t *testing.T) []string {
-	env := os.Environ()
-	for _, pair := range env {
-		if strings.HasPrefix(pair, "OS_") {
-			i := strings.Index(pair, "=") + 1
-			os.Unsetenv(pair[:i-1])
-		}
-	}
-	return env
-}
-func resetEnviron(t *testing.T, items []string) {
-	for _, pair := range items {
-		if strings.HasPrefix(pair, "OS_") {
-			i := strings.Index(pair, "=") + 1
-			if err := os.Setenv(pair[:i-1], pair[i:]); err != nil {
-				t.Errorf("Setenv(%q, %q) failed during reset: %v", pair[:i-1], pair[i:], err)
-			}
-		}
 	}
 }
 

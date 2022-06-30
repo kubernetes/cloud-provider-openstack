@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/component-base/logs"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
 	kflag "k8s.io/component-base/cli/flag"
@@ -58,7 +58,7 @@ func promptForString(field string, r io.Reader, show bool) (result string, err e
 		_, err = fmt.Fscan(r, &result)
 	} else {
 		var data []byte
-		data, err = terminal.ReadPassword(int(os.Stdin.Fd()))
+		data, err = term.ReadPassword(int(os.Stdin.Fd()))
 		result = string(data)
 		fmt.Fprintf(os.Stderr, "\n")
 	}
@@ -138,7 +138,9 @@ func argumentsAreSet(url, user, project, password, domain, applicationCredential
 
 func main() {
 	// Glog requires this otherwise it complains.
-	flag.CommandLine.Parse(nil)
+	if err := flag.CommandLine.Parse(nil); err != nil {
+		klog.Fatalf("Unable to parse flags: %v", err)
+	}
 	// This is a temporary hack to enable proper logging until upstream dependencies
 	// are migrated to fully utilize klog instead of glog.
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
@@ -149,7 +151,7 @@ func main() {
 		f2 := klogFlags.Lookup(f1.Name)
 		if f2 != nil {
 			value := f1.Value.String()
-			f2.Value.Set(value)
+			_ = f2.Value.Set(value)
 		}
 	})
 
@@ -188,7 +190,7 @@ func main() {
 
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
-	if !terminal.IsTerminal(int(os.Stdin.Fd())) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		// If all requiered arguments are set use them
 		if argumentsAreSet(url, user, project, password, domain, applicationCredentialID, applicationCredentialName, applicationCredentialSecret) {
 			options.AuthOptions = gophercloud.AuthOptions{

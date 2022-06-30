@@ -93,14 +93,18 @@ func parseCompatOpts() (*options.CompatibilityOptions, error) {
 }
 
 func main() {
-	flag.CommandLine.Parse([]string{})
+	if err := flag.CommandLine.Parse([]string{}); err != nil {
+		klog.Fatalf("Unable to parse flags: %v", err)
+	}
 
 	cmd := &cobra.Command{
 		Use:   os.Args[0],
 		Short: "CSI Manila driver",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Glog requires this otherwise it complains.
-			flag.CommandLine.Parse(nil)
+			if err := flag.CommandLine.Parse(nil); err != nil {
+				return fmt.Errorf("unable to parse flags: %w", err)
+			}
 
 			// This is a temporary hack to enable proper logging until upstream dependencies
 			// are migrated to fully utilize klog instead of glog.
@@ -112,9 +116,10 @@ func main() {
 				f2 := klogFlags.Lookup(f1.Name)
 				if f2 != nil {
 					value := f1.Value.String()
-					f2.Value.Set(value)
+					_ = f2.Value.Set(value)
 				}
 			})
+			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := validateShareProtocolSelector(protoSelector); err != nil {
@@ -162,7 +167,9 @@ func main() {
 	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
-	cmd.MarkPersistentFlagRequired("nodeid")
+	if err := cmd.MarkPersistentFlagRequired("nodeid"); err != nil {
+		klog.Fatalf("Unable to mark flag nodeid to be required: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
 
@@ -171,10 +178,14 @@ func main() {
 	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", false, "cluster is topology-aware")
 
 	cmd.PersistentFlags().StringVar(&protoSelector, "share-protocol-selector", "", "specifies which Manila share protocol to use. Valid values are NFS and CEPHFS")
-	cmd.MarkPersistentFlagRequired("share-protocol-selector")
+	if err := cmd.MarkPersistentFlagRequired("share-protocol-selector"); err != nil {
+		klog.Fatalf("Unable to mark flag share-protocol-selector to be required: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&fwdEndpoint, "fwdendpoint", "", "CSI Node Plugin endpoint to which all Node Service RPCs are forwarded. Must be able to handle the file-system specified in share-protocol-selector")
-	cmd.MarkPersistentFlagRequired("fwdendpoint")
+	if err := cmd.MarkPersistentFlagRequired("fwdendpoint"); err != nil {
+		klog.Fatalf("Unable to mark flag fwdendpoint to be required: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&compatibilitySettings, "compatibility-settings", "", "settings for the compatibility layer")
 

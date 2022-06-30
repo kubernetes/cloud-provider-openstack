@@ -43,20 +43,21 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 	return &csi.VolumeCapability_AccessMode{Mode: mode}
 }
 
-func NewControllerServer(d *CinderDriver, cloud openstack.IOpenStack) *controllerServer {
+//revive:disable:unexported-return
+func NewControllerServer(d *Driver, cloud openstack.IOpenStack) *controllerServer {
 	return &controllerServer{
 		Driver: d,
 		Cloud:  cloud,
 	}
 }
 
-func NewIdentityServer(d *CinderDriver) *identityServer {
+func NewIdentityServer(d *Driver) *identityServer {
 	return &identityServer{
 		Driver: d,
 	}
 }
 
-func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata metadata.IMetadata, cloud openstack.IOpenStack) *nodeServer {
+func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, cloud openstack.IOpenStack) *nodeServer {
 	return &nodeServer{
 		Driver:   d,
 		Mount:    mount,
@@ -64,6 +65,8 @@ func NewNodeServer(d *CinderDriver, mount mount.IMount, metadata metadata.IMetad
 		Cloud:    cloud,
 	}
 }
+
+//revive:enable:unexported-return
 
 func RunControllerandNodePublishServer(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
 
