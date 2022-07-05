@@ -28,7 +28,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/utils"
@@ -74,6 +74,9 @@ func (os *OpenStack) getPorts(listOpts ports.ListOpts) ([]ports.Port, error) {
 func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, floatingIPNetwork string, description string) (string, error) {
 	listOpts := floatingips.ListOpts{PortID: portID}
 	fips, err := os.getFloatingIPs(listOpts)
+	if err != nil {
+		return "", fmt.Errorf("unable to get floating ips: %w", err)
+	}
 
 	// If needed, delete the floating IPs and return.
 	if needDelete {

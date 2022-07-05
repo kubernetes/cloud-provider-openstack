@@ -236,7 +236,7 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 
 func match(match []policyMatch, attributes authorizer.Attributes) bool {
 	user := attributes.GetUser()
-	var find = false
+	var find bool
 	types := []string{TypeGroup, TypeProject, TypeRole, TypeUser}
 
 	for _, m := range match {

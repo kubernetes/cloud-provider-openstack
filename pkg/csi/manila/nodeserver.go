@@ -83,7 +83,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 
 	// Verify the plugin supports this share
 
-	if strings.ToLower(share.ShareProto) != strings.ToLower(ns.d.shareProto) {
+	if !strings.EqualFold(share.ShareProto, ns.d.shareProto) {
 		return nil, nil, status.Errorf(codes.InvalidArgument,
 			"wrong share protocol %s for volume %s, the plugin is set to operate in %s",
 			share.ShareProto, volID, ns.d.shareProto)

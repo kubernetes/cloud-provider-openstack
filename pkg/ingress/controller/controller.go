@@ -437,7 +437,7 @@ func (c *Controller) nodeSyncLoop() {
 		return
 	}
 
-	ings := new(nwv1.IngressList)
+	var ings *nwv1.IngressList
 	// NOTE(lingxiankong): only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
 	if ings, err = c.kubeClient.NetworkingV1().Ingresses("").List(context.TODO(), opts); err != nil {
@@ -1025,6 +1025,8 @@ func privateKeyFromPEM(pemData []byte) (crypto.PrivateKey, error) {
 			return x509.ParsePKCS1PrivateKey(result.Bytes)
 		case "EC PRIVATE KEY":
 			return x509.ParseECPrivateKey(result.Bytes)
+		case "PRIVATE KEY":
+			return x509.ParsePKCS8PrivateKey(result.Bytes)
 		}
 	}
 }

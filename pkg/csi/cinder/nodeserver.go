@@ -41,7 +41,7 @@ import (
 )
 
 type nodeServer struct {
-	Driver   *CinderDriver
+	Driver   *Driver
 	Mount    mount.IMount
 	Metadata metadata.IMetadata
 	Cloud    openstack.IOpenStack
@@ -128,7 +128,6 @@ func nodePublishEphemeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*c
 	volName := fmt.Sprintf("ephemeral-%s", volID)
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": ns.Driver.cluster}
 	capacity, ok := req.GetVolumeContext()["capacity"]
-	volumeCapability := req.GetVolumeCapability()
 
 	volAvailability, err := ns.Metadata.GetAvailabilityZone()
 	if err != nil {
@@ -208,14 +207,6 @@ func nodePublishEphemeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*c
 	if notMnt {
 		// set default fstype is ext4
 		fsType := "ext4"
-		var options []string
-		if mnt := volumeCapability.GetMount(); mnt != nil {
-			if mnt.FsType != "" {
-				fsType = mnt.FsType
-			}
-			mountFlags := mnt.GetMountFlags()
-			options = append(options, collectMountOptions(fsType, mountFlags)...)
-		}
 		// Mount
 		err = m.Mounter().FormatAndMount(devicePath, targetPath, fsType, nil)
 		if err != nil {

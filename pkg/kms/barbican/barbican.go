@@ -7,10 +7,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
-type BarbicanService interface {
-	GetSecret(keyID string) ([]byte, error)
-}
-
 type KMSOpts struct {
 	KeyID string `gcfg:"key-id"`
 }

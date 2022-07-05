@@ -23,9 +23,9 @@ import (
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
@@ -286,15 +286,15 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Errorf(codes.Internal, "snapshot %s of volume %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err.Error())
 		}
 
-		return nil, status.Errorf(manilaErrMsg.errCode.toRpcErrorCode(), "snapshot %s of volume %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
+		return nil, status.Errorf(manilaErrMsg.errCode.toRPCErrorCode(), "snapshot %s of volume %s is in error state: %s", snapshot.ID, req.GetSourceVolumeId(), manilaErrMsg.message)
 	default:
 		return nil, status.Errorf(codes.Internal, "an error occurred while creating snapshot %s of volume %s: snapshot is in an unexpected state: wanted creating/available, got %s",
 			req.GetName(), req.GetSourceVolumeId(), snapshot.Status)
 	}
 
 	// Parse CreatedAt timestamp
-	ctime, err := ptypes.TimestampProto(snapshot.CreatedAt)
-	if err != nil {
+	ctime := timestamppb.New(snapshot.CreatedAt)
+	if err := ctime.CheckValid(); err != nil {
 		klog.Warningf("couldn't parse timestamp %v from snapshot %s: %v", snapshot.CreatedAt, snapshot.ID, err)
 	}
 
@@ -476,7 +476,7 @@ func (cs *controllerServer) ControllerGetVolume(context.Context, *csi.Controller
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
-func parseStringMapFromJson(data string) (m map[string]string, err error) {
+func parseStringMapFromJSON(data string) (m map[string]string, err error) {
 	if data == "" {
 		return
 	}
@@ -486,7 +486,7 @@ func parseStringMapFromJson(data string) (m map[string]string, err error) {
 }
 
 func prepareShareMetadata(appendShareMetadata, clusterID string) (map[string]string, error) {
-	shareMetadata, err := parseStringMapFromJson(appendShareMetadata)
+	shareMetadata, err := parseStringMapFromJSON(appendShareMetadata)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse appendShareMetadata field: %v", err)
 	}

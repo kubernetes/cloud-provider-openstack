@@ -50,7 +50,7 @@ func (check *NodeConditionCheck) Check(node NodeInfo, controller NodeController)
 
 	for _, cond := range node.KubeNode.Status.Conditions {
 		if utils.Contains(check.Types, string(cond.Type)) {
-			unhealthyDuration := time.Now().Sub(cond.LastTransitionTime.Time)
+			unhealthyDuration := time.Since(cond.LastTransitionTime.Time)
 
 			if len(check.ErrorValues) > 0 {
 				if utils.Contains(check.ErrorValues, string(cond.Status)) {

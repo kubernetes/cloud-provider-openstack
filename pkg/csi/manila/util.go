@@ -33,8 +33,7 @@ import (
 )
 
 type (
-	volumeID   string
-	snapshotID string
+	volumeID string
 )
 
 const (
@@ -43,7 +42,7 @@ const (
 
 type manilaError int
 
-func (c manilaError) toRpcErrorCode() codes.Code {
+func (c manilaError) toRPCErrorCode() codes.Code {
 	switch c {
 	case manilaErrNoValidHost:
 		return codes.OutOfRange
@@ -143,7 +142,7 @@ func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (
 		return manilaErrorMessage{}, err
 	}
 
-	if msgs != nil && len(msgs) == 1 {
+	if len(msgs) == 1 {
 		return manilaErrorMessage{errCode: manilaErrorCodesMap[msgs[0].DetailID], message: msgs[0].UserMessage}, nil
 	}
 
@@ -151,7 +150,7 @@ func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (
 }
 
 func compareProtocol(protoA, protoB string) bool {
-	return strings.ToUpper(protoA) == strings.ToUpper(protoB)
+	return strings.EqualFold(protoA, protoB)
 }
 
 //

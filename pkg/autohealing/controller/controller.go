@@ -37,7 +37,9 @@ import (
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
+	// revive:disable:blank-imports
 	_ "k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/register"
+	// revive:enable:blank-imports
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
 )
@@ -62,7 +64,11 @@ const (
 
 	// LabelNodeRoleMaster specifies that a node is a master
 	// Related discussion: https://github.com/kubernetes/kubernetes/pull/39112
+	// TODO: remove >= k8s 1.25
 	LabelNodeRoleMaster = "node-role.kubernetes.io/master"
+
+	// LabelNodeRoleControlPlane specifies that a node is control-plane
+	LabelNodeRoleControlPlane = "node-role.kubernetes.io/control-plane"
 
 	leaderElectionResourceLockNamespace = "kube-system"
 	leaderElectionResourceLockName      = "magnum-auto-healer"
@@ -248,7 +254,9 @@ func (c *Controller) getUnhealthyMasterNodes() ([]healthcheck.NodeInfo, error) {
 		return nil, err
 	}
 	for _, node := range nodeList.Items {
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		_, masterLabel := node.Labels[LabelNodeRoleMaster]
+		_, controlPlaneLabel := node.Labels[LabelNodeRoleControlPlane]
+		if masterLabel || controlPlaneLabel {
 			if time.Now().Before(node.ObjectMeta.GetCreationTimestamp().Add(c.config.CheckDelayAfterAdd)) {
 				log.V(4).Infof("The node %s is created less than the configured check delay, skip", node.Name)
 				continue
@@ -280,7 +288,9 @@ func (c *Controller) getUnhealthyWorkerNodes() ([]healthcheck.NodeInfo, error) {
 		return nil, err
 	}
 	for _, node := range nodeList.Items {
-		if _, hasMasterRoleLabel := node.Labels[LabelNodeRoleMaster]; hasMasterRoleLabel {
+		_, masterLabel := node.Labels[LabelNodeRoleMaster]
+		_, controlPlaneLabel := node.Labels[LabelNodeRoleControlPlane]
+		if masterLabel || controlPlaneLabel {
 			continue
 		}
 		if len(node.Status.Conditions) == 0 {
@@ -321,7 +331,7 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 					newNode.Spec.Unschedulable = true
 
 					// Skip cordon for master node
-					if node.IsWorker == false {
+					if !node.IsWorker {
 						continue
 					}
 					if _, err := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
@@ -399,21 +409,22 @@ func (c *Controller) Start(ctx context.Context) {
 	for {
 		masterUnhealthyNodes = []healthcheck.NodeInfo{}
 		workerUnhealthyNodes = []healthcheck.NodeInfo{}
-		select {
-		case <-ticker.C:
-			if c.config.MasterMonitorEnabled {
-				wg.Add(1)
-				go c.startMasterMonitor(&wg)
-			}
-			if c.config.WorkerMonitorEnabled {
-				wg.Add(1)
-				go c.startWorkerMonitor(&wg)
-			}
+		<-ticker.C
+		if c.config.MasterMonitorEnabled {
+			wg.Add(1)
+			go c.startMasterMonitor(&wg)
+		}
+		if c.config.WorkerMonitorEnabled {
+			wg.Add(1)
+			go c.startWorkerMonitor(&wg)
+		}
 
-			wg.Wait()
+		wg.Wait()
 
-			if c.provider.Enabled() {
-				c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
+		if c.provider.Enabled() {
+			err := c.provider.UpdateHealthStatus(masterUnhealthyNodes, workerUnhealthyNodes)
+			if err != nil {
+				log.Warningf("Unable to update health status. Retrying. %v", err)
 			}
 		}
 	}

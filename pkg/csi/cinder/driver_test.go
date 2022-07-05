@@ -23,15 +23,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	fakeDriverName = "fake"
-)
-
 var (
 	vendorVersion = "2.0.0"
 )
 
-func NewFakeDriver() *CinderDriver {
+func NewFakeDriver() *Driver {
 
 	driver := NewDriver(FakeEndpoint, FakeCluster)
 
