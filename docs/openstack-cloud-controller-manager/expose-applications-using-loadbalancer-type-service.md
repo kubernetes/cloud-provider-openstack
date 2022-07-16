@@ -207,11 +207,13 @@ Request Body:
   Reference to a tls container. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type `TERMINATED_HTTPS` for a TLS Terminated loadbalancer.
   Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
 
+  When `container-store` parameter is set to `external` format for `default-tls-container-ref` could be any string.
+
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
 - `loadbalancer.openstack.org/load-balancer-id`
 
-  This annotation is automatically added to the Service if it's not specified when creating. After the Service is created successfully it shouldn't be changed, otherwise the Service won't behave as expected.  
+  This annotation is automatically added to the Service if it's not specified when creating. After the Service is created successfully it shouldn't be changed, otherwise the Service won't behave as expected.
 
   If this annotation is specified with a valid cloud load balancer ID when creating Service, the Service is reusing this load balancer rather than creating another one. Again, it shouldn't be changed after the Service is created.
 
@@ -413,9 +415,9 @@ To enable PROXY protocol support, the openstack-cloud-controller-manager config 
            ports:
              - containerPort: 8080
    EOF
-   
+
    $ kubectl expose deployment echoserver --type=ClusterIP --target-port=8080
-   
+
    $ cat <<EOF | kubectl apply -f -
    apiVersion: networking.k8s.io/v1
    kind: Ingress
@@ -437,7 +439,7 @@ To enable PROXY protocol support, the openstack-cloud-controller-manager config 
                  port:
                    number: 80
    EOF
-   
+
    $ kubectl get ing
    NAME                   CLASS    HOSTS      ADDRESS                 PORTS   AGE
    test-proxy-protocol    <none>   test.com   103.250.240.24.nip.io   80      58m
@@ -580,7 +582,7 @@ $ openstack loadbalancer listener list --loadbalancer 2b224530-9414-4302-8163-5a
 +--------------------------------------+----------+---------------+
 ```
 
-The load balancer will be deleted after `service-2` is deleted. 
+The load balancer will be deleted after `service-2` is deleted.
 
 ### IPv4 / IPv6 dual-stack services
 Since Kubernetes 1.20, Kubernetes clusters can run in dual-stack mode,

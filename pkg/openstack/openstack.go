@@ -56,6 +56,9 @@ var userAgentData []string
 // supportedLBProvider map is used to define LoadBalancer providers that we support
 var supportedLBProvider = []string{"amphora", "octavia", "ovn"}
 
+// supportedContainerStore map is used to define supported tls-container-ref store
+var supportedContainerStore = []string{"barbican", "external"}
+
 // AddExtraFlags is called by the main package to add component specific command line flags
 func AddExtraFlags(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
@@ -98,6 +101,7 @@ type LoadBalancerOpts struct {
 	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
 	IngressHostnameSuffix string              `gcfg:"ingress-hostname-suffix"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
 	MaxSharedLB           int                 `gcfg:"max-shared-lb"`           //  Number of Services in maximum can share a single load balancer. Default 2
+	ContainerStore        string              `gcfg:"container-store"`         // Used to specify the store of the tls-container-ref
 	// revive:disable:var-naming
 	TlsContainerRef string `gcfg:"default-tls-container-ref"` //  reference to a tls container
 	// revive:enable:var-naming
@@ -198,6 +202,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.EnableIngressHostname = false
 	cfg.LoadBalancer.IngressHostnameSuffix = defaultProxyHostnameSuffix
 	cfg.LoadBalancer.TlsContainerRef = ""
+	cfg.LoadBalancer.ContainerStore = "barbican"
 	cfg.LoadBalancer.MaxSharedLB = 2
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
@@ -226,6 +231,10 @@ func ReadConfig(config io.Reader) (Config, error) {
 
 	if !util.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
 		klog.Warningf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
+	}
+
+	if !util.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
+		klog.Warningf("Unsupported Container Store: %s", cfg.LoadBalancer.ContainerStore)
 	}
 
 	return cfg, err
