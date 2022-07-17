@@ -177,7 +177,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `use-octavia`
   Whether or not to use Octavia for LoadBalancer type of Service implementation instead of using Neutron-LBaaS. Default: true
-  
+
 * `floating-network-id`
   Optional. The external network used to create floating IP for the load balancer VIP. If there are multiple external networks in the cloud, either this option must be set or user must specify `loadbalancer.openstack.org/floating-network-id` in the Service annotation.
 
@@ -185,10 +185,10 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Optional. The external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-id`.
 
 * `floating-subnet`
-  Optional. A name pattern (glob or regexp if starting with `~`) for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet`. If multiple subnets match the first one with still available IPs is used. 
+  Optional. A name pattern (glob or regexp if starting with `~`) for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet`. If multiple subnets match the first one with still available IPs is used.
 
 * `floating-subnet-tags`
-  Optional. Tags for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-tags`. If multiple subnets match the first one with still available IPs is used. 
+  Optional. Tags for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-tags`. If multiple subnets match the first one with still available IPs is used.
 
 * `lb-method`
   The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
@@ -227,7 +227,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `cascade-delete`
   Determines whether or not to perform cascade deletion of load balancers. Default: true.
-  
+
 * `flavor-id`
   The id of the loadbalancer flavor to use. Uses octavia default if not set.
 
@@ -243,7 +243,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   * floating-subnet-tags. The same with `floating-subnet-tags` option above.
   * network-id. The same with `network-id` option above.
   * subnet-id. The same with `subnet-id` option above.
-  
+
 * `enable-ingress-hostname`
 
   Used with proxy protocol (set by annotation `loadbalancer.openstack.org/proxy-protocol: "true"`) by adding a dns suffix (nip.io) to the load balancer IP address. Default false.
@@ -260,6 +260,13 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Reference to a tls container. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type TERMINATED_HTTPS for a TLS Terminated loadbalancer.
 
   Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
+  Check `container-store` parameter if you want to disable validation.
+
+* `container-store`
+  Optional. Used to specify the store of the tls-container-ref, e.g. "barbican" or "external" - other store will cause a warning log.
+  Default value - `barbican` - existence of tls container ref would always be performed.
+
+  If set to `external` format for tls container ref will not be validated.
 
 * `max-shared-lb`
   The maximum number of Services that share a load balancer. Default: 2
