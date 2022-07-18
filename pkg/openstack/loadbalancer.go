@@ -341,7 +341,6 @@ type serviceConfig struct {
 	flavorID                string
 	availabilityZone        string
 	tlsContainerRef         string
-	containerStore          string
 	lbID                    string
 	lbName                  string
 	supportLBTags           bool
