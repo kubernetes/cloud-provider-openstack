@@ -142,7 +142,7 @@ func (os *OpenStack) DeleteSnapshot(snapID string) error {
 	return err
 }
 
-//GetSnapshotByID returns snapshot details by id
+// GetSnapshotByID returns snapshot details by id
 func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
 	s, err := snapshots.Get(os.blockstorage, snapshotID).Extract()
 	if err != nil {
