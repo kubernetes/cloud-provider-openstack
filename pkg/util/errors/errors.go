@@ -54,6 +54,10 @@ func IsNotFound(err error) bool {
 		}
 	}
 
+	if err == ErrNotFound {
+		return true
+	}
+
 	return false
 }
 
