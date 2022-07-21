@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -53,9 +54,78 @@ type Instances struct {
 
 const (
 	instanceShutoff = "SHUTOFF"
+	noSortPriority  = 0
 )
 
 var _ cloudprovider.Instances = &Instances{}
+
+// buildAddressSortOrderList builds a list containing only valid CIDRs based on the content of addressSortOrder.
+//
+// It will ignore and warn about invalid sort order items.
+func buildAddressSortOrderList(addressSortOrder string) []*net.IPNet {
+	var list []*net.IPNet
+	for _, item := range strings.Split(addressSortOrder, ",") {
+		item = strings.TrimSpace(item)
+
+		_, cidr, err := net.ParseCIDR(item)
+		if err != nil {
+			klog.Warningf("Ignoring invalid sort order item '%s': %v.", item, err)
+			continue
+		}
+
+		list = append(list, cidr)
+	}
+
+	return list
+}
+
+// getSortPriority returns the priority as int of an address.
+//
+// The priority depends on the index of the CIDR in the list the address is matching,
+// where the first item of the list has higher priority than the last.
+//
+// If the address does not match any CIDR or is not an IP address the function returns noSortPriority.
+func getSortPriority(list []*net.IPNet, address string) int {
+	parsedAddress := net.ParseIP(address)
+	if parsedAddress == nil {
+		return noSortPriority
+	}
+
+	for i, cidr := range list {
+		if cidr.Contains(parsedAddress) {
+			fmt.Println(i, cidr, len(list)-i)
+			return len(list) - i
+		}
+	}
+
+	return noSortPriority
+}
+
+// sortNodeAddresses sorts node addresses based on comma separated list of CIDRs represented by addressSortOrder.
+//
+// The function only sorts addresses which match the CIDR and leaves the other addresses in the same order they are in.
+// Essentially, it will also group the addresses matching a CIDR together and sort them ascending in this group,
+// whereas the inter-group sorting depends on the priority.
+//
+// The priority depends on the order of the item in addressSortOrder, where the first item has higher priority than the last.
+func sortNodeAddresses(addresses []v1.NodeAddress, addressSortOrder string) {
+	list := buildAddressSortOrderList(addressSortOrder)
+
+	sort.SliceStable(addresses, func(i int, j int) bool {
+		addressLeft := addresses[i]
+		addressRight := addresses[j]
+
+		priorityLeft := getSortPriority(list, addressLeft.Address)
+		priorityRight := getSortPriority(list, addressRight.Address)
+
+		// ignore priorities of value 0 since this means the address has noSortPriority and we need to sort by priority
+		if priorityLeft > noSortPriority && priorityLeft == priorityRight {
+			return bytes.Compare(net.ParseIP(addressLeft.Address), net.ParseIP(addressRight.Address)) < 0
+		}
+
+		return priorityLeft > priorityRight
+	})
+}
 
 // Instances returns an implementation of Instances for OpenStack.
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
@@ -559,6 +629,10 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 				)
 			}
 		}
+	}
+
+	if networkingOpts.AddressSortOrder != "" {
+		sortNodeAddresses(addrs, networkingOpts.AddressSortOrder)
 	}
 
 	return addrs, nil
