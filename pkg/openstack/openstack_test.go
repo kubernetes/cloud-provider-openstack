@@ -794,6 +794,90 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 	}
 }
 
+func TestNodeAddressesWithAddressSortOrderOptions(t *testing.T) {
+	srv := servers.Server{
+		Status:     "ACTIVE",
+		HostID:     "29d3c8c896a45aa4c34e52247875d7fefc3d94bbcc9f622b5d204362",
+		AccessIPv4: "50.56.176.99",
+		AccessIPv6: "2001:4800:790e:510:be76:4eff:fe04:82a8",
+		Addresses: map[string]interface{}{
+			"private": []interface{}{
+				map[string]interface{}{
+					"OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:7c:1b:2b",
+					"version":                 float64(4),
+					"addr":                    "10.0.0.32",
+					"OS-EXT-IPS:type":         "fixed",
+				},
+				map[string]interface{}{
+					"version":         float64(4),
+					"addr":            "50.56.176.36",
+					"OS-EXT-IPS:type": "floating",
+				},
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "10.0.0.31",
+					// No OS-EXT-IPS:type
+				},
+			},
+			"public": []interface{}{
+				map[string]interface{}{
+					"version": float64(4),
+					"addr":    "50.56.176.35",
+				},
+				map[string]interface{}{
+					"version": float64(6),
+					"addr":    "2001:4800:780e:510:be76:4eff:fe04:84a8",
+				},
+			},
+		},
+		Metadata: map[string]string{
+			"name":       "a1-yinvcez57-0-bvynoyawrhcg-kube-minion-fg5i4jwcc2yy",
+			TypeHostName: "a1-yinvcez57-0-bvynoyawrhcg-kube-minion-fg5i4jwcc2yy.novalocal",
+		},
+	}
+
+	networkingOpts := NetworkingOpts{
+		PublicNetworkName: []string{"public"},
+		AddressSortOrder:  "10.0.0.0/8, 50.56.176.0/24, 2001:4800::/32",
+	}
+
+	interfaces := []attachinterfaces.Interface{
+		{
+			PortState: "ACTIVE",
+			FixedIPs: []attachinterfaces.FixedIP{
+				{
+					IPAddress: "10.0.0.32",
+				},
+				{
+					IPAddress: "10.0.0.31",
+				},
+			},
+		},
+	}
+
+	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	if err != nil {
+		t.Fatalf("nodeAddresses returned error: %v", err)
+	}
+
+	t.Logf("addresses are %v", addrs)
+
+	want := []v1.NodeAddress{
+		{Type: v1.NodeInternalIP, Address: "10.0.0.31"},
+		{Type: v1.NodeInternalIP, Address: "10.0.0.32"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.35"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.36"},
+		{Type: v1.NodeExternalIP, Address: "50.56.176.99"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:780e:510:be76:4eff:fe04:84a8"},
+		{Type: v1.NodeExternalIP, Address: "2001:4800:790e:510:be76:4eff:fe04:82a8"},
+		{Type: v1.NodeHostName, Address: "a1-yinvcez57-0-bvynoyawrhcg-kube-minion-fg5i4jwcc2yy.novalocal"},
+	}
+
+	if !reflect.DeepEqual(want, addrs) {
+		t.Errorf("nodeAddresses returned incorrect value, want %v", want)
+	}
+}
+
 func TestNewOpenStack(t *testing.T) {
 	cfg := ConfigFromEnv()
 	testConfigFromEnv(t, &cfg)
