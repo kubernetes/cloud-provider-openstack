@@ -11,6 +11,7 @@
     - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
     - [Use PROXY protocol to preserve client IP](#use-proxy-protocol-to-preserve-client-ip)
     - [Sharing load balancer with multiple Services](#sharing-load-balancer-with-multiple-services)
+    - [IPv4 / IPv6 dual-stack services](#ipv4--ipv6-dual-stack-services)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -580,3 +581,21 @@ $ openstack loadbalancer listener list --loadbalancer 2b224530-9414-4302-8163-5a
 ```
 
 The load balancer will be deleted after `service-2` is deleted. 
+
+### IPv4 / IPv6 dual-stack services
+Since Kubernetes 1.20, Kubernetes clusters can run in dual-stack mode,
+which allows simultaneous usage of both IPv4 and IPv6 addresses in the cluster.
+In dual-stack clusters, services can use IPv4, IPv6, or both address families, which
+can be indicated in service's `spec.ipFamilies`.
+
+If only one address family is specified in service's `spec.ipFamilies`, OCCM will respect
+that and create an IPv4 or IPv6 load balancer based on that.
+
+If two address families are specified in service's `spec.ipFamilies`, OCCM will respect the
+specified order and create an IPv4 or IPv6 load balancer based on the first specified address
+family. Note that creation of two load balancers for services with two `spec.ipFamilies`
+is not yet supported by OCCM.
+
+Internally, OCCM would automatically look for IPv4 or IPv6 subnet to allocate the load balancer
+address from based on the service's address family preference. If the subnet with preferred
+address family is not available, load balancer can not be created.
