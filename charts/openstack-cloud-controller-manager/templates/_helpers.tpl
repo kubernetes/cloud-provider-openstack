@@ -64,10 +64,11 @@ Create cloud-config makro.
 {{ $key }} = {{ $value }}
 {{- end }}
 
-{{- range .Values.cloudConfig.loadBalancerClass.name }}
-[LoadBalancerClass "{{ .Values.cloudConfig.loadBalancerClass.name }}"]
-{{- range $key, $value := .Values.cloudConfig.loadBalancerClass.$name }}
+{{- range $className, $lb := .Values.cloudConfig.loadBalancerClass }}
+[LoadBalancerClass "{{ $className }}"]
+{{- range $key, $value := $className }}
 {{ $key }} = {{ $value }}
+{{- end }}
 {{- end }}
 
 [BlockStorage]
