@@ -64,6 +64,12 @@ Create cloud-config makro.
 {{ $key }} = {{ $value }}
 {{- end }}
 
+{{- range .Values.cloudConfig.loadBalancerClass.name }}
+[LoadBalancerClass "{{ .Values.cloudConfig.loadBalancerClass.name }}"]
+{{- range $key, $value := .Values.cloudConfig.loadBalancerClass.$name }}
+{{ $key }} = {{ $value }}
+{{- end }}
+
 [BlockStorage]
 {{- range $key, $value := .Values.cloudConfig.blockStorage }}
 {{ $key }} = {{ $value }}
