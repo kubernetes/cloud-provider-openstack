@@ -66,10 +66,14 @@ Create cloud-config makro.
 
 {{- range $className, $lb := .Values.cloudConfig.loadBalancerClass }}
 [LoadBalancerClass "{{ $className }}"]
-{{- range $key, $value := $className }}
-{{ $key }} = {{ $value }}
+{{- if $lb.FloatingNetworkId }}
+floating-network-id = {{ $lb.FloatingNetworkId }}
+{{- end }}
+{{- if $lb.SubnetId }}
+subnet-id = {{ $lb.SubnetId }}
 {{- end }}
 {{- end }}
+
 
 [BlockStorage]
 {{- range $key, $value := .Values.cloudConfig.blockStorage }}
