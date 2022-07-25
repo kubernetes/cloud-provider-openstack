@@ -1598,15 +1598,17 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
 		}
 
-		// check if container exists
+		// check if container exists for 'barbican' container store
 		// tls container ref has the format: https://{keymanager_host}/v1/containers/{uuid}
-		slice := strings.Split(svcConf.tlsContainerRef, "/")
-		containerID := slice[len(slice)-1]
-		container, err := containers.Get(lbaas.secret, containerID).Extract()
-		if err != nil {
-			return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+		if lbaas.opts.ContainerStore == "barbican" {
+			slice := strings.Split(svcConf.tlsContainerRef, "/")
+			containerID := slice[len(slice)-1]
+			container, err := containers.Get(lbaas.secret, containerID).Extract()
+			if err != nil {
+				return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+			}
+			klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 		}
-		klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 	}
 
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
