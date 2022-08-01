@@ -56,7 +56,7 @@ type CinderDriver = Driver
 
 type Driver struct {
 	name      string
-	fqVersion string //Fully qualified version in format {Version}@{CPO version}
+	fqVersion string //Fully qualified version in format {Version}@{CPO version} 1
 	endpoint  string
 	cluster   string
 
