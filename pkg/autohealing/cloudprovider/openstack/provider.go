@@ -253,10 +253,11 @@ func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeou
 }
 
 // FirstTimeRepair Handle the first time repair for a node
-// 1) If the node is the first time in error, reboot and uncordon it
-// 2) If the node is not the first time in error, check if the last reboot time is in provider.Config.RebuildDelayAfterReboot
-//    That said, if the node has been found in broken status before but has been long time since then, the processed variable
-//    will be kept as False, which means the node need to be rebuilt to fix it, otherwise it means the has been processed.
+//  1. If the node is the first time in error, reboot and uncordon it
+//  2. If the node is not the first time in error, check if the last reboot time is in provider.Config.RebuildDelayAfterReboot
+//     That said, if the node has been found in broken status before but has been long time since then, the processed variable
+//     will be kept as False, which means the node need to be rebuilt to fix it, otherwise it means the has been processed.
+//
 // The bool type return value means that if the node has been processed from a first time repair PoV
 func (provider CloudProvider) firstTimeRepair(n healthcheck.NodeInfo, serverID string, firstTimeRebootNodes map[string]healthcheck.NodeInfo) (bool, error) {
 	var firstTimeUnhealthy = true
@@ -313,12 +314,14 @@ func (provider CloudProvider) firstTimeRepair(n healthcheck.NodeInfo, serverID s
 }
 
 // Repair  For master nodes: detach etcd and docker volumes, find the root
-//         volume, then shutdown the VM, marks the both the VM and the root
-//         volume (heat resource) as "unhealthy" then trigger Heat stack update
-//         in order to rebuild the node. The information this function needs:
-//         - Nova VM ID
-//         - Root volume ID
-// 	       - Heat stack ID and resource ID.
+//
+//	        volume, then shutdown the VM, marks the both the VM and the root
+//	        volume (heat resource) as "unhealthy" then trigger Heat stack update
+//	        in order to rebuild the node. The information this function needs:
+//	        - Nova VM ID
+//	        - Root volume ID
+//		       - Heat stack ID and resource ID.
+//
 // For worker nodes: Call Magnum resize API directly.
 func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 	if len(nodes) == 0 {

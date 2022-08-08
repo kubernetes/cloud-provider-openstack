@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -162,16 +161,13 @@ func getFromConfigDrive(metadataVersion string) (*Metadata, error) {
 		dev = strings.TrimSpace(string(out))
 	}
 
-	mntdir, err := ioutil.TempDir("", "configdrive")
-	if err != nil {
-		return nil, err
-	}
+	mntdir := os.TempDir()
 	defer os.Remove(mntdir)
 
 	klog.V(4).Infof("Attempting to mount configdrive %s on %s", dev, mntdir)
 
 	mounter := mount.GetMountProvider().Mounter()
-	err = mounter.Mount(dev, mntdir, "iso9660", []string{"ro"})
+	err := mounter.Mount(dev, mntdir, "iso9660", []string{"ro"})
 	if err != nil {
 		err = mounter.Mount(dev, mntdir, "vfat", []string{"ro"})
 	}

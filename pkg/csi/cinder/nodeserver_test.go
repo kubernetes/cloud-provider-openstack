@@ -18,7 +18,6 @@ package cinder
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -379,13 +378,10 @@ func TestNodeGetVolumeStatsBlock(t *testing.T) {
 	mmock.ExpectedCalls = nil
 
 	// setup for test
-	tempDir, err := ioutil.TempDir("", "cpo-test")
-	if err != nil {
-		t.Fatalf("Failed to set up temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := os.TempDir()
+	defer os.Remove(tempDir)
 	volumePath := filepath.Join(tempDir, FakeTargetPath)
-	err = os.MkdirAll(volumePath, 0750)
+	err := os.MkdirAll(volumePath, 0750)
 	if err != nil {
 		t.Fatalf("Failed to set up volumepath: %v", err)
 	}
@@ -417,13 +413,10 @@ func TestNodeGetVolumeStatsFs(t *testing.T) {
 	mmock.ExpectedCalls = nil
 
 	// setup for test
-	tempDir, err := ioutil.TempDir("", "cpo-test")
-	if err != nil {
-		t.Fatalf("Failed to set up temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := os.TempDir()
+	defer os.Remove(tempDir)
 	volumePath := filepath.Join(tempDir, FakeTargetPath)
-	err = os.MkdirAll(volumePath, 0750)
+	err := os.MkdirAll(volumePath, 0750)
 	if err != nil {
 		t.Fatalf("Failed to set up volumepath: %v", err)
 	}

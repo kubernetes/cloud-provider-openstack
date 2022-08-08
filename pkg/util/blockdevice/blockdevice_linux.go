@@ -19,7 +19,6 @@ package blockdevice
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,7 +107,7 @@ func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSiz
 
 	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
 	klog.V(4).Infof("Rescanning %q block device geometry", devicePath)
-	err = ioutil.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
+	err = os.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
 	if err != nil {
 		klog.Errorf("Error rescanning new block device geometry: %v", err)
 		// no need to run checkBlockDeviceSize second time here, return the saved error

@@ -1,7 +1,6 @@
 package sanity
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -13,12 +12,8 @@ import (
 
 // start sanity test for driver
 func TestDriver(t *testing.T) {
-	basePath, err := ioutil.TempDir("", "cinder.csi.openstack.org")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer os.RemoveAll(basePath)
+	basePath := os.TempDir()
+	defer os.Remove(basePath)
 
 	socket := path.Join(basePath, "csi.sock")
 	endpoint := "unix://" + socket

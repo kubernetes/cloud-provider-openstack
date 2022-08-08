@@ -19,11 +19,12 @@ package keystone
 import (
 	"crypto/tls"
 	"fmt"
+	"os"
+
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
 	"github.com/gophercloud/utils/client"
-	"io/ioutil"
 	certutil "k8s.io/client-go/util/cert"
 	osClient "k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/version"
@@ -57,13 +58,13 @@ func GetToken(options Options) (*tokens3.Token, error) {
 	provider.UserAgent = userAgent
 
 	if options.ClientCertPath != "" && options.ClientKeyPath != "" {
-		clientCert, err := ioutil.ReadFile(options.ClientCertPath)
+		clientCert, err := os.ReadFile(options.ClientCertPath)
 		if err != nil {
 			msg := fmt.Errorf("failed: Cannot read cert file: %v", err)
 			return token, msg
 		}
 
-		clientKey, err := ioutil.ReadFile(options.ClientKeyPath)
+		clientKey, err := os.ReadFile(options.ClientKeyPath)
 		if err != nil {
 			msg := fmt.Errorf("failed: Cannot read key file: %v", err)
 			return token, msg

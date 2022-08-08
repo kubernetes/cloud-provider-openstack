@@ -16,7 +16,7 @@ package keystone
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 
@@ -46,7 +46,7 @@ func TestTokenGetter(t *testing.T) {
 			}
 		}
 		var x AuthRequest
-		body, _ := ioutil.ReadAll(r.Body)
+		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &x)
 		domainName := x.Auth.Identity.Password.User.Domain.Name
 		userName := x.Auth.Identity.Password.User.Name
