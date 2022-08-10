@@ -28,20 +28,20 @@ import (
 // By default, the input data has to contain a value for each struct field.
 //
 // Available tags:
-// * name:"FIELD-NAME" : key of the value in the input map
-// * value: modifies value requirements:
-//   value:"required" : field is required
-//   value:"optional" : field is optional
-//   value:"requiredIf:FIELD-NAME=REGEXP-PATTERN" : field is required if the value of FIELD-NAME matches REGEXP-PATTERN
-//   value:"optionalIf:FIELD-NAME=REGEXP-PATTERN" : field is optional if the value of FIELD-NAME matches REGEXP-PATTERN
-//   value:"default:VALUE" : field value defaults to VALUE
-// * dependsOn:"FIELD-NAMES|,..." : if this field is not empty, the specified fields are required to be present
-//   operator ',' acts as AND
-//   operator '|' acts as XOR
-//   e.g.: dependsOn:"f1|f2|f3,f4,f5" : if this field is not empty, exactly one of {f1,f2,f3} is required to be present,
-//         and f4 and f5 is required to be present
-// * precludes:"FIELD-NAMES,..." : if this field is not empty, all specified fields are required to be empty
-// * matches:"REGEXP-PATTERN" : if this field is not empty, it's required to match REGEXP-PATTERN
+//   - name:"FIELD-NAME" : key of the value in the input map
+//   - value: modifies value requirements:
+//     value:"required" : field is required
+//     value:"optional" : field is optional
+//     value:"requiredIf:FIELD-NAME=REGEXP-PATTERN" : field is required if the value of FIELD-NAME matches REGEXP-PATTERN
+//     value:"optionalIf:FIELD-NAME=REGEXP-PATTERN" : field is optional if the value of FIELD-NAME matches REGEXP-PATTERN
+//     value:"default:VALUE" : field value defaults to VALUE
+//   - dependsOn:"FIELD-NAMES|,..." : if this field is not empty, the specified fields are required to be present
+//     operator ',' acts as AND
+//     operator '|' acts as XOR
+//     e.g.: dependsOn:"f1|f2|f3,f4,f5" : if this field is not empty, exactly one of {f1,f2,f3} is required to be present,
+//     and f4 and f5 is required to be present
+//   - precludes:"FIELD-NAMES,..." : if this field is not empty, all specified fields are required to be empty
+//   - matches:"REGEXP-PATTERN" : if this field is not empty, it's required to match REGEXP-PATTERN
 type Validator struct {
 	t reflect.Type
 

@@ -11,7 +11,7 @@ type KMSOpts struct {
 	KeyID string `gcfg:"key-id"`
 }
 
-//Config to read config options
+// Config to read config options
 type Config struct {
 	Global     client.AuthOpts
 	KeyManager KMSOpts

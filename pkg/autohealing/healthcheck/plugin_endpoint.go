@@ -19,8 +19,8 @@ package healthcheck
 import (
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -157,7 +157,7 @@ func (check *EndpointCheck) Check(node NodeInfo, controller NodeController) bool
 
 		if check.RequireToken {
 			if check.Token == "" {
-				b, err := ioutil.ReadFile(TokenPath)
+				b, err := os.ReadFile(TokenPath)
 				if err != nil {
 					log.Warningf("Node %s, failed to get token from %s, skip the check", nodeName, TokenPath)
 					return true
