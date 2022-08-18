@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -134,7 +134,7 @@ func newSyncConfig() syncConfig {
 func newSyncConfigFromFile(path string) (*syncConfig, error) {
 	sc := newSyncConfig()
 
-	yamlFile, err := ioutil.ReadFile(path)
+	yamlFile, err := os.ReadFile(path)
 	if err != nil {
 		klog.Errorf("yamlFile get err   #%v ", err)
 		return nil, err

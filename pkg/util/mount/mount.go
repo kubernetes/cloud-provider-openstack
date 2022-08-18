@@ -18,7 +18,6 @@ package mount
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -81,7 +80,7 @@ func getBaseMounter() *mount.SafeFormatAndMount {
 	}
 }
 
-//GetMountProvider returns instance of Mounter
+// GetMountProvider returns instance of Mounter
 func GetMountProvider() IMount {
 	if MInstance == nil {
 		MInstance = &Mount{BaseMounter: getBaseMounter()}
@@ -98,11 +97,11 @@ func (m *Mount) Mounter() *mount.SafeFormatAndMount {
 func probeVolume() error {
 	// rescan scsi bus
 	scsiPath := "/sys/class/scsi_host/"
-	if dirs, err := ioutil.ReadDir(scsiPath); err == nil {
+	if dirs, err := os.ReadDir(scsiPath); err == nil {
 		for _, f := range dirs {
 			name := scsiPath + f.Name() + "/scan"
 			data := []byte("- - -")
-			if err := ioutil.WriteFile(name, data, 0666); err != nil {
+			if err := os.WriteFile(name, data, 0666); err != nil {
 				return fmt.Errorf("Unable to scan %s: %w", f.Name(), err)
 			}
 		}
@@ -166,7 +165,7 @@ func (m *Mount) getDevicePathBySerialID(volumeID string) string {
 		fmt.Sprintf("wwn-0x%s", strings.Replace(volumeID, "-", "", -1)),
 	}
 
-	files, err := ioutil.ReadDir("/dev/disk/by-id/")
+	files, err := os.ReadDir("/dev/disk/by-id/")
 	if err != nil {
 		klog.V(4).Infof("ReadDir failed with error %v", err)
 	}

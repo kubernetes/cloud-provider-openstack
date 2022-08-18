@@ -19,8 +19,8 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -414,7 +414,7 @@ func readInstanceID(searchOrder string) (string, error) {
 
 	// Try to find instance ID on the local filesystem (created by cloud-init)
 	const instanceIDFile = "/var/lib/cloud/data/instance-id"
-	idBytes, err := ioutil.ReadFile(instanceIDFile)
+	idBytes, err := os.ReadFile(instanceIDFile)
 	if err == nil {
 		instanceID := string(idBytes)
 		instanceID = strings.TrimSpace(instanceID)
