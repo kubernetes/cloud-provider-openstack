@@ -18,7 +18,6 @@ package runtimeconfig
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 )
 
@@ -34,7 +33,7 @@ type RuntimeConfig struct {
 func Get() (*RuntimeConfig, error) {
 	// File contents are deliberately not cached
 	// as they may change over time.
-	data, err := ioutil.ReadFile(RuntimeConfigFilename)
+	data, err := os.ReadFile(RuntimeConfigFilename)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil

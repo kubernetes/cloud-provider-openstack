@@ -17,7 +17,6 @@ limitations under the License.
 package sanity
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -28,12 +27,8 @@ import (
 )
 
 func TestDriver(t *testing.T) {
-	basePath, err := ioutil.TempDir("", "manila.csi.openstack.org")
-	if err != nil {
-		t.Fatalf("failed create base path in %s: %v", basePath, err)
-	}
-
-	defer os.RemoveAll(basePath)
+	basePath := os.TempDir()
+	defer os.Remove(basePath)
 
 	endpoint := path.Join(basePath, "csi.sock")
 	fwdEndpoint := "unix:///fake-fwd-endpoint"

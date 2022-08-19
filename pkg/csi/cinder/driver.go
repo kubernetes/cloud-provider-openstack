@@ -48,8 +48,9 @@ var (
 	Version = "2.0.0"
 )
 
-//revive:disable:exported
 // Deprecated: use Driver instead
+//
+//revive:disable:exported
 type CinderDriver = Driver
 
 //revive:enable:exported

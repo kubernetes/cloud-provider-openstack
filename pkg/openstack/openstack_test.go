@@ -19,7 +19,6 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -171,7 +170,7 @@ clouds:
     identity_api_version: 3
 `
 	data := []byte(cloud)
-	err = ioutil.WriteFile(cloudFile, data, 0644)
+	err = os.WriteFile(cloudFile, data, 0644)
 	if err != nil {
 		t.Error(err)
 	}
