@@ -114,6 +114,10 @@ Request Body:
 
   VIP subnet ID of load balancer created.
 
+- `loadbalancer.openstack.org/member-subnet-id`
+
+  Member subnet ID of the load balancer created.
+
 - `loadbalancer.openstack.org/network-id`
 
   The network ID which will allocate virtual IP for loadbalancer.
