@@ -621,8 +621,9 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		createOpts.VipAddress = loadBalancerIP
 	}
 
-	for _, port := range service.Spec.Ports {
+	for portIndex, port := range service.Spec.Ports {
 		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
+		listenerCreateOpt.Name = cutString(fmt.Sprintf("listener_%d_%s", portIndex, name))
 		members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
 		if err != nil {
 			return nil, err
@@ -630,10 +631,11 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
 		poolCreateOpt.Members = members
 		// Pool name must be provided to create fully populated loadbalancer
-		poolCreateOpt.Name = fmt.Sprintf("%s_%d_pool", listenerCreateOpt.Protocol, int(port.Port))
+		poolCreateOpt.Name = cutString(fmt.Sprintf("pool_%d_%s", portIndex, name))
 		var withHealthMonitor string
 		if svcConf.enableMonitor {
 			opts := lbaas.buildMonitorCreateOpts(svcConf, port)
+			opts.Name = cutString(fmt.Sprintf("monitor_%d_%s", port.Port, name))
 			poolCreateOpt.Monitor = &opts
 			withHealthMonitor = " with healthmonitor"
 		}
