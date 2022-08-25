@@ -1204,19 +1204,22 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 
 // buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
 func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
-	monitorProtocol := string(port.Protocol)
-	if port.Protocol == corev1.ProtocolUDP {
-		monitorProtocol = "UDP-CONNECT"
-	}
-	if svcConf.healthCheckNodePort > 0 {
-		monitorProtocol = "HTTP"
-	}
-	return v2monitors.CreateOpts{
-		Type:       monitorProtocol,
+	opts := v2monitors.CreateOpts{
+		Type:       string(port.Protocol),
 		Delay:      svcConf.healthMonitorDelay,
 		Timeout:    svcConf.healthMonitorTimeout,
 		MaxRetries: svcConf.healthMonitorMaxRetries,
 	}
+	if port.Protocol == corev1.ProtocolUDP {
+		opts.Type = "UDP-CONNECT"
+	}
+	if svcConf.healthCheckNodePort > 0 {
+		opts.Type = "HTTP"
+		opts.URLPath = "/healthz"
+		opts.HTTPMethod = "GET"
+		opts.ExpectedCodes = "200"
+	}
+	return opts
 }
 
 // Make sure the pool is created for the Service, nodes are added as pool members.
