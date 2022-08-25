@@ -285,6 +285,10 @@ NOTE:
 
   Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both. Especially, the metadata on the config drive may grow stale over time, whereas the metadata service always provides the most up to date data.
 
+### Multi region support (alpha)
+
+* environment variable `OS_CCM_REGIONAL` is set to `true` - allow CCM to set ProviderID with region name `${ProviderName}://${REGION}/${instance-id}`. Default: false.
+
 ## Exposing applications using services of LoadBalancer type
 
 Refer to [Exposing applications using services of LoadBalancer type](./expose-applications-using-loadbalancer-type-service.md)

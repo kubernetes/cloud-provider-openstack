@@ -877,38 +877,50 @@ func TestInstanceIDFromProviderID(t *testing.T) {
 	testCases := []struct {
 		providerID string
 		instanceID string
+		region     string
 		fail       bool
 	}{
 		{
 			providerID: ProviderName + "://" + "/" + "7b9cf879-7146-417c-abfd-cb4272f0c935",
 			instanceID: "7b9cf879-7146-417c-abfd-cb4272f0c935",
+			region:     "",
+			fail:       false,
+		},
+		{
+			providerID: ProviderName + "://RegionOne/7b9cf879-7146-417c-abfd-cb4272f0c935",
+			instanceID: "7b9cf879-7146-417c-abfd-cb4272f0c935",
+			region:     "RegionOne",
 			fail:       false,
 		},
 		{
 			// https://github.com/kubernetes/kubernetes/issues/85731
 			providerID: "/7b9cf879-7146-417c-abfd-cb4272f0c935",
 			instanceID: "7b9cf879-7146-417c-abfd-cb4272f0c935",
+			region:     "",
 			fail:       false,
 		},
 		{
 			providerID: "openstack://7b9cf879-7146-417c-abfd-cb4272f0c935",
 			instanceID: "",
+			region:     "",
 			fail:       true,
 		},
 		{
 			providerID: "7b9cf879-7146-417c-abfd-cb4272f0c935",
 			instanceID: "",
+			region:     "",
 			fail:       true,
 		},
 		{
 			providerID: "other-provider:///7b9cf879-7146-417c-abfd-cb4272f0c935",
 			instanceID: "",
+			region:     "",
 			fail:       true,
 		},
 	}
 
 	for _, test := range testCases {
-		instanceID, err := instanceIDFromProviderID(test.providerID)
+		instanceID, instanceRegion, err := instanceIDFromProviderID(test.providerID)
 		if (err != nil) != test.fail {
 			t.Errorf("expected err: %t, got err: %v", test.fail, err)
 		}
@@ -919,6 +931,10 @@ func TestInstanceIDFromProviderID(t *testing.T) {
 
 		if instanceID != test.instanceID {
 			t.Errorf("%s yielded %s. expected %q", test.providerID, instanceID, test.instanceID)
+		}
+
+		if instanceRegion != test.region {
+			t.Errorf("%s yielded region %s. expected %q", test.providerID, instanceRegion, test.region)
 		}
 	}
 }
