@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "occm.labels" . | nindent 4 }}
   name: {{ include "occm.name" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
