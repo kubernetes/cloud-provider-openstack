@@ -858,6 +858,20 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 		}
 
 		for _, port := range allPorts {
+			// If the Security Group is already present on the port, skip it.
+			// As soon as this only supports Go 1.18, this can be replaces by
+			// slices.Contains.
+			if func() bool {
+				for _, currentSG := range port.SecurityGroups {
+					if currentSG == sg {
+						return true
+					}
+				}
+				return false
+			}() {
+				continue
+			}
+
 			newSGs := append(port.SecurityGroups, sg)
 			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
 			mc := metrics.NewMetricContext("port", "update")
@@ -2504,6 +2518,52 @@ func (lbaas *LbaasV2) getSubnet(subnet string) (*subnets.Subnet, error) {
 	return nil, fmt.Errorf("found multiple subnets with name %s", subnet)
 }
 
+// ensureSecurityRule ensures to create a security rule for a defined security
+// group, if it not present.
+func (lbaas *LbaasV2) ensureSecurityRule(
+	direction rules.RuleDirection,
+	protocol rules.RuleProtocol,
+	etherType rules.RuleEtherType,
+	remoteIPPrefix, secGroupID string,
+	portRangeMin, portRangeMax int,
+) error {
+	sgListopts := rules.ListOpts{
+		Direction:      string(direction),
+		Protocol:       string(protocol),
+		PortRangeMax:   portRangeMin,
+		PortRangeMin:   portRangeMax,
+		RemoteIPPrefix: remoteIPPrefix,
+		SecGroupID:     secGroupID,
+	}
+	sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		return fmt.Errorf(
+			"failed to find security group rules in %s: %v", secGroupID, err)
+	}
+	if len(sgRules) != 0 {
+		return nil
+	}
+
+	sgRuleCreateOpts := rules.CreateOpts{
+		Direction:      direction,
+		Protocol:       protocol,
+		PortRangeMax:   portRangeMin,
+		PortRangeMin:   portRangeMax,
+		RemoteIPPrefix: remoteIPPrefix,
+		SecGroupID:     secGroupID,
+		EtherType:      etherType,
+	}
+
+	mc := metrics.NewMetricContext("security_group_rule", "create")
+	_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf(
+			"failed to create rule for security group %s: %v",
+			secGroupID, err)
+	}
+	return nil
+}
+
 // ensureSecurityGroup ensures security group exist for specific loadbalancer service.
 // Creating security group for specific loadbalancer service when it does not exist.
 func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node,
@@ -2653,53 +2713,53 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 		}
 	}
 
+	mc := metrics.NewMetricContext("subnet", "get")
+	subnet, err := subnets.Get(lbaas.network, memberSubnetID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf(
+			"failed to find subnet %s from openstack: %v", memberSubnetID, err)
+	}
+
+	etherType := rules.EtherType4
+	if netutils.IsIPv6CIDRString(subnet.CIDR) {
+		etherType = rules.EtherType6
+	}
+
+	if apiService.Spec.HealthCheckNodePort != 0 {
+		err = lbaas.ensureSecurityRule(
+			rules.DirIngress,
+			rules.ProtocolTCP,
+			etherType,
+			subnet.CIDR,
+			lbSecGroupID,
+			int(apiService.Spec.HealthCheckNodePort),
+			int(apiService.Spec.HealthCheckNodePort),
+		)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to apply security rule for health check node port, %w",
+				err)
+		}
+	}
+
 	// ensure rules for node security group
 	for _, port := range ports {
 		// If Octavia is used, the VIP port security group is already taken good care of, we only need to allow ingress
 		// traffic from Octavia amphorae to the node port on the worker nodes.
 		if lbaas.opts.UseOctavia {
-			mc := metrics.NewMetricContext("subnet", "get")
-			subnet, err := subnets.Get(lbaas.network, memberSubnetID).Extract()
-			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to find subnet %s from openstack: %v", memberSubnetID, err)
-			}
-
-			sgListopts := rules.ListOpts{
-				Direction:      string(rules.DirIngress),
-				Protocol:       string(port.Protocol),
-				PortRangeMax:   int(port.NodePort),
-				PortRangeMin:   int(port.NodePort),
-				RemoteIPPrefix: subnet.CIDR,
-				SecGroupID:     lbSecGroupID,
-			}
-			sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
-			if err != nil && !cpoerrors.IsNotFound(err) {
-				return fmt.Errorf("failed to find security group rules in %s: %v", lbSecGroupID, err)
-			}
-			if len(sgRules) != 0 {
-				continue
-			}
-
-			ethertype := rules.EtherType4
-			if netutils.IsIPv6CIDRString(subnet.CIDR) {
-				ethertype = rules.EtherType6
-			}
-
-			// The Octavia amphorae and worker nodes are supposed to be in the same subnet. We allow the ingress traffic
-			// from the amphorae to the specific node port on the nodes.
-			sgRuleCreateOpts := rules.CreateOpts{
-				Direction:      rules.DirIngress,
-				PortRangeMax:   int(port.NodePort),
-				PortRangeMin:   int(port.NodePort),
-				Protocol:       toRuleProtocol(port.Protocol),
-				RemoteIPPrefix: subnet.CIDR,
-				SecGroupID:     lbSecGroupID,
-				EtherType:      ethertype,
-			}
-			mc = metrics.NewMetricContext("security_group_rule", "create")
-			_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
-			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to create rule for security group %s: %v", lbSecGroupID, err)
+			err = lbaas.ensureSecurityRule(
+				rules.DirIngress,
+				rules.RuleProtocol(port.Protocol),
+				etherType,
+				subnet.CIDR,
+				lbSecGroupID,
+				int(port.NodePort),
+				int(port.NodePort),
+			)
+			if err != nil {
+				return fmt.Errorf(
+					"failed to apply security rule for port %d, %w",
+					port.NodePort, err)
 			}
 
 			if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
