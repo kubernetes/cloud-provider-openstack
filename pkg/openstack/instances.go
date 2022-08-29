@@ -386,14 +386,10 @@ func instanceIDFromProviderID(providerID string) (instanceID string, region stri
 	}
 
 	matches := providerIDRegexp.FindStringSubmatch(providerID)
-	switch len(matches) {
-	case 2:
-		return matches[1], "", nil
-	case 3:
-		return matches[2], matches[1], nil
-	default:
+	if len(matches) != 3 {
 		return "", "", fmt.Errorf("ProviderID \"%s\" didn't match expected format \"openstack://region/InstanceID\"", providerID)
 	}
+	return matches[2], matches[1], nil
 }
 
 // AddToNodeAddresses appends the NodeAddresses to the passed-by-pointer slice,
