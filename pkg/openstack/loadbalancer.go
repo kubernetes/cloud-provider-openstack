@@ -78,6 +78,7 @@ const (
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
+	ServiceAnnotationLoadBalancerMemberSubnetID       = "loadbalancer.openstack.org/member-subnet-id"
 	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
 	ServiceAnnotationLoadBalancerTimeoutMemberConnect = "loadbalancer.openstack.org/timeout-member-connect"
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
@@ -621,8 +622,9 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		createOpts.VipAddress = loadBalancerIP
 	}
 
-	for _, port := range service.Spec.Ports {
+	for portIndex, port := range service.Spec.Ports {
 		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
+		listenerCreateOpt.Name = cutString(fmt.Sprintf("listener_%d_%s", portIndex, name))
 		members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
 		if err != nil {
 			return nil, err
@@ -630,10 +632,11 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
 		poolCreateOpt.Members = members
 		// Pool name must be provided to create fully populated loadbalancer
-		poolCreateOpt.Name = fmt.Sprintf("%s_%d_pool", listenerCreateOpt.Protocol, int(port.Port))
+		poolCreateOpt.Name = cutString(fmt.Sprintf("pool_%d_%s", portIndex, name))
 		var withHealthMonitor string
 		if svcConf.enableMonitor {
 			opts := lbaas.buildMonitorCreateOpts(svcConf, port)
+			opts.Name = cutString(fmt.Sprintf("monitor_%d_%s", port.Port, name))
 			poolCreateOpt.Monitor = &opts
 			withHealthMonitor = " with healthmonitor"
 		}
@@ -1485,6 +1488,34 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 	return listenerCreateOpt
 }
 
+// getMemberSubnetID gets the configured member-subnet-id from the different possible sources.
+func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+	// Get Member Subnet from Service Annotation
+	memberSubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerMemberSubnetID, "")
+	if memberSubnetIDAnnotation != "" {
+		return memberSubnetIDAnnotation, nil
+	}
+
+	// Get Member Subnet from Config Class
+	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
+	if configClassName != "" {
+		lbClass := lbaas.opts.LBClasses[svcConf.configClassName]
+		if lbClass == nil {
+			return "", fmt.Errorf("invalid loadbalancer class %q", svcConf.configClassName)
+		}
+		if lbClass.MemberSubnetID != "" {
+			return lbClass.MemberSubnetID, nil
+		}
+	}
+
+	// Get Member Subnet from Default Config
+	if lbaas.opts.MemberSubnetID != "" {
+		return lbaas.opts.MemberSubnetID, nil
+	}
+
+	return "", nil
+}
+
 func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	if len(service.Spec.Ports) == 0 {
 		return fmt.Errorf("no ports provided to openstack load balancer")
@@ -1501,7 +1532,13 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Find subnet ID for creating members
-	if lbaas.opts.SubnetID != "" {
+	memberSubnetID, err := lbaas.getMemberSubnetID(service, svcConf)
+	if err != nil {
+		return fmt.Errorf("unable to get member-subnet-id, %w", err)
+	}
+	if memberSubnetID != "" {
+		svcConf.lbMemberSubnetID = memberSubnetID
+	} else if lbaas.opts.SubnetID != "" {
 		svcConf.lbMemberSubnetID = lbaas.opts.SubnetID
 	} else {
 		svcConf.configClassName = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
@@ -1627,6 +1664,16 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		}
 		svcConf.lbSubnetID = subnetID
 		svcConf.lbMemberSubnetID = subnetID
+	}
+
+	// Override the specific member-subnet-id, if explictly configured.
+	// Otherwise use subnet-id.
+	memberSubnetID, err := lbaas.getMemberSubnetID(service, svcConf)
+	if err != nil {
+		return fmt.Errorf("unable to get member-subnet-id, %w", err)
+	}
+	if memberSubnetID != "" {
+		svcConf.lbMemberSubnetID = memberSubnetID
 	}
 
 	if !svcConf.internal {

@@ -200,7 +200,10 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Optional. If specified, only "v2" is supported.
 
 * `subnet-id`
-  ID of the Neutron subnet on which to create load balancer VIP, this ID is also used to create pool members.
+  ID of the Neutron subnet on which to create load balancer VIP. This ID is also used to create pool members, if `member-subnet-id` is not set.
+
+* `member-subnet-id`
+  ID of the Neutron network on which to create the members of the load balancer. The load balancer gets another network port on this subnet. Defaults to `subnet-id` if not set.
 
 * `network-id`
   ID of the Neutron network on which to create load balancer VIP, not needed if `subnet-id` is set.
@@ -243,6 +246,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   * floating-subnet-tags. The same with `floating-subnet-tags` option above.
   * network-id. The same with `network-id` option above.
   * subnet-id. The same with `subnet-id` option above.
+  * member-subnet-id. The same with `member-subnet-id` option above.
 
 * `enable-ingress-hostname`
 
@@ -284,6 +288,10 @@ NOTE:
   * `metadataService,configDrive` - Retrieve instance metadata from the metadata service first if available, then the configuration drive.
 
   Not all OpenStack clouds provide both configuration drive and metadata service though and only one or the other may be available which is why the default is to check both. Especially, the metadata on the config drive may grow stale over time, whereas the metadata service always provides the most up to date data.
+
+### Multi region support (alpha)
+
+* environment variable `OS_CCM_REGIONAL` is set to `true` - allow CCM to set ProviderID with region name `${ProviderName}://${REGION}/${instance-id}`. Default: false.
 
 ## Exposing applications using services of LoadBalancer type
 
