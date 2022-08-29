@@ -80,6 +80,7 @@ type LoadBalancerOpts struct {
 	LBVersion             string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
 	UseOctavia            bool                `gcfg:"use-octavia"`          // uses Octavia V2 service catalog endpoint
 	SubnetID              string              `gcfg:"subnet-id"`            // overrides autodetection.
+	MemberSubnetID        string              `gcfg:"member-subnet-id"`     // overrides autodetection.
 	NetworkID             string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
 	FloatingNetworkID     string              `gcfg:"floating-network-id"`  // If specified, will create floating ip for loadbalancer, or do not create floating ip.
 	FloatingSubnetID      string              `gcfg:"floating-subnet-id"`   // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
@@ -115,6 +116,7 @@ type LBClass struct {
 	FloatingSubnetTags string `gcfg:"floating-subnet-tags,omitempty"`
 	NetworkID          string `gcfg:"network-id,omitempty"`
 	SubnetID           string `gcfg:"subnet-id,omitempty"`
+	MemberSubnetID     string `gcfg:"member-subnet-id,omitempty"`
 }
 
 // NetworkingOpts is used for networking settings
