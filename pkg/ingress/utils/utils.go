@@ -74,7 +74,7 @@ func stringSlicesEqual(x, y []string) bool {
 
 // GetNodeID get instance ID from the Node spec.
 func GetNodeID(node *apiv1.Node) (string, error) {
-	var providerIDRegexp = regexp.MustCompile(`^openstack:///([^/]+)$`)
+	var providerIDRegexp = regexp.MustCompile(`^openstack://(?:[^/]*)/([^/]+)$`)
 
 	matches := providerIDRegexp.FindStringSubmatch(node.Spec.ProviderID)
 	if len(matches) != 2 {

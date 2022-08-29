@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "occm.labels" . | nindent 4 }}
   name: {{ include "occm.name" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
   ports:
   - name: http
