@@ -1503,9 +1503,9 @@ func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *servic
 	// Get Member Subnet from Config Class
 	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
 	if configClassName != "" {
-		lbClass := lbaas.opts.LBClasses[svcConf.configClassName]
+		lbClass := lbaas.opts.LBClasses[configClassName]
 		if lbClass == nil {
-			return "", fmt.Errorf("invalid loadbalancer class %q", svcConf.configClassName)
+			return "", fmt.Errorf("invalid loadbalancer class %q", configClassName)
 		}
 		if lbClass.MemberSubnetID != "" {
 			return lbClass.MemberSubnetID, nil
