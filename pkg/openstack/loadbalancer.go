@@ -92,6 +92,7 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorDelay      = "loadbalancer.openstack.org/health-monitor-delay"
 	ServiceAnnotationLoadBalancerHealthMonitorTimeout    = "loadbalancer.openstack.org/health-monitor-timeout"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries = "loadbalancer.openstack.org/health-monitor-max-retries"
+	ServiceAnnotationLoadBalancerLoadbalancerHostname    = "loadbalancer.openstack.org/hostname"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -1856,6 +1857,29 @@ func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, annotName
 	service.ObjectMeta.Annotations[annotName] = annotValue
 }
 
+// createLoadBalancerStatus creates the loadbalancer status from the different possible sources
+func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf *serviceConfig, addr string) *corev1.LoadBalancerStatus {
+	status := &corev1.LoadBalancerStatus{}
+	// If hostname is explicetly set
+	if hostname := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLoadbalancerHostname, ""); hostname != "" {
+		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: hostname}}
+		return status
+	}
+	// If the load balancer is using the PROXY protocol, expose its IP address via
+	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
+	// This is a workaround until
+	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
+	// is implemented (maybe in v1.22).
+	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
+		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, lbaas.opts.IngressHostnameSuffix)
+		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
+		return status
+	}
+	// Default to IP
+	status.Ingress = []corev1.LoadBalancerIngress{{IP: addr}}
+	return status
+}
+
 func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) (lbs *corev1.LoadBalancerStatus, err error) {
 	svcConf := new(serviceConfig)
 
@@ -1997,19 +2021,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	status := &corev1.LoadBalancerStatus{
-		Ingress: []corev1.LoadBalancerIngress{{IP: addr}},
-	}
-
-	// If the load balancer is using the PROXY protocol, expose its IP address via
-	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
-	// This is a workaround until
-	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
-	// is implemented (maybe in v1.22).
-	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
-		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, lbaas.opts.IngressHostnameSuffix)
-		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
-	}
+	// Create status the load balancer
+	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
 		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer, svcConf.preferredIPFamily, svcConf.lbMemberSubnetID)

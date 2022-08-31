@@ -223,6 +223,10 @@ Request Body:
 
   If this annotation is specified, the other annotations which define the load balancer features will be ignored.
 
+- `loadbalancer.openstack.org/hostname`
+
+  This annotations explicitly sets a hostname in the status of the load balancer service.
+
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.
@@ -343,7 +347,7 @@ This requires that not only the proxy server(e.g. NGINX) should support PROXY pr
 
 This guide uses nginx-ingress-controller as an example.
 
-To enable PROXY protocol support, the openstack-cloud-controller-manager config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) should set to `true`.
+To enable PROXY protocol support, the either the openstack-cloud-controller-manager config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) should set to `true` or an explicit hostname should be set on the load balancer service via [annotation](./expose-applications-using-loadbalancer-type-service.md#service-annotations) `loadbalancer.openstack.org/hostname`.
 
 1. Set up the nginx-ingress-controller
 
