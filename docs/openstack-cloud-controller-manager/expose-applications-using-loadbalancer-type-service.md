@@ -108,7 +108,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/class`
 
-  The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
+  The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id, floating-network-id, network-id, subnet-id and member-subnet-id . See the section below for how it works.
 
 - `loadbalancer.openstack.org/subnet-id`
 

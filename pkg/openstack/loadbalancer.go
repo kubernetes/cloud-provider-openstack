@@ -1520,6 +1520,62 @@ func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *servic
 	return "", nil
 }
 
+// getSubnetID gets the configured subnet-id from the different possible sources.
+func (lbaas *LbaasV2) getSubnetID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+	// Get subnet from service annotation
+	SubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, "")
+	if SubnetIDAnnotation != "" {
+		return SubnetIDAnnotation, nil
+	}
+
+	// Get subnet from config class
+	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
+	if configClassName != "" {
+		lbClass := lbaas.opts.LBClasses[configClassName]
+		if lbClass == nil {
+			return "", fmt.Errorf("invalid loadbalancer class %q", configClassName)
+		}
+		if lbClass.SubnetID != "" {
+			return lbClass.SubnetID, nil
+		}
+	}
+
+	// Get subnet from Default Config
+	if lbaas.opts.SubnetID != "" {
+		return lbaas.opts.SubnetID, nil
+	}
+
+	return "", nil
+}
+
+// getNetworkID gets the configured network-id from the different possible sources.
+func (lbaas *LbaasV2) getNetworkID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+	// Get subnet from service annotation
+	SubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNetworkID, "")
+	if SubnetIDAnnotation != "" {
+		return SubnetIDAnnotation, nil
+	}
+
+	// Get subnet from config class
+	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
+	if configClassName != "" {
+		lbClass := lbaas.opts.LBClasses[configClassName]
+		if lbClass == nil {
+			return "", fmt.Errorf("invalid loadbalancer class %q", configClassName)
+		}
+		if lbClass.NetworkID != "" {
+			return lbClass.NetworkID, nil
+		}
+	}
+
+	// Get subnet from Default Config
+	if lbaas.opts.NetworkID != "" {
+		return lbaas.opts.NetworkID, nil
+	}
+
+	return "", nil
+}
+
 func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	if len(service.Spec.Ports) == 0 {
 		return fmt.Errorf("no ports provided to openstack load balancer")
@@ -1654,8 +1710,18 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 
-	svcConf.lbNetworkID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNetworkID, lbaas.opts.NetworkID)
-	svcConf.lbSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
+	lbNetworkID, err := lbaas.getNetworkID(service, svcConf)
+	if err != nil {
+		return fmt.Errorf("failed to get network id to create load balancer for service %s: %v", serviceName, err)
+	}
+	svcConf.lbNetworkID = lbNetworkID
+
+	lbSubnetID, err := lbaas.getSubnetID(service, svcConf)
+	if err != nil {
+		return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
+	}
+	svcConf.lbSubnetID = lbSubnetID
+
 	if lbaas.opts.SubnetID != "" {
 		svcConf.lbMemberSubnetID = lbaas.opts.SubnetID
 	} else {
