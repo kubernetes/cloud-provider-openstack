@@ -18,10 +18,11 @@ package csiclient
 
 import (
 	"context"
-	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/kubernetes-csi/csi-lib-utils/connection"
-	"google.golang.org/grpc"
 	"time"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/kubernetes-csi/csi-lib-utils/rpc"
+	"google.golang.org/grpc"
 )
 
 var (
@@ -66,7 +67,7 @@ func (c IdentitySvcClient) Probe(ctx context.Context, req *csi.ProbeRequest) (*c
 }
 
 func (c IdentitySvcClient) ProbeForever(conn *grpc.ClientConn, singleProbeTimeout time.Duration) error {
-	return connection.ProbeForever(conn, singleProbeTimeout)
+	return rpc.ProbeForever(conn, singleProbeTimeout)
 }
 
 func (c IdentitySvcClient) GetPluginInfo(ctx context.Context) (*csi.GetPluginInfoResponse, error) {

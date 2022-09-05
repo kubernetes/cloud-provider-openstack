@@ -24,6 +24,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 )
@@ -98,11 +99,11 @@ func (c fakeNodeSvcClient) UnpublishVolume(ctx context.Context, req *csi.NodeUnp
 type fakeCSIClientBuilder struct{}
 
 func (b fakeCSIClientBuilder) NewConnection(string) (*grpc.ClientConn, error) {
-	return grpc.Dial("", grpc.WithInsecure())
+	return grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func (b fakeCSIClientBuilder) NewConnectionWithContext(context.Context, string) (*grpc.ClientConn, error) {
-	return grpc.Dial("", grpc.WithInsecure())
+	return grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func (b fakeCSIClientBuilder) NewNodeServiceClient(conn *grpc.ClientConn) csiclient.Node {

@@ -156,3 +156,6 @@ zz_generated.openapi.go
 /snap
 /prime
 *.snap
+
+# local gopath
+.go

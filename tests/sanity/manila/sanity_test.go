@@ -21,7 +21,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/kubernetes-csi/csi-test/pkg/sanity"
+	"github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 )
@@ -53,10 +53,9 @@ func TestDriver(t *testing.T) {
 
 	go d.Run()
 
-	sanity.Test(t, &sanity.Config{
-		Address:     endpoint,
-		SecretsFile: "fake-secrets.yaml",
-		TargetPath:  path.Join(basePath, "target"),
-		StagingPath: path.Join(basePath, "staging"),
-	})
+	config := sanity.NewTestConfig()
+	config.Address = endpoint
+	config.SecretsFile = "fake-secrets.yaml"
+	sanity.Test(t, config)
+
 }
