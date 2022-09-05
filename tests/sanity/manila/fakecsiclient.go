@@ -18,6 +18,7 @@ package sanity
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -76,11 +77,21 @@ func (c fakeNodeSvcClient) UnstageVolume(context.Context, *csi.NodeUnstageVolume
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
-func (c fakeNodeSvcClient) PublishVolume(context.Context, *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (c fakeNodeSvcClient) PublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+	// sanity-csi test checks for existence of target_path directory.
+	if err := os.MkdirAll(req.GetTargetPath(), 0700); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (c fakeNodeSvcClient) UnpublishVolume(context.Context, *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (c fakeNodeSvcClient) UnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	// sanity-csi test checks that target_path directory no longer exists.
+	if err := os.RemoveAll(req.GetTargetPath()); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
