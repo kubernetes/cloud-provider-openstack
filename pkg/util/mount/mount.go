@@ -81,7 +81,7 @@ func getBaseMounter() *mount.SafeFormatAndMount {
 	}
 }
 
-//GetMountProvider returns instance of Mounter
+// GetMountProvider returns instance of Mounter
 func GetMountProvider() IMount {
 	if MInstance == nil {
 		MInstance = &Mount{BaseMounter: getBaseMounter()}
