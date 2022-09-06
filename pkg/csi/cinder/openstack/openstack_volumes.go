@@ -120,7 +120,9 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 
 	// cinder filtering in volumes list is available since 3.34 microversion
 	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id32
-	blockstorageClient.Microversion = "3.34"
+	if !os.bsOpts.IgnoreVolumeMicroversion {
+		blockstorageClient.Microversion = "3.34"
+	}
 
 	opts := volumes.ListOpts{Name: n}
 	pages, err := volumes.List(blockstorageClient, opts).AllPages()
@@ -339,6 +341,12 @@ func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) e
 
 	switch status {
 	case VolumeInUseStatus:
+		// If the user has disabled the use of microversion to be compatibale with
+		// older clouds, we should fail early
+		if os.bsOpts.IgnoreVolumeMicroversion {
+			return fmt.Errorf("volume online resize is not available with ignore-volume-microversion, requires microversion 3.42 or newer")
+		}
+
 		// Init a local thread safe copy of the Cinder ServiceClient
 		blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
 		if err != nil {
