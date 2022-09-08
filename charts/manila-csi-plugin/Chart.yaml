@@ -2,7 +2,7 @@ apiVersion: v1
 appVersion: latest
 description: Manila CSI Chart for OpenStack
 name: openstack-manila-csi
-version: 1.5.0
+version: 1.6.0
 home: http://github.com/kubernetes/cloud-provider-openstack
 icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
 maintainers:
