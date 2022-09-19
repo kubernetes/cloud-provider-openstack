@@ -23,10 +23,10 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	"github.com/gophercloud/gophercloud/pagination"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
-	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 // GetNetworkExtensions returns an extension map.
@@ -85,48 +85,40 @@ func GetFloatingIPByPortID(client *gophercloud.ServiceClient, portID string) (*f
 
 // GetFloatingNetworkID returns a floating network ID.
 func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
-	var floatingNetworkIds []string
-
 	type NetworkWithExternalExt struct {
 		networks.Network
 		external.NetworkExternalExt
 	}
+	var externalNetworks []NetworkWithExternalExt
 
 	mc := metrics.NewMetricContext("network", "list")
-	err := networks.List(client, networks.ListOpts{}).EachPage(func(page pagination.Page) (bool, error) {
-		var externalNetwork []NetworkWithExternalExt
-		err := networks.ExtractNetworksInto(page, &externalNetwork)
-		if err != nil {
-			return false, err
-		}
-
-		for _, externalNet := range externalNetwork {
-			if externalNet.External {
-				floatingNetworkIds = append(floatingNetworkIds, externalNet.ID)
-			}
-		}
-
-		if len(floatingNetworkIds) > 1 {
-			return false, cpoerrors.ErrMultipleResults
-		}
-		return true, nil
-	})
+	page, err := networks.List(client, networks.ListOpts{}).AllPages()
 	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
-		}
-
-		if err == cpoerrors.ErrMultipleResults {
-			return floatingNetworkIds[0], mc.ObserveRequest(nil)
-		}
 		return "", mc.ObserveRequest(err)
 	}
 
-	if len(floatingNetworkIds) == 0 {
-		return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
+	err = networks.ExtractNetworksInto(page, &externalNetworks)
+	if err != nil {
+		return "", mc.ObserveRequest(err)
 	}
-
-	return floatingNetworkIds[0], mc.ObserveRequest(nil)
+	for _, externalNet := range externalNetworks {
+		if externalNet.External {
+			mc := metrics.NewMetricContext("subnet", "list")
+			page, err := subnets.List(client, subnets.ListOpts{NetworkID: externalNet.ID, IPVersion: 4}).AllPages()
+			if err != nil {
+				return "", mc.ObserveRequest(err)
+			}
+			subnetList, err := subnets.ExtractSubnets(page)
+			if err != nil {
+				return "", mc.ObserveRequest(err)
+			}
+			if len(subnetList) == 0 {
+				continue
+			}
+			return externalNet.ID, nil
+		}
+	}
+	return "", nil
 }
 
 // GetPorts gets all the filtered ports.
