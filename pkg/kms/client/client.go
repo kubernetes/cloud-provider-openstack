@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	pb "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1"
 )
 
@@ -14,7 +15,7 @@ import (
 
 func main() {
 
-	connection, err := grpc.Dial("unix:///var/lib/kms/kms.sock", grpc.WithInsecure())
+	connection, err := grpc.Dial("unix:///var/lib/kms/kms.sock", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer func() { _ = connection.Close() }()
 	if err != nil {
 		fmt.Printf("\nConnection to KMS plugin failed, error: %v", err)

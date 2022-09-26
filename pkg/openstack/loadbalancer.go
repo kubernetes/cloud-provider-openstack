@@ -92,6 +92,7 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorDelay      = "loadbalancer.openstack.org/health-monitor-delay"
 	ServiceAnnotationLoadBalancerHealthMonitorTimeout    = "loadbalancer.openstack.org/health-monitor-timeout"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries = "loadbalancer.openstack.org/health-monitor-max-retries"
+	ServiceAnnotationLoadBalancerLoadbalancerHostname    = "loadbalancer.openstack.org/hostname"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -1207,19 +1208,22 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 
 // buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
 func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
-	monitorProtocol := string(port.Protocol)
-	if port.Protocol == corev1.ProtocolUDP {
-		monitorProtocol = "UDP-CONNECT"
-	}
-	if svcConf.healthCheckNodePort > 0 {
-		monitorProtocol = "HTTP"
-	}
-	return v2monitors.CreateOpts{
-		Type:       monitorProtocol,
+	opts := v2monitors.CreateOpts{
+		Type:       string(port.Protocol),
 		Delay:      svcConf.healthMonitorDelay,
 		Timeout:    svcConf.healthMonitorTimeout,
 		MaxRetries: svcConf.healthMonitorMaxRetries,
 	}
+	if port.Protocol == corev1.ProtocolUDP {
+		opts.Type = "UDP-CONNECT"
+	}
+	if svcConf.healthCheckNodePort > 0 {
+		opts.Type = "HTTP"
+		opts.URLPath = "/healthz"
+		opts.HTTPMethod = "GET"
+		opts.ExpectedCodes = "200"
+	}
+	return opts
 }
 
 // Make sure the pool is created for the Service, nodes are added as pool members.
@@ -1499,9 +1503,9 @@ func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *servic
 	// Get Member Subnet from Config Class
 	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
 	if configClassName != "" {
-		lbClass := lbaas.opts.LBClasses[svcConf.configClassName]
+		lbClass := lbaas.opts.LBClasses[configClassName]
 		if lbClass == nil {
-			return "", fmt.Errorf("invalid loadbalancer class %q", svcConf.configClassName)
+			return "", fmt.Errorf("invalid loadbalancer class %q", configClassName)
 		}
 		if lbClass.MemberSubnetID != "" {
 			return lbClass.MemberSubnetID, nil
@@ -1511,6 +1515,62 @@ func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *servic
 	// Get Member Subnet from Default Config
 	if lbaas.opts.MemberSubnetID != "" {
 		return lbaas.opts.MemberSubnetID, nil
+	}
+
+	return "", nil
+}
+
+// getSubnetID gets the configured subnet-id from the different possible sources.
+func (lbaas *LbaasV2) getSubnetID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+	// Get subnet from service annotation
+	SubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, "")
+	if SubnetIDAnnotation != "" {
+		return SubnetIDAnnotation, nil
+	}
+
+	// Get subnet from config class
+	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
+	if configClassName != "" {
+		lbClass := lbaas.opts.LBClasses[configClassName]
+		if lbClass == nil {
+			return "", fmt.Errorf("invalid loadbalancer class %q", configClassName)
+		}
+		if lbClass.SubnetID != "" {
+			return lbClass.SubnetID, nil
+		}
+	}
+
+	// Get subnet from Default Config
+	if lbaas.opts.SubnetID != "" {
+		return lbaas.opts.SubnetID, nil
+	}
+
+	return "", nil
+}
+
+// getNetworkID gets the configured network-id from the different possible sources.
+func (lbaas *LbaasV2) getNetworkID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+	// Get subnet from service annotation
+	SubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNetworkID, "")
+	if SubnetIDAnnotation != "" {
+		return SubnetIDAnnotation, nil
+	}
+
+	// Get subnet from config class
+	configClassName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerClass, "")
+	if configClassName != "" {
+		lbClass := lbaas.opts.LBClasses[configClassName]
+		if lbClass == nil {
+			return "", fmt.Errorf("invalid loadbalancer class %q", configClassName)
+		}
+		if lbClass.NetworkID != "" {
+			return lbClass.NetworkID, nil
+		}
+	}
+
+	// Get subnet from Default Config
+	if lbaas.opts.NetworkID != "" {
+		return lbaas.opts.NetworkID, nil
 	}
 
 	return "", nil
@@ -1650,8 +1710,18 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 
-	svcConf.lbNetworkID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNetworkID, lbaas.opts.NetworkID)
-	svcConf.lbSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
+	lbNetworkID, err := lbaas.getNetworkID(service, svcConf)
+	if err != nil {
+		return fmt.Errorf("failed to get network id to create load balancer for service %s: %v", serviceName, err)
+	}
+	svcConf.lbNetworkID = lbNetworkID
+
+	lbSubnetID, err := lbaas.getSubnetID(service, svcConf)
+	if err != nil {
+		return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
+	}
+	svcConf.lbSubnetID = lbSubnetID
+
 	if lbaas.opts.SubnetID != "" {
 		svcConf.lbMemberSubnetID = lbaas.opts.SubnetID
 	} else {
@@ -1853,6 +1923,29 @@ func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, annotName
 	service.ObjectMeta.Annotations[annotName] = annotValue
 }
 
+// createLoadBalancerStatus creates the loadbalancer status from the different possible sources
+func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf *serviceConfig, addr string) *corev1.LoadBalancerStatus {
+	status := &corev1.LoadBalancerStatus{}
+	// If hostname is explicetly set
+	if hostname := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLoadbalancerHostname, ""); hostname != "" {
+		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: hostname}}
+		return status
+	}
+	// If the load balancer is using the PROXY protocol, expose its IP address via
+	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
+	// This is a workaround until
+	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
+	// is implemented (maybe in v1.22).
+	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
+		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, lbaas.opts.IngressHostnameSuffix)
+		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
+		return status
+	}
+	// Default to IP
+	status.Ingress = []corev1.LoadBalancerIngress{{IP: addr}}
+	return status
+}
+
 func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) (lbs *corev1.LoadBalancerStatus, err error) {
 	svcConf := new(serviceConfig)
 
@@ -1994,19 +2087,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	status := &corev1.LoadBalancerStatus{
-		Ingress: []corev1.LoadBalancerIngress{{IP: addr}},
-	}
-
-	// If the load balancer is using the PROXY protocol, expose its IP address via
-	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
-	// This is a workaround until
-	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
-	// is implemented (maybe in v1.22).
-	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
-		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, lbaas.opts.IngressHostnameSuffix)
-		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
-	}
+	// Create status the load balancer
+	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
 		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer, svcConf.preferredIPFamily, svcConf.lbMemberSubnetID)

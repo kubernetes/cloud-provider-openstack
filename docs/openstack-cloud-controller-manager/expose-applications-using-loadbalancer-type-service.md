@@ -108,7 +108,7 @@ Request Body:
 
 - `loadbalancer.openstack.org/class`
 
-  The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id and floating-network-id. See the section below for how it works.
+  The name of a preconfigured class in the config file. If provided, this config options included in the class section take precedence over the annotations of floating-subnet-id, floating-network-id, network-id, subnet-id and member-subnet-id . See the section below for how it works.
 
 - `loadbalancer.openstack.org/subnet-id`
 
@@ -222,6 +222,10 @@ Request Body:
   If this annotation is specified with a valid cloud load balancer ID when creating Service, the Service is reusing this load balancer rather than creating another one. Again, it shouldn't be changed after the Service is created.
 
   If this annotation is specified, the other annotations which define the load balancer features will be ignored.
+
+- `loadbalancer.openstack.org/hostname`
+
+  This annotations explicitly sets a hostname in the status of the load balancer service.
 
 ### Switching between Floating Subnets by using preconfigured Classes
 
@@ -343,7 +347,7 @@ This requires that not only the proxy server(e.g. NGINX) should support PROXY pr
 
 This guide uses nginx-ingress-controller as an example.
 
-To enable PROXY protocol support, the openstack-cloud-controller-manager config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) should set to `true`.
+To enable PROXY protocol support, the either the openstack-cloud-controller-manager config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) should set to `true` or an explicit hostname should be set on the load balancer service via [annotation](./expose-applications-using-loadbalancer-type-service.md#service-annotations) `loadbalancer.openstack.org/hostname`.
 
 1. Set up the nginx-ingress-controller
 
