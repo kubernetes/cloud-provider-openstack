@@ -1,5 +1,5 @@
 ---
-go_version: '1.17.4'
+go_version: '1.19'
 arch: 'amd64'
 go_tarball: 'go{{ go_version }}.linux-{{ arch }}.tar.gz'
-go_download_location: 'https://storage.googleapis.com/golang/{{ go_tarball }}'
+go_download_location: 'https://go.dev/dl/{{ go_tarball }}'

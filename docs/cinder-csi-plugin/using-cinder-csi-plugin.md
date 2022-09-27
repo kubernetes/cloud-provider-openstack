@@ -116,6 +116,8 @@ These configuration options pertain to block storage and should appear in the `[
   Optional. Set to `true`, to rescan block device and verify its size before expanding the filesystem. Not all hypervizors have a /sys/class/block/XXX/device/rescan location, therefore if you enable this option and your hypervizor doesn't support this, you'll get a warning log on resize event. It is recommended to disable this option in this case. Defaults to `false`
 * `ignore-volume-az`
   Optional. When `Topology` feature enabled, by default, PV volume node affinity is populated with volume accessible topology, which is volume AZ. But, some of the openstack users do not have compute zones named exactly the same as volume zones. This might cause pods to go in pending state as no nodes available in volume AZ. Enabling `ignore-volume-az=true`, ignores volumeAZ and schedules on any of the available node AZ. Default `false`. Check `cross_az_attach` in [nova configuration](https://docs.openstack.org/nova/latest/configuration/config.html) for further information.
+* `ignore-volume-microversion`
+  Optional. Set to `true` only when your cinder microversion is older than 3.34. This might cause some features to not work as expected, but aims to allow basic operations like creating a volume.
 
 ### Metadata
 These configuration options pertain to metadata and should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.

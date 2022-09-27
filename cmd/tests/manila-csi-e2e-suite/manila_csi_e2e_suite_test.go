@@ -2,17 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
 	"os"
-	"path"
 	"testing"
 
-	"github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/config"
-	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	_ "k8s.io/cloud-provider-openstack/tests/e2e/csi/manila"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/test/e2e/framework"
 	frameworkconfig "k8s.io/kubernetes/test/e2e/framework/config"
 )
@@ -25,18 +21,20 @@ func init() {
 }
 
 func Test(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgo.Fail)
-	var r []ginkgo.Reporter
+	gomega.RegisterFailHandler(framework.Fail)
 	if framework.TestContext.ReportDir != "" {
 		if err := os.MkdirAll(framework.TestContext.ReportDir, 0755); err != nil {
-			log.Fatalf("Failed creating report directory: %v", err)
-		} else {
-			r = append(r, reporters.NewJUnitReporter(path.Join(framework.TestContext.ReportDir, fmt.Sprintf("junit_%v%02d.xml", framework.TestContext.ReportPrefix, config.GinkgoConfig.ParallelNode))))
+			klog.Fatalf("Failed creating report directory: %v", err)
 		}
 	}
-	log.Printf("Starting e2e run %q on Ginkgo node %d", framework.RunID, config.GinkgoConfig.ParallelNode)
+	klog.Infof("Starting e2e run %q on Ginkgo node %d", framework.RunID, ginkgo.GinkgoParallelProcess())
 
-	ginkgo.RunSpecsWithDefaultAndCustomReporters(t, "Manila CSI Suite", r)
+	suiteConfig, reporterConfig := framework.CreateGinkgoConfig()
+	reporterConfig.FullTrace = true
+
+	klog.Infof("Starting e2e run %q on Ginkgo node %d", framework.RunID, suiteConfig.ParallelProcess)
+	ginkgo.RunSpecs(t, "Manila CSI e2e Suite", suiteConfig, reporterConfig)
+
 }
 
 func main() {

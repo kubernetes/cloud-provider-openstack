@@ -102,6 +102,9 @@ func (c fakeManilaClient) CreateShare(opts shares.CreateOptsBuilder) (*shares.Sh
 
 	share.ID = intToStr(fakeShareID)
 	share.Status = "available"
+	share.SnapshotSupport = true
+	share.CreateShareFromSnapshotSupport = true
+
 	fakeShares[fakeShareID] = share
 	fakeShareID++
 
@@ -135,6 +138,8 @@ func (c fakeManilaClient) ExtendShare(shareID string, opts shares.ExtendOptsBuil
 	if extendOpts.NewSize < share.Size {
 		return fmt.Errorf("new size is smaller than old size: %d < %d", extendOpts.NewSize, share.Size)
 	}
+
+	share.Size = extendOpts.NewSize
 
 	return nil
 }
