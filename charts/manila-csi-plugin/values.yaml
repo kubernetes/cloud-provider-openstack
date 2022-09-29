@@ -83,7 +83,7 @@ controllerplugin:
   snapshotter:
     image:
       repository: k8s.gcr.io/sig-storage/csi-snapshotter
-      tag: v4.2.1
+      tag: v5.0.1
       pullPolicy: IfNotPresent
     resources: {}
   # CSI external-resizer container spec
