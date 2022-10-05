@@ -58,6 +58,48 @@ If you are ready for code contribution, you need to have development environment
 1. IDE. You can choose any IDE that supports Golang, e.g. Visual Studio Code, GoLand, etc.
 1. Install [Docker Engine](https://docs.docker.com/engine/install/) or other tools that could build container images such as [podman](https://podman.io/). After writing the code, the best way to test openstack-cloud-controller-manager is to replace the container image specified in its Deployment/StatefulSet/DaemonSet manifest in the kubernetes cluster. We are using docker in this guide.
 
+### Testing
+
+*cloud-provider-openstack* includes a number of different types of test. As is usual for Kubernetes projects, jobs definitions live in the [test-infra](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack) project. A variety of tests run on each PR, however, you can also run your tests locally.
+
+### Unit tests
+
+Unit tests require a go environment with a suitable go version, as noted previously. Assuming you have this, you can run unit tests using the `unit` Makefile target.
+
+```
+make unit
+```
+
+### E2E tests
+
+End-to-end or _e2e_ tests are more complex to run as they require a functioning OpenStack cloud and Kubernetes (well, k3s) deployment. Fortunately, you can rely on the infrastructure used for CI to run this on your own machines.
+
+For example, to run the Cinder CSI e2e tests, the CI calls the `tests/ci-csi-cinder-e2e.sh` script. Inspecting this, you'll note that a lot of the commands in here are simply provisioning an instance on GCE, using [Boskos](https://github.com/kubernetes-sigs/boskos) to manage static resources (projects, in this case) if needed. If you have a set of GCE credentials, then in theory you could run this script as-is. However, all you need is a VM with sufficient resources and network connectivity running the correct image (Ubuntu 20.04 cloud image as of writing - check `tests/scripts/create-gce-vm.sh` for the latest info). For example, using OpenStack:
+
+```
+openstack server create \
+  --image ubuntu2004 \
+  --flavor m1.large \
+  --key-name <key-name> \
+  --network <network> \
+  --wait \
+  ${USER}-csi-cinder-e2e-tests
+openstack server add floating ip <server> <ip-address>
+```
+
+Once done, you can run the same Ansible commands seen in `tests/ci-csi-cinder-e2e.sh`:
+
+```
+ansible-playbook \
+  -v \
+  --user ubuntu \
+  --inventory 10.0.110.127, \
+  --ssh-common-args "-o StrictHostKeyChecking=no" \
+  tests/playbooks/test-csi-cinder-e2e.yaml
+```
+
+As you can see, this whole area needs improvement to make this a little more approachable for non-CI use cases. This should be enough direction to get started though.
+
 ### Build openstack-cloud-controller-manager image
 In cloud-provider-openstack repo directory, run:
 
@@ -96,7 +138,7 @@ IMAGE_NAMES=openstack-cloud-controller-manager \
 make upload-image-amd64
 ```
 
-Now, you can change openstack-cloud-controller-manager image in the kubernetes cluster, assuming the openstack-cloud-controller-manager is running as a DaemonSet:
+Now you can change openstack-cloud-controller-manager image in the kubernetes cluster, assuming the openstack-cloud-controller-manager is running as a DaemonSet:
 
 ```
 kubectl -n kube-system set image \
