@@ -1285,7 +1285,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		klog.Errorf("failed to get members in the pool %s: %v", pool.ID, err)
 	}
 	for _, m := range poolMembers {
-		curMembers.Insert(fmt.Sprintf("%s-%d-%d", m.Address, m.ProtocolPort, m.MonitorPort))
+		curMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", m.Name, m.Address, m.ProtocolPort, m.MonitorPort))
 	}
 
 	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
@@ -1364,7 +1364,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			member.MonitorPort = &svcConf.healthCheckNodePort
 		}
 		members = append(members, member)
-		newMembers.Insert(fmt.Sprintf("%s-%d-%d", addr, member.ProtocolPort, svcConf.healthCheckNodePort))
+		newMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", node.Name, addr, member.ProtocolPort, svcConf.healthCheckNodePort))
 	}
 	return members, newMembers, nil
 }
