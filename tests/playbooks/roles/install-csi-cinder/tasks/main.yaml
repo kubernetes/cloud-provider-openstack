@@ -158,7 +158,7 @@
         -storage.testdriver=tests/e2e/csi/cinder/test-driver.yaml \
         -ginkgo.focus='External.Storage' \
         -ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]' \
-        -ginkgo.noColor \
+        -ginkgo.no-color \
         -ginkgo.progress \
         -ginkgo.v \
         -test.timeout=0 \
@@ -172,7 +172,7 @@
     cmd: |
       set -x
       set -e
-      
+
       kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
       kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
   ignore_errors: true
