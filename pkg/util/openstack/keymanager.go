@@ -23,13 +23,14 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 // EnsureSecret creates a secret if it doesn't exist.
 func EnsureSecret(client *gophercloud.ServiceClient, name string, secretType string, payload string) (string, error) {
 	secret, err := GetSecret(client, name)
 	if err != nil {
-		if err == ErrNotFound {
+		if err == cpoerrors.ErrNotFound {
 			// Create a new one
 			return CreateSecret(client, name, secretType, payload)
 		}
@@ -56,10 +57,10 @@ func GetSecret(client *gophercloud.ServiceClient, name string) (*secrets.Secret,
 	}
 
 	if len(allSecrets) == 0 {
-		return nil, ErrNotFound
+		return nil, cpoerrors.ErrNotFound
 	}
 	if len(allSecrets) > 1 {
-		return nil, ErrMultipleResults
+		return nil, cpoerrors.ErrMultipleResults
 	}
 
 	return &allSecrets[0], nil

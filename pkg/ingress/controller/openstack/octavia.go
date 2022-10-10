@@ -287,7 +287,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 
 	loadbalancer, err := openstackutil.GetLoadbalancerByName(os.Octavia, name)
 	if err != nil {
-		if err != openstackutil.ErrNotFound {
+		if err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting loadbalancer %s: %v", name, err)
 		}
 
@@ -339,7 +339,7 @@ func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription s
 func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []string, listenerAllowedCIDRs []string) (*listeners.Listener, error) {
 	listener, err := openstackutil.GetListenerByName(os.Octavia, name, lbID)
 	if err != nil {
-		if err != openstackutil.ErrNotFound {
+		if err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting listener %s: %v", name, err)
 		}
 
@@ -394,7 +394,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 	if deleted {
 		pool, err := openstackutil.GetPoolByName(os.Octavia, poolName, lbID)
 		if err != nil {
-			if err != openstackutil.ErrNotFound {
+			if err != cpoerrors.ErrNotFound {
 				return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
 			}
 			return nil, nil
@@ -416,7 +416,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 
 	pool, err := openstackutil.GetPoolByName(os.Octavia, poolName, lbID)
 	if err != nil {
-		if err != openstackutil.ErrNotFound {
+		if err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting pool %s: %v", poolName, err)
 		}
 
