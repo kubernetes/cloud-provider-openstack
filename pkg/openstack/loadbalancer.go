@@ -1951,7 +1951,7 @@ func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf 
 	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
 	// is implemented (maybe in v1.22).
 	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
-		fakeHostname := fmt.Sprintf("%s.%s", status.Ingress[0].IP, lbaas.opts.IngressHostnameSuffix)
+		fakeHostname := fmt.Sprintf("%s.%s", addr, lbaas.opts.IngressHostnameSuffix)
 		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
 		return status
 	}
