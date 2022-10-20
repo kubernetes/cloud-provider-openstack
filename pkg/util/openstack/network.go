@@ -23,6 +23,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	"github.com/gophercloud/gophercloud/pagination"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
@@ -85,48 +86,57 @@ func GetFloatingIPByPortID(client *gophercloud.ServiceClient, portID string) (*f
 
 // GetFloatingNetworkID returns a floating network ID.
 func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
-	var floatingNetworkIds []string
-
 	type NetworkWithExternalExt struct {
 		networks.Network
 		external.NetworkExternalExt
 	}
+	var allNetworks []NetworkWithExternalExt
 
 	mc := metrics.NewMetricContext("network", "list")
-	err := networks.List(client, networks.ListOpts{}).EachPage(func(page pagination.Page) (bool, error) {
-		var externalNetwork []NetworkWithExternalExt
-		err := networks.ExtractNetworksInto(page, &externalNetwork)
-		if err != nil {
-			return false, err
-		}
-
-		for _, externalNet := range externalNetwork {
-			if externalNet.External {
-				floatingNetworkIds = append(floatingNetworkIds, externalNet.ID)
-			}
-		}
-
-		if len(floatingNetworkIds) > 1 {
-			return false, cpoerrors.ErrMultipleResults
-		}
-		return true, nil
-	})
+	page, err := networks.List(client, networks.ListOpts{}).AllPages()
 	if err != nil {
-		if cpoerrors.IsNotFound(err) {
-			return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
-		}
-
-		if err == cpoerrors.ErrMultipleResults {
-			return floatingNetworkIds[0], mc.ObserveRequest(nil)
-		}
 		return "", mc.ObserveRequest(err)
 	}
 
-	if len(floatingNetworkIds) == 0 {
-		return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
+	err = networks.ExtractNetworksInto(page, &allNetworks)
+	if err != nil {
+		return "", mc.ObserveRequest(err)
 	}
 
-	return floatingNetworkIds[0], mc.ObserveRequest(nil)
+	for _, network := range allNetworks {
+		if network.External && len(network.Subnets) > 0 {
+			mc := metrics.NewMetricContext("subnet", "list")
+			page, err := subnets.List(client, subnets.ListOpts{NetworkID: network.ID}).AllPages()
+			if err != nil {
+				return "", mc.ObserveRequest(err)
+			}
+			subnetList, err := subnets.ExtractSubnets(page)
+			if err != nil {
+				return "", mc.ObserveRequest(err)
+			}
+			for _, networkSubnet := range network.Subnets {
+				subnet := getSubnet(networkSubnet, subnetList)
+				if subnet != nil {
+					if subnet.IPVersion == 4 {
+						return network.ID, nil
+					}
+				} else {
+					return network.ID, nil
+				}
+			}
+		}
+	}
+	return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
+}
+
+// getSubnet checks if a Subnet is present in the list of Subnets the tenant has access to and returns it
+func getSubnet(networkSubnet string, subnetList []subnets.Subnet) *subnets.Subnet {
+	for _, subnet := range subnetList {
+		if subnet.ID == networkSubnet {
+			return &subnet
+		}
+	}
+	return nil
 }
 
 // GetPorts gets all the filtered ports.
