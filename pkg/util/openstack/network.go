@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud/pagination"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 // GetNetworkExtensions returns an extension map.
@@ -89,7 +90,7 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 		networks.Network
 		external.NetworkExternalExt
 	}
-	var externalNetworks []NetworkWithExternalExt
+	var allNetworks []NetworkWithExternalExt
 
 	mc := metrics.NewMetricContext("network", "list")
 	page, err := networks.List(client, networks.ListOpts{}).AllPages()
@@ -97,14 +98,15 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 		return "", mc.ObserveRequest(err)
 	}
 
-	err = networks.ExtractNetworksInto(page, &externalNetworks)
+	err = networks.ExtractNetworksInto(page, &allNetworks)
 	if err != nil {
 		return "", mc.ObserveRequest(err)
 	}
-	for _, externalNet := range externalNetworks {
-		if externalNet.External {
+
+	for _, network := range allNetworks {
+		if network.External && len(network.Subnets) > 0 {
 			mc := metrics.NewMetricContext("subnet", "list")
-			page, err := subnets.List(client, subnets.ListOpts{NetworkID: externalNet.ID, IPVersion: 4}).AllPages()
+			page, err := subnets.List(client, subnets.ListOpts{NetworkID: network.ID}).AllPages()
 			if err != nil {
 				return "", mc.ObserveRequest(err)
 			}
@@ -112,13 +114,29 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 			if err != nil {
 				return "", mc.ObserveRequest(err)
 			}
-			if len(subnetList) == 0 {
-				continue
+			for _, networkSubnet := range network.Subnets {
+				subnet := getSubnet(networkSubnet, subnetList)
+				if subnet != nil {
+					if subnet.IPVersion == 4 {
+						return network.ID, nil
+					}
+				} else {
+					return network.ID, nil
+				}
 			}
-			return externalNet.ID, nil
 		}
 	}
-	return "", nil
+	return "", mc.ObserveRequest(cpoerrors.ErrNotFound)
+}
+
+// getSubnet checks if a Subnet is present in the list of Subnets the tenant has access to and returns it
+func getSubnet(networkSubnet string, subnetList []subnets.Subnet) *subnets.Subnet {
+	for _, subnet := range subnetList {
+		if subnet.ID == networkSubnet {
+			return &subnet
+		}
+	}
+	return nil
 }
 
 // GetPorts gets all the filtered ports.
