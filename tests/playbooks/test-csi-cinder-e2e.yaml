@@ -4,7 +4,7 @@
   gather_facts: true
 
   vars:
-    e2e_test_version: v1.24.0
+    e2e_test_version: v1.25.3
     user: stack
     github_pr: 123
     global_env: {}
