@@ -221,11 +221,11 @@
       GATEWAY_IP=172.24.5.1 \
       OS_RC={{ devstack_workdir }}/openrc \
       go test -v ./cmd/tests/manila-csi-e2e-suite/manila_csi_e2e_suite_test.go \
-        -ginkgo.v \
-        -ginkgo.progress \
-        -ginkgo.skip="\[Disruptive\]|\[sig-storage\]\s+\[manila-csi-e2e\]\s+CSI\s+Volumes\s+\[Driver:\s+nfs.manila.csi.openstack.org\]\s+\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]" \
-        -ginkgo.focus="\[manila-csi-e2e\]" \
-        -ginkgo.no-color \
+        --ginkgo.v \
+        --ginkgo.noColor \
+        --ginkgo.progress \
+        --ginkgo.skip="\[Disruptive\]|\[sig-storage\]\s+\[manila-csi-e2e\]\s+CSI\s+Volumes\s+\[Driver:\s+nfs.manila.csi.openstack.org\]\s+\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]" \
+        --ginkgo.focus="\[manila-csi-e2e\]" \
         -report-dir /var/log/csi-pod \
         -timeout=0 | tee "/var/log/csi-pod/manila-csi-e2e.log"
   register: functional_test_result

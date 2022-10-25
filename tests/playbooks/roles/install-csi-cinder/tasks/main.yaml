@@ -156,11 +156,11 @@
       # TODO(chrigl): No idea why both tests fail in CI. On a real OpenStack both pass.
       /tmp/kubernetes/test/bin/e2e.test \
         -storage.testdriver=tests/e2e/csi/cinder/test-driver.yaml \
-        -ginkgo.focus='External.Storage' \
-        -ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]' \
-        -ginkgo.no-color \
-        -ginkgo.progress \
-        -ginkgo.v \
+        --ginkgo.focus='External.Storage' \
+        --ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]' \
+        --ginkgo.noColor \
+        --ginkgo.progress \
+        --ginkgo.v \
         -test.timeout=0 \
         -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
