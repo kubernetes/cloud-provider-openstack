@@ -1232,10 +1232,21 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1
 		opts.Type = "UDP-CONNECT"
 	}
 	if svcConf.healthCheckNodePort > 0 {
-		opts.Type = "HTTP"
-		opts.URLPath = "/healthz"
-		opts.HTTPMethod = "GET"
-		opts.ExpectedCodes = "200"
+		setHTTPHealthMonitor := true
+		if lbaas.opts.LBProvider == "ovn" {
+			// ovn-octavia-provider doesn't support HTTP monitors at all. We got to avoid creating it with ovn.
+			setHTTPHealthMonitor = false
+		} else if opts.Type == "UDP-CONNECT" {
+			// Older Octavia versions or OVN provider doesn't support HTTP monitors on UDP pools. We got to check if that's the case.
+			setHTTPHealthMonitor = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
+		}
+
+		if setHTTPHealthMonitor {
+			opts.Type = "HTTP"
+			opts.URLPath = "/healthz"
+			opts.HTTPMethod = "GET"
+			opts.ExpectedCodes = "200"
+		}
 	}
 	return opts
 }
@@ -1361,7 +1372,19 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			SubnetID:     &svcConf.lbMemberSubnetID,
 		}
 		if svcConf.healthCheckNodePort > 0 {
-			member.MonitorPort = &svcConf.healthCheckNodePort
+			useHealthCheckNodePort := true
+			if lbaas.opts.LBProvider == "ovn" {
+				// ovn-octavia-provider doesn't support HTTP monitors at all, if we have it we got to rely on NodePort
+				// and UDP-CONNECT health monitor.
+				useHealthCheckNodePort = false
+			} else if port.Protocol == "UDP" {
+				// Older Octavia versions doesn't support HTTP monitors on UDP pools. If we have one like that, we got
+				// to rely on checking the NodePort instead.
+				useHealthCheckNodePort = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
+			}
+			if useHealthCheckNodePort {
+				member.MonitorPort = &svcConf.healthCheckNodePort
+			}
 		}
 		members = append(members, member)
 		newMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", node.Name, addr, member.ProtocolPort, svcConf.healthCheckNodePort))
