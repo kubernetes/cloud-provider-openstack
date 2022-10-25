@@ -42,6 +42,7 @@ const (
 	OctaviaFeatureFlavors           = 2
 	OctaviaFeatureTimeout           = 3
 	OctaviaFeatureAvailabilityZones = 4
+	OctaviaFeatureHTTPMonitorsOnUDP = 5
 
 	waitLoadbalancerInitDelay   = 1 * time.Second
 	waitLoadbalancerFactor      = 1.2
@@ -141,6 +142,14 @@ func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int, l
 		}
 		verAvailabilityZones, _ := version.NewVersion("v2.14")
 		if currentVer.GreaterThanOrEqual(verAvailabilityZones) {
+			return true
+		}
+	case OctaviaFeatureHTTPMonitorsOnUDP:
+		if lbProvider == "ovn" {
+			return false
+		}
+		verHTTPMonitorsOnUDP, _ := version.NewVersion("v2.16")
+		if currentVer.GreaterThanOrEqual(verHTTPMonitorsOnUDP) {
 			return true
 		}
 	default:
