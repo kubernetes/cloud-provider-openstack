@@ -79,6 +79,8 @@ controllerplugin:
       tag: v3.0.0
       pullPolicy: IfNotPresent
     resources: {}
+    # Whether to pass --extra-create-metadata flag to csi-provisioner.
+    extraCreateMetadata: false
   # CSI external-snapshotter container spec
   snapshotter:
     image:
