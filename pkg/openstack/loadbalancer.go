@@ -1365,29 +1365,31 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			}
 		}
 
-		member := v2pools.BatchUpdateMemberOpts{
-			Address:      addr,
-			ProtocolPort: int(port.NodePort),
-			Name:         &node.Name,
-			SubnetID:     &svcConf.lbMemberSubnetID,
-		}
-		if svcConf.healthCheckNodePort > 0 {
-			useHealthCheckNodePort := true
-			if lbaas.opts.LBProvider == "ovn" {
-				// ovn-octavia-provider doesn't support HTTP monitors at all, if we have it we got to rely on NodePort
-				// and UDP-CONNECT health monitor.
-				useHealthCheckNodePort = false
-			} else if port.Protocol == "UDP" {
-				// Older Octavia versions doesn't support HTTP monitors on UDP pools. If we have one like that, we got
-				// to rely on checking the NodePort instead.
-				useHealthCheckNodePort = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
+		if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+			member := v2pools.BatchUpdateMemberOpts{
+				Address:      addr,
+				ProtocolPort: int(port.NodePort),
+				Name:         &node.Name,
+				SubnetID:     &svcConf.lbMemberSubnetID,
 			}
-			if useHealthCheckNodePort {
-				member.MonitorPort = &svcConf.healthCheckNodePort
+			if svcConf.healthCheckNodePort > 0 {
+				useHealthCheckNodePort := true
+				if lbaas.opts.LBProvider == "ovn" {
+					// ovn-octavia-provider doesn't support HTTP monitors at all, if we have it we got to rely on NodePort
+					// and UDP-CONNECT health monitor.
+					useHealthCheckNodePort = false
+				} else if port.Protocol == "UDP" {
+					// Older Octavia versions doesn't support HTTP monitors on UDP pools. If we have one like that, we got
+					// to rely on checking the NodePort instead.
+					useHealthCheckNodePort = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
+				}
+				if useHealthCheckNodePort {
+					member.MonitorPort = &svcConf.healthCheckNodePort
+				}
 			}
+			members = append(members, member)
+			newMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", node.Name, addr, member.ProtocolPort, svcConf.healthCheckNodePort))
 		}
-		members = append(members, member)
-		newMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", node.Name, addr, member.ProtocolPort, svcConf.healthCheckNodePort))
 	}
 	return members, newMembers, nil
 }
@@ -2396,40 +2398,43 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error getting pool members %s: %v", pool.ID, err)
 		}
-		for _, node := range nodes {
-			addr, err := nodeAddressForLB(node, "")
-			if err != nil {
-				if err == cpoerrors.ErrNotFound {
-					// Node failure, do not create member
-					klog.Warningf("Failed to create LB pool member for node %s: %v", node.Name, err)
-					continue
+
+		if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+			for _, node := range nodes {
+				addr, err := nodeAddressForLB(node, "")
+				if err != nil {
+					if err == cpoerrors.ErrNotFound {
+						// Node failure, do not create member
+						klog.Warningf("Failed to create LB pool member for node %s: %v", node.Name, err)
+						continue
+					} else {
+						return nil, fmt.Errorf("error getting address for node %s: %v", node.Name, err)
+					}
+				}
+
+				if !memberExists(members, addr, int(port.NodePort)) {
+					klog.V(4).Infof("Creating member for pool %s", pool.ID)
+					mc := metrics.NewMetricContext("loadbalancer_member", "create")
+					_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
+						Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, name)),
+						ProtocolPort: int(port.NodePort),
+						Address:      addr,
+						SubnetID:     lbaas.opts.SubnetID,
+					}).Extract()
+					if mc.ObserveRequest(err) != nil {
+						return nil, fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
+					}
+
+					if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+						return nil, err
+					}
 				} else {
-					return nil, fmt.Errorf("error getting address for node %s: %v", node.Name, err)
+					// After all members have been processed, remaining members are deleted as obsolete.
+					members = popMember(members, addr, int(port.NodePort))
 				}
+
+				klog.V(4).Infof("Ensured pool %s has member for %s at %s", pool.ID, node.Name, addr)
 			}
-
-			if !memberExists(members, addr, int(port.NodePort)) {
-				klog.V(4).Infof("Creating member for pool %s", pool.ID)
-				mc := metrics.NewMetricContext("loadbalancer_member", "create")
-				_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
-					Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, name)),
-					ProtocolPort: int(port.NodePort),
-					Address:      addr,
-					SubnetID:     lbaas.opts.SubnetID,
-				}).Extract()
-				if mc.ObserveRequest(err) != nil {
-					return nil, fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
-				}
-
-				if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
-					return nil, err
-				}
-			} else {
-				// After all members have been processed, remaining members are deleted as obsolete.
-				members = popMember(members, addr, int(port.NodePort))
-			}
-
-			klog.V(4).Infof("Ensured pool %s has member for %s at %s", pool.ID, node.Name, addr)
 		}
 
 		// Delete obsolete members for this pool
@@ -2875,6 +2880,9 @@ func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1
 
 	// ensure rules for node security group
 	for _, port := range ports {
+		if port.NodePort == 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+			continue
+		}
 		// If Octavia is used, the VIP port security group is already taken good care of, we only need to allow ingress
 		// traffic from Octavia amphorae to the node port on the worker nodes.
 		if lbaas.opts.UseOctavia {
@@ -3142,24 +3150,26 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 		}
 
 		// Add any new members for this port
-		for addr, node := range addrs {
-			if _, ok := members[addr]; ok && members[addr].ProtocolPort == int(port.NodePort) {
-				// Already exists, do not create member
-				continue
-			}
-			mc := metrics.NewMetricContext("loadbalancer_member", "create")
-			_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
-				Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, loadbalancer.Name)),
-				Address:      addr,
-				ProtocolPort: int(port.NodePort),
-				SubnetID:     lbaas.opts.SubnetID,
-			}).Extract()
-			if mc.ObserveRequest(err) != nil {
-				return err
-			}
+		if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+			for addr, node := range addrs {
+				if _, ok := members[addr]; ok && members[addr].ProtocolPort == int(port.NodePort) {
+					// Already exists, do not create member
+					continue
+				}
+				mc := metrics.NewMetricContext("loadbalancer_member", "create")
+				_, err := v2pools.CreateMember(lbaas.lb, pool.ID, v2pools.CreateMemberOpts{
+					Name:         cutString(fmt.Sprintf("member_%d_%s_%s", portIndex, node.Name, loadbalancer.Name)),
+					Address:      addr,
+					ProtocolPort: int(port.NodePort),
+					SubnetID:     lbaas.opts.SubnetID,
+				}).Extract()
+				if mc.ObserveRequest(err) != nil {
+					return err
+				}
 
-			if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
-				return err
+				if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -3258,6 +3268,9 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 
 	// ensure rules for node security group
 	for _, port := range ports {
+		if port.NodePort == 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+			continue
+		}
 		err = lbaas.ensureSecurityRule(
 			rules.DirIngress,
 			rules.RuleProtocol(port.Protocol),
@@ -3315,6 +3328,9 @@ func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1
 	}
 
 	for _, port := range ports {
+		if port.NodePort == 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+			continue
+		}
 		for removal := range removals {
 			// Delete the rules in the Node Security Group
 			opts := rules.ListOpts{
