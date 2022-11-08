@@ -166,6 +166,13 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   The name of Neutron external network. openstack-cloud-controller-manager uses this option when getting the external IP of the Kubernetes node. Can be specified multiple times. Specified network names will be ORed. Default: ""
 * `internal-network-name`
   The name of Neutron internal network. openstack-cloud-controller-manager uses this option when getting the internal IP of the Kubernetes node, this is useful if the node has multiple interfaces. Can be specified multiple times. Specified network names will be ORed. Default: ""
+* `address-sort-order`
+  This configuration key influences the way the provider reports the node addresses to the Kubernetes node resource. The default order depends on the hard-coded order the provider queries the addresses and what the cloud returns, which does not guarantee a specific order.
+
+  To override this behavior it is possible to specify a comma separated list of CIDRs. Essentially, this will sort and group all addresses matching a CIDR in a prioritized manner, where the first item having a higher priority than the last. All non-matching addresses will remain in the same order they are already in.
+
+  For example, this option can be useful when having multiple or dual-stack interfaces attached to a node and needing a user-controlled, deterministic way of sorting the addresses.
+  Default: ""
 
 ###  Load Balancer
 
