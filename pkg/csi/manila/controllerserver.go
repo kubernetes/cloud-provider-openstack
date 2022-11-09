@@ -43,6 +43,15 @@ type controllerServer struct {
 var (
 	pendingVolumes   = sync.Map{}
 	pendingSnapshots = sync.Map{}
+
+	// Recognized volume parameters passed by Kubernetes csi-provisioner sidecar
+	// when run with --extra-create-metadata flag. These are added to metadata
+	// of newly created shares if present.
+	recognizedCSIProvisionerParams = []string{
+		"csi.storage.k8s.io/pvc/name",
+		"csi.storage.k8s.io/pvc/namespace",
+		"csi.storage.k8s.io/pv/name",
+	}
 )
 
 func getVolumeCreator(source *csi.VolumeContentSource, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions) (volumeCreator, error) {
@@ -92,7 +101,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.InvalidArgument, "invalid volume parameters: %v", err)
 	}
 
-	shareMetadata, err := prepareShareMetadata(shareOpts.AppendShareMetadata, cs.d.clusterID)
+	shareMetadata, err := prepareShareMetadata(shareOpts.AppendShareMetadata, cs.d.clusterID, params)
 	if err != nil {
 		return nil, err
 	}
@@ -485,16 +494,34 @@ func parseStringMapFromJSON(data string) (m map[string]string, err error) {
 	return
 }
 
-func prepareShareMetadata(appendShareMetadata, clusterID string) (map[string]string, error) {
-	shareMetadata, err := parseStringMapFromJSON(appendShareMetadata)
+func prepareShareMetadata(appendShareMetadata, clusterID string, volumeParams map[string]string) (map[string]string, error) {
+	shareMetadata := make(map[string]string)
+
+	// Get extra metadata provided by csi-provisioner sidecar if present.
+	for _, k := range recognizedCSIProvisionerParams {
+		if v, ok := volumeParams[k]; ok {
+			shareMetadata[k] = v
+		}
+	}
+
+	// Get metadata from appendShareMetadata volume parameter.
+	// It will not overwrite keys defined in recognizedCSIProvisionerParams.
+
+	appendShareMetadataMap, err := parseStringMapFromJSON(appendShareMetadata)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse appendShareMetadata field: %v", err)
 	}
 
-	if clusterID != "" {
-		if shareMetadata == nil {
-			shareMetadata = make(map[string]string)
+	for k, v := range appendShareMetadataMap {
+		if existingValue, ok := shareMetadata[k]; ok {
+			klog.Warningf("skip adding share metadata key %s from appendShareMetadata because it already exists with value %s", k, existingValue)
+		} else {
+			shareMetadata[k] = v
 		}
+	}
+
+	// Get cluster ID.
+	if clusterID != "" {
 		if val, ok := shareMetadata[clusterMetadataKey]; ok && val != clusterID {
 			klog.Warningf("skip adding cluster ID %v to share metadata because appended metadata already defines it as %v", clusterID, val)
 		} else {

@@ -26,6 +26,9 @@ spec:
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             - "--feature-gates=Topology=true"
             {{- end }}
+            {{- if $.Values.controllerplugin.provisioner.extraCreateMetadata }}
+            - "--extra-create-metadata"
+            {{- end }}
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
