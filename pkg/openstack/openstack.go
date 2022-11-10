@@ -116,6 +116,7 @@ type NetworkingOpts struct {
 	IPv6SupportDisabled bool     `gcfg:"ipv6-support-disabled"`
 	PublicNetworkName   []string `gcfg:"public-network-name"`
 	InternalNetworkName []string `gcfg:"internal-network-name"`
+	AddressSortOrder    string   `gcfg:"address-sort-order"`
 }
 
 // RouterOpts is used for Neutron routes
