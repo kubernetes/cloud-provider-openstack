@@ -2677,13 +2677,14 @@ func (lbaas *LbaasV2) getSubnet(subnet string) (*subnets.Subnet, error) {
 
 // ensureSecurityRule ensures to create a security rule for a defined security
 // group, if it not present.
+// Returns the either the found or the new created security rule.
 func (lbaas *LbaasV2) ensureSecurityRule(
 	direction rules.RuleDirection,
 	protocol rules.RuleProtocol,
 	etherType rules.RuleEtherType,
 	remoteIPPrefix, secGroupID string,
 	portRangeMin, portRangeMax int,
-) error {
+) (*rules.SecGroupRule, error) {
 	sgListopts := rules.ListOpts{
 		Direction:      string(direction),
 		Protocol:       string(protocol),
@@ -2694,11 +2695,11 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 	}
 	sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
 	if err != nil && !cpoerrors.IsNotFound(err) {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"failed to find security group rules in %s: %v", secGroupID, err)
 	}
 	if len(sgRules) != 0 {
-		return nil
+		return &sgRules[0], nil
 	}
 
 	sgRuleCreateOpts := rules.CreateOpts{
@@ -2712,13 +2713,13 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 	}
 
 	mc := metrics.NewMetricContext("security_group_rule", "create")
-	_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
+	r, err := rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"failed to create rule for security group %s: %v",
 			secGroupID, err)
 	}
-	return nil
+	return r, nil
 }
 
 // ensureSecurityGroup ensures security group exist for specific loadbalancer service.
@@ -3249,8 +3250,12 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		etherType = rules.EtherType6
 	}
 
+	// List of the security rules wanted in the security group
+	// Number of Ports plus the potential HealthCheckNodePort.
+	wantedRules := make([]rules.SecGroupRule, 0, len(ports)+1)
+
 	if apiService.Spec.HealthCheckNodePort != 0 {
-		err = lbaas.ensureSecurityRule(
+		rule, err := lbaas.ensureSecurityRule(
 			rules.DirIngress,
 			rules.ProtocolTCP,
 			etherType,
@@ -3264,6 +3269,12 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 				"failed to apply security rule for health check node port, %w",
 				err)
 		}
+		if rule == nil {
+			return fmt.Errorf(
+				"security rule for port %d is nil but should'nt",
+				apiService.Spec.HealthCheckNodePort)
+		}
+		wantedRules = append(wantedRules, *rule)
 	}
 
 	// ensure rules for node security group
@@ -3271,7 +3282,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		if port.NodePort == 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
 			continue
 		}
-		err = lbaas.ensureSecurityRule(
+		rule, err := lbaas.ensureSecurityRule(
 			rules.DirIngress,
 			rules.RuleProtocol(port.Protocol),
 			etherType,
@@ -3285,11 +3296,40 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 				"failed to apply security rule for port %d, %w",
 				port.NodePort, err)
 		}
-
-		if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
-			return err
+		if rule == nil {
+			return fmt.Errorf(
+				"security rule for port %d is nil but should'nt",
+				port.NodePort)
 		}
+		wantedRules = append(wantedRules, *rule)
 	}
+
+	// delete unneeded rules
+	assignedRules, err := getSecurityGroupRules(lbaas.network, rules.ListOpts{
+		SecGroupID: lbSecGroupID,
+	})
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		return fmt.Errorf(
+			"failed to find security group rules in %s: %v", lbSecGroupID, err)
+	}
+	for _, assignedRule := range assignedRules {
+		needed := false
+		for _, wantedRule := range wantedRules {
+			if wantedRule.ID == assignedRule.ID {
+				needed = true
+				break
+			}
+		}
+		if needed {
+			continue
+		}
+		rules.Delete(lbaas.network, assignedRule.ID)
+	}
+
+	if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
+		return err
+	}
+
 	return nil
 }
 
