@@ -232,7 +232,7 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	return err
 }
 
-//WaitVolumeTargetStatus waits for volume to be in target state
+// WaitVolumeTargetStatus waits for volume to be in target state
 func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
 	backoff := wait.Backoff{
 		Duration: operationFinishInitDelay,
@@ -367,7 +367,7 @@ func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) e
 	return fmt.Errorf("volume cannot be resized, when status is %s", status)
 }
 
-//GetMaxVolLimit returns max vol limit
+// GetMaxVolLimit returns max vol limit
 func (os *OpenStack) GetMaxVolLimit() int64 {
 	if os.bsOpts.NodeVolumeAttachLimit > 0 && os.bsOpts.NodeVolumeAttachLimit <= 256 {
 		return os.bsOpts.NodeVolumeAttachLimit

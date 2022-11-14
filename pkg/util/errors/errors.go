@@ -36,7 +36,7 @@ var ErrNoAddressFound = errors.New("no address found for host")
 // IPv6 support is disabled by config
 var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
 
-//ErrNoRouterID is used when router-id is not set
+// ErrNoRouterID is used when router-id is not set
 var ErrNoRouterID = errors.New("router-id not set in cloud provider config")
 
 func IsNotFound(err error) bool {

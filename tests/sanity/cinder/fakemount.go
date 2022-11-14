@@ -18,7 +18,7 @@ var (
 	mounter     = &cpomount.Mount{BaseMounter: newFakeSafeFormatAndMounter()}
 )
 
-//GetFakeMountProvider returns fake instance of Mounter
+// GetFakeMountProvider returns fake instance of Mounter
 func GetFakeMountProvider() cpomount.IMount {
 	return &fakemount{BaseMounter: newFakeSafeFormatAndMounter()}
 }
