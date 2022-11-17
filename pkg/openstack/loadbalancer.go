@@ -64,6 +64,7 @@ const (
 	defaultLoadBalancerSourceRangesIPv4 = "0.0.0.0/0"
 	defaultLoadBalancerSourceRangesIPv6 = "::/0"
 	activeStatus                        = "ACTIVE"
+	errorStatus                         = "ERROR"
 	annotationXForwardedFor             = "X-Forwarded-For"
 
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
@@ -3462,8 +3463,8 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		return nil
 	}
 
-	if loadbalancer.ProvisioningStatus != activeStatus {
-		return fmt.Errorf("load balancer %s is not ACTIVE, current provisioning status: %s", loadbalancer.ID, loadbalancer.ProvisioningStatus)
+	if loadbalancer.ProvisioningStatus != activeStatus && loadbalancer.ProvisioningStatus != errorStatus {
+		return fmt.Errorf("load balancer %s is in immutable status, current provisioning status: %s", loadbalancer.ID, loadbalancer.ProvisioningStatus)
 	}
 
 	if strings.HasPrefix(loadbalancer.Name, servicePrefix) {
