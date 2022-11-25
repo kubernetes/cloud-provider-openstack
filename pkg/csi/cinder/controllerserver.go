@@ -84,7 +84,24 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	cloud := cs.Cloud
+	appendVolumeAZ := cloud.GetBlockStorageOpts().AppendVolumeAZ
+	volumeAZseparator := cloud.GetBlockStorageOpts().AppendVolumeAZseparator
 	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
+
+	appendAZ, _ := strconv.ParseBool(req.GetParameters()["appendAZ"])
+	appendAZseparator := req.GetParameters()["appendAZseparator"]
+
+	if len(volumeAZseparator) == 0 {
+		volumeAZseparator = "."
+	}
+
+	if len(appendAZseparator) != 0 {
+		volumeAZseparator = appendAZseparator
+	}
+
+	if (appendVolumeAZ || appendAZ) && len(volAvailability) != 0 {
+		volType = fmt.Sprintf("%s%s%s", volType, volumeAZseparator, volAvailability)
+	}
 
 	// Verify a volume with the provided name doesn't already exist for this tenant
 	volumes, err := cloud.GetVolumesByName(volName)

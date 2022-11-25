@@ -118,6 +118,9 @@ These configuration options pertain to block storage and should appear in the `[
   Optional. When `Topology` feature enabled, by default, PV volume node affinity is populated with volume accessible topology, which is volume AZ. But, some of the openstack users do not have compute zones named exactly the same as volume zones. This might cause pods to go in pending state as no nodes available in volume AZ. Enabling `ignore-volume-az=true`, ignores volumeAZ and schedules on any of the available node AZ. Default `false`. Check `cross_az_attach` in [nova configuration](https://docs.openstack.org/nova/latest/configuration/config.html) for further information.
 * `ignore-volume-microversion`
   Optional. Set to `true` only when your cinder microversion is older than 3.34. This might cause some features to not work as expected, but aims to allow basic operations like creating a volume.
+* `append-volume-az`
+  Optional. Set to `true`, when you have availability zone suffix in volume type. For example: volume type = nvme-disk.eu-1a where nvme-disk is name of volume type and eu-1a is name of availability zone.
+  It can be enabled for Storage Class, please see options below. Also you can change separator for volume type using setting `append-volume-az-separator`, default is `.`.
 
 ### Metadata
 These configuration options pertain to metadata and should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.
@@ -243,6 +246,8 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 |-------------------------   |-----------------------|-----------------|-----------------|
 | StorageClass `parameters`  | `availability`          | `nova`          | String. Volume Availability Zone |
 | StorageClass `parameters`  | `type`                  | Empty String    | String. Name/ID of Volume type. Corresponding volume type should exist in cinder     |
+| StorageClass `parameters`  | `appendAZ`                  | `false`    | Boolean. For enabling append availability zone to type of volume     |
+| StorageClass `parameters`  | `appendAZseparator`                  | `.`    | String. Set separtator for volume type     |
 | VolumeSnapshotClass `parameters` | `force-create`    | `false`         | Enable to support creating snapshot for a volume in in-use status |
 | Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes| 
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |

@@ -73,10 +73,12 @@ type OpenStack struct {
 }
 
 type BlockStorageOpts struct {
-	NodeVolumeAttachLimit    int64 `gcfg:"node-volume-attach-limit"`
-	RescanOnResize           bool  `gcfg:"rescan-on-resize"`
-	IgnoreVolumeAZ           bool  `gcfg:"ignore-volume-az"`
-	IgnoreVolumeMicroversion bool  `gcfg:"ignore-volume-microversion"`
+	NodeVolumeAttachLimit    int64  `gcfg:"node-volume-attach-limit"`
+	RescanOnResize           bool   `gcfg:"rescan-on-resize"`
+	AppendVolumeAZ           bool   `gcfg:"append-volume-az"`
+	AppendVolumeAZseparator  string `gcfg:"append-volume-az-separator"`
+	IgnoreVolumeAZ           bool   `gcfg:"ignore-volume-az"`
+	IgnoreVolumeMicroversion bool   `gcfg:"ignore-volume-microversion"`
 }
 
 type Config struct {
