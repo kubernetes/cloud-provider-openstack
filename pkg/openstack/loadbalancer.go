@@ -1177,8 +1177,8 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 			return err
 		}
 		//Recreate health monitor with correct protocol if externalTrafficPolicy was changed
-		if (svcConf.healthCheckNodePort > 0 && monitor.Type != "HTTP") ||
-			(svcConf.healthCheckNodePort == 0 && monitor.Type == "HTTP") {
+		createOpts := lbaas.buildMonitorCreateOpts(svcConf, port)
+		if createOpts.Type != monitor.Type {
 			klog.InfoS("Recreating health monitor for the pool", "pool", pool.ID, "oldMonitor", monitorID)
 			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, lbID); err != nil {
 				return err
@@ -1221,6 +1221,18 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 	return nil
 }
 
+func (lbaas *LbaasV2) canUseHTTPMonitor(port corev1.ServicePort) bool {
+	if lbaas.opts.LBProvider == "ovn" {
+		// ovn-octavia-provider doesn't support HTTP monitors at all. We got to avoid creating it with ovn.
+		return false
+	} else if port.Protocol == corev1.ProtocolUDP {
+		// Older Octavia versions or OVN provider doesn't support HTTP monitors on UDP pools. We got to check if that's the case.
+		return openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
+	}
+
+	return true
+}
+
 // buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
 func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
 	opts := v2monitors.CreateOpts{
@@ -1232,22 +1244,11 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1
 	if port.Protocol == corev1.ProtocolUDP {
 		opts.Type = "UDP-CONNECT"
 	}
-	if svcConf.healthCheckNodePort > 0 {
-		setHTTPHealthMonitor := true
-		if lbaas.opts.LBProvider == "ovn" {
-			// ovn-octavia-provider doesn't support HTTP monitors at all. We got to avoid creating it with ovn.
-			setHTTPHealthMonitor = false
-		} else if opts.Type == "UDP-CONNECT" {
-			// Older Octavia versions or OVN provider doesn't support HTTP monitors on UDP pools. We got to check if that's the case.
-			setHTTPHealthMonitor = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
-		}
-
-		if setHTTPHealthMonitor {
-			opts.Type = "HTTP"
-			opts.URLPath = "/healthz"
-			opts.HTTPMethod = "GET"
-			opts.ExpectedCodes = "200"
-		}
+	if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
+		opts.Type = "HTTP"
+		opts.URLPath = "/healthz"
+		opts.HTTPMethod = "GET"
+		opts.ExpectedCodes = "200"
 	}
 	return opts
 }
@@ -1373,20 +1374,8 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 				Name:         &node.Name,
 				SubnetID:     &svcConf.lbMemberSubnetID,
 			}
-			if svcConf.healthCheckNodePort > 0 {
-				useHealthCheckNodePort := true
-				if lbaas.opts.LBProvider == "ovn" {
-					// ovn-octavia-provider doesn't support HTTP monitors at all, if we have it we got to rely on NodePort
-					// and UDP-CONNECT health monitor.
-					useHealthCheckNodePort = false
-				} else if port.Protocol == "UDP" {
-					// Older Octavia versions doesn't support HTTP monitors on UDP pools. If we have one like that, we got
-					// to rely on checking the NodePort instead.
-					useHealthCheckNodePort = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureHTTPMonitorsOnUDP, lbaas.opts.LBProvider)
-				}
-				if useHealthCheckNodePort {
-					member.MonitorPort = &svcConf.healthCheckNodePort
-				}
+			if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
+				member.MonitorPort = &svcConf.healthCheckNodePort
 			}
 			members = append(members, member)
 			newMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", node.Name, addr, member.ProtocolPort, svcConf.healthCheckNodePort))
