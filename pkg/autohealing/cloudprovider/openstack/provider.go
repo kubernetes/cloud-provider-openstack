@@ -39,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
@@ -285,15 +286,42 @@ func (provider CloudProvider) firstTimeRepair(n healthcheck.NodeInfo, serverID s
 			// Uncordon the node
 			if n.IsWorker {
 				nodeName := n.KubeNode.Name
-				newNode := n.KubeNode.DeepCopy()
-				newNode.Spec.Unschedulable = false
-				if _, err := provider.KubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
-					log.Errorf("Failed to cordon node %s, error: %v", nodeName, err)
-				} else {
-					log.Infof("Node %s is cordoned", nodeName)
+				// timeout for wait.Poll
+				timeout := 150 * time.Second
+				errServiceUp := wait.Poll(3*time.Second, timeout,
+					func() (bool, error) {
+						rapairedNode, getErr := provider.KubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+						if getErr != nil {
+							log.Errorf("Failed to get node %s, error: %v in wait.Poll waiting for services to start", nodeName, getErr)
+						}
+						if getErr != nil {
+							return false, getErr
+						}
+						if strings.Contains(rapairedNode.Status.String(), "Type:Ready,Status:True") {
+							retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+								// Retrieve the latest version of Node before attempting update
+								// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
+								newNode, err := provider.KubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+								if err != nil {
+									log.Errorf("Failed to get node %s, error: %v before update", nodeName, err)
+								}
+								newNode.Spec.Unschedulable = false
+								if _, updateErr := provider.KubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); updateErr != nil {
+									log.Errorf("Failed to uncordon node %s, error: %v", nodeName, updateErr)
+									return updateErr
+								} else {
+									log.Infof("Node %s is uncordoned", nodeName)
+									return nil
+								}
+							})
+							return true, retryErr
+						}
+						return false, nil
+					})
+				if errServiceUp != nil {
+					log.Infof("Reboot doesn't repair Node %s error: %v", nodeName, errServiceUp)
 				}
 			}
-
 			n.RebootAt = time.Now()
 			firstTimeRebootNodes[serverID] = n
 			unHealthyNodes[serverID] = n
