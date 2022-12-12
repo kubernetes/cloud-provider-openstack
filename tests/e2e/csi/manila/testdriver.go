@@ -102,12 +102,12 @@ func (d *manilaTestDriver) GetDriverInfo() *storageframework.DriverInfo {
 func (d *manilaTestDriver) SkipUnsupportedTest(storageframework.TestPattern) {
 }
 
-func (d *manilaTestDriver) PrepareTest(f *framework.Framework) (*storageframework.PerTestConfig, func()) {
+func (d *manilaTestDriver) PrepareTest(f *framework.Framework) *storageframework.PerTestConfig {
 	return &storageframework.PerTestConfig{
 		Driver:    d,
 		Prefix:    "manila",
 		Framework: f,
-	}, func() {}
+	}
 }
 
 //

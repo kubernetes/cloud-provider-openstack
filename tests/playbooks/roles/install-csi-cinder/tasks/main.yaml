@@ -16,8 +16,8 @@
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
 
-      REGISTRY={{ image_registry_host }} \
       VERSION={{ github_pr }} \
+      REGISTRY={{ image_registry_host }} \
       IMAGE_NAMES=cinder-csi-plugin \
       make upload-image-amd64
 
@@ -130,6 +130,18 @@
       debug:
         var: describe_csi.stdout_lines
 
+    - name: get logs during error csi-cinder-plugin
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -x
+          set -e
+
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin
+
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log 
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
       fail:
         msg: *failmsg

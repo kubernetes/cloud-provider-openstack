@@ -50,8 +50,8 @@ func findString(a string, list []string) bool {
 }
 
 // getAllowed gets the allowed resources based on the definition.
-func getAllowed(definition string, str string) (sets.String, error) {
-	allowed := sets.NewString()
+func getAllowed(definition string, str string) (sets.Set[string], error) {
+	allowed := sets.New[string]()
 
 	if definition == str || definition == "*" || str == "" {
 		allowed.Insert(str)
@@ -139,7 +139,7 @@ func resourcePermissionAllowed(permissionSpec map[string][]string, attr authoriz
 			continue
 		}
 
-		klog.V(4).Infof("allowedNamespaces: %s, allowedResources: %s, allowedVerbs: %s", allowedNamespaces.List(), allowedResources.List(), allowedVerbs.List())
+		klog.V(4).Infof("allowedNamespaces: %s, allowedResources: %s, allowedVerbs: %s", allowedNamespaces, allowedResources, allowedVerbs)
 
 		if allowedNamespaces.Has(ns) && allowedResources.Has(res) && allowedVerbs.Has(verb) {
 			return true

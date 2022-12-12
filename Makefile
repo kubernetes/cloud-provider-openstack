@@ -40,7 +40,7 @@ QEMUVERSION	:= "v4.2.0-4"
 GOARCH		:=
 GOFLAGS		:=
 TAGS		:=
-LDFLAGS		:= "-w -s -X 'k8s.io/component-base/version.gitVersion=$(VERSION)'"
+LDFLAGS		:= "-w -s -X 'k8s.io/component-base/version.gitVersion=$(GIT_VERSION)'"
 GOX_LDFLAGS	:= $(shell echo "$(LDFLAGS) -extldflags \"-static\"")
 REGISTRY	?= k8scloudprovider
 IMAGE_OS	?= linux

@@ -1292,7 +1292,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
 	}
 
-	curMembers := sets.NewString()
+	curMembers := sets.New[string]()
 	poolMembers, err := openstackutil.GetMembersbyPool(lbaas.lb, pool.ID)
 	if err != nil {
 		klog.Errorf("failed to get members in the pool %s: %v", pool.ID, err)
@@ -1351,9 +1351,9 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 }
 
 // buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
-func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.String, error) {
+func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.Set[string], error) {
 	var members []v2pools.BatchUpdateMemberOpts
-	newMembers := sets.NewString()
+	newMembers := sets.New[string]()
 
 	for _, node := range nodes {
 		addr, err := nodeAddressForLB(node, svcConf.preferredIPFamily)

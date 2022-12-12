@@ -305,7 +305,7 @@ func NewController(conf config.Config) *Controller {
 	}
 
 	ingInformer := kubeInformerFactory.Networking().V1().Ingresses()
-	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*nwv1.Ingress)
 			key := fmt.Sprintf("%s/%s", addIng.Namespace, addIng.Name)
@@ -373,6 +373,12 @@ func NewController(conf config.Config) *Controller {
 			controller.queue.AddRateLimited(Event{Obj: delIng, Type: DeleteEvent})
 		},
 	})
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err,
+		}).Fatal("failed to initialize ingress")
+	}
 
 	controller.ingressLister = ingInformer.Lister()
 	controller.ingressListerSynced = ingInformer.Informer().HasSynced
@@ -933,8 +939,8 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 }
 
 func (c *Controller) updateIngressStatus(ing *nwv1.Ingress, vip string) (*nwv1.Ingress, error) {
-	newState := new(apiv1.LoadBalancerStatus)
-	newState.Ingress = []apiv1.LoadBalancerIngress{{IP: vip}}
+	newState := new(nwv1.IngressLoadBalancerStatus)
+	newState.Ingress = []nwv1.IngressLoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
