@@ -75,6 +75,7 @@ serviceMonitor: {}
 # You can also provide your own secret (not created by the Helm chart), in this case set create to false
 # and adjust the name of the secret as necessary
 secret:
+  enabled: true
   create: true
   name: cloud-config
 

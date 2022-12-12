@@ -60,9 +60,11 @@ spec:
             protocol: TCP
           {{- end }}
           volumeMounts:
+            {{- if .Values.secret.enabled }}
             - mountPath: /etc/config
               name: cloud-config-volume
               readOnly: true
+            {{- end }}
           {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
@@ -88,9 +90,11 @@ spec:
       {{- end }}
       hostNetwork: true
       volumes:
+      {{- if .Values.secret.enabled }}
       - name: cloud-config-volume
         secret:
           secretName: {{ .Values.secret.name }}
+      {{- end }}
       {{- if .Values.extraVolumes }}
         {{ toYaml .Values.extraVolumes | nindent 6 }}
       {{- end }}
