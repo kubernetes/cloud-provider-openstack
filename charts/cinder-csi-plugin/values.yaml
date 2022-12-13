@@ -85,15 +85,6 @@ csi:
       nodeSelector: {}
       tolerations: []
     resources: {}
-  snapshotController:
-    enabled: false
-    image:
-      repository: k8s.gcr.io/sig-storage/snapshot-controller
-      tag: v5.0.1
-    resources: {}
-    affinity: {}
-    nodeSelector: {}
-    tolerations: []
 
 # Log verbosity level.
 # See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
