@@ -49,7 +49,6 @@
       domain-id=default
 
       [LoadBalancer]
-      use-octavia=true
       subnet-id=$sudnet_id
       floating-network-id=$external_network_id
       EOF

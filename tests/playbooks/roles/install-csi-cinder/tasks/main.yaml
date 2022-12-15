@@ -63,6 +63,8 @@
       sed -i "s#docker.io/k8scloudprovider/cinder-csi-plugin:latest#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
       sed -i "s#docker.io/k8scloudprovider/cinder-csi-plugin:latest#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
+      sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 - name: Deploy cinder-csi-plugin
   shell:
     executable: /bin/bash
