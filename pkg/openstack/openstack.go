@@ -78,7 +78,6 @@ type LoadBalancer struct {
 type LoadBalancerOpts struct {
 	Enabled               bool                `gcfg:"enabled"`              // if false, disables the controller
 	LBVersion             string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
-	UseOctavia            bool                `gcfg:"use-octavia"`          // uses Octavia V2 service catalog endpoint
 	SubnetID              string              `gcfg:"subnet-id"`            // overrides autodetection.
 	MemberSubnetID        string              `gcfg:"member-subnet-id"`     // overrides autodetection.
 	NetworkID             string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
@@ -95,8 +94,8 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries     uint                `gcfg:"monitor-max-retries"`
 	ManageSecurityGroups  bool                `gcfg:"manage-security-groups"`
 	NodeSecurityGroupIDs  []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
-	InternalLB            bool                `gcfg:"internal-lb"`    // default false
-	CascadeDelete         bool                `gcfg:"cascade-delete"` // applicable only if use-octavia is set to True
+	InternalLB            bool                `gcfg:"internal-lb"` // default false
+	CascadeDelete         bool                `gcfg:"cascade-delete"`
 	FlavorID              string              `gcfg:"flavor-id"`
 	AvailabilityZone      string              `gcfg:"availability-zone"`
 	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
@@ -192,7 +191,6 @@ func ReadConfig(config io.Reader) (Config, error) {
 
 	// Set default values explicitly
 	cfg.LoadBalancer.Enabled = true
-	cfg.LoadBalancer.UseOctavia = true
 	cfg.LoadBalancer.InternalLB = false
 	cfg.LoadBalancer.LBProvider = "amphora"
 	cfg.LoadBalancer.LBMethod = "ROUND_ROBIN"
@@ -327,7 +325,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 		return nil, false
 	}
 
-	lb, err := client.NewLoadBalancerV2(os.provider, os.epOpts, os.lbOpts.UseOctavia)
+	lb, err := client.NewLoadBalancerV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("Failed to create an OpenStack LoadBalancer client: %v", err)
 		return nil, false

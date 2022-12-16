@@ -51,14 +51,10 @@ func NewBlockStorageV3(provider *gophercloud.ProviderClient, eo *gophercloud.End
 }
 
 // NewLoadBalancerV2 creates a ServiceClient that may be used with the Neutron LBaaS v2 API
-func NewLoadBalancerV2(provider *gophercloud.ProviderClient, eo *gophercloud.EndpointOpts, useOctavia bool) (*gophercloud.ServiceClient, error) {
+func NewLoadBalancerV2(provider *gophercloud.ProviderClient, eo *gophercloud.EndpointOpts) (*gophercloud.ServiceClient, error) {
 	var lb *gophercloud.ServiceClient
 	var err error
-	if useOctavia {
-		lb, err = openstack.NewLoadBalancerV2(provider, *eo)
-	} else {
-		lb, err = openstack.NewNetworkV2(provider, *eo)
-	}
+	lb, err = openstack.NewLoadBalancerV2(provider, *eo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find load-balancer v2 %s endpoint for region %s: %v", eo.Availability, eo.Region, err)
 	}

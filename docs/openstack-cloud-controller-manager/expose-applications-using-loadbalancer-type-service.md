@@ -244,7 +244,6 @@ username="myuser"
 password="mypassword"
 
 [LoadBalancer]
-use-octavia=true
 floating-network-id="a57af0a0-da92-49be-a98a-345ceca004b3"
 floating-subnet-id="a02eb6c3-fc69-46ae-a3fe-fb43c1563cbc"
 subnet-id="fa6a4e6c-6ae4-4dde-ae86-3e2f452c1f03"
