@@ -2,6 +2,8 @@ module k8s.io/cloud-provider-openstack
 
 go 1.19
 
+replace github.com/onsi/ginkgo/v2 => github.com/onsi/ginkgo/v2 v2.4.0
+
 require (
 	github.com/container-storage-interface/spec v1.7.0
 	github.com/gophercloud/gophercloud v1.1.1
@@ -12,7 +14,7 @@ require (
 	github.com/kubernetes-csi/csi-test/v5 v5.0.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/onsi/ginkgo/v2 v2.4.0
+	github.com/onsi/ginkgo/v2 v2.6.1
 	github.com/onsi/gomega v1.24.2
 	github.com/pborman/uuid v1.2.1
 	github.com/sirupsen/logrus v1.9.0
