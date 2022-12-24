@@ -51,16 +51,10 @@
   shell:
     executable: /bin/bash
     cmd: |
-      # TODO: Consider using kustomize once we move to external-snapshotter v5.
-      for f in \
-        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml' \
-        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml' \
-        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml' \
-        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml' \
-        'https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-4.2/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml'
-      do
-        kubectl create -f "$f"
-      done
+      snapshot_controller_version='v5.0.1'
+
+      kubectl apply -k "https://github.com/kubernetes-csi/external-snapshotter.git/client/config/crd?ref=${snapshot_controller_version}"
+      kubectl apply -k "https://github.com/kubernetes-csi/external-snapshotter.git/deploy/kubernetes/snapshot-controller?ref=${snapshot_controller_version}"
 
 - name: Deploy nfs-csi Node Plugin
   shell:
@@ -126,10 +120,11 @@
           tag: {{ github_pr }}
       shareProtocols:
         - protocolSelector: NFS
-          fsGroupPolicy: None
+          fsGroupPolicy: File
           fwdNodePluginEndpoint:
             dir: /var/lib/kubelet/plugins/csi-nfsplugin
             sockFile: csi.sock
+      logVerbosityLevel: 5
       EOF
 
       helm install shares . -f override-helm-values.yaml
@@ -212,7 +207,7 @@
       set -e
       set -o pipefail
 
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      set +x; source {{ devstack_workdir }}/openrc admin admin > /dev/null; set -x
 
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
@@ -224,7 +219,7 @@
         --ginkgo.v \
         --ginkgo.noColor \
         --ginkgo.progress \
-        --ginkgo.skip="\[Disruptive\]|\[sig-storage\]\s+\[manila-csi-e2e\]\s+CSI\s+Volumes\s+\[Driver:\s+nfs.manila.csi.openstack.org\]\s+\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]|should\s+provision\s+storage\s+with\s+snapshot\s+data\s+source" \
+        --ginkgo.skip="\[Disruptive\]|\[sig-storage\]\s+\[manila-csi-e2e\]\s+CSI\s+Volumes\s+\[Driver:\s+nfs.manila.csi.openstack.org\]\s+\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]" \
         --ginkgo.focus="\[manila-csi-e2e\]" \
         -report-dir /var/log/csi-pod \
         -timeout=0 | tee "/var/log/csi-pod/manila-csi-e2e.log"
@@ -238,8 +233,8 @@
       set -x
       set -e
 
-      kubectl logs statefulset/manila-openstack-manila-csi-controllerplugin -n default -c nfs-nodeplugin > /var/log/csi-pod/csi-manila-controllerplugin.log
-      kubectl logs daemonset/manila-openstack-manila-csi-nodeplugin -n default -c nfs-nodeplugin > /var/log/csi-pod/csi-manila-nodeplugin.log
+      kubectl logs -l app=openstack-manila-csi,component=controllerplugin --all-containers --tail=-1 > /var/log/csi-pod/csi-manila-controllerplugin.log
+      kubectl logs -l app=openstack-manila-csi,component=nodeplugin --all-containers --tail=-1 > /var/log/csi-pod/csi-manila-nodeplugin.log
   ignore_errors: true
 
 - fail: msg="The execution has failed because of errors."
