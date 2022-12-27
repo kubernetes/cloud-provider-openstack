@@ -532,6 +532,8 @@ func readInstanceID(searchOrder string) (string, error) {
 		}
 	}
 
+	klog.V(3).Infof("Failed to obtain instanceID, this likely lead to potential error")
+
 	return "", err
 }
 
