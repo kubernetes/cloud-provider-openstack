@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"golang.org/x/net/context"
-	pb "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1"
 	"k8s.io/cloud-provider-openstack/pkg/kms/barbican"
+	pb "k8s.io/kms/apis/v1beta1"
 )
 
 var s = new(KMSserver)

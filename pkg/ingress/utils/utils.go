@@ -85,8 +85,8 @@ func GetNodeID(node *apiv1.Node) (string, error) {
 }
 
 // Convert2Set converts a string list to string set.
-func Convert2Set(list []string) sets.String {
-	set := sets.NewString()
+func Convert2Set(list []string) sets.Set[string] {
+	set := sets.New[string]()
 	for _, s := range list {
 		set.Insert(s)
 	}

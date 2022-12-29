@@ -87,7 +87,7 @@ type ResourceTracker struct {
 	lbID       string
 	listenerID string
 
-	newPoolNames sets.String
+	newPoolNames sets.Set[string]
 	newPools     []IngPool
 	newPolicies  []IngPolicy
 	// A map from rule hash key to pool ID.
@@ -101,7 +101,7 @@ type ResourceTracker struct {
 }
 
 func NewResourceTracker(ingressName string, client *gophercloud.ServiceClient, lbID string, listenerID string, newPools []IngPool, newPolicies []IngPolicy, oldPools []pools.Pool, oldPolicies []ExistingPolicy) *ResourceTracker {
-	newPoolNames := sets.NewString()
+	newPoolNames := sets.New[string]()
 	oldPoolMapping := make(map[string]string)
 	for _, pool := range newPools {
 		newPoolNames.Insert(pool.Name)

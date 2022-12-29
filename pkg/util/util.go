@@ -39,11 +39,11 @@ func StringListEqual(list1, list2 []string) bool {
 		return false
 	}
 
-	s1 := sets.String{}
+	s1 := sets.New[string]()
 	for _, s := range list1 {
 		s1.Insert(s)
 	}
-	s2 := sets.String{}
+	s2 := sets.New[string]()
 	for _, s := range list2 {
 		s2.Insert(s)
 	}
