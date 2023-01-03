@@ -493,7 +493,7 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 		kubeInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute*5)
 		cmInformer := kubeInformerFactory.Core().V1().ConfigMaps()
-		cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		_, err := cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: keystoneAuth.enqueueConfigMap,
 			UpdateFunc: func(old, new interface{}) {
 				newIng := new.(*apiv1.ConfigMap)
@@ -507,6 +507,9 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 			},
 			DeleteFunc: keystoneAuth.enqueueConfigMap,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("add event handler failed: %w", err)
+		}
 
 		keystoneAuth.informer = kubeInformerFactory
 		keystoneAuth.cmLister = cmInformer.Lister()

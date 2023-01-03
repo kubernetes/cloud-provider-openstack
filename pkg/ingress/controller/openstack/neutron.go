@@ -270,7 +270,7 @@ func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes
 			if sgSet.Has(sgID) && needDelete {
 				// Remove sg from the port
 				sgSet.Delete(sgID)
-				newSGs := sgSet.List()
+				newSGs := sets.List(sgSet)
 				updateOpts := ports.UpdateOpts{SecurityGroups: &newSGs}
 				if _, err := ports.Update(os.neutron, port.ID, updateOpts).Extract(); err != nil {
 					return err
@@ -282,7 +282,7 @@ func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes
 			if !sgSet.Has(sgID) && !needDelete {
 				// Add sg to the port
 				sgSet.Insert(sgID)
-				newSGs := sgSet.List()
+				newSGs := sets.List(sgSet)
 				updateOpts := ports.UpdateOpts{SecurityGroups: &newSGs}
 				if _, err := ports.Update(os.neutron, port.ID, updateOpts).Extract(); err != nil {
 					return err
