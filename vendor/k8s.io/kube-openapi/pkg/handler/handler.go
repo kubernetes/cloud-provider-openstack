@@ -18,11 +18,9 @@ package handler
 
 import (
 	"bytes"
-	"compress/gzip"
 	"crypto/sha512"
 	"encoding/json"
 	"fmt"
-	"mime"
 	"net/http"
 	"strconv"
 	"sync"
@@ -39,15 +37,6 @@ import (
 	"k8s.io/kube-openapi/pkg/common/restfuladapter"
 	"k8s.io/kube-openapi/pkg/internal/handler"
 	"k8s.io/kube-openapi/pkg/validation/spec"
-)
-
-const (
-	jsonExt = ".json"
-
-	mimeJson = "application/json"
-	// TODO(mehdy): change @68f4ded to a version tag when gnostic add version tags.
-	mimePb   = "application/com.github.googleapis.gnostic.OpenAPIv2@68f4ded+protobuf"
-	mimePbGz = "application/x-gzip"
 )
 
 func computeETag(data []byte) string {
@@ -68,12 +57,6 @@ type OpenAPIService struct {
 	jsonCache  handler.HandlerCache
 	protoCache handler.HandlerCache
 	etagCache  handler.HandlerCache
-}
-
-func init() {
-	mime.AddExtensionType(".json", mimeJson)
-	mime.AddExtensionType(".pb-v1", mimePb)
-	mime.AddExtensionType(".gz", mimePbGz)
 }
 
 // NewOpenAPIService builds an OpenAPIService starting with the given spec.
@@ -146,14 +129,6 @@ func ToProtoBinary(json []byte) ([]byte, error) {
 	return proto.Marshal(document)
 }
 
-func toGzip(data []byte) []byte {
-	var buf bytes.Buffer
-	zw := gzip.NewWriter(&buf)
-	zw.Write(data)
-	zw.Close()
-	return buf.Bytes()
-}
-
 // RegisterOpenAPIVersionedService registers a handler to provide access to provided swagger spec.
 //
 // Deprecated: use OpenAPIService.RegisterOpenAPIVersionedService instead.
@@ -203,6 +178,9 @@ func (o *OpenAPIService) RegisterOpenAPIVersionedService(servePath string, handl
 							return
 						}
 					}
+					contentType := accepts.Type + "/" + accepts.SubType
+					w.Header().Set("Content-Type", contentType)
+
 					// ETag must be enclosed in double quotes: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag
 					w.Header().Set("Etag", strconv.Quote(etag))
 					// ServeContent will take care of caching using eTag.

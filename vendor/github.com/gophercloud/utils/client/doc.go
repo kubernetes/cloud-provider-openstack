@@ -142,6 +142,5 @@ Example usage with additinal headers:
 			Region: os.Getenv("OS_REGION_NAME"),
 		})
 	}
-
 */
 package client
