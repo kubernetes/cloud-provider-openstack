@@ -549,7 +549,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		svcConf.lbMemberSubnetID = loadbalancer.VipSubnetID
 	}
 
-	if loadbalancer, err = openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+	if loadbalancer, err = openstackutil.WaitLoadBalancerActiveAndGetLB(lbaas.lb, loadbalancer.ID); err != nil {
 		return nil, err
 	}
 
