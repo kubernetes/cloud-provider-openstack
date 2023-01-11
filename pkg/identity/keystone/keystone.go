@@ -24,10 +24,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/utils"
-	"github.com/gorilla/mux"
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 	apiv1 "k8s.io/api/core/v1"
@@ -116,7 +116,7 @@ func (k *Auth) Run() {
 		go wait.Until(k.runWorker, time.Second, k.stopCh)
 	}
 
-	r := mux.NewRouter()
+	r := chi.NewRouter()
 	r.HandleFunc("/webhook", k.Handler)
 
 	klog.Infof("Starting webhook server...")

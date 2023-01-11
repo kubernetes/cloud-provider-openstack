@@ -6,9 +6,9 @@ replace github.com/onsi/ginkgo/v2 => github.com/onsi/ginkgo/v2 v2.4.0
 
 require (
 	github.com/container-storage-interface/spec v1.7.0
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gophercloud/gophercloud v1.1.1
 	github.com/gophercloud/utils v0.0.0-20221207145018-e8fba78967ca
-	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.12.0
 	github.com/kubernetes-csi/csi-test/v5 v5.0.0
