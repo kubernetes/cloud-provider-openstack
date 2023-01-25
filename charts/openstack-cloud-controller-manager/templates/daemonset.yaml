@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "occm.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   selector:
     matchLabels:
@@ -17,6 +21,10 @@ spec:
          checksum/config: {{ include "cloudConfig" . | sha256sum }}
       labels:
         {{- include "occm.controllermanager.labels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
