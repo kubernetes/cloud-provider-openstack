@@ -1004,7 +1004,6 @@ func privateKeyFromPEM(pemData []byte) (crypto.PrivateKey, error) {
 
 // parsePEMBundle parses a certificate bundle from top to bottom and returns
 // a slice of x509 certificates. This function will error if no certificates are found.
-//
 func parsePEMBundle(bundle []byte) ([]*x509.Certificate, error) {
 	var certificates []*x509.Certificate
 	var certDERBlock *pem.Block
