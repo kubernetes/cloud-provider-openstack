@@ -44,7 +44,6 @@
           - python3-pip
           - build-essential
           - python3-dev
-          - python3-setuptools
           - libffi-dev
           - libxslt1-dev
           - libxml2-dev
@@ -54,6 +53,12 @@
           - unzip
           - jq
           - net-tools
+          
+    - name: Fix localhost setuptools
+      shell:
+        executable: /bin/bash
+        cmd: |
+          python3 -m pip install --user -U pip "setuptools<66.0.0"
 
     - name: Git checkout devstack
       git:
@@ -121,6 +126,31 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
+      ignore_errors: true
+
+    - name: show logs2
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -ex
+          journalctl -u devstack@n-cpu > output
+          cat output
+          echo "---------1"
+          journalctl -u devstack@n-super-cond > output1
+          cat output1
+          echo "---------2"
+          journalctl -u devstack@n-cond-cell1 > output2
+          cat output2
+          echo "----3"
+          journalctl -u devstack@placement-api > output3
+          cat output3
+
+    - name: fail
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -ex
+          ls /dummy
 
     - name: Remove openstack CLI warnings
       shell:
