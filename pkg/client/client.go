@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/cloud-provider-openstack/pkg/version"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 )
 
 type AuthOpts struct {

@@ -18,7 +18,7 @@ package mount
 
 import (
 	mock "github.com/stretchr/testify/mock"
-	"k8s.io/mount-utils"
+	mount "k8s.io/mount-utils"
 	utilsexec "k8s.io/utils/exec"
 	exec "k8s.io/utils/exec/testing"
 )

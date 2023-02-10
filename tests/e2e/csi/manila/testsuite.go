@@ -5,7 +5,7 @@ import (
 
 	// revive:enable:dot-imports
 	// revive:disable:blank-imports
-	"github.com/onsi/ginkgo/v2"
+	ginkgo "github.com/onsi/ginkgo/v2"
 	_ "github.com/onsi/gomega"
 
 	// revive:enable:blank-imports

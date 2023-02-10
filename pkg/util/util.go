@@ -8,7 +8,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	clientset "k8s.io/client-go/kubernetes"
@@ -93,7 +93,7 @@ func PatchService(ctx context.Context, client clientset.Interface, cur, mod *v1.
 	if len(patch) == 0 || string(patch) == "{}" {
 		return nil
 	}
-	_, err = client.CoreV1().Services(cur.Namespace).Patch(ctx, cur.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+	_, err = client.CoreV1().Services(cur.Namespace).Patch(ctx, cur.Name, apitypes.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to patch service object %s/%s: %s", cur.Namespace, cur.Name, err)
 	}

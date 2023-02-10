@@ -25,7 +25,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 )
 
 // findBlockDeviceRescanPath Find the underlaying disk for a linked path such as /dev/disk/by-path/XXXX or /dev/mapper/XXXX
