@@ -44,7 +44,7 @@ import (
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	rand.NewSource(time.Now().UnixNano())
 
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
