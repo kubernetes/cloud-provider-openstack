@@ -125,10 +125,3 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
-
-    - name: Remove openstack CLI warnings
-      shell:
-        executable: /bin/bash
-        cmd: |
-          # To avoid the warning msg: "CryptographyDeprecationWarning: int_from_bytes is deprecated, use int.from_bytes instead"
-          python3 -m pip install cryptography==3.3.2
