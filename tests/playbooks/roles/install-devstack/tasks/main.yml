@@ -106,6 +106,7 @@
           python3 -m pip install --upgrade setuptools
           python3 -m pip install --upgrade python-debian
           python3 -m pip install --upgrade distro-info
+          python3 -m pip install --upgrade SecretStorage
 
     - name: Change devstack directory owner
       file:
