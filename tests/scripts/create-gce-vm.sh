@@ -83,6 +83,9 @@ function init_networks() {
 }
 
 main() {
+  # sleep 60 seconds to ensure that GCP credentials are activated
+  sleep 60
+
   if [[ -n "${SKIP_INIT_NETWORK:-}" ]]; then
     echo "Skipping network initialization..."
   else
