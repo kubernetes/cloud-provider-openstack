@@ -36,7 +36,7 @@ spec:
       serviceAccountName: openstack-manila-csi-controllerplugin
       containers:
         - name: provisioner
-          image: "k8s.gcr.io/sig-storage/csi-provisioner:v3.0.0"
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v3.0.0"
           args:
             - "--csi-address=$(ADDRESS)"
             # To enable topology awareness in csi-provisioner, uncomment the following line:
@@ -49,7 +49,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: snapshotter
-          image: "k8s.gcr.io/sig-storage/csi-snapshotter:v5.0.1"
+          image: "registry.k8s.io/sig-storage/csi-snapshotter:v5.0.1"
           args:
             - "--csi-address=$(ADDRESS)"
           env:
@@ -60,7 +60,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: resizer
-          image: "k8s.gcr.io/sig-storage/csi-resizer:v1.3.0"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.3.0"
           args:
             - "--csi-address=$(ADDRESS)"
             - "--handle-volume-inuse-error=false"

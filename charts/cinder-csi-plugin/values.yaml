@@ -7,32 +7,32 @@ timeout: 3m
 csi:
   attacher:
     image:
-      repository: k8s.gcr.io/sig-storage/csi-attacher
+      repository: registry.k8s.io/sig-storage/csi-attacher
       tag: v4.0.0
       pullPolicy: IfNotPresent
     resources: {}
   provisioner:
     topology: "true"
     image:
-      repository: k8s.gcr.io/sig-storage/csi-provisioner
+      repository: registry.k8s.io/sig-storage/csi-provisioner
       tag: v3.4.0
       pullPolicy: IfNotPresent
     resources: {}
   snapshotter:
     image:
-      repository: k8s.gcr.io/sig-storage/csi-snapshotter
+      repository: registry.k8s.io/sig-storage/csi-snapshotter
       tag: v6.1.0
       pullPolicy: IfNotPresent
     resources: {}
   resizer:
     image:
-      repository: k8s.gcr.io/sig-storage/csi-resizer
+      repository: registry.k8s.io/sig-storage/csi-resizer
       tag: v1.6.0
       pullPolicy: IfNotPresent
     resources: {}
   livenessprobe:
     image:
-      repository: k8s.gcr.io/sig-storage/livenessprobe
+      repository: registry.k8s.io/sig-storage/livenessprobe
       tag: v2.8.0
       pullPolicy: IfNotPresent
     failureThreshold: 5
@@ -42,7 +42,7 @@ csi:
     resources: {}
   nodeDriverRegistrar:
     image:
-      repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
+      repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
       tag: v2.6.2
       pullPolicy: IfNotPresent
     resources: {}
