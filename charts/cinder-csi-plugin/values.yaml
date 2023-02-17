@@ -139,3 +139,6 @@ storageClass:
 clusterID: "kubernetes"
 
 priorityClassName: ""
+
+imagePullSecrets: []
+# - name: my-imagepull-secret
