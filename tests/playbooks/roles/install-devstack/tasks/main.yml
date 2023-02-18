@@ -101,7 +101,12 @@
           rm -rf /usr/lib/python3/dist-packages/PyYAML-*.egg-info
           # https://bugs.launchpad.net/devstack/+bug/1906322
           sed -i 's|$cmd_pip $upgrade |$cmd_pip $upgrade --ignore-installed |g' {{ workdir }}/inc/python
-          python3 -m pip install --upgrade pip==20.2.3
+          python3 -m pip install --upgrade pip==23.0
+          python3 -m pip install --upgrade keystoneauth1==5.1.1
+          python3 -m pip install --upgrade setuptools
+          python3 -m pip install --upgrade python-debian
+          python3 -m pip install --upgrade distro-info
+          python3 -m pip install --upgrade SecretStorage
 
     - name: Change devstack directory owner
       file:
@@ -121,10 +126,3 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
-
-    - name: Remove openstack CLI warnings
-      shell:
-        executable: /bin/bash
-        cmd: |
-          # To avoid the warning msg: "CryptographyDeprecationWarning: int_from_bytes is deprecated, use int.from_bytes instead"
-          python3 -m pip install cryptography==3.3.2

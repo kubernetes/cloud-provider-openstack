@@ -1,7 +1,7 @@
 ---
 user: "stack"
 workdir: "/home/{{ user }}/devstack"
-branch: "stable/xena"
+branch: "stable/zed"
 enable_services:
   - nova
   - glance
