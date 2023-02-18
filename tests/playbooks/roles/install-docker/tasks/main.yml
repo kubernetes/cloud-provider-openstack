@@ -13,16 +13,16 @@
       - software-properties-common
       - curl
 
-# curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+# curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
 - name: Add Docker’s official GPG key
   apt_key:
-    url: https://download.docker.com/linux/ubuntu/gpg
+    url: https://download.docker.com/linux/debian/gpg
     state: present
 
-# add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+# add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 - name: Set up the stable repository
   apt_repository:
-    repo: 'deb https://download.docker.com/linux/ubuntu {{ hostvars[inventory_hostname].ansible_distribution_release }} stable'
+    repo: 'deb https://download.docker.com/linux/debian {{ hostvars[inventory_hostname].ansible_distribution_release }} stable'
     state: present
 
 # apt-get update; apt install -y docker-ce=<version>
