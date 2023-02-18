@@ -94,7 +94,7 @@ main() {
     if ! gcloud compute disks describe devstack-${FLAVOR} --zone "${GCP_ZONE}" > /dev/null 2>&1;
     then
       gcloud compute disks create devstack-${FLAVOR} \
-        --image-project ubuntu-os-cloud --image-family ubuntu-2004-lts \
+        --image-project ubuntu-os-cloud --image-family ubuntu-2204-lts \
         --zone "${GCP_ZONE}"
     fi
 
