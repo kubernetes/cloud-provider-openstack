@@ -680,7 +680,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 		return fmt.Errorf("TLS Ingress not supported because of Key Manager service unavailable")
 	}
 
-	lb, err := c.osClient.EnsureLoadBalancer(resName, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName)
+	lb, err := c.osClient.EnsureLoadBalancer(resName, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName, c.config.Octavia.FlavorID)
 	if err != nil {
 		return err
 	}

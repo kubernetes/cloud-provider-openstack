@@ -282,7 +282,7 @@ func (os *OpenStack) waitLoadbalancerActiveProvisioningStatus(loadbalancerID str
 }
 
 // EnsureLoadBalancer creates a loadbalancer in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
-func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespace string, ingName string, clusterName string) (*loadbalancers.LoadBalancer, error) {
+func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespace string, ingName string, clusterName string, flavorId string) (*loadbalancers.LoadBalancer, error) {
 	logger := log.WithFields(log.Fields{"ingress": fmt.Sprintf("%s/%s", ingNamespace, ingName)})
 
 	loadbalancer, err := openstackutil.GetLoadbalancerByName(os.Octavia, name)
@@ -303,6 +303,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 			Description: fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
 			VipSubnetID: subnetID,
 			Provider:    provider,
+			FlavorID:    flavorId,
 		}
 		loadbalancer, err = loadbalancers.Create(os.Octavia, createOpts).Extract()
 		if err != nil {
