@@ -126,3 +126,20 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
+
+    - name: devstack resources
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          openstack --os-cloud devstack-admin hypervisor stats show
+          openstack --os-cloud devstack-admin host list
+          openstack --os-cloud devstack-admin usage list
+          openstack --os-cloud devstack-admin project list
+          openstack --os-cloud devstack-admin network list
+          openstack --os-cloud devstack-admin subnet list
+          openstack --os-cloud devstack-admin image list
+          openstack --os-cloud devstack-admin flavor list
+          openstack --os-cloud devstack-admin server list
+          openstack --os-cloud devstack-admin availability zone list
+          openstack --os-cloud devstack-admin domain list
