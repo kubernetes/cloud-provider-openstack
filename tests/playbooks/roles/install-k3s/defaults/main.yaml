@@ -1,5 +1,5 @@
 ---
-k3s_release: "v1.23.6+k3s1"
+k3s_release: v1.26.1+k3s1
 worker_node_count: 1
 cluster_token: "9a08jv.c0izixklcxtmnze7"
 devstack_workdir: "{{ ansible_user_dir }}/devstack"
