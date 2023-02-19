@@ -1,0 +1,19 @@
+- hosts: all
+  become: true
+  become_method: sudo
+  gather_facts: true
+
+  vars:
+    user: stack
+    global_env: {}
+
+  roles:
+    - role: install-golang
+    - role: install-devstack
+      enable_services:
+        - nova
+        - glance
+        - cinder
+        - neutron
+        - octavia
+        - barbican
