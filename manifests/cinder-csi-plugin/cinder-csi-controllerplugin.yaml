@@ -25,7 +25,7 @@ spec:
       serviceAccount: csi-cinder-controller-sa
       containers:
         - name: csi-attacher
-          image: k8s.gcr.io/sig-storage/csi-attacher:v4.0.0
+          image: registry.k8s.io/sig-storage/csi-attacher:v4.0.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -39,7 +39,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-provisioner
-          image: k8s.gcr.io/sig-storage/csi-provisioner:v3.3.0
+          image: registry.k8s.io/sig-storage/csi-provisioner:v3.3.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -55,7 +55,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-snapshotter
-          image: k8s.gcr.io/sig-storage/csi-snapshotter:v6.1.0
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v6.1.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -69,7 +69,7 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
         - name: csi-resizer
-          image: k8s.gcr.io/sig-storage/csi-resizer:v1.4.0
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.4.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -83,7 +83,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: liveness-probe
-          image: k8s.gcr.io/sig-storage/livenessprobe:v2.8.0
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.8.0
           args:
             - "--csi-address=$(ADDRESS)"
           env:
