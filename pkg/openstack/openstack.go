@@ -312,6 +312,10 @@ func (os *OpenStack) HasClusterID() bool {
 // LoadBalancer initializes a LbaasV2 object
 func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	klog.V(4).Info("openstack.LoadBalancer() called")
+	if !os.lbOpts.Enabled {
+		klog.V(4).Info("openstack.LoadBalancer() support for LoadBalancer controller is disabled")
+		return nil, false
+	}
 
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {

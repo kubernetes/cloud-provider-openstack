@@ -1992,10 +1992,6 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 // EnsureLoadBalancer creates a new load balancer or updates the existing one.
 func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
-	if !lbaas.opts.Enabled {
-		return nil, cloudprovider.ImplementedElsewhere
-	}
-
 	mc := metrics.NewMetricContext("loadbalancer", "ensure")
 	status, err := lbaas.ensureLoadBalancer(ctx, clusterName, apiService, nodes)
 	return status, mc.ObserveReconcile(err)
@@ -2156,9 +2152,6 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 
 // UpdateLoadBalancer updates hosts under the specified load balancer.
 func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
-	if !lbaas.opts.Enabled {
-		return cloudprovider.ImplementedElsewhere
-	}
 	mc := metrics.NewMetricContext("loadbalancer", "update")
 	err := lbaas.updateLoadBalancer(ctx, clusterName, service, nodes)
 	return mc.ObserveReconcile(err)
