@@ -131,13 +131,11 @@ func sortNodeAddresses(addresses []v1.NodeAddress, addressSortOrder string) {
 }
 
 // Instances returns an implementation of Instances for OpenStack.
+// TODO: v1 instance apis can be deleted after the v2 is verified enough
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
-	return os.instances()
-}
-
-// InstancesV2 returns an implementation of InstancesV2 for OpenStack.
-// TODO: Support InstancesV2 in the future.
-func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	if os.useV1Instances {
+		return os.instances()
+	}
 	return nil, false
 }
 

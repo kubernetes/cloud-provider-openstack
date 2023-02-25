@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -147,6 +148,7 @@ type OpenStack struct {
 	// InstanceID of the server where this OpenStack object is instantiated.
 	localInstanceID string
 	kclient         kubernetes.Interface
+	useV1Instances  bool // TODO: v1 instance apis can be deleted after the v2 is verified enough
 }
 
 // Config is used to read and store information from the cloud configuration file
@@ -270,6 +272,12 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
+	useV1Instances := false
+	v1instances := os.Getenv("OS_V1_INSTANCES")
+	if strings.ToLower(v1instances) == "true" {
+		useV1Instances = true
+	}
+
 	os := OpenStack{
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
@@ -280,6 +288,7 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		routeOpts:      cfg.Route,
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
+		useV1Instances: useV1Instances,
 	}
 
 	// ini file doesn't support maps so we are reusing top level sub sections
