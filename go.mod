@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/container-storage-interface/spec v1.6.0
-	github.com/gophercloud/gophercloud v1.0.0
+	github.com/gophercloud/gophercloud v1.2.1-0.20230227135528-e7de1a394a6e
 	github.com/gophercloud/utils v0.0.0-20220307143606-8e7800759d16
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.4.0
@@ -120,7 +120,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
-	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f // indirect
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
 	golang.org/x/text v0.5.0 // indirect
