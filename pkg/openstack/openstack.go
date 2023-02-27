@@ -130,7 +130,7 @@ type NetworkingOpts struct {
 
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
-	RouterID string `gcfg:"router-id"` // required
+	RouterID string `gcfg:"router-id"`
 }
 
 type ServerAttributesExt struct {
@@ -445,18 +445,23 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	if !netExts["extraroute"] {
+	if !netExts["extraroute"] && !netExts["extraroute-atomic"] {
 		klog.V(3).Info("Neutron extraroute extension not found, required for Routes support")
 		return nil, false
 	}
 
-	r, err := NewRoutes(os, network)
+	r, err := NewRoutes(os, network, netExts["extraroute-atomic"])
 	if err != nil {
 		klog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false
 	}
 
-	klog.V(1).Info("Claiming to support Routes")
+	if netExts["extraroute-atomic"] {
+		klog.V(1).Info("Claiming to support Routes with atomic updates")
+	} else {
+		klog.V(1).Info("Claiming to support Routes")
+	}
+
 	return r, true
 }
 
