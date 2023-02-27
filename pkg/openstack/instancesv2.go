@@ -99,11 +99,6 @@ func (i *InstancesV2) InstanceShutdown(ctx context.Context, node *v1.Node) (bool
 	return false, nil
 }
 
-type MetadataCache struct {
-	Name     string
-	Metadata *cloudprovider.InstanceMetadata
-}
-
 // InstanceMetadata returns the instance's metadata.
 func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
 	srv, err := i.getInstance(ctx, node)
@@ -149,7 +144,7 @@ func (i *InstancesV2) makeInstanceID(srv *servers.Server) string {
 func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*ServerAttributesExt, error) {
 	if node.Spec.ProviderID == "" {
 		opt := servers.ListOpts{
-			Name: node.Name,
+			Name: fmt.Sprintf("^%s$", node.Name),
 		}
 		mc := metrics.NewMetricContext("server", "list")
 		allPages, err := servers.List(i.compute, opt).AllPages()
