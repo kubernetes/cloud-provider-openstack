@@ -6,14 +6,15 @@ timeout: 1200s
 # or any new substitutions added in the future.
 options:
   substitution_option: ALLOW_LOOSE
+  machineType: 'N1_HIGHCPU_8'
 steps:
-  - name: gcr.io/k8s-staging-test-infra/gcb-docker-gcloud:v20220609-2e4c91eb7e
+  - name: gcr.io/k8s-testimages/gcb-docker-gcloud
     entrypoint: make
     env:
-    - REGISTRY=gcr.io/k8s-staging-cloud-provider-os
+    - REGISTRY=gcr.io/$PROJECT_ID
     - VERSION=$_GIT_TAG
     args:
-    - upload-images
+    - push-multiarch-images
 substitutions:
   # _GIT_TAG will be filled with a git-based tag for the image, of the form
   # vYYYYMMDD-hash, and can be used as a substitution
