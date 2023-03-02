@@ -39,6 +39,9 @@ var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
 // ErrNoRouterID is used when router-id is not set
 var ErrNoRouterID = errors.New("router-id not set in cloud provider config")
 
+// ErrNoNodeInformer is used when node informer is not yet initialized
+var ErrNoNodeInformer = errors.New("node informer is not yet initialized")
+
 func IsNotFound(err error) bool {
 	if err == ErrNotFound {
 		return true
