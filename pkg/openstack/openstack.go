@@ -33,6 +33,8 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
+	"k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -146,8 +148,10 @@ type OpenStack struct {
 	metadataOpts   metadata.Opts
 	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID string
-	kclient         kubernetes.Interface
+	localInstanceID       string
+	kclient               kubernetes.Interface
+	nodeInformer          coreinformers.NodeInformer
+	nodeInformerHasSynced func() bool
 }
 
 // Config is used to read and store information from the cloud configuration file
@@ -448,13 +452,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
-		return nil, false
-	}
-
-	r, err := NewRoutes(compute, network, os.routeOpts, os.networkingOpts)
+	r, err := NewRoutes(os, network)
 	if err != nil {
 		klog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false
@@ -462,4 +460,12 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 
 	klog.V(1).Info("Claiming to support Routes")
 	return r, true
+}
+
+// SetInformers implements InformerUser interface by setting up informer-fed caches to
+// leverage Kubernetes API for caching
+func (os *OpenStack) SetInformers(informerFactory informers.SharedInformerFactory) {
+	klog.V(1).Infof("Setting up informers for Cloud")
+	os.nodeInformer = informerFactory.Core().V1().Nodes()
+	os.nodeInformerHasSynced = os.nodeInformer.Informer().HasSynced
 }
