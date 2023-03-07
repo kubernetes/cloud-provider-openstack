@@ -1222,12 +1222,17 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			}
 		}
 
+		memberSubnetID := &svcConf.lbMemberSubnetID
+		if memberSubnetID != nil && *memberSubnetID == "" {
+			memberSubnetID = nil
+		}
+
 		if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
 			member := v2pools.BatchUpdateMemberOpts{
 				Address:      addr,
 				ProtocolPort: int(port.NodePort),
 				Name:         &node.Name,
-				SubnetID:     &svcConf.lbMemberSubnetID,
+				SubnetID:     memberSubnetID,
 			}
 			if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
 				member.MonitorPort = &svcConf.healthCheckNodePort
