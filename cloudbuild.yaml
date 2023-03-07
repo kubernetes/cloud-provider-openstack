@@ -5,6 +5,7 @@ timeout: 1200s
 # this prevents errors if you don't use both _GIT_TAG and _PULL_BASE_REF,
 # or any new substitutions added in the future.
 options:
+  dynamic_substitutions: true
   substitution_option: ALLOW_LOOSE
   machineType: 'N1_HIGHCPU_8'
 steps:
@@ -18,6 +19,8 @@ steps:
     args:
     - -c
     - |
+      set -xeuo pipefail
+
       # Run the image's buildx entrypoint to initialise the build environment
       # appropriately for the image before running make
       /buildx-entrypoint version
