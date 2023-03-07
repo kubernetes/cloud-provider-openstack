@@ -32,8 +32,7 @@ TAR_FILE	?= rootfs.tar
 
 GOOS		?= $(shell go env GOOS)
 GOPROXY		?= $(shell go env GOPROXY)
-GIT_VERSION     := $(shell git describe --dirty --tags --match='v*')
-VERSION         ?= $(GIT_VERSION)
+VERSION         ?= $(shell git describe --dirty --tags --match='v*')
 GOARCH		:=
 GOFLAGS		:=
 TAGS		:=

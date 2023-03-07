@@ -9,16 +9,29 @@ options:
   machineType: 'N1_HIGHCPU_8'
 steps:
   - name: gcr.io/k8s-testimages/gcb-docker-gcloud
-    entrypoint: make
+    entrypoint: bash
     env:
-    - REGISTRY=gcr.io/$PROJECT_ID
-    - VERSION=$_GIT_TAG
+    # Required because the default HOME is /builder/root but buildx is
+    # installed in /root/.docker. Not setting this results in docker not
+    # finding buildx during make.
+    - HOME=/root
     args:
-    - push-multiarch-images
+    - -c
+    - |
+      # Run the image's buildx entrypoint to initialise the build environment
+      # appropriately for the image before running make
+      /buildx-entrypoint version
+
+      make push-multiarch-images \
+        REGISTRY=gcr.io/$PROJECT_ID \
+        VERSION=$_SHORT_TAG
 substitutions:
   # _GIT_TAG will be filled with a git-based tag for the image, of the form
   # vYYYYMMDD-hash, and can be used as a substitution
-  _GIT_TAG: '12345'
+  _GIT_TAG: 'v99999999-v12345'
+  # Remove date prefix (first 10 characters) to create valid semver version:
+  # v20220510-v1.24.0-alpha.0-15-g09bd268 => v1.24.0-alpha.0-15-g09bd268
+  _SHORT_TAG: '${_GIT_TAG:10}'
   # _PULL_BASE_REF will contain the ref that was pushed to to trigger this
   # build - a branch like 'master' or 'release-0.2', or a tag like 'v0.2'.
   _PULL_BASE_REF: 'master'
