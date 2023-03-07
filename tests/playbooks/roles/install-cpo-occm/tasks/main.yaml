@@ -17,10 +17,10 @@
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
 
-      REGISTRY={{ image_registry_host }} \
-      VERSION=v0.0.{{ github_pr }} \
-      IMAGE_NAMES=openstack-cloud-controller-manager \
-      make upload-image-amd64
+      make push-multiarch-image-openstack-cloud-controller-manager \
+        ARCHS='amd64' \
+        REGISTRY={{ image_registry_host }} \
+        VERSION=v0.0.{{ github_pr }}
 
 - name: Prepare openstack-cloud-controller-manager config
   shell:

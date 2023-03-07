@@ -1,9 +1,0 @@
-ARG DEBIAN_ARCH=amd64
-FROM registry.k8s.io/build-image/debian-base-${DEBIAN_ARCH}:bullseye-v1.4.3
-
-ARG ARCH=amd64
-
-# Install e4fsprogs for format
-RUN clean-install btrfs-progs ca-certificates e2fsprogs mount udev xfsprogs
-
-ADD cinder-csi-plugin-${ARCH} /bin/cinder-csi-plugin
