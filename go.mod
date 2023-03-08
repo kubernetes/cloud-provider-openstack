@@ -1,6 +1,6 @@
 module k8s.io/cloud-provider-openstack
 
-go 1.19
+go 1.20
 
 replace github.com/onsi/ginkgo/v2 => github.com/onsi/ginkgo/v2 v2.4.0
 
