@@ -37,13 +37,15 @@ ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3
 
 # Build an image containing a common ca-certificates used by all target images
 # regardless of how they are built. We arbitrarily take ca-certificates from
-# the Alpine image.
-FROM ${ALPINE_IMAGE} as certs
+# the amd64 Alpine image.
+FROM --platform=linux/amd64 ${ALPINE_IMAGE} as certs
 RUN apk add --no-cache ca-certificates
 
 
 # Build all command targets. We build all command targets in a single build
 # stage for efficiency. Target images copy their binary from this image.
+# We use go's native cross compilation for multi-arch in this stage, so the
+# builder itself is always amd64
 FROM --platform=linux/amd64 ${GOLANG_IMAGE} as builder
 
 ARG GOPROXY=https://goproxy.io,direct
