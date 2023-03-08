@@ -22,9 +22,7 @@ package main
 import (
 	goflag "flag"
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -44,8 +42,6 @@ import (
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
