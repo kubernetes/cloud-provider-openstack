@@ -6,7 +6,7 @@ replace github.com/onsi/ginkgo/v2 => github.com/onsi/ginkgo/v2 v2.4.0
 
 require (
 	github.com/container-storage-interface/spec v1.7.0
-	github.com/gophercloud/gophercloud v1.1.1
+	github.com/gophercloud/gophercloud v1.2.1-0.20230227135528-e7de1a394a6e
 	github.com/gophercloud/utils v0.0.0-20221207145018-e8fba78967ca
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.6.0
