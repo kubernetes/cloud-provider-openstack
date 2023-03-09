@@ -149,10 +149,16 @@ func getAddrByNodeName(name types.NodeName, needIPv6 bool, nodes []*v1.Node) str
 					if ip == nil {
 						continue
 					}
-					if needIPv6 && ip.To4() == nil {
+					isIPv6 := ip.To4() == nil
+					if needIPv6 {
+						if isIPv6 {
+							return v.Address
+						}
+						continue
+					}
+					if !isIPv6 {
 						return v.Address
 					}
-					return v.Address
 				}
 			}
 		}
