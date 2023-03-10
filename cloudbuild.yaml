@@ -28,9 +28,18 @@ steps:
       # appropriately for the image before running make
       /buildx-entrypoint version
 
+      # Tag the image with _SHORT_TAG, which is the same as VERSION
+      tags=($_SHORT_TAG)
+
+      # If this is a commit to master also update the 'latest' tag.
+      if [ "$_PULL_BASE_REF" == "master" ]; then
+        tags+=(latest)
+      fi
+
       make push-multiarch-images \
         REGISTRY=gcr.io/$PROJECT_ID \
-        VERSION=$_SHORT_TAG
+        VERSION=$_SHORT_TAG \
+        IMAGE_TAGS="${tags[@]}"
 substitutions:
   # _GIT_TAG will be filled with a git-based tag for the image, of the form
   # vYYYYMMDD-hash, and can be used as a substitution

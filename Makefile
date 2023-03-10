@@ -33,6 +33,9 @@ TAR_FILE	?= rootfs.tar
 GOOS		?= $(shell go env GOOS)
 GOPROXY		?= $(shell go env GOPROXY)
 VERSION         ?= $(shell git describe --dirty --tags --match='v*')
+# IMAGE_TAGS is a space separated list of one or more tags to apply to built
+# images. Unless overridden it will be set the value of VERSION.
+IMAGE_TAGS	?= $(VERSION)
 GOARCH		:=
 GOFLAGS		:=
 TAGS		:=
@@ -158,10 +161,12 @@ shell:
 
 # Build a single image for the local default platform and push to the local
 # container engine
+# Tag the image as $(REGISTRY)/<image name>:<tag> for each tag listed in
+# IMAGE_TAGS
 build-local-image-%:
 	$(CONTAINER_ENGINE) buildx build --output type=docker \
 		--build-arg VERSION=$(VERSION) \
-		--tag $(REGISTRY)/$*:$(VERSION) \
+		$(addprefix --tag $(REGISTRY)/$*:,$(IMAGE_TAGS)) \
 		--target $* \
 		.
 
@@ -169,10 +174,13 @@ build-local-image-%:
 build-local-images: $(addprefix build-image-,$(IMAGE_NAMES))
 
 # Build a single image for all architectures in ARCHS and push it to REGISTRY
+# Tag the image as $(REGISTRY)/<image name>:<tag> for each tag listed in
+# IMAGE_TAGS
 push-multiarch-image-%:
+	@echo $(IMAGE_TAGS)
 	$(CONTAINER_ENGINE) buildx build --output type=registry \
 		--build-arg VERSION=$(VERSION) \
-		--tag $(REGISTRY)/$*:$(VERSION) \
+		$(addprefix --tag $(REGISTRY)/$*:,$(IMAGE_TAGS)) \
 		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
 		--target $* \
 		.
