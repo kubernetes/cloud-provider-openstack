@@ -11,6 +11,7 @@ csi:
       tag: v3.4.0
       pullPolicy: IfNotPresent
     resources: {}
+    extraArgs: {}
   provisioner:
     topology: "true"
     image:
@@ -18,18 +19,21 @@ csi:
       tag: v3.1.0
       pullPolicy: IfNotPresent
     resources: {}
+    extraArgs: {}
   snapshotter:
     image:
       repository: k8s.gcr.io/sig-storage/csi-snapshotter
       tag: v5.0.1
       pullPolicy: IfNotPresent
     resources: {}
+    extraArgs: {}
   resizer:
     image:
       repository: k8s.gcr.io/sig-storage/csi-resizer
       tag: v1.4.0
       pullPolicy: IfNotPresent
     resources: {}
+    extraArgs: {}
   livenessprobe:
     image:
       repository: k8s.gcr.io/sig-storage/livenessprobe
@@ -40,12 +44,14 @@ csi:
     timeoutSeconds: 10
     periodSeconds: 60
     resources: {}
+    extraArgs: {}
   nodeDriverRegistrar:
     image:
       repository: k8s.gcr.io/sig-storage/csi-node-driver-registrar
       tag: v2.5.0
       pullPolicy: IfNotPresent
     resources: {}
+    extraArgs: {}
   plugin:
     image:
       repository: docker.io/k8scloudprovider/cinder-csi-plugin
@@ -85,6 +91,7 @@ csi:
       nodeSelector: {}
       tolerations: []
     resources: {}
+    extraArgs: {}
   snapshotController:
     enabled: false
     image:

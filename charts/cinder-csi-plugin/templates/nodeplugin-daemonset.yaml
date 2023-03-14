@@ -24,6 +24,11 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+            {{- if .Values.csi.nodeDriverRegistrar.extraArgs }}
+            {{- with .Values.csi.nodeDriverRegistrar.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: ADDRESS
               value: /csi/csi.sock
@@ -45,6 +50,11 @@ spec:
           args:
             - "-v={{ .Values.logVerbosityLevel }}"
             - --csi-address=/csi/csi.sock
+            {{- if .Values.csi.livenessprobe.extraArgs }}
+            {{- with .Values.csi.livenessprobe.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -62,6 +72,11 @@ spec:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
+            {{- if .Values.csi.plugin.extraArgs }}
+            {{- with .Values.csi.plugin.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
