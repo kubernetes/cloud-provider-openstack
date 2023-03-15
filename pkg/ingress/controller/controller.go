@@ -101,6 +101,12 @@ const (
 	// Default to true.
 	IngressAnnotationInternal = "octavia.ingress.kubernetes.io/internal"
 
+	// IngressAnnotationLoadBalancerKeepFloatingIP is the annotation used on the Ingress
+	// to indicate that we want to keep the floatingIP after the ingress deletion. The Octavia LoadBalancer will be deleted
+	// but not the floatingIP. That mean this floatingIP can be reused on another ingress without editing the dns area or update the whitelist.
+	// Default to false.
+	IngressAnnotationLoadBalancerKeepFloatingIP = "octavia.ingress.kubernetes.io/keep-floatingip"
+
 	// IngressAnnotationSourceRangesKey is the key of the annotation on an ingress to set allowed IP ranges on their LoadBalancers.
 	// It should be a comma-separated list of CIDRs.
 	IngressAnnotationSourceRangesKey = "octavia.ingress.kubernetes.io/whitelist-source-range"
@@ -579,15 +585,26 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		return nil
 	}
 
-	// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
-	// any floating IPs associated with the load balancer VIP port.
-	logger.Debug("deleting floating IP")
-
-	if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", ""); err != nil {
-		return fmt.Errorf("failed to delete floating IP: %v", err)
+	// Manage the floatingIP
+	keepFloatingSetting := getStringFromIngressAnnotation(ing, IngressAnnotationLoadBalancerKeepFloatingIP, "false")
+	keepFloating, err := strconv.ParseBool(keepFloatingSetting)
+	if err != nil {
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationLoadBalancerKeepFloatingIP, err)
 	}
 
-	logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("VIP or floating IP deleted")
+	if keepFloating {
+		logger.Debug("keep floating IP")
+	} else {
+		// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
+		// any floating IPs associated with the load balancer VIP port.
+		logger.Debug("deleting floating IP")
+
+		if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", ""); err != nil {
+			return fmt.Errorf("failed to delete floating IP: %v", err)
+		}
+
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("VIP or floating IP deleted")
+	}
 
 	// Delete security group managed for the Ingress backend service
 	if c.config.Octavia.ManageSecurityGroups {
