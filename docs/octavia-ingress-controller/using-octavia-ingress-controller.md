@@ -15,6 +15,7 @@
     - [Create an Ingress resource](#create-an-ingress-resource)
   - [Enable TLS encryption](#enable-tls-encryption)
   - [Allow CIDRs](#allow-cidrs)
+  - [Creating Ingress by specifying a floating IP](#creating-ingress-by-specifying-a-floating-ip)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -487,4 +488,51 @@ spec:
               name: webserver
               port:
                 number: 8080
+```
+
+## Creating Ingress by specifying a floating IP
+
+Sometimes it's useful to use an existing available floating IP rather than creating a new one, especially in the automation scenario. In the example below, 122.112.219.229 is an available floating IP created in the OpenStack Networking service.
+
+You can also specify to not delete the floating IP when the ingress will be deleted. By default, if not specified, the floating IP
+is deleted with the loadbalancer when the ingress if removed on kubernetes. 
+
+Create a new depolyment:
+```shell script
+kubectl create deployment test-web --replicas 3 --image nginx --port 80
+```
+
+Create a service type NodePort:
+```shell script
+kubectl expose deployment test-web --type NodePort
+```
+
+Create an ingress using a specific floating IP:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "openstack"
+    octavia.ingress.kubernetes.io/internal: "false"
+    octavia.ingress.kubernetes.io/keep-floatingip: "true"        # floating ip will not be deleted when ingress is deleted
+    octavia.ingress.kubernetes.io/floatingip: "122.112.219.229"  # define the floating to use 
+spec:
+  rules:
+  - host: test-web.foo.bar.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: test-web
+            port:
+              number: 80
+```
+
+If the floating IP is available you can test it with:
+```shell script
+curl -H "host: test-web.foo.bar.com" http://122.112.219.229
 ```
