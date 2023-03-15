@@ -71,7 +71,7 @@ func (os *OpenStack) getPorts(listOpts ports.ListOpts) ([]ports.Port, error) {
 }
 
 // EnsureFloatingIP makes sure a floating IP is allocated for the port
-func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, floatingIPNetwork string, description string) (string, error) {
+func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfloatingIP string, floatingIPNetwork string, description string) (string, error) {
 	listOpts := floatingips.ListOpts{PortID: portID}
 	fips, err := os.getFloatingIPs(listOpts)
 	if err != nil {
@@ -100,9 +100,41 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, floatingIP
 			FloatingNetworkID: floatingIPNetwork,
 			Description:       description,
 		}
-		fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
-		if err != nil {
-			return "", err
+		if existingfloatingIP != "" {
+			// try to find fip
+			opts := &floatingips.ListOpts{
+				FloatingIP:        existingfloatingIP,
+				FloatingNetworkID: floatingIPNetwork,
+			}
+			allPages, err := floatingips.List(os.neutron, opts).AllPages()
+			if err != nil {
+				return "", err
+			}
+			osFips, err := floatingips.ExtractFloatingIPs(allPages)
+			if err != nil {
+				return "", err
+			}
+			if len(osFips) != 1 {
+				return "", err
+			}
+			// check if fip is used
+			if osFips[0].PortID != "" {
+				return "", fmt.Errorf("floating IP %s already used by port %s", osFips[0].FloatingIP, osFips[0].PortID)
+			}
+			updateOpts := floatingips.UpdateOpts{
+				PortID:      &portID,
+				Description: &description,
+			}
+			// attach fip to lb vip
+			fip, err = floatingips.Update(os.neutron, osFips[0].ID, updateOpts).Extract()
+			if err != nil {
+				return "", err
+			}
+		} else {
+			fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
+			if err != nil {
+				return "", err
+			}
 		}
 	} else {
 		fip = &fips[0]
