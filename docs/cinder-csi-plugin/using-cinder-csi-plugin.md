@@ -36,7 +36,7 @@ This plugin is compatible with CSI versions v1.3.0, v1.2.0 , v1.1.0, and v1.0.0
 
 ## Downloads
 
-Stable released version images of the plugin can be found at [Docker Hub](https://hub.docker.com/r/k8scloudprovider/cinder-csi-plugin)
+Stable released version images of the plugin can be pulled from `registry.k8s.io/provider-os/cinder-csi-plugin:[release tag]`
 
 ## Kubernetes Compatibility
 
