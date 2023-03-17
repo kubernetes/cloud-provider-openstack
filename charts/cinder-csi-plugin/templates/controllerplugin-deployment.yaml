@@ -32,6 +32,11 @@ spec:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
+            {{- if .Values.csi.attacher.extraArgs }}
+            {{- with .Values.csi.attacher.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -50,6 +55,11 @@ spec:
             - "--default-fstype=ext4"
             - "--feature-gates=Topology={{ .Values.csi.provisioner.topology }}"
             - "--extra-create-metadata"
+            {{- if .Values.csi.provisioner.extraArgs }}
+            {{- with .Values.csi.provisioner.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -65,6 +75,11 @@ spec:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
+            {{- if .Values.csi.snapshotter.extraArgs }}
+            {{- with .Values.csi.snapshotter.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -81,6 +96,11 @@ spec:
             - "--timeout={{ .Values.timeout }}"
             - "--handle-volume-inuse-error=false"
             - "--leader-election=true"
+            {{- if .Values.csi.resizer.extraArgs }}
+            {{- with .Values.csi.resizer.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -94,6 +114,11 @@ spec:
           args:
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--csi-address=$(ADDRESS)"
+            {{- if .Values.csi.livenessprobe.extraArgs }}
+            {{- with .Values.csi.livenessprobe.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
@@ -110,6 +135,11 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            {{- if .Values.csi.plugin.extraArgs }}
+            {{- with .Values.csi.plugin.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
