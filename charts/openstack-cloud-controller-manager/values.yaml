@@ -4,7 +4,7 @@
 #
 # Image repository name and tag
 image:
-  repository: docker.io/k8scloudprovider/openstack-cloud-controller-manager
+  repository: registry.k8s.io/provider-os/openstack-cloud-controller-manager
   tag: ""
 
 # Additional containers which are run before the app containers are started.

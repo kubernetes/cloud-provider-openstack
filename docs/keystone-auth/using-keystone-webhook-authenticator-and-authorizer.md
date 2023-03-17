@@ -251,8 +251,8 @@ Now we are ready to create the k8s-keystone-auth deployment and expose
 it as a service. There are several things we need to notice in the
 deployment manifest:
 
-- We are using the official nightly-built image
-  `k8scloudprovider/k8s-keystone-auth:latest`
+- We are using image
+  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.24.6`
 - We use `k8s-auth-policy` configmap created above.
 - The pod uses service account `keystone-auth` created above.
 - We use `keystone-auth-certs` secret created above to inject the
