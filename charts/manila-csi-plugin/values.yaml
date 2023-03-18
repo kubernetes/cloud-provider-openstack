@@ -40,7 +40,7 @@ csimanila:
 
   # Image spec
   image:
-    repository: k8scloudprovider/manila-csi-plugin
+    repository: registry.k8s.io/provider-os/manila-csi-plugin
     pullPolicy: IfNotPresent
     tag:  # defaults to .Chart.AppVersion
 
