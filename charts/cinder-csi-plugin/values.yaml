@@ -48,7 +48,7 @@ csi:
     resources: {}
   plugin:
     image:
-      repository: docker.io/k8scloudprovider/cinder-csi-plugin
+      repository: registry.k8s.io/provider-os/cinder-csi-plugin
       pullPolicy: IfNotPresent
       tag:  # defaults to .Chart.AppVersion
     volumes:
