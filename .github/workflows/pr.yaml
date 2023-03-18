@@ -10,23 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Fetch history
-        run: git fetch --prune --unshallow
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Helm
-        uses: azure/setup-helm@v1
+        uses: azure/setup-helm@v3
         with:
-          version: v3.6.1
+          version: v3.10.0
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: '3.9'
+          check-latest: true
 
+      # see example https://github.com/helm/chart-testing-action
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.1.0
+        uses: helm/chart-testing-action@v2.3.1
 
-      # https://github.com/helm/chart-testing/blob/main/doc/ct_lint.md
       - name: Run chart-testing (lint)
-        run: ct lint --target-branch=${GITHUB_BASE_REF} --check-version-increment=false
+        run: ct lint --target-branch ${GITHUB_BASE_REF}
