@@ -4,7 +4,7 @@ metadata:
   name: {{ include "openstack-manila-csi.controllerplugin.fullname" . }}-rules
   labels:
     {{- include "openstack-manila-csi.controllerplugin.labels" .  | nindent 4 }}
-    rbac.manila.csi.openstack.org/aggregate-to-{{ include "openstack-manila-csi.controllerplugin.fullname" . }}: "true"
+    rbac.manila.csi.openstack.org/aggregate-to-controller-{{ include "openstack-manila-csi.name" . }}: "true"
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
