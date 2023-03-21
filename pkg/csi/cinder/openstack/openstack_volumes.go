@@ -142,7 +142,7 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 	return vols, nil
 }
 
-// DeleteVolume delete a volume
+// DeleteVolume delete a volume and any snapshots associated with it
 func (os *OpenStack) DeleteVolume(volumeID string) error {
 	used, err := os.diskIsUsed(volumeID)
 	if err != nil {
@@ -153,7 +153,8 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 	}
 
 	mc := metrics.NewMetricContext("volume", "delete")
-	err = volumes.Delete(os.blockstorage, volumeID, nil).ExtractErr()
+	opts := volumes.DeleteOpts{Cascade: true}
+	err = volumes.Delete(os.blockstorage, volumeID, opts).ExtractErr()
 	return mc.ObserveRequest(err)
 }
 
