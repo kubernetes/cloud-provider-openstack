@@ -27,6 +27,8 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunk_details"
+	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -65,6 +67,11 @@ var supportedContainerStore = []string{"barbican", "external"}
 // AddExtraFlags is called by the main package to add component specific command line flags
 func AddExtraFlags(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&userAgentData, "user-agent", nil, "Extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
+}
+
+type PortWithTrunkDetails struct {
+	neutronports.Port
+	trunk_details.TrunkDetailsExt
 }
 
 // LoadBalancer is used for creating and maintaining load balancers
