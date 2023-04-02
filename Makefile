@@ -38,7 +38,7 @@ GOFLAGS		:=
 TAGS		:=
 LDFLAGS		:= "-w -s -X 'k8s.io/component-base/version.gitVersion=$(VERSION)'"
 GOX_LDFLAGS	:= $(shell echo "$(LDFLAGS) -extldflags \"-static\"")
-REGISTRY	?= k8scloudprovider
+REGISTRY	?= registry.k8s.io/provider-os
 IMAGE_OS	?= linux
 IMAGE_NAMES	?= openstack-cloud-controller-manager \
 				cinder-csi-plugin \
