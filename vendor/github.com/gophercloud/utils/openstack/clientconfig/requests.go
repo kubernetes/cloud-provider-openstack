@@ -644,6 +644,12 @@ func v3auth(cloud *Cloud, opts *ClientOpts) (*gophercloud.AuthOptions, error) {
 		}
 	}
 
+	if cloud.AuthInfo.SystemScope == "" {
+		if v := env.Getenv(envPrefix + "SYSTEM_SCOPE"); v != "" {
+			cloud.AuthInfo.SystemScope = v
+		}
+	}
+
 	// Build a scope and try to do it correctly.
 	// https://github.com/openstack/os-client-config/blob/master/os_client_config/config.py#L595
 	scope := new(gophercloud.AuthScope)
@@ -659,6 +665,9 @@ func v3auth(cloud *Cloud, opts *ClientOpts) (*gophercloud.AuthOptions, error) {
 				scope.DomainID = cloud.AuthInfo.DomainID
 			} else if cloud.AuthInfo.DomainName != "" {
 				scope.DomainName = cloud.AuthInfo.DomainName
+			}
+			if cloud.AuthInfo.SystemScope != "" {
+				scope.System = true
 			}
 		} else {
 			// If Domain* is set, but UserDomain* or ProjectDomain* aren't,
