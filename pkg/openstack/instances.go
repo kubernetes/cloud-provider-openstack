@@ -131,13 +131,11 @@ func sortNodeAddresses(addresses []v1.NodeAddress, addressSortOrder string) {
 }
 
 // Instances returns an implementation of Instances for OpenStack.
+// TODO: v1 instance apis can be deleted after the v2 is verified enough
 func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
-	return os.instances()
-}
-
-// InstancesV2 returns an implementation of InstancesV2 for OpenStack.
-// TODO: Support InstancesV2 in the future.
-func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	if os.useV1Instances {
+		return os.instances()
+	}
 	return nil, false
 }
 
@@ -504,14 +502,6 @@ func mapNodeNameToServerName(nodeName types.NodeName) string {
 	return string(nodeName)
 }
 
-// mapServerToNodeName maps an OpenStack Server to a k8s NodeName
-func mapServerToNodeName(server *servers.Server) types.NodeName {
-	// Node names are always lowercase, and (at least)
-	// routecontroller does case-sensitive string comparisons
-	// assuming this
-	return types.NodeName(strings.ToLower(server.Name))
-}
-
 func readInstanceID(searchOrder string) (string, error) {
 	// First, try to get data from metadata service because local
 	// data might be changed by accident
@@ -699,35 +689,6 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 	}
 
 	return nodeAddresses(&srv.Server, interfaces, networkingOpts)
-}
-
-func getAddressByName(client *gophercloud.ServiceClient, name types.NodeName, needIPv6 bool, networkingOpts NetworkingOpts) (string, error) {
-	if needIPv6 && networkingOpts.IPv6SupportDisabled {
-		return "", errors.ErrIPv6SupportDisabled
-	}
-
-	addrs, err := getAddressesByName(client, name, networkingOpts)
-	if err != nil {
-		return "", err
-	} else if len(addrs) == 0 {
-		return "", errors.ErrNoAddressFound
-	}
-
-	for _, addr := range addrs {
-		isIPv6 := net.ParseIP(addr.Address).To4() == nil
-		if (addr.Type == v1.NodeInternalIP) && (isIPv6 == needIPv6) {
-			return addr.Address, nil
-		}
-	}
-
-	for _, addr := range addrs {
-		isIPv6 := net.ParseIP(addr.Address).To4() == nil
-		if (addr.Type == v1.NodeExternalIP) && (isIPv6 == needIPv6) {
-			return addr.Address, nil
-		}
-	}
-	// It should never return an address from a different IP Address family than the one needed
-	return "", errors.ErrNoAddressFound
 }
 
 // getAttachedInterfacesByID returns the node interfaces of the specified instance.

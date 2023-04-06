@@ -145,10 +145,17 @@ Here are several other config options are not included in the example configurat
     - The security group has tags: `["octavia.ingress.kubernetes.io", "<ingress-namespace>_<ingress-name>"]`
     - The security group is associated with all the Neutron ports of the Kubernetes worker nodes. 
 
+- Options to select a flavor id. The octavia-ingress-controller will use that flavor to create the Octavia load balancer. If not specified, the default flavor will be used.
+
+    ```yaml
+    octavia:
+      flavor-id: a07528cf-4a99-4f8a-94de-691e0b3e2076
+    ```
+
 ### Deploy octavia-ingress-controller
 
 ```shell
-image="docker.io/k8scloudprovider/octavia-ingress-controller:latest"
+image="registry.k8s.io/provider-os/octavia-ingress-controller:v1.27.0-alpha.0"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
@@ -381,7 +388,7 @@ Ingress and enable the more secure HTTPS protocol.
             # Any image is permissible as long as:
             # 1. It serves a 404 page at /
             # 2. It serves 200 on a /healthz endpoint
-            image: k8s.gcr.io/defaultbackend-amd64:1.5
+            image: registry.k8s.io/defaultbackend-amd64:1.5
             ports:
             - containerPort: 8080
     ---

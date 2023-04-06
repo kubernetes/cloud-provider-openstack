@@ -7,5 +7,5 @@ metadata:
 aggregationRule:
   clusterRoleSelectors:
     - matchLabels:
-        rbac.manila.csi.openstack.org/aggregate-to-{{ include "openstack-manila-csi.nodeplugin.fullname" . }}: "true"
+        rbac.manila.csi.openstack.org/aggregate-to-nodeplugin-{{ include "openstack-manila-csi.name" . }}: "true"
 rules: []

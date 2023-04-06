@@ -174,6 +174,11 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   For example, this option can be useful when having multiple or dual-stack interfaces attached to a node and needing a user-controlled, deterministic way of sorting the addresses.
   Default: ""
 
+### Router
+
+* `router-id`
+  Specifies the Neutron router ID to manage Kubernetes cluster routes, e.g. for load balancers or compute instances that are not part of the Kubernetes cluster.
+
 ###  Load Balancer
 
 Although the openstack-cloud-controller-manager was initially implemented with Neutron-LBaaS support, Octavia is recommended now because Neutron-LBaaS has been deprecated since Queens OpenStack release cycle and no longer accepted new feature enhancements. As a result, lots of advanced features in openstack-cloud-controller-manager rely on Octavia, even the CI is running based on Octavia enabled OpenStack environment. Functionalities are not guaranteed if using Neutron-LBaaS.

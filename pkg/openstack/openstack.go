@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -33,6 +34,8 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
+	"k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -128,7 +131,7 @@ type NetworkingOpts struct {
 
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
-	RouterID string `gcfg:"router-id"` // required
+	RouterID string `gcfg:"router-id"`
 }
 
 type ServerAttributesExt struct {
@@ -145,8 +148,11 @@ type OpenStack struct {
 	metadataOpts   metadata.Opts
 	networkingOpts NetworkingOpts
 	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID string
-	kclient         kubernetes.Interface
+	localInstanceID       string
+	kclient               kubernetes.Interface
+	useV1Instances        bool // TODO: v1 instance apis can be deleted after the v2 is verified enough
+	nodeInformer          coreinformers.NodeInformer
+	nodeInformerHasSynced func() bool
 }
 
 // Config is used to read and store information from the cloud configuration file
@@ -160,7 +166,7 @@ type Config struct {
 }
 
 func init() {
-	metrics.RegisterMetrics()
+	metrics.RegisterMetrics("occm")
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
@@ -270,6 +276,12 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
+	useV1Instances := false
+	v1instances := os.Getenv("OS_V1_INSTANCES")
+	if strings.ToLower(v1instances) == "true" {
+		useV1Instances = true
+	}
+
 	os := OpenStack{
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
@@ -280,6 +292,7 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		routeOpts:      cfg.Route,
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
+		useV1Instances: useV1Instances,
 	}
 
 	// ini file doesn't support maps so we are reusing top level sub sections
@@ -312,6 +325,10 @@ func (os *OpenStack) HasClusterID() bool {
 // LoadBalancer initializes a LbaasV2 object
 func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	klog.V(4).Info("openstack.LoadBalancer() called")
+	if !os.lbOpts.Enabled {
+		klog.V(4).Info("openstack.LoadBalancer() support for LoadBalancer controller is disabled")
+		return nil, false
+	}
 
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
@@ -441,23 +458,30 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	if !netExts["extraroute"] {
+	if !netExts["extraroute"] && !netExts["extraroute-atomic"] {
 		klog.V(3).Info("Neutron extraroute extension not found, required for Routes support")
 		return nil, false
 	}
 
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
-		return nil, false
-	}
-
-	r, err := NewRoutes(compute, network, os.routeOpts, os.networkingOpts)
+	r, err := NewRoutes(os, network, netExts["extraroute-atomic"])
 	if err != nil {
 		klog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false
 	}
 
-	klog.V(1).Info("Claiming to support Routes")
+	if netExts["extraroute-atomic"] {
+		klog.V(1).Info("Claiming to support Routes with atomic updates")
+	} else {
+		klog.V(1).Info("Claiming to support Routes")
+	}
+
 	return r, true
+}
+
+// SetInformers implements InformerUser interface by setting up informer-fed caches to
+// leverage Kubernetes API for caching
+func (os *OpenStack) SetInformers(informerFactory informers.SharedInformerFactory) {
+	klog.V(1).Infof("Setting up informers for Cloud")
+	os.nodeInformer = informerFactory.Core().V1().Nodes()
+	os.nodeInformerHasSynced = os.nodeInformer.Informer().HasSynced
 }

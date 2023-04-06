@@ -22,7 +22,6 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"golang.org/x/net/context"
@@ -338,6 +337,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Verify a snapshot with the provided name doesn't already exist for this tenant
+	var snap *snapshots.Snapshot
 	filters := map[string]string{}
 	filters["Name"] = name
 	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
@@ -345,7 +345,6 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		klog.Errorf("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to get snapshots")
 	}
-	var snap *ossnapshots.Snapshot
 
 	if len(snapshots) == 1 {
 		snap = &snapshots[0]

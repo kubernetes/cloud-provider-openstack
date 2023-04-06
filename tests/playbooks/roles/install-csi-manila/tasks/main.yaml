@@ -16,10 +16,10 @@
     cmd: |
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
-      REGISTRY={{ image_registry_host }} \
-      VERSION={{ github_pr }} \
-      IMAGE_NAMES=manila-csi-plugin \
-      make upload-image-amd64
+      make push-multiarch-image-manila-csi-plugin \
+        ARCHS='amd64' \
+        REGISTRY={{ image_registry_host }} \
+        VERSION=v0.0.{{ github_pr }}
 
 - name: Prepare cloud config
   shell:
@@ -122,7 +122,7 @@
       cat <<EOF >> override-helm-values.yaml
       csimanila:
         image:
-          repository: {{ remote_registry_host }}/manila-csi-plugin-amd64
+          repository: {{ remote_registry_host }}/manila-csi-plugin
           tag: {{ github_pr }}
       shareProtocols:
         - protocolSelector: NFS

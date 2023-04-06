@@ -1,5 +1,11 @@
 # Troubleshooting
 
+## When trying to resize a Cinder Volume, PV/PVC is updated but file system not resized.
+
+Check the volume status by using `openstack volume show` command about the volume (it should have `pvc-` prefix) and see whether backend openstack need update, contact with your openstack administrator for help on the error reported.
+
+`openstack volume message list --os-volume-api-version 3.3` might also show some information about a failed resize, e.g. extend volume:Compute service failed to extend volume.
+
 ## When trying to resize a Cinder Volume based on Ceph, the VM doesn't see the new size.
 
 Chances are, the underlying OpenStack is not configured properly.

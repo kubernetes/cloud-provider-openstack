@@ -93,6 +93,7 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorTimeout    = "loadbalancer.openstack.org/health-monitor-timeout"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries = "loadbalancer.openstack.org/health-monitor-max-retries"
 	ServiceAnnotationLoadBalancerLoadbalancerHostname    = "loadbalancer.openstack.org/hostname"
+	ServiceAnnotationLoadBalancerAddress                 = "loadbalancer.openstack.org/load-balancer-address"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -549,7 +550,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		svcConf.lbMemberSubnetID = loadbalancer.VipSubnetID
 	}
 
-	if loadbalancer, err = openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+	if loadbalancer, err = openstackutil.WaitActiveAndGetLoadBalancer(lbaas.lb, loadbalancer.ID); err != nil {
 		return nil, err
 	}
 
@@ -1221,12 +1222,17 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 			}
 		}
 
+		memberSubnetID := &svcConf.lbMemberSubnetID
+		if memberSubnetID != nil && *memberSubnetID == "" {
+			memberSubnetID = nil
+		}
+
 		if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
 			member := v2pools.BatchUpdateMemberOpts{
 				Address:      addr,
 				ProtocolPort: int(port.NodePort),
 				Name:         &node.Name,
-				SubnetID:     &svcConf.lbMemberSubnetID,
+				SubnetID:     memberSubnetID,
 			}
 			if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
 				member.MonitorPort = &svcConf.healthCheckNodePort
@@ -1799,11 +1805,13 @@ func (sp *servicePatcher) Patch(ctx context.Context, err error) error {
 	return utilerrors.NewAggregate([]error{err, perr})
 }
 
-func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, annotName, annotValue string) {
+func (lbaas *LbaasV2) updateServiceAnnotations(service *corev1.Service, annotations map[string]string) {
 	if service.ObjectMeta.Annotations == nil {
 		service.ObjectMeta.Annotations = map[string]string{}
 	}
-	service.ObjectMeta.Annotations[annotName] = annotValue
+	for key, value := range annotations {
+		service.ObjectMeta.Annotations[key] = value
+	}
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -1958,7 +1966,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	// Add annotation to Service and add LB name to load balancer tags.
-	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, loadbalancer.ID)
+	annotationUpdate := map[string]string{
+		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
+		ServiceAnnotationLoadBalancerAddress: addr,
+	}
+	lbaas.updateServiceAnnotations(service, annotationUpdate)
 	if svcConf.supportLBTags {
 		lbTags := loadbalancer.Tags
 		if !cpoutil.Contains(lbTags, lbName) {
@@ -1985,10 +1997,6 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 // EnsureLoadBalancer creates a new load balancer or updates the existing one.
 func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
-	if !lbaas.opts.Enabled {
-		return nil, cloudprovider.ImplementedElsewhere
-	}
-
 	mc := metrics.NewMetricContext("loadbalancer", "ensure")
 	status, err := lbaas.ensureLoadBalancer(ctx, clusterName, apiService, nodes)
 	return status, mc.ObserveReconcile(err)
@@ -2149,9 +2157,6 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 
 // UpdateLoadBalancer updates hosts under the specified load balancer.
 func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
-	if !lbaas.opts.Enabled {
-		return cloudprovider.ImplementedElsewhere
-	}
 	mc := metrics.NewMetricContext("loadbalancer", "update")
 	err := lbaas.updateLoadBalancer(ctx, clusterName, service, nodes)
 	return mc.ObserveReconcile(err)
