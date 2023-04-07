@@ -912,7 +912,8 @@ func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.Creat
 // 1. The floating IP that is already attached to the VIP port.
 // 2. Floating IP specified in Spec.LoadBalancerIP
 // 3. Create a new one
-func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Service, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig) (string, error) {
+func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Service, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, isLBOwner bool) (string, error) {
+
 	if svcConf.internal {
 		return lb.VipAddress, nil
 	}
@@ -927,6 +928,13 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 		return "", fmt.Errorf("failed when getting floating IP for port %s: %v", portID, err)
 	}
 	klog.V(4).Infof("Found floating ip %v by loadbalancer port id %q", floatIP, portID)
+
+	// we cannot add a FIP to a shared LB when we're a secondary Service or we risk adding it to an internal
+	// Service and exposing it to the world unintentionally.
+	if floatIP == nil && !isLBOwner {
+		return "", fmt.Errorf("cannot attach a floating IP to a load balancer for a shared Service %s/%s, only owner Service can do that",
+			service.Namespace, service.Name)
+	}
 
 	// second attempt: fetch floating IP specified in service Spec.LoadBalancerIP
 	// if found, associate floating IP with loadbalancer's VIP port
@@ -1875,8 +1883,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, fmt.Errorf("shared load balancer is only supported with the tag feature in the cloud load balancer service")
 		}
 
-		// The load balancer can only be shared with the configured number of Services.
 		if svcConf.supportLBTags {
+			// The load balancer can only be shared with the configured number of Services.
 			sharedCount := 0
 			for _, tag := range loadbalancer.Tags {
 				if strings.HasPrefix(tag, servicePrefix) {
@@ -1885,6 +1893,12 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			}
 			if !isLBOwner && !cpoutil.Contains(loadbalancer.Tags, lbName) && sharedCount+1 > lbaas.opts.MaxSharedLB {
 				return nil, fmt.Errorf("load balancer %s already shared with %d Services", loadbalancer.ID, sharedCount)
+			}
+
+			// Internal load balancer cannot be shared to prevent situations when we accidentally expose it because the
+			// owner Service becomes external.
+			if !isLBOwner && svcConf.internal {
+				return nil, fmt.Errorf("internal Service cannot share a load balancer")
 			}
 		}
 	} else {
@@ -1901,10 +1915,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, fmt.Errorf("error creating loadbalancer %s: %v", lbName, err)
 			}
 			createNewLB = true
-		} else {
-			// This is a Service created before shared LB is supported.
-			isLBOwner = true
 		}
+		// This is a Service created before shared LB is supported or a brand new LB.
+		isLBOwner = true
 	}
 
 	if loadbalancer.ProvisioningStatus != activeStatus {
@@ -1960,7 +1973,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	addr, err := lbaas.getServiceAddress(clusterName, service, loadbalancer, svcConf)
+	addr, err := lbaas.getServiceAddress(clusterName, service, loadbalancer, svcConf, isLBOwner)
 	if err != nil {
 		return nil, err
 	}
