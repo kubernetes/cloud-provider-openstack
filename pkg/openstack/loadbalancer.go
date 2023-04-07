@@ -954,7 +954,7 @@ func (lbaas *LbaasV2) getServiceAddress(clusterName string, service *corev1.Serv
 					return "", fmt.Errorf("error updating LB floatingip %+v: %v", floatUpdateOpts, err)
 				}
 			} else {
-				return "", fmt.Errorf("floating IP %s is not available", loadBalancerIP)
+				return "", fmt.Errorf("floating IP %s specified in .spec.loadBalancerIP does not exist. It has to be precreated by the user", loadBalancerIP)
 			}
 		}
 	}
