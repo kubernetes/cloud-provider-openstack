@@ -1998,14 +1998,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 // EnsureLoadBalancer creates a new load balancer or updates the existing one.
 func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
 	mc := metrics.NewMetricContext("loadbalancer", "ensure")
-	status, err := lbaas.ensureLoadBalancer(ctx, clusterName, apiService, nodes)
-	return status, mc.ObserveReconcile(err)
-}
-
-func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
 	klog.InfoS("EnsureLoadBalancer", "cluster", clusterName, "service", klog.KObj(apiService))
-
-	return lbaas.ensureOctaviaLoadBalancer(ctx, clusterName, apiService, nodes)
+	status, err := lbaas.ensureOctaviaLoadBalancer(ctx, clusterName, apiService, nodes)
+	return status, mc.ObserveReconcile(err)
 }
 
 func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubNetListOpsFunction) ([]subnets.Subnet, error) {
@@ -2158,12 +2153,8 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 // UpdateLoadBalancer updates hosts under the specified load balancer.
 func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
 	mc := metrics.NewMetricContext("loadbalancer", "update")
-	err := lbaas.updateLoadBalancer(ctx, clusterName, service, nodes)
+	err := lbaas.updateOctaviaLoadBalancer(ctx, clusterName, service, nodes)
 	return mc.ObserveReconcile(err)
-}
-
-func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
-	return lbaas.updateOctaviaLoadBalancer(ctx, clusterName, service, nodes)
 }
 
 // ensureAndUpdateOctaviaSecurityGroup handles the creation and update of the security group and the securiry rules for the octavia load balancer
