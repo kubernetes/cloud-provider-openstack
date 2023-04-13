@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -102,7 +103,7 @@ func (d *manilaTestDriver) GetDriverInfo() *storageframework.DriverInfo {
 func (d *manilaTestDriver) SkipUnsupportedTest(storageframework.TestPattern) {
 }
 
-func (d *manilaTestDriver) PrepareTest(f *framework.Framework) *storageframework.PerTestConfig {
+func (d *manilaTestDriver) PrepareTest(ctx context.Context, f *framework.Framework) *storageframework.PerTestConfig {
 	return &storageframework.PerTestConfig{
 		Driver:    d,
 		Prefix:    "manila",
@@ -114,7 +115,7 @@ func (d *manilaTestDriver) PrepareTest(f *framework.Framework) *storageframework
 // storageframework.DynamicPVTestDriver interface implementation
 //
 
-func (d *manilaTestDriver) GetDynamicProvisionStorageClass(config *storageframework.PerTestConfig, fsType string) *storagev1.StorageClass {
+func (d *manilaTestDriver) GetDynamicProvisionStorageClass(ctx context.Context, config *storageframework.PerTestConfig, fsType string) *storagev1.StorageClass {
 	parameters := map[string]string{
 		"type": manilaShareType,
 		"csi.storage.k8s.io/provisioner-secret-name":            manilaSecretName,
@@ -144,7 +145,7 @@ func (d *manilaTestDriver) GetDynamicProvisionStorageClass(config *storageframew
 // storageframework.SnapshottableTestDriver interface implementation
 //
 
-func (d *manilaTestDriver) GetSnapshotClass(config *storageframework.PerTestConfig, parameters map[string]string) *unstructured.Unstructured {
+func (d *manilaTestDriver) GetSnapshotClass(ctx context.Context, config *storageframework.PerTestConfig, parameters map[string]string) *unstructured.Unstructured {
 	if parameters == nil {
 		parameters = make(map[string]string)
 	}
@@ -174,7 +175,7 @@ func (d *manilaTestDriver) GetCSIDriverName(config *storageframework.PerTestConf
 // storageframework.PreprovisionedVolumeTestDriver interface implementation
 //
 
-func (d *manilaTestDriver) CreateVolume(config *storageframework.PerTestConfig, volumeType storageframework.TestVolType) storageframework.TestVolume {
+func (d *manilaTestDriver) CreateVolume(ctx context.Context, config *storageframework.PerTestConfig, volumeType storageframework.TestVolType) storageframework.TestVolume {
 	validateVolumeType(volumeType)
 
 	return manilaCreateVolume(manilaShareProto, manilaShareAccessType, manilaShareAccessTo, manilaShareSizeGiB, config)

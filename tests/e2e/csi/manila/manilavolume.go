@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -96,7 +97,7 @@ func manilaCreateVolume(
 	}
 }
 
-func (v *manilaVolume) DeleteVolume() {
+func (v *manilaVolume) DeleteVolume(ctx context.Context) {
 	ginkgo.By("Deleting test Manila volume externally")
 
 	_, err := runCmd(
