@@ -17,10 +17,14 @@ It is recommended to read following kubernetes documents
 * [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted)  
 * [Using a KMS provider for data encryption](https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/)
 
+
 ## Installation Steps
+
 The following installation steps assumes that you have a Kubernetes cluster(v1.10+) running on OpenStack Cloud.
 
-1. Create 256bit(32 byte) cbc key and store in barbican
+
+### Create 256bit(32 byte) cbc key and store in barbican
+
 ```
 $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-length 256 --payload-content-type=application/octet-stream key
 +----------------+-----------------------------------------------------------------------+
@@ -37,7 +41,8 @@ $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-
 +----------------+----------------------------------------------------------------------+
 ```
 
-2. Get the Key Id, It is the uuid in *Secret href*
+### Get the Key ID, It is the **uuid** in *Secret href*
+
 ```
 $ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e
  +----------------+-----------------------------------------------------------------------+
@@ -54,39 +59,39 @@ $ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b
 +----------------+-----------------------------------------------------------------------+
 ```
 
-3. Add the key-id in your cloud-config file
-```
+
+### Add the Key ID in your cloud-config file
+
+```toml
 [Global]
-username = <username>
-password = <password>
-domain-name = <domain-name>
-auth-url =  <keystone-url>
-tenant-id = <project-id>
-region = <region>
+username = "<username>"
+password = "<password>"
+domain-name = "<domain-name>"
+auth-url = "<keystone-url>"
+tenant-id = "<project-id>"
+region = "<region>"
 
 [KeyManager]
-key-id = <key-id>
+key-id = "<key-id>"
 ```
 
-4. Clone the cloud-provider-openstack repo and build the docker image for barbican-kms-plugin in architecture amd64
-```
-$ git clone https://github.com/kubernetes/cloud-provider-openstack.git $GOPATH/k8s.io/src/
-$ cd $GOPATH/k8s.io/src/cloud-provider-openstack/
-$ export ARCH=amd64
-$ export VERSION=latest
-$ make image-barbican-kms-plugin
-```
 
-5. Run the KMS Plugin in docker container
+### Run the KMS Plugin in your cluster
+
+This will provide a socket at `/var/lib/kms/kms.sock` on each of the control
+plane node
 ```
-$ docker run -d --volume=/var/lib/kms:/var/lib/kms \
---volume=/etc/kubernetes:/etc/kubernetes \
--e socketpath=/var/lib/kms/kms.sock \
--e cloudconfig=/etc/kubernetes/cloud-config \
-registry.k8s.io/provider-os/barbican-kms-plugin:v1.27.0-alpha.0
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/barbican-kms/ds.yaml
 ```
-6. Create /etc/kubernetes/encryption-config.yaml
-```
+*recommendation:* Use the tag corresponding to your Kubernetes release, for
+example `release-1.25` for kubernetes version 1.25.
+
+
+### Create encrytion configuration
+
+Create `/etc/kubernetes/encryption-config.yaml` on each of your control plane
+nodes
+```yaml
 kind: EncryptionConfig
 apiVersion: v1
 resources:
@@ -98,11 +103,43 @@ resources:
         endpoint: unix:///var/lib/kms/kms.sock
         cachesize: 100
     - identity: {}
- ```
-7. Enable --experimental-encryption-provider-config flag in kube-apiserver and restart it.
 ```
---experimental-encryption-provider-config=/etc/kubernetes/encryption-config.yaml
+
+
+### Update the API server
+
+On each of your control plane nodes you need to edit the kube-apiserver, the
+configuration is usually found at
+`/etc/kubernetes/manifests/kube-apiserver.yaml`. You can just edit it and
+kubernetes will eventually restart the pod with the new configuration.
+
+Add the following volumes and volume mounts to the `kube-apiserver.yaml`
+```yaml
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --encryption-provider-config=/etc/kubernetes/encryption-config.yaml
+    ...
+    volumeMounts:
+    - mountPath: /var/lib/kms/kms.sock
+      name: kms-sock
+    - mountPath: /etc/kubernetes/encryption.yaml
+      name: encryption-config
+      readOnly: true
+  ...
+  volumes:
+  - hostPath:
+      path: /var/lib/kms/kms.sock
+      type: Socket
+    name: kms-sock
+  - hostPath:
+      path: /etc/kubernetes/encryption.yaml
+      type: File
+    name: encryption-config
+  ...
 ```
+
 
 ### Verify
 [Verify the secret data is encrypted](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#verifying-that-data-is-encrypted
