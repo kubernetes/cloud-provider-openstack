@@ -63,7 +63,7 @@ func manilaCreateVolume(
 	shareID := strings.TrimSpace(string(out))
 
 	framework.ExpectNoError(err)
-	gomega.Expect(shareID).ToNot(gomega.Equal(""))
+	gomega.Expect(shareID).ToNot(gomega.BeEmpty())
 
 	framework.Logf("Created test Manila volume %s", shareID)
 
