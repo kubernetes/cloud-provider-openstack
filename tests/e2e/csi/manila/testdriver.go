@@ -188,7 +188,7 @@ func (d *manilaTestDriver) CreateVolume(ctx context.Context, config *storagefram
 
 func (d *manilaTestDriver) GetPersistentVolumeSource(readOnly bool, fsType string, testVolume storageframework.TestVolume) (*v1.PersistentVolumeSource, *v1.VolumeNodeAffinity) {
 	v, ok := testVolume.(*manilaVolume)
-	gomega.Expect(ok).To(gomega.Equal(true), "Failed to cast test volume to Manila test volume")
+	gomega.Expect(ok).To(gomega.BeTrue(), "Failed to cast test volume to Manila test volume")
 
 	return &v1.PersistentVolumeSource{
 		CSI: &v1.CSIPersistentVolumeSource{
