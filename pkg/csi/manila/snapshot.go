@@ -96,7 +96,7 @@ func tryDeleteSnapshot(snapshot *snapshots.Snapshot, manilaClient manilaclient.I
 	}
 
 	_, _, err := waitForSnapshotStatus(snapshot.ID, snapshotDeleting, "", true, manilaClient)
-	if err != nil && err != wait.ErrWaitTimeout {
+	if err != nil && !wait.Interrupted(err) {
 		klog.Errorf("couldn't retrieve snapshot %s in a roll-back procedure: %v", snapshot.ID, err)
 	}
 }

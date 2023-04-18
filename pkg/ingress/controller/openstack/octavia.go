@@ -275,7 +275,7 @@ func (os *OpenStack) waitLoadbalancerActiveProvisioningStatus(loadbalancerID str
 
 	})
 
-	if err == wait.ErrWaitTimeout {
+	if wait.Interrupted(err) {
 		err = fmt.Errorf("loadbalancer failed to go into ACTIVE provisioning status within alloted time")
 	}
 	return provisioningStatus, err
