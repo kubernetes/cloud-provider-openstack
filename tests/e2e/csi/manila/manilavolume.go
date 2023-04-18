@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	"k8s.io/kubernetes/test/e2e/framework"
 	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
 )
@@ -62,7 +63,7 @@ func manilaCreateVolume(
 	shareID := strings.TrimSpace(string(out))
 
 	framework.ExpectNoError(err)
-	framework.ExpectNotEqual(shareID, "")
+	gomega.Expect(shareID).ToNot(gomega.Equal(""))
 
 	framework.Logf("Created test Manila volume %s", shareID)
 
@@ -87,7 +88,7 @@ func manilaCreateVolume(
 	accessID := strings.TrimSpace(string(out))
 
 	framework.ExpectNoError(err)
-	framework.ExpectNotEqual(accessID, "")
+	gomega.Expect(accessID).ToNot(gomega.Equal(""))
 
 	framework.Logf("Created access right %s for Manila volume %s", accessID, shareID)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -187,7 +188,7 @@ func (d *manilaTestDriver) CreateVolume(ctx context.Context, config *storagefram
 
 func (d *manilaTestDriver) GetPersistentVolumeSource(readOnly bool, fsType string, testVolume storageframework.TestVolume) (*v1.PersistentVolumeSource, *v1.VolumeNodeAffinity) {
 	v, ok := testVolume.(*manilaVolume)
-	framework.ExpectEqual(ok, true, "Failed to cast test volume to Manila test volume")
+	gomega.Expect(ok).To(gomega.Equal(true), "Failed to cast test volume to Manila test volume")
 
 	return &v1.PersistentVolumeSource{
 		CSI: &v1.CSIPersistentVolumeSource{
