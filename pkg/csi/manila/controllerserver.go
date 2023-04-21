@@ -157,7 +157,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	accessRight, err := ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rule %s for volume %s to become available", accessRight.ID, share.Name)
 		}
 
@@ -262,7 +262,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	snapshot, err := getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient)
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of volume %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 

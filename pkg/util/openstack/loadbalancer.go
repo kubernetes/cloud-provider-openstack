@@ -187,7 +187,7 @@ func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalance
 
 	})
 
-	if err == wait.ErrWaitTimeout {
+	if wait.Interrupted(err) {
 		err = fmt.Errorf("timeout waiting for the loadbalancer %s %s", loadbalancerID, activeStatus)
 	}
 
@@ -284,7 +284,7 @@ func waitLoadbalancerDeleted(client *gophercloud.ServiceClient, loadbalancerID s
 		return false, mc.ObserveRequest(nil)
 	})
 
-	if err == wait.ErrWaitTimeout {
+	if wait.Interrupted(err) {
 		err = fmt.Errorf("loadbalancer failed to delete within the allotted time")
 	}
 
