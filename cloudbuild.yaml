@@ -28,10 +28,8 @@ steps:
       # appropriately for the image before running make
       /buildx-entrypoint version
 
-      REALTAG=$(git describe --tags --always --dirty --match 'v1.*')
       make push-multiarch-images \
-        REGISTRY=gcr.io/$PROJECT_ID \
-        VERSION=$REALTAG
+        REGISTRY=gcr.io/$PROJECT_ID
 substitutions:
   # _GIT_TAG will be filled with a git-based tag for the image, of the form
   # vYYYYMMDD-hash, and can be used as a substitution
