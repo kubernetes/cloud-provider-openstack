@@ -46,7 +46,7 @@ const (
 
 	waitLoadbalancerInitDelay   = 1 * time.Second
 	waitLoadbalancerFactor      = 1.2
-	waitLoadbalancerActiveSteps = 19
+	waitLoadbalancerActiveSteps = 23
 	waitLoadbalancerDeleteSteps = 12
 
 	activeStatus = "ACTIVE"
