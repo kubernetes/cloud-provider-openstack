@@ -99,11 +99,11 @@ func (c fakeNodeSvcClient) UnpublishVolume(ctx context.Context, req *csi.NodeUnp
 type fakeCSIClientBuilder struct{}
 
 func (b fakeCSIClientBuilder) NewConnection(string) (*grpc.ClientConn, error) {
-	return grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	return grpc.Dial("localhost", grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func (b fakeCSIClientBuilder) NewConnectionWithContext(context.Context, string) (*grpc.ClientConn, error) {
-	return grpc.Dial("", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	return grpc.Dial("localhost", grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func (b fakeCSIClientBuilder) NewNodeServiceClient(conn *grpc.ClientConn) csiclient.Node {
