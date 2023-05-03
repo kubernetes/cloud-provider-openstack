@@ -275,7 +275,7 @@ func (os *OpenStack) waitLoadbalancerActiveProvisioningStatus(loadbalancerID str
 
 	})
 
-	if err == wait.ErrWaitTimeout {
+	if wait.Interrupted(err) {
 		err = fmt.Errorf("loadbalancer failed to go into ACTIVE provisioning status within alloted time")
 	}
 	return provisioningStatus, err
@@ -291,18 +291,11 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 			return nil, fmt.Errorf("error getting loadbalancer %s: %v", name, err)
 		}
 
-		var provider string
-		if os.config.Octavia.Provider == "" {
-			provider = "octavia"
-		} else {
-			provider = os.config.Octavia.Provider
-		}
-
 		createOpts := loadbalancers.CreateOpts{
 			Name:        name,
 			Description: fmt.Sprintf("Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName),
 			VipSubnetID: subnetID,
-			Provider:    provider,
+			Provider:    os.config.Octavia.Provider,
 			FlavorID:    flavorId,
 		}
 		loadbalancer, err = loadbalancers.Create(os.Octavia, createOpts).Extract()

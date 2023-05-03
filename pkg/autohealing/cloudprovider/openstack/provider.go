@@ -156,8 +156,9 @@ func (provider CloudProvider) waitForServerPoweredOff(serverID string, timeout t
 		return err
 	}
 
-	err = wait.Poll(3*time.Second, timeout,
-		func() (bool, error) {
+	ctx := context.Background()
+	err = wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, false,
+		func(ctx context.Context) (bool, error) {
 			server, err := servers.Get(provider.Nova, serverID).Extract()
 			if err != nil {
 				return false, err
@@ -178,8 +179,9 @@ func (provider CloudProvider) waitForServerPoweredOff(serverID string, timeout t
 func (provider CloudProvider) waitForClusterComplete(clusterID string, timeout time.Duration) error {
 	log.V(2).Infof("Waiting for cluster %s in complete status", clusterID)
 
-	err := wait.Poll(3*time.Second, timeout,
-		func() (bool, error) {
+	ctx := context.Background()
+	err := wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, false,
+		func(ctx context.Context) (bool, error) {
 			cluster, err := clusters.Get(provider.Magnum, clusterID).Extract()
 			if err != nil {
 				return false, err
@@ -232,8 +234,9 @@ func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeou
 	if err != nil {
 		return rootVolumeID, err
 	}
-	err = wait.Poll(3*time.Second, timeout,
-		func() (bool, error) {
+	ctx := context.Background()
+	err = wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, false,
+		func(ctx context.Context) (bool, error) {
 			server, err := servers.Get(provider.Nova, serverID).Extract()
 			if err != nil {
 				return false, err
