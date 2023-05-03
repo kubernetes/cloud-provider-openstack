@@ -412,6 +412,9 @@ const (
 	// OptTrackCost enables the runtime cost calculation while validation and return cost within evalDetails
 	// cost calculation is available via func ActualCost()
 	OptTrackCost EvalOption = 1 << iota
+
+	// OptCheckStringFormat enables compile-time checking of string.format calls for syntax/cardinality.
+	OptCheckStringFormat EvalOption = 1 << iota
 )
 
 // EvalOptions sets one or more evaluation options which may affect the evaluation or Result.

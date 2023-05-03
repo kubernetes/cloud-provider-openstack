@@ -914,6 +914,8 @@ func NewServiceClient(service string, opts *ClientOpts) (*gophercloud.ServiceCli
 		}
 	case "image":
 		return openstack.NewImageServiceV2(pClient, eo)
+	case "key-manager":
+		return openstack.NewKeyManagerV1(pClient, eo)
 	case "load-balancer":
 		return openstack.NewLoadBalancerV2(pClient, eo)
 	case "network":
@@ -922,6 +924,8 @@ func NewServiceClient(service string, opts *ClientOpts) (*gophercloud.ServiceCli
 		return openstack.NewObjectStorageV1(pClient, eo)
 	case "orchestration":
 		return openstack.NewOrchestrationV1(pClient, eo)
+	case "placement":
+		return openstack.NewPlacementV1(pClient, eo)
 	case "sharev2":
 		return openstack.NewSharedFileSystemV2(pClient, eo)
 	case "volume":
