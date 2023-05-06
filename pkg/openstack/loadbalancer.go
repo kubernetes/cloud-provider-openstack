@@ -527,7 +527,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 			opts := lbaas.buildMonitorCreateOpts(svcConf, port)
 			opts.Name = cutString(fmt.Sprintf("monitor_%d_%s", port.Port, name))
 			poolCreateOpt.Monitor = &opts
-			withHealthMonitor = " with healthmonitor"
+			withHealthMonitor = fmt.Sprintf(" with %s healthmonitor", opts.Type)
 		}
 
 		listenerCreateOpt.DefaultPool = &poolCreateOpt
@@ -1150,11 +1150,15 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1
 	if port.Protocol == corev1.ProtocolUDP {
 		opts.Type = "UDP-CONNECT"
 	}
-	if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
-		opts.Type = "HTTP"
-		opts.URLPath = "/healthz"
-		opts.HTTPMethod = "GET"
-		opts.ExpectedCodes = "200"
+	if svcConf.healthCheckNodePort > 0 {
+		if lbaas.canUseHTTPMonitor(port) {
+			opts.Type = "HTTP"
+			opts.URLPath = "/healthz"
+			opts.HTTPMethod = "GET"
+			opts.ExpectedCodes = "200"
+		} else {
+			opts.Type = "TCP"
+		}
 	}
 	return opts
 }
