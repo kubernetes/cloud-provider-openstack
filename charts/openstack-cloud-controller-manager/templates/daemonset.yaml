@@ -18,13 +18,12 @@ spec:
   template:
     metadata:
       annotations:
-         checksum/config: {{ include "cloudConfig" . | sha256sum }}
-      labels:
-        {{- include "occm.controllermanager.labels" . | nindent 8 }}
-      annotations:
+        checksum/config: {{ include "cloudConfig" . | sha256sum }}
         {{- with .Values.commonAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      labels:
+        {{- include "occm.controllermanager.labels" . | nindent 8 }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
