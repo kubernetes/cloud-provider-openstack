@@ -31,7 +31,7 @@ For more information about cloud-controller-manager, please see:
 - <https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager>
 - <https://kubernetes.io/docs/tasks/administer-cluster/developing-cloud-controller-manager/>
 
-**NOTE: Now, the openstack-cloud-controller-manager implementation is based on OpenStack Octavia, Neutron-LBaaS has been deprecated in OpenStack since Queens release and no longer maintained in openstack-cloud-controller-manager. So make sure to use Octavia if upgrade to the latest openstack-cloud-controller-manager docker image.**
+**NOTE: Now, the openstack-cloud-controller-manager implementation is based on OpenStack Octavia, Neutron-LBaaS has been removed in openstack-cloud-controller-manager since v1.26.0. So make sure to use Octavia if upgrade to the latest openstack-cloud-controller-manager docker image.**
 
 ## Deploy a Kubernetes cluster with openstack-cloud-controller-manager using kubeadm
 
@@ -85,7 +85,6 @@ Implementation of openstack-cloud-controller-manager relies on several OpenStack
 |--------------------------------|----------------|------------|----------|
 | Identity (Keystone)            | v3             | No         | Yes      |
 | Compute (Nova)                 | v2             | No         | Yes      |
-| Load Balancing (Neutron-LBaaS) | v1, v2         | Yes        | No       |
 | Load Balancing (Octavia)       | v2             | No         | Yes      |
 | Key Manager (Barbican)         | v1             | No         | No       |
 
@@ -181,7 +180,7 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 
 ###  Load Balancer
 
-Although the openstack-cloud-controller-manager was initially implemented with Neutron-LBaaS support, Octavia is recommended now because Neutron-LBaaS has been deprecated since Queens OpenStack release cycle and no longer accepted new feature enhancements. As a result, lots of advanced features in openstack-cloud-controller-manager rely on Octavia, even the CI is running based on Octavia enabled OpenStack environment. Functionalities are not guaranteed if using Neutron-LBaaS.
+Although the openstack-cloud-controller-manager was initially implemented with Neutron-LBaaS support, Octavia is mandatory now because Neutron-LBaaS has been deprecated since Queens OpenStack release cycle and no longer accepted new feature enhancements. As a result, since v1.26.0 the Neutron-LBaaS is not supported in openstack-cloud-controller-manager and removed from code repo.
 
 * `enabled`
   Whether or not to enable the LoadBalancer type of Services integration at all.
