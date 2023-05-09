@@ -67,7 +67,7 @@ spec:
             name: http
             protocol: TCP
           {{- end }}
-          {{- if .Values.extraVolumeMounts or .Values.secret.enabled }}
+          {{- if or (.Values.extraVolumeMounts) (.Values.secret.enabled) }}
           volumeMounts:
           {{- end }}
           {{- if .Values.secret.enabled }}
@@ -103,7 +103,7 @@ spec:
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
 
-      {{- if .Values.extraVolumes or .Values.secret.enabled }}
+      {{- if or (.Values.extraVolumes) (.Values.secret.enabled) }}
       volumes:
       {{- end }}
       {{- if .Values.secret.enabled }}
