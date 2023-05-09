@@ -112,6 +112,7 @@ MANILA_OPTGROUP_denver_driver_handles_share_servers=False
 SHARE_BACKING_FILE_SIZE=32000M
 MANILA_DEFAULT_SHARE_TYPE_EXTRA_SPECS='snapshot_support=True create_share_from_snapshot_support=True revert_to_snapshot_support=True mount_snapshot_support=True'
 MANILA_CONFIGURE_DEFAULT_TYPES=True
+MANILA_ALLOW_NAS_SERVER_PORTS_ON_HOST=True
 {% endif %}
 
 {% if "glance" in enable_services %}
