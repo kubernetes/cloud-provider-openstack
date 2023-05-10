@@ -1156,7 +1156,7 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1
 			opts.URLPath = "/healthz"
 			opts.HTTPMethod = "GET"
 			opts.ExpectedCodes = "200"
-		} else {
+		} else if port.Protocol == corev1.ProtocolTCP  {
 			opts.Type = "TCP"
 		}
 	}
