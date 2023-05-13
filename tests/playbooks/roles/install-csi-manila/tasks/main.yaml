@@ -123,7 +123,7 @@
       csimanila:
         image:
           repository: {{ remote_registry_host }}/manila-csi-plugin
-          tag: {{ github_pr }}
+          tag: v0.0.{{ github_pr }}
       shareProtocols:
         - protocolSelector: NFS
           fsGroupPolicy: None
