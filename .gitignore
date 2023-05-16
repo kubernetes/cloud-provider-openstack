@@ -159,3 +159,7 @@ zz_generated.openapi.go
 
 # local gopath
 .go
+
+### Okteto ###
+okteto.yml
+.stignore

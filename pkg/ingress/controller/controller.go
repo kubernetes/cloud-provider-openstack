@@ -824,10 +824,17 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 			var policyRules []l7policies.CreateRuleOpts
 
 			if host != "" {
+
+				// Escape dot to be regex proof
+				hostRegex := strings.ReplaceAll(host, ".", "\\.")
+
+				// Handle wildcard
+				hostRegex = strings.ReplaceAll(hostRegex, "*", ".*")
+
 				policyRules = append(policyRules, l7policies.CreateRuleOpts{
 					RuleType:    l7policies.TypeHostName,
 					CompareType: l7policies.CompareTypeRegex,
-					Value:       fmt.Sprintf("^%s(:%d)?$", strings.ReplaceAll(host, ".", "\\."), port)})
+					Value:       fmt.Sprintf("^%s(:%d)?$", hostRegex, port)})
 			}
 
 			// make the pool name unique in the load balancer
