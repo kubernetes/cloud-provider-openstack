@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -825,16 +826,21 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 
 			if host != "" {
 
-				// Escape dot to be regex proof
-				hostRegex := strings.ReplaceAll(host, ".", "\\.")
+				hostRegex := "^"
+				if strings.HasPrefix(host, "*.") {
+					hostRegex += "[a-z0-9]([-a-z0-9]*[a-z0-9])?\\."
+					hostRegex += regexp.QuoteMeta(host[2:])
+				} else {
+					hostRegex += regexp.QuoteMeta(host)
+				}
 
-				// Handle wildcard
-				hostRegex = strings.ReplaceAll(hostRegex, "*", ".*")
+				hostRegex += fmt.Sprintf("(:%d)?$", port)
 
 				policyRules = append(policyRules, l7policies.CreateRuleOpts{
 					RuleType:    l7policies.TypeHostName,
 					CompareType: l7policies.CompareTypeRegex,
-					Value:       fmt.Sprintf("^%s(:%d)?$", hostRegex, port)})
+					Value:       hostRegex,
+				})
 			}
 
 			// make the pool name unique in the load balancer
