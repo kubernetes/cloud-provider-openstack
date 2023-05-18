@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
@@ -327,17 +328,31 @@ func (c *Controller) repairNodes(unhealthyNodes []healthcheck.NodeInfo) {
 				// Cordon the nodes before repair.
 				for _, node := range unhealthyNodes {
 					nodeName := node.KubeNode.Name
-					newNode := node.KubeNode.DeepCopy()
-					newNode.Spec.Unschedulable = true
 
 					// Skip cordon for master node
 					if !node.IsWorker {
 						continue
 					}
-					if _, err := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); err != nil {
-						log.Errorf("Failed to cordon node %s, error: %v", nodeName, err)
-					} else {
-						log.Infof("Node %s is cordoned", nodeName)
+					retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						// Retrieve the latest version of Node before attempting update
+						// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
+						newNode, err := c.kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+						if err != nil {
+							log.Errorf("Failed to get node %s, error: %v before update", nodeName, err)
+							return err
+						}
+						newNode.Spec.Unschedulable = true
+						if _, updateErr := c.kubeClient.CoreV1().Nodes().Update(context.TODO(), newNode, metav1.UpdateOptions{}); updateErr != nil {
+							log.Warningf("Failed in retry to cordon node %s, error: %v", nodeName, updateErr)
+							return updateErr
+						} else {
+							log.Infof("Node %s is cordoned", nodeName)
+							return nil
+						}
+					})
+					if retryErr != nil {
+						log.Errorf("Failed to cordon node %s, error: %v", nodeName, retryErr)
+
 					}
 				}
 
