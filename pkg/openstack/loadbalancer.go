@@ -707,7 +707,7 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
-func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
+func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
 	ipAddress, err := nodeAddressForLB(&node, preferredIPFamily)
 	if err != nil {
 		return "", err
@@ -718,13 +718,13 @@ func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node, pref
 		instanceID = instanceID[(ind + 1):]
 	}
 
-	interfaces, err := getAttachedInterfacesByID(compute, instanceID)
+	ports, err := getAttachedPorts(network, instanceID)
 	if err != nil {
 		return "", err
 	}
 
-	for _, intf := range interfaces {
-		for _, fixedIP := range intf.FixedIPs {
+	for _, port := range ports {
+		for _, fixedIP := range port.FixedIPs {
 			if fixedIP.IPAddress == ipAddress {
 				return fixedIP.SubnetID, nil
 			}
@@ -1554,7 +1554,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 		} else {
 			svcConf.lbMemberSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 			if len(svcConf.lbMemberSubnetID) == 0 && len(nodes) > 0 {
-				subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], svcConf.preferredIPFamily)
+				subnetID, err := getSubnetIDForLB(lbaas.network, *nodes[0], svcConf.preferredIPFamily)
 				if err != nil {
 					return fmt.Errorf("no subnet-id found for service %s: %v", serviceName, err)
 				}
@@ -1668,7 +1668,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.lbMemberSubnetID = svcConf.lbSubnetID
 	}
 	if len(svcConf.lbNetworkID) == 0 && len(svcConf.lbSubnetID) == 0 {
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], svcConf.preferredIPFamily)
+		subnetID, err := getSubnetIDForLB(lbaas.network, *nodes[0], svcConf.preferredIPFamily)
 		if err != nil {
 			return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
 		}
