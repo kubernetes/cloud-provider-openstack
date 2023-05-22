@@ -1,0 +1,29 @@
+# Topology constraints example:
+#
+# Let's have two Manila AZs: zone-{1..2}
+# Let's have six Nova AZs: zone-{1..6}
+#
+# Manila zone-1 is accessible from nodes in zone-1 only
+# Manila zone-2 is accessible from nodes in zone-2 only
+#
+# We're provisioning into zone-1
+# availability parameter and allowedTopologies are empty, therefore the dynamic
+# share provisioning with automatic availability zone selection takes place.
+# The "volumeBindingMode" must be set to "WaitForFirstConsumer".
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-manila-nfs
+provisioner: nfs.manila.csi.openstack.org
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: default
+  autoTopology: "true"
+  csi.storage.k8s.io/provisioner-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/provisioner-secret-namespace: default
+  csi.storage.k8s.io/node-stage-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/node-stage-secret-namespace: default
+  csi.storage.k8s.io/node-publish-secret-name: csi-manila-secrets
+  csi.storage.k8s.io/node-publish-secret-namespace: default
