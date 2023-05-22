@@ -25,7 +25,6 @@
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
     - role: install-cpo-occm
       run_e2e: false
-      build_image: false
     - role: install-helm
     - role: install-csi-manila
       environment: "{{ global_env }}"

@@ -2090,23 +2090,6 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 	remoteIPPrefix, secGroupID string,
 	portRangeMin, portRangeMax int,
 ) error {
-	sgListopts := rules.ListOpts{
-		Direction:      string(direction),
-		Protocol:       string(protocol),
-		PortRangeMax:   portRangeMin,
-		PortRangeMin:   portRangeMax,
-		RemoteIPPrefix: remoteIPPrefix,
-		SecGroupID:     secGroupID,
-	}
-	sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
-	if err != nil && !cpoerrors.IsNotFound(err) {
-		return fmt.Errorf(
-			"failed to find security group rules in %s: %v", secGroupID, err)
-	}
-	if len(sgRules) != 0 {
-		return nil
-	}
-
 	sgRuleCreateOpts := rules.CreateOpts{
 		Direction:      direction,
 		Protocol:       protocol,
@@ -2118,11 +2101,12 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 	}
 
 	mc := metrics.NewMetricContext("security_group_rule", "create")
-	_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
-	if mc.ObserveRequest(err) != nil {
-		return fmt.Errorf(
-			"failed to create rule for security group %s: %v",
-			secGroupID, err)
+	_, err := rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
+	if err != nil && cpoerrors.IsConflictError(err) {
+		// Conflict means the SG rule already exists, so ignoring that error.
+		return mc.ObserveRequest(nil)
+	} else if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf("failed to create rule for security group %s: %v", secGroupID, err)
 	}
 	return nil
 }
