@@ -421,6 +421,9 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	} else {
 		// atomic route update
 		blackhole := route.Blackhole
+		if blackhole {
+			addr = string(route.TargetNode)
+		}
 		route := []routers.Route{{
 			DestinationCIDR: route.DestinationCIDR,
 			NextHop:         addr,
