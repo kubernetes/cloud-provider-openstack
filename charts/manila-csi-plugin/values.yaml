@@ -92,7 +92,7 @@ controllerplugin:
   resizer:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
-      tag: v1.3.0
+      tag: v1.8.0
       pullPolicy: IfNotPresent
     resources: {}
   nodeSelector: {}

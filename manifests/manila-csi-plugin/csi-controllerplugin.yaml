@@ -60,7 +60,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: resizer
-          image: "registry.k8s.io/sig-storage/csi-resizer:v1.3.0"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.8.0"
           args:
             - "--csi-address=$(ADDRESS)"
             - "--handle-volume-inuse-error=false"

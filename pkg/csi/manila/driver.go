@@ -85,7 +85,7 @@ type nonBlockingGRPCServer struct {
 }
 
 const (
-	specVersion   = "1.2.0"
+	specVersion   = "1.8.0"
 	driverVersion = "0.9.0"
 	topologyKey   = "topology.manila.csi.openstack.org/zone"
 )
