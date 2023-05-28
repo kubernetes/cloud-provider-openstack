@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 )
 
 // MyDuration is the encoding.TextUnmarshaler interface for time.Duration
@@ -99,4 +101,29 @@ func PatchService(ctx context.Context, client clientset.Interface, cur, mod *v1.
 	}
 
 	return nil
+}
+
+func GetAZFromTopology(topologyKey string, requirement *csi.TopologyRequirement) string {
+	var zone string
+	var exists bool
+
+	defer func() { klog.V(1).Infof("detected AZ from the topology: %s", zone) }()
+	klog.V(4).Infof("preferred topology requirement: %+v", requirement.GetPreferred())
+	klog.V(4).Infof("requisite topology requirement: %+v", requirement.GetRequisite())
+
+	for _, topology := range requirement.GetPreferred() {
+		zone, exists = topology.GetSegments()[topologyKey]
+		if exists {
+			return zone
+		}
+	}
+
+	for _, topology := range requirement.GetRequisite() {
+		zone, exists = topology.GetSegments()[topologyKey]
+		if exists {
+			return zone
+		}
+	}
+
+	return zone
 }
