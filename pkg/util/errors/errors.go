@@ -77,3 +77,17 @@ func IsInvalidError(err error) bool {
 
 	return false
 }
+
+func IsConflictError(err error) bool {
+	if _, ok := err.(gophercloud.ErrDefault409); ok {
+		return true
+	}
+
+	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
+		if errCode.Actual == http.StatusConflict {
+			return true
+		}
+	}
+
+	return false
+}

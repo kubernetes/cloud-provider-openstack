@@ -50,6 +50,7 @@ Parameter | Required | Description
 `type` | _yes_ | Manila [share type](https://wiki.openstack.org/wiki/Manila/Concepts#share_type)
 `shareNetworkID` | _no_ | Manila [share network ID](https://wiki.openstack.org/wiki/Manila/Concepts#share_network)
 `availability` | _no_ | Manila availability zone of the provisioned share. If none is provided, the default Manila zone will be used. Note that this parameter is opaque to the CO and does not influence placement of workloads that will consume this share, meaning they may be scheduled onto any node of the cluster. If the specified Manila AZ is not equally accessible from all compute nodes of the cluster, use [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning).
+`autoTopology` | _no_ | When set to "true" and the `availability` parameter is empty, the Manila CSI controller will map the Manila availability zone to the target compute node availability zone.
 `appendShareMetadata` | _no_ | Append user-defined metadata to the provisioned share. If not empty, this field must be a string with a valid JSON object. The object must consist of key-value pairs of type string. Example: `"{..., \"key\": \"value\"}"`.
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-kernelMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS kernel client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
@@ -128,6 +129,35 @@ Storage AZ does not influence
 
 
           Shares in zone-a are accessible only from nodes in nova-1 and nova-2.
+```
+
+In cases when the Manila availability zone must correspond to the Nova
+availability zone, you can set the `autoTopology: "true"` along with the
+`volumeBindingMode: WaitForFirstConsumer` and omit the `availability`
+parameter. By doing so, the share will be provisioned in the target compute
+node availability zone.
+
+```
+                          Auto topology-aware storage class example:
+
+
+           Both Compute and Storage AZs influence the placement of workloads.
+
+        +-----------+                                         +---------------+
+        | Manila AZ |                                         |  Compute AZs  |
+        |   zone-1  |    apiVersion: storage.k8s.io/v1        |     zone-1    |
+        |   zone-2  |    kind: StorageClass                   |     zone-2    |
+        +-----------+    metadata:                            +---------------+
+              |            name: nfs-gold                             |
+              |          provisioner: nfs.manila.csi.openstack.org    |
+              |          parameters:                                  |
+              +---------+  autoTopology: "true"  +--------------------+
+                           ...
+                         volumeBindingMode: WaitForFirstConsumer
+                           ...
+
+Shares for workloads in zone-1 will be created in zone-1 and accessible only from nodes in zone-1.
+Shares for workloads in zone-2 will be created in zone-2 and accessible only from nodes in zone-2.
 ```
 
 [Enabling topology awareness in Kubernetes](#enabling-topology-awareness)

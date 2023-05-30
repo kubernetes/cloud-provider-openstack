@@ -106,11 +106,33 @@ CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-co
 ##
 ## cinder-csi-plugin
 ##
-FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin
 
-# Install e4fsprogs for format
-RUN clean-install btrfs-progs e2fsprogs mount udev xfsprogs
+# step 1: copy all necessary files from Debian distro to /dest folder
+# all magic heppens in tools/csi-deps.sh
+FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin-utils
 
+RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs
+COPY tools/csi-deps.sh /tools/csi-deps.sh
+RUN /tools/csi-deps.sh
+
+# step 2: check if all necessary files are copied and work properly
+# the build have to finish without errors, but the result image will not be used
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as cinder-csi-plugin-utils-check
+
+COPY --from=cinder-csi-plugin-utils /dest /
+COPY --from=cinder-csi-plugin-utils /bin/sh /bin/sh
+COPY tools/csi-deps-check.sh /tools/csi-deps-check.sh
+
+SHELL ["/bin/sh"]
+RUN /tools/csi-deps-check.sh
+
+# step 3: build tiny cinder-csi-plugin image with only necessary files
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as cinder-csi-plugin
+
+# Copying csi-deps-check.sh simply ensures that the resulting image has a dependency
+# on cinder-csi-plugin-utils-check and therefore that the check has passed
+COPY --from=cinder-csi-plugin-utils-check /tools/csi-deps-check.sh /bin/csi-deps-check.sh
+COPY --from=cinder-csi-plugin-utils /dest /
 COPY --from=builder /build/cinder-csi-plugin /bin/cinder-csi-plugin
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs
 

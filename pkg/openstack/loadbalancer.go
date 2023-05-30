@@ -37,7 +37,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
-	"github.com/gophercloud/gophercloud/pagination"
 	secgroups "github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups"
 	"gopkg.in/godo.v2/glob"
 	corev1 "k8s.io/api/core/v1"
@@ -421,28 +420,6 @@ func getSecurityGroupName(service *corev1.Service) string {
 	}
 
 	return securityGroupName
-}
-
-func getSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
-	var securityRules []rules.SecGroupRule
-
-	mc := metrics.NewMetricContext("security_group_rule", "list")
-	pager := rules.List(client, opts)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		ruleList, err := rules.ExtractRules(page)
-		if err != nil {
-			return false, err
-		}
-		securityRules = append(securityRules, ruleList...)
-		return true, nil
-	})
-
-	if mc.ObserveRequest(err) != nil {
-		return nil, err
-	}
-
-	return securityRules, nil
 }
 
 func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) listeners.Protocol {
@@ -2090,23 +2067,6 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 	remoteIPPrefix, secGroupID string,
 	portRangeMin, portRangeMax int,
 ) error {
-	sgListopts := rules.ListOpts{
-		Direction:      string(direction),
-		Protocol:       string(protocol),
-		PortRangeMax:   portRangeMin,
-		PortRangeMin:   portRangeMax,
-		RemoteIPPrefix: remoteIPPrefix,
-		SecGroupID:     secGroupID,
-	}
-	sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
-	if err != nil && !cpoerrors.IsNotFound(err) {
-		return fmt.Errorf(
-			"failed to find security group rules in %s: %v", secGroupID, err)
-	}
-	if len(sgRules) != 0 {
-		return nil
-	}
-
 	sgRuleCreateOpts := rules.CreateOpts{
 		Direction:      direction,
 		Protocol:       protocol,
@@ -2118,11 +2078,12 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 	}
 
 	mc := metrics.NewMetricContext("security_group_rule", "create")
-	_, err = rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
-	if mc.ObserveRequest(err) != nil {
-		return fmt.Errorf(
-			"failed to create rule for security group %s: %v",
-			secGroupID, err)
+	_, err := rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
+	if err != nil && cpoerrors.IsConflictError(err) {
+		// Conflict means the SG rule already exists, so ignoring that error.
+		return mc.ObserveRequest(nil)
+	} else if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf("failed to create rule for security group %s: %v", secGroupID, err)
 	}
 	return nil
 }
@@ -2533,49 +2494,7 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Servi
 	}
 	_ = mc.ObserveRequest(nil)
 
-	if len(lbaas.opts.NodeSecurityGroupIDs) == 0 {
-		// Just happen when nodes have not Security Group, or should not happen
-		// UpdateLoadBalancer and EnsureLoadBalancer can set lbaas.opts.NodeSecurityGroupIDs when it is empty
-		// And service controller call UpdateLoadBalancer to set lbaas.opts.NodeSecurityGroupIDs when controller manager service is restarted.
-		klog.Warningf("Can not find node-security-group from all the nodes of this cluster when delete loadbalancer service %s/%s",
-			service.Namespace, service.Name)
-	} else {
-		// Delete the rules in the Node Security Group
-		for _, nodeSecurityGroupID := range lbaas.opts.NodeSecurityGroupIDs {
-			opts := rules.ListOpts{
-				SecGroupID:    nodeSecurityGroupID,
-				RemoteGroupID: lbSecGroupID,
-			}
-			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
-
-			if err != nil && !cpoerrors.IsNotFound(err) {
-				msg := fmt.Sprintf("error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
-				return fmt.Errorf(msg)
-			}
-
-			for _, rule := range secGroupRules {
-				mc := metrics.NewMetricContext("security_group_rule", "delete")
-				res := rules.Delete(lbaas.network, rule.ID)
-				if res.Err != nil && !cpoerrors.IsNotFound(res.Err) {
-					_ = mc.ObserveRequest(res.Err)
-					return fmt.Errorf("error occurred deleting security group rule: %s: %v", rule.ID, res.Err)
-				}
-				_ = mc.ObserveRequest(nil)
-			}
-		}
-	}
-
 	return nil
-}
-
-// IsAllowAll checks whether the netsets.IPNet allows traffic from 0.0.0.0/0
-func IsAllowAll(ipnets netsets.IPNet) bool {
-	for _, s := range ipnets.StringSlice() {
-		if s == "0.0.0.0/0" {
-			return true
-		}
-	}
-	return false
 }
 
 // GetLoadBalancerSourceRanges first try to parse and verify LoadBalancerSourceRanges field from a service.
