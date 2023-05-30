@@ -82,8 +82,8 @@ serviceMonitor: {}
 # You can also provide your own secret (not created by the Helm chart), in this case set create to false
 # and adjust the name of the secret as necessary
 # If you dont want to use a secret (because you are using something like an agent injector to inject the cloud config file)
-# you can disable the secret usage by setting enabled to false. 
-# If you disable the secret, you have to insert the cloud config file into the path /etc/cloud/config. 
+# you can disable the secret usage by setting enabled to false.
+# If you disable the secret, you have to insert the cloud config file into the path /etc/cloud/config.
 secret:
   enabled: true
   create: true
