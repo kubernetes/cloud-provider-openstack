@@ -19,6 +19,7 @@ package keystone
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/gophercloud/gophercloud"
@@ -29,7 +30,6 @@ import (
 	osClient "k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
-	"net/http"
 )
 
 type Options struct {
@@ -76,7 +76,6 @@ func GetToken(options Options) (*tokens3.Token, error) {
 			return token, msg
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
-		tlsConfig.BuildNameToCertificate()
 		setTransport = true
 	}
 

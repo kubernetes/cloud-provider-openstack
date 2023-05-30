@@ -22,7 +22,6 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	ossnapshots "github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"golang.org/x/net/context"
@@ -70,16 +69,13 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := req.GetParameters()["type"]
 
-	var volAvailability string
-
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, incase vol AZ is different from node AZ
-	volAvailability = req.GetParameters()["availability"]
-
-	if len(volAvailability) == 0 {
+	volAvailability := req.GetParameters()["availability"]
+	if volAvailability == "" {
 		// Check from Topology
 		if req.GetAccessibilityRequirements() != nil {
-			volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
+			volAvailability = util.GetAZFromTopology(topologyKey, req.GetAccessibilityRequirements())
 		}
 	}
 
@@ -338,6 +334,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Verify a snapshot with the provided name doesn't already exist for this tenant
+	var snap *snapshots.Snapshot
 	filters := map[string]string{}
 	filters["Name"] = name
 	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
@@ -345,7 +342,6 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		klog.Errorf("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to get snapshots")
 	}
-	var snap *ossnapshots.Snapshot
 
 	if len(snapshots) == 1 {
 		snap = &snapshots[0]
@@ -650,23 +646,6 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		CapacityBytes:         volSizeBytes,
 		NodeExpansionRequired: true,
 	}, nil
-}
-
-func getAZFromTopology(requirement *csi.TopologyRequirement) string {
-	for _, topology := range requirement.GetPreferred() {
-		zone, exists := topology.GetSegments()[topologyKey]
-		if exists {
-			return zone
-		}
-	}
-
-	for _, topology := range requirement.GetRequisite() {
-		zone, exists := topology.GetSegments()[topologyKey]
-		if exists {
-			return zone
-		}
-	}
-	return ""
 }
 
 func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {

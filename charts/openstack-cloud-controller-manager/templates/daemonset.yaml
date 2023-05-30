@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "occm.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   selector:
     matchLabels:
@@ -14,7 +18,10 @@ spec:
   template:
     metadata:
       annotations:
-         checksum/config: {{ include "cloudConfig" . | sha256sum }}
+        checksum/config: {{ include "cloudConfig" . | sha256sum }}
+        {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       labels:
         {{- include "occm.controllermanager.labels" . | nindent 8 }}
     spec:
@@ -87,6 +94,9 @@ spec:
       initContainers: {{ toYaml .Values.extraInitContainers | nindent 6 }}
       {{- end }}
       hostNetwork: true
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
       volumes:
       - name: cloud-config-volume
         secret:

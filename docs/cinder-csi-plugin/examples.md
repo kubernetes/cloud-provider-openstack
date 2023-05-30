@@ -101,9 +101,11 @@ $ mount /dev/vdb /mnt; ls /mnt
 index.html  lost+found
 ```
 
-## Deploy app using Inline volumes
+## Deploy app using ephemeral volumes
 
-Sample App definition on using Inline volumes can be found at [here](../../examples/cinder-csi-plugin/ephemeral/csi-ephemeral-volumes-example.yaml)
+### CSI Ephemeral Volumes
+
+Sample App definition on using CSI ephemeral volumes can be found at [here](../../examples/cinder-csi-plugin/ephemeral/csi-ephemeral-volumes-example.yaml)
 
 Prerequisites:
 * Deploy CSI Driver, with both volumeLifecycleModes enabled as specified [here](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml)
@@ -128,6 +130,43 @@ Volumes:
     SecretName:  default-token-dn78p
     Optional:    false
 
+```
+
+### Generic Ephemeral Volumes
+
+Sample App definition on using generic ephemeral volumes can be found at [here](../../examples/cinder-csi-plugin/ephemeral/generic-ephemeral-volumes.yaml)
+
+Create a pod with ephemeral volume and storage class
+
+```
+# kubectl create -f examples/cinder-csi-plugin/ephemeral/generic-ephemeral-volumes.yaml
+storageclass.storage.k8s.io/scratch-storage-class created
+pod/ephemeral-example created
+``` 
+
+```
+# kubectl get pods -A
+NAMESPACE     NAME                                                          READY   STATUS    RESTARTS   AGE
+default       ephemeral-example                                             1/1     Running   0          28s
+```
+
+we can find pv/pvc/volumes created just like general volume.
+
+```
+# kubectl get pvc
+NAME                               STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS            AGE
+ephemeral-example-scratch-volume   Bound    pvc-9848ed86-8aa1-439b-9839-9ceba6e6f653   1Gi        RWO            scratch-storage-class   32s
+
+# kubectl get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                                      STORAGECLASS            REASON   AGE
+pvc-9848ed86-8aa1-439b-9839-9ceba6e6f653   1Gi        RWO            Delete           Bound    default/ephemeral-example-scratch-volume   scratch-storage-class            35s
+
+# cinder list
++--------------------------------------+-----------+------------------------------------------+------+-------------+----------+--------------------------------------+
+| ID                                   | Status    | Name                                     | Size | Volume Type | Bootable | Attached to                          |
++--------------------------------------+-----------+------------------------------------------+------+-------------+----------+--------------------------------------+
+| 7f4a09de-a8a9-4b89-9b70-d01028fcb789 | in-use    | pvc-9848ed86-8aa1-439b-9839-9ceba6e6f653 | 1    | lvmdriver-1 | false    | d438644c-864e-4b36-8a6e-794d35902f97 |
++--------------------------------------+-----------+------------------------------------------+------+-------------+----------+--------------------------------------+
 ```
 
 ## Volume Expansion Example

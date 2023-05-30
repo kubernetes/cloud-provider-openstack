@@ -36,7 +36,7 @@ const (
 
 var (
 	// CSI spec version
-	specVersion = "1.3.0"
+	specVersion = "1.8.0"
 
 	// Driver version
 	// Version history:

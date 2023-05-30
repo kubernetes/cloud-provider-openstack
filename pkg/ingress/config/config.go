@@ -53,4 +53,8 @@ type octaviaConfig struct {
 	// (Optional) If the ingress controller should manage the security groups attached to the cluster nodes.
 	// Default is false.
 	ManageSecurityGroups bool `mapstructure:"manage-security-groups"`
+
+	// (Optional) Flavor ID to create the load balancer.
+	// If empty, the default flavor will be used.
+	FlavorID string `mapstructure:"flavor-id"`
 }

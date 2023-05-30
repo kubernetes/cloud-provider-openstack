@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/gophercloud/gophercloud"
@@ -28,7 +29,9 @@ import (
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/cloud-provider-openstack/pkg/client"
+	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 )
 
@@ -131,7 +134,20 @@ const defaultMaxVolAttachLimit int64 = 256
 var OsInstance IOpenStack
 var configFiles = []string{"/etc/cloud.conf"}
 
-func InitOpenStackProvider(cfgFiles []string) {
+func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
+	metrics.RegisterMetrics("cinder-csi")
+	if httpEndpoint != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", legacyregistry.HandlerWithReset())
+		go func() {
+			err := http.ListenAndServe(httpEndpoint, mux)
+			if err != nil {
+				klog.Fatalf("failed to listen & serve metrics from %q: %v", httpEndpoint, err)
+			}
+			klog.Infof("metrics available in %q", httpEndpoint)
+		}()
+	}
+
 	configFiles = cfgFiles
 	klog.V(2).Infof("InitOpenStackProvider configFiles: %s", configFiles)
 }

@@ -166,6 +166,23 @@ Examples:
     'hello mellow'.indexOf('ello', 2)  // returns 7
     'hello mellow'.indexOf('ello', 20) // error
 
+### Join
+
+Returns a new string where the elements of string list are concatenated.
+
+The function also accepts an optional separator which is placed between
+elements in the resulting string.
+
+    <list<string>>.join() -> <string>
+    <list<string>>.join(<string>) -> <string>
+
+Examples:
+
+	['hello', 'mellow'].join() // returns 'hellomellow'
+	['hello', 'mellow'].join(' ') // returns 'hello mellow'
+	[].join() // returns ''
+	[].join('/') // returns ''
+
 ### LastIndexOf
 
 Returns the integer index of the last occurrence of the search string. If the
@@ -200,6 +217,20 @@ Examples:
 
      'TacoCat'.lowerAscii()      // returns 'tacocat'
      'TacoCÆt Xii'.lowerAscii()  // returns 'tacocÆt xii'
+
+### Quote
+
+**Introduced in version 1**
+
+Takes the given string and makes it safe to print (without any formatting due to escape sequences).
+If any invalid UTF-8 characters are encountered, they are replaced with \uFFFD.
+
+    strings.quote(<string>)
+
+Examples:
+
+    strings.quote('single-quote with "double quote"') // returns '"single-quote with \"double quote\""'
+    strings.quote("two escape sequences \a\n") // returns '"two escape sequences \\a\\n"'
 
 ### Replace
 

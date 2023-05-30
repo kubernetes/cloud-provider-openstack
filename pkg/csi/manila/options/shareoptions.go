@@ -24,6 +24,7 @@ type ControllerVolumeContext struct {
 	Protocol            string `name:"protocol" matches:"^(?i)CEPHFS|NFS$"`
 	Type                string `name:"type" value:"default:default"`
 	ShareNetworkID      string `name:"shareNetworkID" value:"optional"`
+	AutoTopology        string `name:"autoTopology" value:"default:false" matches:"(?i)^true|false$"`
 	AvailabilityZone    string `name:"availability" value:"optional"`
 	AppendShareMetadata string `name:"appendShareMetadata" value:"optional"`
 

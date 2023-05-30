@@ -30,6 +30,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog/v2"
 )
@@ -54,7 +55,7 @@ var (
 	}
 )
 
-func getVolumeCreator(source *csi.VolumeContentSource, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions) (volumeCreator, error) {
+func getVolumeCreator(source *csi.VolumeContentSource) (volumeCreator, error) {
 	if source == nil {
 		return &blankVolume{}, nil
 	}
@@ -135,9 +136,25 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	sizeInGiB := bytesToGiB(requestedSize)
 
+	var accessibleTopology []*csi.Topology
+	accessibleTopologyReq := req.GetAccessibilityRequirements()
+	if cs.d.withTopology && accessibleTopologyReq != nil {
+		// All requisite/preferred topologies are considered valid. Nodes from those zones are required to be able to reach the storage.
+		// The operator is responsible for making sure that provided topology keys are valid and present on the nodes of the cluster.
+		accessibleTopology = accessibleTopologyReq.GetPreferred()
+
+		// When "autoTopology" is enabled and "availability" is empty, obtain the AZ from the target node.
+		if shareOpts.AvailabilityZone == "" && strings.EqualFold(shareOpts.AutoTopology, "true") {
+			shareOpts.AvailabilityZone = util.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+			accessibleTopology = []*csi.Topology{{
+				Segments: map[string]string{topologyKey: shareOpts.AvailabilityZone},
+			}}
+		}
+	}
+
 	// Retrieve an existing share or create a new one
 
-	volCreator, err := getVolumeCreator(req.GetVolumeContentSource(), shareOpts, cs.d.compatOpts)
+	volCreator, err := getVolumeCreator(req.GetVolumeContentSource())
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +164,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	if err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts, cs.d.compatOpts, shareTypeCaps); err != nil {
+	err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts, cs.d.compatOpts, shareTypeCaps)
+	if err != nil {
 		return nil, status.Errorf(codes.AlreadyExists, "volume %s already exists, but is incompatible with the request: %v", req.GetName(), err)
 	}
 
@@ -157,18 +175,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	accessRight, err := ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rule %s for volume %s to become available", accessRight.ID, share.Name)
 		}
 
 		return nil, status.Errorf(codes.Internal, "failed to grant access to volume %s: %v", share.Name, err)
-	}
-
-	var accessibleTopology []*csi.Topology
-	if cs.d.withTopology {
-		// All requisite/preferred topologies are considered valid. Nodes from those zones are required to be able to reach the storage.
-		// The operator is responsible for making sure that provided topology keys are valid and present on the nodes of the cluster.
-		accessibleTopology = req.GetAccessibilityRequirements().GetPreferred()
 	}
 
 	volCtx := filterParametersForVolumeContext(params, options.NodeVolumeContextFields())
@@ -262,7 +273,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	snapshot, err := getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient)
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of volume %s to become available", snapshot.ID, req.GetSourceVolumeId())
 		}
 

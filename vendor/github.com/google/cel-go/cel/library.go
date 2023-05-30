@@ -183,7 +183,7 @@ func (optionalLibrary) CompileOptions() []EnvOption {
 			Overload("map_optindex_optional_value", []*Type{mapTypeKV, paramTypeK}, optionalTypeV),
 			Overload("optional_map_optindex_optional_value", []*Type{OptionalType(mapTypeKV), paramTypeK}, optionalTypeV)),
 
-		// Index overloads to accomodate using an optional value as the operand.
+		// Index overloads to accommodate using an optional value as the operand.
 		Function(operators.Index,
 			Overload("optional_list_index_int", []*Type{OptionalType(listTypeV), IntType}, optionalTypeV),
 			Overload("optional_map_index_optional_value", []*Type{OptionalType(mapTypeKV), paramTypeK}, optionalTypeV)),

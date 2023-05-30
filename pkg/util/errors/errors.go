@@ -39,6 +39,9 @@ var ErrIPv6SupportDisabled = errors.New("IPv6 support is disabled")
 // ErrNoRouterID is used when router-id is not set
 var ErrNoRouterID = errors.New("router-id not set in cloud provider config")
 
+// ErrNoNodeInformer is used when node informer is not yet initialized
+var ErrNoNodeInformer = errors.New("node informer is not yet initialized")
+
 func IsNotFound(err error) bool {
 	if err == ErrNotFound {
 		return true
@@ -68,6 +71,20 @@ func IsInvalidError(err error) bool {
 
 	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
 		if errCode.Actual == http.StatusBadRequest {
+			return true
+		}
+	}
+
+	return false
+}
+
+func IsConflictError(err error) bool {
+	if _, ok := err.(gophercloud.ErrDefault409); ok {
+		return true
+	}
+
+	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
+		if errCode.Actual == http.StatusConflict {
 			return true
 		}
 	}

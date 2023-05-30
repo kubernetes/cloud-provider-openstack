@@ -227,6 +227,11 @@ Request Body:
 
   This annotations explicitly sets a hostname in the status of the load balancer service.
 
+- `loadbalancer.openstack.org/load-balancer-address`
+  
+  This annotation is automatically added and it contains the floating ip address of the load balancer service.
+  When using `loadbalancer.openstack.org/hostname` annotation it is the only place to see the real address of the load balancer.
+
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.
@@ -486,11 +491,15 @@ To enable PROXY protocol support, the either the openstack-cloud-controller-mana
 
 ### Sharing load balancer with multiple Services
 
-By default, different Services of LoadBalancer type should have different corresponding cloud load balancers, however, openstack-cloud-controller-manager allows multiple Services to share a single load balancer if the Octavia service supports the tag feature (since version 2.5).
+By default, different Services of LoadBalancer type should have different corresponding cloud load balancers, however, openstack-cloud-controller-manager allows multiple Services to share a single load balancer if the Octavia service supports the tag feature (since API version 2.5).
 
-The shared load balancer can be created either by other Services or outside the cluster, e.g. created manually by the user in the cloud or by Services from the other Kubernetes clusters. The load balancer is deleted only when the last attached Service is deleted, unless the load balancer was created outside the Kubernetes cluster.
+The shared load balancer can be created either by other Services or outside the cluster, e.g. created manually by the user in the cloud or by Services from the other Kubernetes clusters. The load balancer is deleted only when the last attached Service is deleted, unless the load balancer was created outside the Kubernetes cluster. 
+
+All Services attached to one shared load balancer will have the same external IP as the floating IP and LB VIP are shared too.
 
 The maximum number of Services that share a load balancer can be configured in `[LoadBalancer] max-shared-lb`, default value is 2. The ports of those Services shouldn't have collisions.
+
+In order to prevent accidental exposure internal Services cannot share a load balancer with any other Service. This means that cloud provider will prevent creation of a secondary internal Service sharing a load balancer with either external or internal Service. This is because floating IPs are attached to the load balancer and not to the listener.
 
 For example, create a Service `service-1` as before:
 

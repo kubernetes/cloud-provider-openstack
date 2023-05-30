@@ -47,7 +47,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 
 	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", shareName)
 		}
 
@@ -102,7 +102,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", share.Name)
 		}
 

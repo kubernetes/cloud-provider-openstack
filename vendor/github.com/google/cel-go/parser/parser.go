@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/antlr/antlr4/runtime/Go/antlr"
+	antlr "github.com/antlr/antlr4/runtime/Go/antlr/v4"
 
 	"github.com/google/cel-go/common"
 	"github.com/google/cel-go/common/operators"
@@ -552,7 +552,7 @@ func (p *parser) VisitSelect(ctx *gen.SelectContext) any {
 		return p.helper.newExpr(ctx)
 	}
 	id := ctx.GetId().GetText()
-	if ctx.GetOp().GetText() == ".?" {
+	if ctx.GetOpt() != nil {
 		if !p.enableOptionalSyntax {
 			return p.reportError(ctx.GetOp(), "unsupported syntax '.?'")
 		}
@@ -574,7 +574,7 @@ func (p *parser) VisitMemberCall(ctx *gen.MemberCallContext) any {
 	}
 	id := ctx.GetId().GetText()
 	opID := p.helper.id(ctx.GetOpen())
-	return p.receiverCallOrMacro(opID, id, operand, p.visitList(ctx.GetArgs())...)
+	return p.receiverCallOrMacro(opID, id, operand, p.visitExprList(ctx.GetArgs())...)
 }
 
 // Visit a parse tree produced by CELParser#Index.
@@ -587,7 +587,7 @@ func (p *parser) VisitIndex(ctx *gen.IndexContext) any {
 	opID := p.helper.id(ctx.GetOp())
 	index := p.Visit(ctx.GetIndex()).(*exprpb.Expr)
 	operator := operators.Index
-	if ctx.GetOp().GetText() == "[?" {
+	if ctx.GetOpt() != nil {
 		if !p.enableOptionalSyntax {
 			return p.reportError(ctx.GetOp(), "unsupported syntax '[?'")
 		}
@@ -666,7 +666,7 @@ func (p *parser) VisitIdentOrGlobalCall(ctx *gen.IdentOrGlobalCallContext) any {
 	identName += id
 	if ctx.GetOp() != nil {
 		opID := p.helper.id(ctx.GetOp())
-		return p.globalCallOrMacro(opID, identName, p.visitList(ctx.GetArgs())...)
+		return p.globalCallOrMacro(opID, identName, p.visitExprList(ctx.GetArgs())...)
 	}
 	return p.helper.newIdent(ctx.GetId(), identName)
 }
@@ -674,7 +674,8 @@ func (p *parser) VisitIdentOrGlobalCall(ctx *gen.IdentOrGlobalCallContext) any {
 // Visit a parse tree produced by CELParser#CreateList.
 func (p *parser) VisitCreateList(ctx *gen.CreateListContext) any {
 	listID := p.helper.id(ctx.GetOp())
-	return p.helper.newList(listID, p.visitList(ctx.GetElems())...)
+	elems, optionals := p.visitListInit(ctx.GetElems())
+	return p.helper.newList(listID, elems, optionals...)
 }
 
 // Visit a parse tree produced by CELParser#CreateStruct.
@@ -703,13 +704,13 @@ func (p *parser) VisitMapInitializerList(ctx *gen.MapInitializerListContext) any
 			// This is the result of a syntax error detected elsewhere.
 			return []*exprpb.Expr_CreateStruct_Entry{}
 		}
-		optKey := keys[i].(*gen.OptKeyContext)
+		optKey := keys[i]
 		optional := optKey.GetOpt() != nil
 		if !p.enableOptionalSyntax && optional {
 			p.reportError(optKey, "unsupported syntax '?'")
 			continue
 		}
-		key := p.Visit(optKey.Expr()).(*exprpb.Expr)
+		key := p.Visit(optKey.GetE()).(*exprpb.Expr)
 		value := p.Visit(vals[i]).(*exprpb.Expr)
 		entry := p.helper.newMapEntry(colID, key, value, optional)
 		result[i] = entry
@@ -796,11 +797,35 @@ func (p *parser) VisitNull(ctx *gen.NullContext) any {
 				NullValue: structpb.NullValue_NULL_VALUE}})
 }
 
-func (p *parser) visitList(ctx gen.IExprListContext) []*exprpb.Expr {
+func (p *parser) visitExprList(ctx gen.IExprListContext) []*exprpb.Expr {
 	if ctx == nil {
 		return []*exprpb.Expr{}
 	}
 	return p.visitSlice(ctx.GetE())
+}
+
+func (p *parser) visitListInit(ctx gen.IListInitContext) ([]*exprpb.Expr, []int32) {
+	if ctx == nil {
+		return []*exprpb.Expr{}, []int32{}
+	}
+	elements := ctx.GetElems()
+	result := make([]*exprpb.Expr, len(elements))
+	optionals := []int32{}
+	for i, e := range elements {
+		ex := p.Visit(e.GetE()).(*exprpb.Expr)
+		if ex == nil {
+			return []*exprpb.Expr{}, []int32{}
+		}
+		result[i] = ex
+		if e.GetOpt() != nil {
+			if !p.enableOptionalSyntax {
+				p.reportError(e.GetOpt(), "unsupported syntax '?'")
+				continue
+			}
+			optionals = append(optionals, int32(i))
+		}
+	}
+	return result, optionals
 }
 
 func (p *parser) visitSlice(expressions []gen.IExprContext) []*exprpb.Expr {
