@@ -106,7 +106,7 @@ logVerbosityLevel: 2
 # 4) via agent-injector (e.g. hashicorp vault): set "enabled" and "hostMount" to false, you have to provide credentials on your own by injecting credentials into the pod
 secret:
   enabled: false
-  hostMount: false
+  hostMount: true
   create: false
   filename: cloud.conf
 #  name: cinder-csi-cloud-config
