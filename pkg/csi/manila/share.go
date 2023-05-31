@@ -117,7 +117,7 @@ func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 	}
 
 	_, _, err := waitForShareStatus(share.ID, []string{shareDeleting}, "", true, manilaClient)
-	if err != nil && err != wait.ErrWaitTimeout {
+	if err != nil && !wait.Interrupted(err) {
 		klog.Errorf("couldn't retrieve volume %s in a roll-back procedure: %v", share.Name, err)
 	}
 }
@@ -133,7 +133,7 @@ func extendShare(shareID string, newSizeInGiB int, manilaClient manilaclient.Int
 
 	share, manilaErrCode, err := waitForShareStatus(shareID, []string{shareExtending}, shareAvailable, false, manilaClient)
 	if err != nil {
-		if err == wait.ErrWaitTimeout {
+		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
 		}
 

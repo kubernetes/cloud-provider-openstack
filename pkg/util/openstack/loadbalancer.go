@@ -18,6 +18,8 @@ package openstack
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -46,7 +48,7 @@ const (
 
 	waitLoadbalancerInitDelay   = 1 * time.Second
 	waitLoadbalancerFactor      = 1.2
-	waitLoadbalancerActiveSteps = 19
+	waitLoadbalancerActiveSteps = 23
 	waitLoadbalancerDeleteSteps = 12
 
 	activeStatus = "ACTIVE"
@@ -159,13 +161,24 @@ func IsOctaviaFeatureSupported(client *gophercloud.ServiceClient, feature int, l
 	return false
 }
 
+func getTimeoutSteps(name string, steps int) int {
+	if v := os.Getenv(name); v != "" {
+		s, err := strconv.Atoi(v)
+		if err == nil && s >= 0 {
+			return s
+		}
+	}
+	return steps
+}
+
 // WaitActiveAndGetLoadBalancer wait for LB active then return the LB object for further usage
 func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalancerID string) (*loadbalancers.LoadBalancer, error) {
 	klog.InfoS("Waiting for load balancer ACTIVE", "lbID", loadbalancerID)
+	steps := getTimeoutSteps("OCCM_WAIT_LB_ACTIVE_STEPS", waitLoadbalancerActiveSteps)
 	backoff := wait.Backoff{
 		Duration: waitLoadbalancerInitDelay,
 		Factor:   waitLoadbalancerFactor,
-		Steps:    waitLoadbalancerActiveSteps,
+		Steps:    steps,
 	}
 
 	var loadbalancer *loadbalancers.LoadBalancer
@@ -187,7 +200,7 @@ func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalance
 
 	})
 
-	if err == wait.ErrWaitTimeout {
+	if wait.Interrupted(err) {
 		err = fmt.Errorf("timeout waiting for the loadbalancer %s %s", loadbalancerID, activeStatus)
 	}
 
@@ -284,7 +297,7 @@ func waitLoadbalancerDeleted(client *gophercloud.ServiceClient, loadbalancerID s
 		return false, mc.ObserveRequest(nil)
 	})
 
-	if err == wait.ErrWaitTimeout {
+	if wait.Interrupted(err) {
 		err = fmt.Errorf("loadbalancer failed to delete within the allotted time")
 	}
 

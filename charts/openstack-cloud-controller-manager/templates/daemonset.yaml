@@ -18,13 +18,12 @@ spec:
   template:
     metadata:
       annotations:
-         checksum/config: {{ include "cloudConfig" . | sha256sum }}
-      labels:
-        {{- include "occm.controllermanager.labels" . | nindent 8 }}
-      annotations:
+        checksum/config: {{ include "cloudConfig" . | sha256sum }}
         {{- with .Values.commonAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      labels:
+        {{- include "occm.controllermanager.labels" . | nindent 8 }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -67,10 +66,14 @@ spec:
             name: http
             protocol: TCP
           {{- end }}
+          {{- if or (.Values.extraVolumeMounts) (.Values.secret.enabled) }}
           volumeMounts:
+          {{- end }}
+          {{- if .Values.secret.enabled }}
             - mountPath: /etc/config
               name: cloud-config-volume
               readOnly: true
+          {{- end }}
           {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
@@ -95,10 +98,18 @@ spec:
       initContainers: {{ toYaml .Values.extraInitContainers | nindent 6 }}
       {{- end }}
       hostNetwork: true
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+
+      {{- if or (.Values.extraVolumes) (.Values.secret.enabled) }}
       volumes:
+      {{- end }}
+      {{- if .Values.secret.enabled }}
       - name: cloud-config-volume
         secret:
           secretName: {{ .Values.secret.name }}
+      {{- end }}
       {{- if .Values.extraVolumes }}
         {{ toYaml .Values.extraVolumes | nindent 6 }}
       {{- end }}

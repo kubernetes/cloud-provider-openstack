@@ -14,19 +14,19 @@
 ##                               BUILD ARGS                                   ##
 ################################################################################
 # This build arg allows the specification of a custom Golang image.
-ARG GOLANG_IMAGE=golang:1.20.1
+ARG GOLANG_IMAGE=golang:1.20.3
 
 # The distroless image on which the CPI manager image is built.
 #
 # Please do not use "latest". Explicit tags should be used to provide
 # deterministic builds. Follow what kubernetes uses to build
-# kube-controller-manager, for example for 1.23.x:
-# https://github.com/kubernetes/kubernetes/blob/release-1.24/build/common.sh#L94
-ARG DISTROLESS_IMAGE=k8s.gcr.io/build-image/go-runner:v2.3.1-go1.20.1-bullseye.0
+# kube-controller-manager, for example for 1.27.x:
+# https://github.com/kubernetes/kubernetes/blob/release-1.27/build/common.sh#L99
+ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.3.1-go1.20.3-bullseye.0
 
 # We use Alpine as the source for default CA certificates and some output
 # images
-ARG ALPINE_IMAGE=alpine:3.15.4
+ARG ALPINE_IMAGE=alpine:3.17.3
 
 # cinder-csi-plugin uses Debian as a base image
 ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3
@@ -106,11 +106,33 @@ CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-co
 ##
 ## cinder-csi-plugin
 ##
-FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin
 
-# Install e4fsprogs for format
-RUN clean-install btrfs-progs e2fsprogs mount udev xfsprogs
+# step 1: copy all necessary files from Debian distro to /dest folder
+# all magic heppens in tools/csi-deps.sh
+FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin-utils
 
+RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs
+COPY tools/csi-deps.sh /tools/csi-deps.sh
+RUN /tools/csi-deps.sh
+
+# step 2: check if all necessary files are copied and work properly
+# the build have to finish without errors, but the result image will not be used
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as cinder-csi-plugin-utils-check
+
+COPY --from=cinder-csi-plugin-utils /dest /
+COPY --from=cinder-csi-plugin-utils /bin/sh /bin/sh
+COPY tools/csi-deps-check.sh /tools/csi-deps-check.sh
+
+SHELL ["/bin/sh"]
+RUN /tools/csi-deps-check.sh
+
+# step 3: build tiny cinder-csi-plugin image with only necessary files
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as cinder-csi-plugin
+
+# Copying csi-deps-check.sh simply ensures that the resulting image has a dependency
+# on cinder-csi-plugin-utils-check and therefore that the check has passed
+COPY --from=cinder-csi-plugin-utils-check /tools/csi-deps-check.sh /bin/csi-deps-check.sh
+COPY --from=cinder-csi-plugin-utils /dest /
 COPY --from=builder /build/cinder-csi-plugin /bin/cinder-csi-plugin
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs
 

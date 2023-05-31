@@ -11,7 +11,7 @@ commonAnnotations: {}
 
 # Image repository name and tag
 image:
-  repository: docker.io/k8scloudprovider/openstack-cloud-controller-manager
+  repository: registry.k8s.io/provider-os/openstack-cloud-controller-manager
   tag: ""
 
 # Additional containers which are run before the app containers are started.
@@ -81,7 +81,11 @@ serviceMonitor: {}
 # Create a secret resource cloud-config (or other name) to store credentials and settings from cloudConfig
 # You can also provide your own secret (not created by the Helm chart), in this case set create to false
 # and adjust the name of the secret as necessary
+# If you dont want to use a secret (because you are using something like an agent injector to inject the cloud config file)
+# you can disable the secret usage by setting enabled to false.
+# If you disable the secret, you have to insert the cloud config file into the path /etc/cloud/config.
 secret:
+  enabled: true
   create: true
   name: cloud-config
 
@@ -97,6 +101,10 @@ cloudConfig:
   loadBalancer:
   blockStorage:
   metadata:
+
+## Pod priority settings
+## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+priorityClassName:
 
 # The following three volumes are required to use all OCCM controllers,
 # but might not be needed if you just use a specific controller

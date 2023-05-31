@@ -153,10 +153,17 @@ Here are several other config options are not included in the example configurat
       flavor-id: a07528cf-4a99-4f8a-94de-691e0b3e2076
     ```
 
+- Option to set which Octavia provider to use. If unset octavia-ingress-controller will leave it unset so the load balancers will be created with the default provider configured for that OpenStack cloud, decided by the cloud administrator. You can use `openstack loadbalancer provider list` to check available Octavia providers. Please note that currently only Amphora provider is supporting all the features required for octavia-ingress-controller to work correctly. That provider can be named differently in the cloud you use.
+
+    ```yaml
+    octavia:
+      provider: amphora
+    ```
+
 ### Deploy octavia-ingress-controller
 
 ```shell
-image="docker.io/k8scloudprovider/octavia-ingress-controller:latest"
+image="registry.k8s.io/provider-os/octavia-ingress-controller:v1.27.1"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
