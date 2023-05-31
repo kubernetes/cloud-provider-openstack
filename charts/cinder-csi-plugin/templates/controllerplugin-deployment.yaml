@@ -27,7 +27,7 @@ spec:
         {{- include "cinder-csi.controllerplugin.labels" . | nindent 8 }}
       annotations:
         {{- with .Values.commonAnnotations }}
-        {{- toYaml . | nindent 4 }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       serviceAccount: csi-cinder-controller-sa
