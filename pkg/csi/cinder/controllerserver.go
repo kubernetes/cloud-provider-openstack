@@ -70,16 +70,13 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := req.GetParameters()["type"]
 
-	var volAvailability string
-
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, incase vol AZ is different from node AZ
-	volAvailability = req.GetParameters()["availability"]
-
-	if len(volAvailability) == 0 {
+	volAvailability := req.GetParameters()["availability"]
+	if volAvailability == "" {
 		// Check from Topology
 		if req.GetAccessibilityRequirements() != nil {
-			volAvailability = getAZFromTopology(req.GetAccessibilityRequirements())
+			volAvailability = util.GetAZFromTopology(topologyKey, req.GetAccessibilityRequirements())
 		}
 	}
 
@@ -650,23 +647,6 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		CapacityBytes:         volSizeBytes,
 		NodeExpansionRequired: true,
 	}, nil
-}
-
-func getAZFromTopology(requirement *csi.TopologyRequirement) string {
-	for _, topology := range requirement.GetPreferred() {
-		zone, exists := topology.GetSegments()[topologyKey]
-		if exists {
-			return zone
-		}
-	}
-
-	for _, topology := range requirement.GetRequisite() {
-		zone, exists := topology.GetSegments()[topologyKey]
-		if exists {
-			return zone
-		}
-	}
-	return ""
 }
 
 func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {

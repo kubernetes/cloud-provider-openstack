@@ -24,6 +24,7 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: default
   csi.storage.k8s.io/node-publish-secret-name: csi-manila-secrets
   csi.storage.k8s.io/node-publish-secret-namespace: default
+allowVolumeExpansion: true
 allowedTopologies:
   - matchLabelExpressions:
     - key: topology.manila.csi.openstack.org/zone
