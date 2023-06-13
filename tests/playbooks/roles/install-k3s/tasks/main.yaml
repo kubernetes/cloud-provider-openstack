@@ -143,10 +143,11 @@
   shell:
     executable: /bin/bash
     cmd: |
+      ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo cat /var/log/cloud-init.log 1>&2
       ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo chmod 777 /etc/rancher/k3s/k3s.yaml
   register: result
   until: result.rc == 0
-  retries: 100
+  retries: 20
   delay: 5
 
 - name: Prepare kubectl and kubeconfig file
