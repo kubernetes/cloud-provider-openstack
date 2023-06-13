@@ -112,24 +112,24 @@
       openstack server show k3s-worker{{ item }} > /dev/null 2>&1
       if [ $? -ne 0 ]; then
         # Prepare user data file for k3s worker
-        cat <<EOF > {{ devstack_workdir }}/init_k3s_worker{{ item }}.yaml
-        #cloud-config
-        manage_etc_hosts: "localhost"
-        package_update: true
-        runcmd:
-          - curl -sSL https://get.docker.com/ | sh
-          - mkdir -p /var/lib/rancher/k3s/agent/images/
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
-          - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
-          - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
-          - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
-        write_files:
-          - path: /etc/docker/daemon.json
-            content: |
-              {
-                "insecure-registries" : ["{{ ansible_default_ipv4.address }}"]
-              }
+        cat <<-EOF > {{ devstack_workdir }}/init_k3s_worker{{ item }}.yaml
+      #cloud-config
+      manage_etc_hosts: "localhost"
+      package_update: true
+      runcmd:
+        - curl -sSL https://get.docker.com/ | sh
+        - mkdir -p /var/lib/rancher/k3s/agent/images/
+        - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
+        - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
+        - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
+        - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
+        - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
+      write_files:
+        - path: /etc/docker/daemon.json
+          content: |
+            {
+              "insecure-registries" : ["{{ ansible_default_ipv4.address }}"]
+            }
       EOF
 
         # Create k3s worker
@@ -143,6 +143,7 @@
   shell:
     executable: /bin/bash
     cmd: |
+      ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo cat /var/lib/cloud/instance/scripts/runcmd 1>&2
       ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo cat /var/log/cloud-init.log 1>&2
       ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo chmod 777 /etc/rancher/k3s/k3s.yaml
   register: result
