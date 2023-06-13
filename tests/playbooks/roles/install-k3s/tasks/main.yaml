@@ -79,6 +79,13 @@
         manage_etc_hosts: "localhost"
         package_update: true
         runcmd:
+          - #!/bin/sh
+          - set -x
+          - exec > /root/userdata.log
+          - exec 2>&1
+          - ip a
+          - ip r
+          - cat /etc/resolv.conf
           - curl -sSL https://get.docker.com/ | sh
           - mkdir -p /var/lib/rancher/k3s/agent/images/
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
@@ -143,6 +150,7 @@
   shell:
     executable: /bin/bash
     cmd: |
+      ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo cat /root/userdata.log 1>&2
       ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo cat /var/lib/cloud/instance/scripts/runcmd 1>&2
       ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo cat /var/log/cloud-init.log 1>&2
       ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo chmod 777 /etc/rancher/k3s/k3s.yaml
