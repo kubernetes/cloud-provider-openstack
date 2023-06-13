@@ -16,10 +16,10 @@
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
 
-      REGISTRY={{ image_registry_host }} \
-      VERSION={{ github_pr }} \
-      IMAGE_NAMES=cinder-csi-plugin \
-      make upload-image-amd64
+      make push-multiarch-image-cinder-csi-plugin \
+        ARCHS='amd64' \
+        VERSION=v0.0.{{ github_pr }} \
+        REGISTRY={{ image_registry_host }}
 
 - name: Prepare cloud config
   shell:
@@ -60,9 +60,11 @@
       sed -i "/cloud\.conf/c\  cloud.conf: $b64data" manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml
 
       # replace image with built image
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.25.5#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.25.5#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.25.6#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.25.6#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
+      sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 - name: Deploy cinder-csi-plugin
   shell:
     executable: /bin/bash
@@ -130,6 +132,18 @@
       debug:
         var: describe_csi.stdout_lines
 
+    - name: get logs during error csi-cinder-plugin
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -x
+          set -e
+
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin
+
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log 
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
       fail:
         msg: *failmsg
@@ -156,11 +170,12 @@
       # TODO(chrigl): No idea why both tests fail in CI. On a real OpenStack both pass.
       /tmp/kubernetes/test/bin/e2e.test \
         -storage.testdriver=tests/e2e/csi/cinder/test-driver.yaml \
-        -ginkgo.focus='External.Storage' \
-        -ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]' \
-        -ginkgo.noColor \
-        -ginkgo.progress \
-        -ginkgo.v \
+        --ginkgo.focus='External.Storage' \
+        --ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]|should\s+support\s+expansion\s+of\s+pvcs\s+created\s+for\s+ephemeral\s+pvcs' \
+        --ginkgo.noColor \
+        --ginkgo.progress \
+        --ginkgo.v \
+        --ginkgo.timeout=24h \
         -test.timeout=0 \
         -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
@@ -172,7 +187,7 @@
     cmd: |
       set -x
       set -e
-      
+
       kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
       kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
   ignore_errors: true

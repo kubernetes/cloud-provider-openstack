@@ -1,0 +1,65 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: barbican-kms
+  namespace: kube-system
+  labels:
+    k8s-app: barbican-kms
+spec:
+  selector:
+    matchLabels:
+      k8s-app: barbican-kms
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        k8s-app: barbican-kms
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+      - key: node.cloudprovider.kubernetes.io/uninitialized
+        value: "true"
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+      serviceAccountName: cloud-controller-manager
+      containers:
+        - name: barbican-kms
+          image: registry.k8s.io/provider-os/barbican-kms-plugin:v1.25.6
+          args:
+            - /bin/barbican-kms-plugin
+            - --socketpath=$(KMS_ENDPOINT)
+            - --cloud-config=$(CLOUD_CONFIG)
+          volumeMounts:
+            - name: cloud-config-volume
+              mountPath: /etc/config
+            - name: socket-dir
+              mountPath: /kms/
+          env:
+            - name: CLOUD_CONFIG
+              value: /etc/config/cloud.conf
+            - name: KMS_ENDPOINT
+              value: /kms/kms.sock
+          livenessProbe:
+            failureThreshold: 5
+            exec:
+              command:
+                - ls
+                - $(KMS_ENDPOINT)
+            initialDelaySeconds: 10
+            timeoutSeconds: 10
+            periodSeconds: 60
+      volumes:
+      - name: cloud-config-volume
+        secret:
+          secretName: cloud-config
+      - name: socket-dir
+        hostPath:
+          path: /var/lib/kms/
+          type: DirectoryOrCreate
+      hostNetwork: true

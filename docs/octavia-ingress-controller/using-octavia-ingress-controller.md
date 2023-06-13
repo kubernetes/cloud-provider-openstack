@@ -148,7 +148,7 @@ Here are several other config options are not included in the example configurat
 ### Deploy octavia-ingress-controller
 
 ```shell
-image="registry.k8s.io/provider-os/octavia-ingress-controller:v1.25.5"
+image="registry.k8s.io/provider-os/octavia-ingress-controller:v1.25.6"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
@@ -381,7 +381,7 @@ Ingress and enable the more secure HTTPS protocol.
             # Any image is permissible as long as:
             # 1. It serves a 404 page at /
             # 2. It serves 200 on a /healthz endpoint
-            image: k8s.gcr.io/defaultbackend-amd64:1.5
+            image: registry.k8s.io/defaultbackend-amd64:1.5
             ports:
             - containerPort: 8080
     ---

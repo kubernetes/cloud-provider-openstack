@@ -3,7 +3,8 @@ name: Release Charts
 on:
   push:
     branches:
-      - "release-*"  # Only release charts from stable branches
+      - "master"
+      - "release-*"
 
 jobs:
   release:
