@@ -18,7 +18,7 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# k8s-keystone-auth
+# k8s-keystone-auth12
 
 [Kubernetes webhook authentication and authorization](https://kubernetes.io/docs/reference/access-authn-authz/webhook/)
 for OpenStack Keystone. With k8s-keystone-auth, the Kubernetes cluster
@@ -252,7 +252,7 @@ it as a service. There are several things we need to notice in the
 deployment manifest:
 
 - We are using image
-  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.25.5`
+  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.25.6`
 - We use `k8s-auth-policy` configmap created above.
 - The pod uses service account `keystone-auth` created above.
 - We use `keystone-auth-certs` secret created above to inject the
