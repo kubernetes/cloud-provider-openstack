@@ -64,4 +64,3 @@ func main() {
 	code := cli.Run(cmd)
 	os.Exit(code)
 }
-
