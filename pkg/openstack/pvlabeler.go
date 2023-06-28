@@ -21,6 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
@@ -29,7 +30,8 @@ import (
 
 // PVLabeler encapsulates an implementation of PVLabeler for OpenStack.
 type PVLabeler struct {
-	blockStorage *gophercloud.ServiceClient
+	blockStorage     *gophercloud.ServiceClient
+	sharedFileSystem *gophercloud.ServiceClient
 }
 
 // PVLabeler returns an implementation of PVLabeler for OpenStack.
@@ -46,8 +48,15 @@ func (os *OpenStack) pvlabeler() (*PVLabeler, bool) {
 		return nil, false
 	}
 
+	sharedFileSystem, err := client.NewSharedFileSystemV2(os.provider, os.epOpts)
+	if err != nil {
+		klog.Errorf("unable to access share v2 API : %v", err)
+		return nil, false
+	}
+
 	return &PVLabeler{
-		blockStorage: blockStorage,
+		blockStorage:     blockStorage,
+		sharedFileSystem: sharedFileSystem,
 	}, true
 }
 
@@ -57,6 +66,14 @@ func getVolumeAZ(client *gophercloud.ServiceClient, volumeID string) (string, er
 		return "", err
 	}
 	return volume.AvailabilityZone, nil
+}
+
+func getShareAZ(client *gophercloud.ServiceClient, shareID string) (string, error) {
+	share, err := shares.Get(client, shareID).Extract()
+	if err != nil {
+		return "", err
+	}
+	return share.AvailabilityZone, nil
 }
 
 func (p *PVLabeler) GetLabelsForVolume(ctx context.Context, pv *v1.PersistentVolume) (map[string]string, error) {
@@ -69,6 +86,12 @@ func (p *PVLabeler) GetLabelsForVolume(ctx context.Context, pv *v1.PersistentVol
 			return nil, err
 		}
 		labels["topology.kubernetes.io/zone"] = volumeAZ
+	case "manila.csi.openstack.org":
+		shareAZ, err := getShareAZ(p.sharedFileSystem, pv.Spec.CSI.VolumeHandle)
+		if err != nil {
+			return nil, err
+		}
+		labels["topology.kubernetes.io/zone"] = shareAZ
 	default:
 		return labels, nil
 	}

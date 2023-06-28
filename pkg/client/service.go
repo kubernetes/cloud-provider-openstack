@@ -50,6 +50,15 @@ func NewBlockStorageV3(provider *gophercloud.ProviderClient, eo *gophercloud.End
 	return storage, nil
 }
 
+// NewSharedFileSystemV2 creates a ServiceClient that may be used with the Manila v2 API
+func NewSharedFileSystemV2(provider *gophercloud.ProviderClient, eo *gophercloud.EndpointOpts) (*gophercloud.ServiceClient, error) {
+	share, err := openstack.NewSharedFileSystemV2(provider, *eo)
+	if err != nil {
+		return nil, fmt.Errorf("unable to find manila v2 %s endpoint for region %s: %v", eo.Availability, eo.Region, err)
+	}
+	return share, err
+}
+
 // NewLoadBalancerV2 creates a ServiceClient that may be used with the Neutron LBaaS v2 API
 func NewLoadBalancerV2(provider *gophercloud.ProviderClient, eo *gophercloud.EndpointOpts) (*gophercloud.ServiceClient, error) {
 	var lb *gophercloud.ServiceClient
