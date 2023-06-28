@@ -32,6 +32,7 @@ import (
 type PVLabeler struct {
 	blockStorage     *gophercloud.ServiceClient
 	sharedFileSystem *gophercloud.ServiceClient
+	region           string
 }
 
 // PVLabeler returns an implementation of PVLabeler for OpenStack.
@@ -57,6 +58,7 @@ func (os *OpenStack) pvlabeler() (*PVLabeler, bool) {
 	return &PVLabeler{
 		blockStorage:     blockStorage,
 		sharedFileSystem: sharedFileSystem,
+		region:           os.epOpts.Region,
 	}, true
 }
 
@@ -86,12 +88,14 @@ func (p *PVLabeler) GetLabelsForVolume(ctx context.Context, pv *v1.PersistentVol
 			return nil, err
 		}
 		labels["topology.kubernetes.io/zone"] = volumeAZ
+		labels["topology.kubernetes.io/region"] = p.region
 	case "manila.csi.openstack.org":
 		shareAZ, err := getShareAZ(p.sharedFileSystem, pv.Spec.CSI.VolumeHandle)
 		if err != nil {
 			return nil, err
 		}
 		labels["topology.kubernetes.io/zone"] = shareAZ
+		labels["topology.kubernetes.io/region"] = p.region
 	default:
 		return labels, nil
 	}
