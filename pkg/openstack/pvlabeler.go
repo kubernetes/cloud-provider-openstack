@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
@@ -50,8 +51,27 @@ func (os *OpenStack) pvlabeler() (*PVLabeler, bool) {
 	}, true
 }
 
+func getVolumeAZ(client *gophercloud.ServiceClient, volumeID string) (string, error) {
+	volume, err := volumes.Get(client, volumeID).Extract()
+	if err != nil {
+		return "", err
+	}
+	return volume.AvailabilityZone, nil
+}
+
 func (p *PVLabeler) GetLabelsForVolume(ctx context.Context, pv *v1.PersistentVolume) (map[string]string, error) {
 	labels := map[string]string{}
+
+	switch pv.Spec.CSI.Driver {
+	case "cinder.csi.openstack.org":
+		volumeAZ, err := getVolumeAZ(p.blockStorage, pv.Spec.CSI.VolumeHandle)
+		if err != nil {
+			return nil, err
+		}
+		labels["topology.kubernetes.io/zone"] = volumeAZ
+	default:
+		return labels, nil
+	}
 
 	return labels, nil
 }
