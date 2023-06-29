@@ -2256,10 +2256,10 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 				"failed to apply security rule for port %d, %w",
 				port.NodePort, err)
 		}
+	}
 
-		if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
-			return err
-		}
+	if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
+		return err
 	}
 	return nil
 }
