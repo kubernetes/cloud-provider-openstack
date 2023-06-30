@@ -17,9 +17,9 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -27,7 +27,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/spf13/pflag"
-	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -88,45 +87,13 @@ type Config struct {
 	BlockStorage BlockStorageOpts
 }
 
+func (cfg *Config) AuthOpts() *client.AuthOpts {
+	return &cfg.Global
+}
+
 func logcfg(cfg Config) {
 	client.LogCfg(cfg.Global)
 	klog.Infof("Block storage opts: %v", cfg.BlockStorage)
-}
-
-// GetConfigFromFiles retrieves config options from file
-func GetConfigFromFiles(configFilePaths []string) (Config, error) {
-	var cfg Config
-
-	// Read all specified config files in order. Values from later config files
-	// will overwrite values from earlier ones.
-	for _, configFilePath := range configFilePaths {
-		config, err := os.Open(configFilePath)
-		if err != nil {
-			klog.Errorf("Failed to open OpenStack configuration file: %v", err)
-			return cfg, err
-		}
-		defer config.Close()
-
-		err = gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
-		if err != nil {
-			klog.Errorf("Failed to read OpenStack configuration file: %v", err)
-			return cfg, err
-		}
-	}
-
-	// Update the config with data from clouds.yaml if UseClouds is enabled
-	if cfg.Global.UseClouds {
-		if cfg.Global.CloudsFile != "" {
-			os.Setenv("OS_CLIENT_CONFIG_FILE", cfg.Global.CloudsFile)
-		}
-		err := client.ReadClouds(&cfg.Global)
-		if err != nil {
-			return cfg, err
-		}
-		klog.V(5).Infof("Credentials are loaded from %s:", cfg.Global.CloudsFile)
-	}
-
-	return cfg, nil
 }
 
 const defaultMaxVolAttachLimit int64 = 256
@@ -154,18 +121,20 @@ func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 
 // CreateOpenStackProvider creates Openstack Instance
 func CreateOpenStackProvider() (IOpenStack, error) {
-	// Get config from file
-	cfg, err := GetConfigFromFiles(configFiles)
+	config, err := client.NewCloudConfigFactory(context.TODO(), client.CloudConfigFactoryOpts{}, configFiles...)
 	if err != nil {
-		klog.Errorf("GetConfigFromFiles %s failed with error: %v", configFiles, err)
 		return nil, err
 	}
-	logcfg(cfg)
 
-	provider, err := client.NewOpenStackClient(&cfg.Global, "cinder-csi-plugin", userAgentData...)
+	// Create the initial provider.
+	var cfg Config
+
+	provider, err := config.Provider(&cfg, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
+
+	logcfg(cfg)
 
 	epOpts := gophercloud.EndpointOpts{
 		Region:       cfg.Global.Region,
