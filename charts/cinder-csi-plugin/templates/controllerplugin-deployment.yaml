@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   replicas: {{ .Values.csi.plugin.controllerPlugin.replicas }}
   strategy:
@@ -21,6 +25,10 @@ spec:
     metadata:
       labels:
         {{- include "cinder-csi.controllerplugin.labels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccount: csi-cinder-controller-sa
       containers:
@@ -169,11 +177,13 @@ spec:
       volumes:
         - name: socket-dir
           emptyDir:
-        - name: cloud-config
         {{- if .Values.secret.enabled }}
+        - name: cloud-config
           secret:
             secretName: {{ .Values.secret.name }}
-        {{- else }}
+        {{- end }}
+        {{- if .Values.secret.hostMount }}
+        - name: cloud-config
           hostPath:
             path: /etc/kubernetes
         {{- end }}

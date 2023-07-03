@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "cinder-csi.nodeplugin.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   selector:
     matchLabels:
@@ -13,6 +17,10 @@ spec:
     metadata:
       labels:
         {{- include "cinder-csi.nodeplugin.labels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccount: csi-cinder-node-sa
       hostNetwork: true
@@ -127,11 +135,13 @@ spec:
           hostPath:
             path: /dev
             type: Directory
-        - name: cloud-config
         {{- if .Values.secret.enabled }}
+        - name: cloud-config
           secret:
             secretName: {{ .Values.secret.name }}
-        {{- else }}
+        {{- end }}
+        {{- if .Values.secret.hostMount }}
+        - name: cloud-config
           hostPath:
             path: /etc/kubernetes
         {{- end }}
