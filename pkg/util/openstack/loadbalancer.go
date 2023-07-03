@@ -668,11 +668,15 @@ func CreateL7Rule(client *gophercloud.ServiceClient, policyID string, opts l7pol
 }
 
 // UpdateHealthMonitor updates a health monitor.
-func UpdateHealthMonitor(client *gophercloud.ServiceClient, monitorID string, opts monitors.UpdateOpts) error {
+func UpdateHealthMonitor(client *gophercloud.ServiceClient, monitorID string, opts monitors.UpdateOpts, lbID string) error {
 	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "update")
 	_, err := monitors.Update(client, monitorID, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return fmt.Errorf("failed to update healthmonitor: %v", err)
+	}
+
+	if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating healthmonitor: %v", lbID, err)
 	}
 
 	return nil
