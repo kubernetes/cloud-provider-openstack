@@ -28,7 +28,7 @@
 # apt-get update; apt install -y docker-ce=<version>
 - name: Install docker-ce
   apt:
-    name: docker-ce={{ docker_version }}
+    name: docker-ce #={{ docker_version }}
     state: present
     update_cache: yes
 

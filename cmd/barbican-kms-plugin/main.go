@@ -29,49 +29,36 @@ import (
 )
 
 var (
-	socketpath  string
-	cloudconfig string
+	socketPath  string
+	cloudConfig string
 )
 
 func main() {
-	// Glog requires this otherwise it complains.
-	if err := flag.CommandLine.Parse(nil); err != nil {
-		klog.Fatalf("Unable to parse flags: %v", err)
-	}
+	flag.Parse()
+
 	// This is a temporary hack to enable proper logging until upstream dependencies
 	// are migrated to fully utilize klog instead of glog.
-	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(klogFlags)
-	// Sync the glog and klog flags.
-	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
-		f2 := klogFlags.Lookup(f1.Name)
-		if f2 != nil {
-			value := f1.Value.String()
-			_ = f2.Value.Set(value)
-		}
-	})
+	klog.InitFlags(nil)
 
 	cmd := &cobra.Command{
 		Use:   "barbican-kms-plugin",
-		Short: "Barbican KMS plugin for kubernetes",
+		Short: "Barbican KMS plugin for Kubernetes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sigchan := make(chan os.Signal, 1)
-			signal.Notify(sigchan, unix.SIGTERM, unix.SIGINT)
-			err := server.Run(cloudconfig, socketpath, sigchan)
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, unix.SIGTERM, unix.SIGINT)
+			err := server.Run(cloudConfig, socketPath, sigChan)
 			return err
 		},
 	}
 
-	cmd.Flags().AddGoFlagSet(flag.CommandLine)
-
-	cmd.PersistentFlags().StringVar(&socketpath, "socketpath", "", "Barbican KMS Plugin unix socket endpoint")
+	cmd.PersistentFlags().StringVar(&socketPath, "socketpath", "", "Barbican KMS Plugin unix socket endpoint")
 	if err := cmd.MarkPersistentFlagRequired("socketpath"); err != nil {
-		klog.Fatalf("Unable to mark flag socketpath to be required: %v", err)
+		klog.Fatalf("Unable to mark flag socketpath as required: %v", err)
 	}
 
-	cmd.PersistentFlags().StringVar(&cloudconfig, "cloud-config", "", "Barbican KMS Plugin cloud config")
+	cmd.PersistentFlags().StringVar(&cloudConfig, "cloud-config", "", "Barbican KMS Plugin cloud config")
 	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
-		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
+		klog.Fatalf("Unable to mark flag cloud-config as required: %v", err)
 	}
 
 	code := cli.Run(cmd)

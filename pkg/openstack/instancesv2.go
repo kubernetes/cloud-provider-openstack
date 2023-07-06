@@ -34,6 +34,7 @@ import (
 // InstancesV2 encapsulates an implementation of InstancesV2 for OpenStack.
 type InstancesV2 struct {
 	compute          *gophercloud.ServiceClient
+	network          *gophercloud.ServiceClient
 	region           string
 	regionProviderID bool
 	networkingOpts   NetworkingOpts
@@ -56,6 +57,12 @@ func (os *OpenStack) instancesv2() (*InstancesV2, bool) {
 		return nil, false
 	}
 
+	network, err := client.NewNetworkV2(os.provider, os.epOpts)
+	if err != nil {
+		klog.Errorf("unable to access network v2 API : %v", err)
+		return nil, false
+	}
+
 	regionalProviderID := false
 	if isRegionalProviderID := sysos.Getenv(RegionalProviderIDEnv); isRegionalProviderID == "true" {
 		regionalProviderID = true
@@ -63,6 +70,7 @@ func (os *OpenStack) instancesv2() (*InstancesV2, bool) {
 
 	return &InstancesV2{
 		compute:          compute,
+		network:          network,
 		region:           os.epOpts.Region,
 		regionProviderID: regionalProviderID,
 		networkingOpts:   os.networkingOpts,
@@ -115,12 +123,12 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 		return nil, err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(i.compute, server.ID)
+	ports, err := getAttachedPorts(i.network, server.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	addresses, err := nodeAddresses(&server.Server, interfaces, i.networkingOpts)
+	addresses, err := nodeAddresses(&server.Server, ports, i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}

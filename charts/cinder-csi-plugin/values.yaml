@@ -98,8 +98,15 @@ csi:
 # for description of individual verbosity levels.
 logVerbosityLevel: 2
 
+# the secret should contain the openstack credentials
+# there are several options to inject the credentials:
+# 1) from kubernetes secret that doesn't exist: set "enabled" and "create" to true, this will create a secret from the values written to "data" down below
+# 2) from kubernetes secret that already exists: set "enabled" to true and "create" to false
+# 3) from host system path /etc/cloud/cloud.conf: set "enabled" to false and "hostMount" to true
+# 4) via agent-injector (e.g. hashicorp vault): set "enabled" and "hostMount" to false, you have to provide credentials on your own by injecting credentials into the pod
 secret:
   enabled: false
+  hostMount: true
   create: false
   filename: cloud.conf
 #  name: cinder-csi-cloud-config
@@ -149,3 +156,6 @@ priorityClassName: ""
 
 imagePullSecrets: []
 # - name: my-imagepull-secret
+
+# add annotations to all pods
+commonAnnotations: {}
