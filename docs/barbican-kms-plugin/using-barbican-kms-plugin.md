@@ -23,7 +23,7 @@ It is recommended to read following kubernetes documents
 The following installation steps assumes that you have a Kubernetes cluster(v1.10+) running on OpenStack Cloud.
 
 
-### Create 256bit(32 byte) cbc key and store in barbican
+### Create 256-bit(32 byte) cbc key and store in barbican
 
 ```
 $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-length 256 --payload-content-type=application/octet-stream key
@@ -41,7 +41,7 @@ $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-
 +----------------+----------------------------------------------------------------------+
 ```
 
-### Get the Key ID, It is the **uuid** in *Secret href*
+### Get the Key ID, it is the **uuid** in *Secret href*
 
 ```
 $ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e
@@ -60,7 +60,7 @@ $ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b
 ```
 
 
-### Add the Key ID in your cloud-config file
+### Add the key ID in your cloud-config file
 
 ```toml
 [Global]
@@ -79,7 +79,7 @@ key-id = "<key-id>"
 ### Run the KMS Plugin in your cluster
 
 This will provide a socket at `/var/lib/kms/kms.sock` on each of the control
-plane node
+plane nodes.
 ```
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/barbican-kms/ds.yaml
 ```
@@ -87,7 +87,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-ope
 example `release-1.25` for kubernetes version 1.25.
 
 
-### Create encrytion configuration
+### Create encryption configuration
 
 Create `/etc/kubernetes/encryption-config.yaml` on each of your control plane
 nodes
