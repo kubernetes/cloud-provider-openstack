@@ -9,7 +9,7 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # OpenStack Barbican KMS Plugin
-Kubernetes supports to encrypting etcd data with various providers listed [here](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#providers), one of which is *kms*. The Kubernetes *kms provider* uses an envelope encryption scheme. The data is encrypted using *DEK's* by kubernetes *kms provider*, *DEK's* are encrypted by *kms plugin* (e.g. barbican) using *KEK*. *Barbican-kms-plugin* uses *key* from barbican to encrypt/decrypt the *DEK's* as requested by kubernetes api server. 
+Kubernetes supports encrypting etcd data with various providers listed [here](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#providers), one of which is *kms*. The Kubernetes *kms provider* uses an envelope encryption scheme. The data is encrypted using *DEK's* by kubernetes *kms provider*, *DEK's* are encrypted by *kms plugin* (e.g. barbican) using *KEK*. *Barbican-kms-plugin* uses *key* from barbican to encrypt/decrypt the *DEK's* as requested by kubernetes api server. 
 The *KMS provider* uses gRPC to communicate with a specific *KMS plugin*.
 
 It is recommended to read the following kubernetes documents  
