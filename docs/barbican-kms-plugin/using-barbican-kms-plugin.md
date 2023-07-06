@@ -23,7 +23,7 @@ It is recommended to read following kubernetes documents
 The following installation steps assumes that you have a Kubernetes cluster(v1.10+) running on OpenStack Cloud.
 
 
-### Create 256-bit(32 byte) cbc key and store in barbican
+### Create 256-bit (32 byte) CBC key and store in barbican
 
 ```
 $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-length 256 --payload-content-type=application/octet-stream key
@@ -41,7 +41,7 @@ $ openstack secret order create --name k8s_key --algorithm aes --mode cbc --bit-
 +----------------+----------------------------------------------------------------------+
 ```
 
-### Get the Key ID, it is the **uuid** in *Secret href*
+### Get the key ID, it is the **uuid** in *Secret href*
 
 ```
 $ openstack secret order get http://hostname:9311/v1/orders/e477a578-4a46-4c3f-b071-79e220207b0e
