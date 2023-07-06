@@ -34,7 +34,7 @@ import (
 var (
 	endpoint     string
 	nodeID       string
-	cloudconfig  []string
+	cloudConfig  []string
 	cluster      string
 	httpEndpoint string
 )
@@ -83,7 +83,7 @@ func main() {
 		klog.Fatalf("Unable to mark flag endpoint to be required: %v", err)
 	}
 
-	cmd.PersistentFlags().StringSliceVar(&cloudconfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
+	cmd.PersistentFlags().StringSliceVar(&cloudConfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
 	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
 		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
 	}
@@ -100,7 +100,7 @@ func handle() {
 
 	// Initialize cloud
 	d := cinder.NewDriver(endpoint, cluster)
-	openstack.InitOpenStackProvider(cloudconfig, httpEndpoint)
+	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
 	cloud, err := openstack.GetOpenStackProvider()
 	if err != nil {
 		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
