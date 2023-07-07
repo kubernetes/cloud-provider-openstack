@@ -34,17 +34,22 @@ import (
 )
 
 var (
-	endpoint              string
+	// Driver configuration
 	driverName            string
-	nodeID                string
-	nodeAZ                string
-	runtimeConfigFile     string
 	withTopology          bool
 	protoSelector         string
 	fwdEndpoint           string
-	userAgentData         []string
 	compatibilitySettings string
-	clusterID             string
+
+	// Node information
+	nodeID    string
+	nodeAZ    string
+	clusterID string
+
+	// Runtime options
+	endpoint          string
+	runtimeConfigFile string
+	userAgentData     []string
 )
 
 func validateShareProtocolSelector(v string) error {
