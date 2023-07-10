@@ -69,6 +69,13 @@ csi:
         mountPath: /etc/kubernetes
         readOnly: true
     nodePlugin:
+      podSecurityContext: {}
+      securityContext: {}
+        # capabilities:
+        #   drop:
+        #   - ALL
+        # seccompProfile:
+        #   type: RuntimeDefault
       affinity: {}
       nodeSelector: {}
       tolerations:
@@ -87,6 +94,19 @@ csi:
           # maxSurge is the maximum number of pods that can be
           # created over the desired number of pods.
           maxSurge: 1
+      podSecurityContext: {}
+        # runAsNonRoot: true
+        # runAsUser: 65532
+        # runAsGroup: 65532
+        # fsGroup: 65532
+        # fsGroupChangePolicy: OnRootMismatch
+      securityContext: {}
+        # capabilities:
+        #   drop:
+        #   - ALL
+        # seccompProfile:
+        #   type: RuntimeDefault
+        # readOnlyRootFilesystem: true
       affinity: {}
       nodeSelector: {}
       tolerations: []

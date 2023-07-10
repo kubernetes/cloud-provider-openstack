@@ -26,6 +26,8 @@ spec:
       hostNetwork: true
       containers:
         - name: node-driver-registrar
+          securityContext:
+            {{- toYaml .Values.csi.plugin.nodePlugin.securityContext | nindent 12 }}
           image: "{{ .Values.csi.nodeDriverRegistrar.image.repository }}:{{ .Values.csi.nodeDriverRegistrar.image.tag }}"
           imagePullPolicy: {{ .Values.csi.nodeDriverRegistrar.image.pullPolicy }}
           args:
@@ -53,6 +55,8 @@ spec:
               mountPath: /registration
           resources: {{ toYaml .Values.csi.nodeDriverRegistrar.resources | nindent 12 }}
         - name: liveness-probe
+          securityContext:
+            {{- toYaml .Values.csi.plugin.nodePlugin.securityContext | nindent 12 }}
           image: "{{ .Values.csi.livenessprobe.image.repository }}:{{ .Values.csi.livenessprobe.image.tag }}"
           imagePullPolicy: {{ .Values.csi.livenessprobe.image.pullPolicy }}
           args:
@@ -112,7 +116,9 @@ spec:
             - name: pods-probe-dir
               mountPath: /dev
               mountPropagation: "HostToContainer"
-            {{- .Values.csi.plugin.volumeMounts | toYaml | trimSuffix "\n" | nindent 12 }}
+          {{- with .Values.csi.plugin.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources: {{ toYaml .Values.csi.plugin.resources | nindent 12 }}
       volumes:
         - name: socket-dir
@@ -139,13 +145,14 @@ spec:
         - name: cloud-config
           secret:
             secretName: {{ .Values.secret.name }}
-        {{- end }}
-        {{- if .Values.secret.hostMount }}
+        {{- else if .Values.secret.hostMount }}
         - name: cloud-config
           hostPath:
             path: /etc/kubernetes
         {{- end }}
-        {{ .Values.csi.plugin.volumes | toYaml | trimSuffix "\n" | nindent 8 }}
+        {{- with .Values.csi.plugin.volumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
       affinity: {{ toYaml .Values.csi.plugin.nodePlugin.affinity | nindent 8 }}
       nodeSelector: {{ toYaml .Values.csi.plugin.nodePlugin.nodeSelector | nindent 8 }}
       tolerations: {{ toYaml .Values.csi.plugin.nodePlugin.tolerations | nindent 8 }}
