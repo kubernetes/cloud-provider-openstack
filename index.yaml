@@ -3,6 +3,20 @@ entries:
   openstack-cinder-csi:
   - apiVersion: v1
     appVersion: v1.27.1
+    created: "2023-07-10T01:31:26.061567398Z"
+    description: Cinder CSI Chart for OpenStack
+    digest: 4b9871739bb01c5a8806a9c51d0c4334d05989ea093348e2dd66977d19a738f9
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: brtknr@bath.edu
+      name: brtknr
+    name: openstack-cinder-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-2.28.0-alpha.5/openstack-cinder-csi-2.28.0-alpha.5.tgz
+    version: 2.28.0-alpha.5
+  - apiVersion: v1
+    appVersion: v1.27.1
     created: "2023-06-08T01:26:35.010839496Z"
     description: Cinder CSI Chart for OpenStack
     digest: 5d56602c98b9ae1afddb2c7e4ca44cb14f9fc824adc6bbeda7b6f0797a471ede
@@ -352,6 +366,21 @@ entries:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-1.2.2/openstack-cinder-csi-1.2.2.tgz
     version: 1.2.2
   openstack-cloud-controller-manager:
+  - apiVersion: v1
+    appVersion: v1.27.1
+    created: "2023-07-10T01:31:26.219499002Z"
+    description: Openstack Cloud Controller Manager Helm Chart
+    digest: 98dee96a675495eab4af6d192b165f5b5934087420bbfbd73f8e6c24e680064d
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://object-storage-ca-ymq-1.vexxhost.net/swift/v1/6e4619c416ff4bd19e1c087f27a43eea/www-images-prod/openstack-logo/OpenStack-Logo-Vertical.png
+    maintainers:
+    - email: f.kloeker@telekom.de
+      name: eumel8
+      url: https://www.telekom.com
+    name: openstack-cloud-controller-manager
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-2.28.0-alpha.7/openstack-cloud-controller-manager-2.28.0-alpha.7.tgz
+    version: 2.28.0-alpha.7
   - apiVersion: v1
     appVersion: v1.27.1
     created: "2023-06-21T14:26:11.077266334Z"
