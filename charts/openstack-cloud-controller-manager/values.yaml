@@ -37,7 +37,7 @@ livenessProbe: {}
 readinessProbe: {}
 
 # Set nodeSelector where the controller shut run, i.e. controlplane nodes
-nodeSelector: []
+nodeSelector: {}
 # nodeSelector:
 #   node-role.kubernetes.io/controlplane: "true"
 
@@ -58,6 +58,8 @@ tolerations: []
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
 podSecurityContext:
   runAsUser: 1001
+  # seccompProfile:
+  #   type: RuntimeDefault
 
 # List of controllers should be enabled.
 # Use '*' to enable all controllers.
