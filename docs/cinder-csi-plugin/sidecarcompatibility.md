@@ -11,6 +11,6 @@
 
 ## Set file type in provisioner
 
-There is a change in [csi-provisioner 2.0](https://github.com/kubernetes-csi/external-provisioner/blob/master/CHANGELOG/CHANGELOG-2.0.md): The fstype on provisioned PVs no longer defaults to "ext4". A defaultFStype arg is added to the provisioner. Admins can also specify this fstype via storage class parameter. If fstype is set in storage class parameter, it will be used. The sidecar arg is only checked if fstype is not set in the SC param.
+There is a change in [CSI provisioner 2.0](https://github.com/kubernetes-csi/external-provisioner/blob/master/CHANGELOG/CHANGELOG-2.0.md): The fstype on provisioned PVs no longer defaults to "ext4". A `defaultFSType` argument is added to the provisioner. Admins can also specify this fstype via storage class parameter. If fstype is set in storage class parameter, it will be used. The sidecar argument is only checked if fstype is not set in the SC param.
 
-By default, in the manifest file a `--default-fstype=ext4` default settings are added to [manifests](../../manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml), if you want to update it , please add a `fsType: ext4` into the storageclass definition.
+By default, in the manifest file a `--default-fstype=ext4` default settings are added to [manifests](../../manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml), if you want to update it , please add a `fsType: ext4` into the storage class definition.
