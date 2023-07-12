@@ -40,13 +40,13 @@ import (
 	secgroups "github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups"
 	"gopkg.in/godo.v2/glob"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
+	"k8s.io/utils/strings/slices"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
@@ -721,15 +721,13 @@ func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, pref
 }
 
 // applyNodeSecurityGroupIDForLB associates the security group with all the ports on the nodes.
-func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, nodes []*corev1.Node, sg string) error {
+func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, nodes []*corev1.Node, sg string) error {
 	for _, node := range nodes {
-		nodeName := types.NodeName(node.Name)
-		srv, err := getServerByName(compute, nodeName)
+		serverID, _, err := instanceIDFromProviderID(node.Spec.ProviderID)
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting server ID from the node: %w", err)
 		}
-
-		listOpts := neutronports.ListOpts{DeviceID: srv.ID}
+		listOpts := neutronports.ListOpts{DeviceID: serverID}
 		allPorts, err := openstackutil.GetPorts(network, listOpts)
 		if err != nil {
 			return err
@@ -737,31 +735,29 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 
 		for _, port := range allPorts {
 			// If the Security Group is already present on the port, skip it.
-			// As soon as this only supports Go 1.18, this can be replaces by
-			// slices.Contains.
-			if func() bool {
-				for _, currentSG := range port.SecurityGroups {
-					if currentSG == sg {
-						return true
-					}
-				}
-				return false
-			}() {
+			if slices.Contains(port.SecurityGroups, sg) {
 				continue
 			}
 
-			newSGs := append(port.SecurityGroups, sg)
-			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
-			mc := metrics.NewMetricContext("port", "update")
-			res := neutronports.Update(network, port.ID, updateOpts)
-			if mc.ObserveRequest(res.Err) != nil {
-				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
-			}
 			// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
-			mc = metrics.NewMetricContext("port_tag", "add")
+			// We're doing that before actually applying the SG as if tagging would fail we wouldn't be able to find the port
+			// when deleting the SG and operation would be stuck forever. It's better to find more ports than not all of them.
+			mc := metrics.NewMetricContext("port_tag", "add")
 			err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr()
 			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, err)
+			}
+
+			// Add the SG to the port
+			// TODO(dulek): This isn't an atomic operation. In order to protect from lost update issues we should use
+			//              `revision_number` handling to make sure our update to `security_groups` field wasn't preceded
+			//              by a different one. Same applies to a removal of the SG.
+			newSGs := append(port.SecurityGroups, sg)
+			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+			mc = metrics.NewMetricContext("port", "update")
+			res := neutronports.Update(network, port.ID, updateOpts)
+			if mc.ObserveRequest(res.Err) != nil {
+				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 			}
 		}
 	}
@@ -2325,7 +2321,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		}
 	}
 
-	if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
+	if err := applyNodeSecurityGroupIDForLB(lbaas.network, nodes, lbSecGroupID); err != nil {
 		return err
 	}
 	return nil

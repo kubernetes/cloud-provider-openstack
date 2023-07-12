@@ -71,7 +71,6 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 type LoadBalancer struct {
 	secret  *gophercloud.ServiceClient
 	network *gophercloud.ServiceClient
-	compute *gophercloud.ServiceClient
 	lb      *gophercloud.ServiceClient
 	opts    LoadBalancerOpts
 	kclient kubernetes.Interface
@@ -335,12 +334,6 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 		return nil, false
 	}
 
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		klog.Errorf("Failed to create an OpenStack Compute client: %v", err)
-		return nil, false
-	}
-
 	lb, err := client.NewLoadBalancerV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("Failed to create an OpenStack LoadBalancer client: %v", err)
@@ -363,7 +356,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{secret, network, compute, lb, os.lbOpts, os.kclient}}, true
+	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient}}, true
 }
 
 // Zones indicates that we support zones
