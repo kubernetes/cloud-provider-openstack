@@ -281,6 +281,7 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
+	klog.V(4).Infof("ListVolumes: called with %+#v request", req)
 
 	if req.MaxEntries < 0 {
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf(
@@ -297,7 +298,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ListVolumes failed with error %v", err))
 	}
 
-	var ventries []*csi.ListVolumesResponse_Entry
+	ventries := make([]*csi.ListVolumesResponse_Entry, 0, len(vlist))
 	for _, v := range vlist {
 		ventry := csi.ListVolumesResponse_Entry{
 			Volume: &csi.Volume{
@@ -307,6 +308,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		}
 
 		status := &csi.ListVolumesResponse_VolumeStatus{}
+		status.PublishedNodeIds = make([]string, 0, len(v.Attachments))
 		for _, attachment := range v.Attachments {
 			status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
 		}
@@ -314,6 +316,8 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 
 		ventries = append(ventries, &ventry)
 	}
+
+	klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(ventries), nextPageToken)
 	return &csi.ListVolumesResponse{
 		Entries:   ventries,
 		NextToken: nextPageToken,
@@ -479,7 +483,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		return nil, status.Errorf(codes.Internal, "ListSnapshots failed with error %v", err)
 	}
 
-	var sentries []*csi.ListSnapshotsResponse_Entry
+	sentries := make([]*csi.ListSnapshotsResponse_Entry, 0, len(slist))
 	for _, v := range slist {
 		ctime := timestamppb.New(v.CreatedAt)
 		if err := ctime.CheckValid(); err != nil {
@@ -583,6 +587,7 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 	}
 
 	status := &csi.ControllerGetVolumeResponse_VolumeStatus{}
+	status.PublishedNodeIds = make([]string, 0, len(volume.Attachments))
 	for _, attachment := range volume.Attachments {
 		status.PublishedNodeIds = append(status.PublishedNodeIds, attachment.ServerID)
 	}
