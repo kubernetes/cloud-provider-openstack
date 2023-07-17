@@ -703,8 +703,7 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 // getAttachedPorts returns a list of ports attached to a server.
 func getAttachedPorts(client *gophercloud.ServiceClient, serverID string) ([]ports.Port, error) {
 	listOpts := ports.ListOpts{
-		DeviceID:    serverID,
-		DeviceOwner: "compute:nova",
+		DeviceID: serverID,
 	}
 
 	return openstack.GetPorts(client, listOpts)
