@@ -122,7 +122,7 @@ func NewResourceTracker(ingressName string, client *gophercloud.ServiceClient, l
 
 	logger := log.WithFields(log.Fields{"ingress": ingressName, "lbID": lbID})
 
-	var oldPoolIDs []string
+	oldPoolIDs := make([]string, 0, len(oldPoolMapping))
 	for _, poolID := range oldPoolMapping {
 		oldPoolIDs = append(oldPoolIDs, poolID)
 	}
@@ -181,7 +181,7 @@ func (rt *ResourceTracker) CreateResources() error {
 		rt.logger.WithFields(log.Fields{"poolName": pool.Name, "poolID": poolID}).Info("pool members updated ")
 	}
 
-	var curPoolIDs []string
+	curPoolIDs := make([]string, 0, len(poolMapping))
 	for _, id := range poolMapping {
 		curPoolIDs = append(curPoolIDs, id)
 	}

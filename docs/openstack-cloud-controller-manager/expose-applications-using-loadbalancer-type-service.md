@@ -33,7 +33,7 @@ Create an application of Deployment as the Service backend:
 kubectl run echoserver --image=gcr.io/google-containers/echoserver:1.10 --port=8080
 ```
 
-To provide the echoserver application with an internet-facing loadbalancer we can simply run the following:
+To provide the echoserver application with an internet-facing loadbalancer, we can simply run the following:
 
 ```shell
 cat <<EOF | kubectl apply -f -
@@ -53,7 +53,7 @@ spec:
 EOF
 ```
 
-Check the state the status of the loadbalanced-service until the `EXTERNAL-IP` status is no longer pending.
+Check the state and status of the loadbalanced-service until the `EXTERNAL-IP` status is no longer pending.
 
 ```shell
 $ kubectl get service loadbalanced-service
