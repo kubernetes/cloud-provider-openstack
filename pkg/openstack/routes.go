@@ -82,7 +82,7 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 		return nil, err
 	}
 
-	var routes []*cloudprovider.Route
+	routes := make([]*cloudprovider.Route, 0, len(router.Routes))
 	for _, item := range router.Routes {
 		nodeName, foundNode := getNodeNameByAddr(item.NextHop, nodes)
 		route := cloudprovider.Route{
