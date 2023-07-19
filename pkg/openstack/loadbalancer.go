@@ -699,9 +699,9 @@ func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, pref
 		return "", err
 	}
 
-	instanceID := node.Spec.ProviderID
-	if ind := strings.LastIndex(instanceID, "/"); ind >= 0 {
-		instanceID = instanceID[(ind + 1):]
+	_, instanceID, err := instanceIDFromProviderID(node.Spec.ProviderID)
+	if err != nil {
+		return "", fmt.Errorf("can't determine instance ID from ProviderID when autodetecting LB subnet: %w", err)
 	}
 
 	ports, err := getAttachedPorts(network, instanceID)
