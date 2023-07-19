@@ -2017,6 +2017,12 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
+	} else {
+		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
+		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
+		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+			return status, err
+		}
 	}
 
 	return status, nil
@@ -2143,6 +2149,9 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
 	}
+	// We don't try to lookup and delete the SG here when `manage-security-group=false` as `UpdateLoadBalancer()` is
+	// only called on changes to the list of the Nodes. Deletion of the SG on reconfiguration will be handled by
+	// EnsureLoadBalancer() that is the true LB reconcile function.
 
 	return nil
 }
@@ -2511,11 +2520,10 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		klog.InfoS("Updated load balancer tags", "lbID", loadbalancer.ID)
 	}
 
-	// Delete the Security Group
-	if lbaas.opts.ManageSecurityGroups {
-		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
-			return err
-		}
+	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
+	// orphan created SGs even if CPO got reconfigured.
+	if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+		return err
 	}
 
 	return nil
