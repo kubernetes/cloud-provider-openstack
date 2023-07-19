@@ -805,21 +805,6 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 	return nil
 }
 
-// isSecurityGroupNotFound return true while 'err' is object of gophercloud.ErrResourceNotFound
-func isSecurityGroupNotFound(err error) bool {
-	errType := reflect.TypeOf(err).String()
-	errTypeSlice := strings.Split(errType, ".")
-	errTypeValue := ""
-	if len(errTypeSlice) != 0 {
-		errTypeValue = errTypeSlice[len(errTypeSlice)-1]
-	}
-	if errTypeValue == "ErrResourceNotFound" {
-		return true
-	}
-
-	return false
-}
-
 // deleteListeners deletes listeners and its default pool.
 func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.Listener) error {
 	for _, listener := range listenerList {
@@ -2226,7 +2211,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		// If the security group of LB not exist, create it later
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			lbSecGroupID = ""
 		} else {
 			return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
@@ -2542,7 +2527,7 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Servi
 	lbSecGroupName := getSecurityGroupName(service)
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			// It is OK when the security group has been deleted by others.
 			return nil
 		}
