@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -123,11 +122,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	shareTypeCaps, err := capabilities.GetManilaCapabilities(shareOpts.Type, manilaClient)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get Manila capabilities for share type %s: %v", shareOpts.Type, err)
-	}
-
 	requestedSize := req.GetCapacityRange().GetRequiredBytes()
 	if requestedSize == 0 {
 		// At least 1GiB
@@ -159,12 +153,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	share, err := volCreator.create(req, req.GetName(), sizeInGiB, manilaClient, shareOpts, shareMetadata)
+	share, err := volCreator.create(manilaClient, req, req.GetName(), sizeInGiB, shareOpts, shareMetadata)
 	if err != nil {
 		return nil, err
 	}
 
-	err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts, cs.d.compatOpts, shareTypeCaps)
+	err = verifyVolumeCompatibility(sizeInGiB, req, share, shareOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.AlreadyExists, "volume %s already exists, but is incompatible with the request: %v", req.GetName(), err)
 	}
@@ -212,7 +206,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	if err := deleteShare(req.GetVolumeId(), manilaClient); err != nil {
+	if err := deleteShare(manilaClient, req.GetVolumeId()); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete volume %s: %v", req.GetVolumeId(), err)
 	}
 
@@ -271,7 +265,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Retrieve an existing snapshot or create a new one
 
-	snapshot, err := getOrCreateSnapshot(req.GetName(), sourceShare.ID, manilaClient)
+	snapshot, err := getOrCreateSnapshot(manilaClient, req.GetName(), sourceShare.ID)
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of volume %s to become available", snapshot.ID, req.GetSourceVolumeId())
@@ -299,9 +293,9 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		readyToUse = true
 	case snapshotError:
 		// An error occurred, try to roll-back the snapshot
-		tryDeleteSnapshot(snapshot, manilaClient)
+		tryDeleteSnapshot(manilaClient, snapshot)
 
-		manilaErrMsg, err := lastResourceError(snapshot.ID, manilaClient)
+		manilaErrMsg, err := lastResourceError(manilaClient, snapshot.ID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "snapshot %s of volume %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err.Error())
 		}
@@ -344,7 +338,7 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	if err := deleteSnapshot(req.GetSnapshotId(), manilaClient); err != nil {
+	if err := deleteSnapshot(manilaClient, req.GetSnapshotId()); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete snapshot %s: %v", req.GetSnapshotId(), err)
 	}
 
@@ -482,7 +476,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		}, nil
 	}
 
-	share, err = extendShare(share.ID, desiredSizeInGiB, manilaClient)
+	share, err = extendShare(manilaClient, share.ID, desiredSizeInGiB)
 	if err != nil {
 		return nil, err
 	}

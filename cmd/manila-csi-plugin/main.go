@@ -27,7 +27,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
@@ -65,38 +64,6 @@ func validateShareProtocolSelector(v string) error {
 	return fmt.Errorf("share protocol %q not supported; supported protocols are %v", v, supportedShareProtocols)
 }
 
-func parseCompatOpts() (*options.CompatibilityOptions, error) {
-	data := make(map[string]string)
-
-	if compatibilitySettings == "" {
-		return options.NewCompatibilityOptions(data)
-	}
-
-	knownCompatSettings := map[string]interface{}{}
-
-	isKnown := func(v string) bool {
-		_, ok := knownCompatSettings[v]
-		return ok
-	}
-
-	settings := strings.Split(compatibilitySettings, ",")
-	for _, elem := range settings {
-		setting := strings.SplitN(elem, "=", 2)
-
-		if len(setting) != 2 || setting[0] == "" || setting[1] == "" {
-			return nil, fmt.Errorf("invalid format in option %v, expected KEY=VALUE", setting)
-		}
-
-		if !isKnown(setting[0]) {
-			return nil, fmt.Errorf("unrecognized option '%s'", setting[0])
-		}
-
-		data[setting[0]] = setting[1]
-	}
-
-	return options.NewCompatibilityOptions(data)
-}
-
 func main() {
 	if err := flag.CommandLine.Parse([]string{}); err != nil {
 		klog.Fatalf("Unable to parse flags: %v", err)
@@ -131,11 +98,6 @@ func main() {
 				klog.Fatalf(err.Error())
 			}
 
-			compatOpts, err := parseCompatOpts()
-			if err != nil {
-				klog.Fatalf("failed to parse compatibility settings: %v", err)
-			}
-
 			manilaClientBuilder := &manilaclient.ClientBuilder{UserAgent: "manila-csi-plugin", ExtraUserAgentData: userAgentData}
 			csiClientBuilder := &csiclient.ClientBuilder{}
 
@@ -150,7 +112,6 @@ func main() {
 					FwdCSIEndpoint:      fwdEndpoint,
 					ManilaClientBuilder: manilaClientBuilder,
 					CSIClientBuilder:    csiClientBuilder,
-					CompatOpts:          compatOpts,
 					ClusterID:           clusterID,
 				},
 			)
