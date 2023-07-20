@@ -633,7 +633,7 @@ func nodeAddresses(srv *servers.Server, ports []ports.Port, networkingOpts Netwo
 		return nil, err
 	}
 
-	var networks []string
+	networks := make([]string, 0, len(addresses))
 	for k := range addresses {
 		networks = append(networks, k)
 	}

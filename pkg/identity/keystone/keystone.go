@@ -337,6 +337,7 @@ func (k *Auth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[s
 	attrs := authorizer.AttributesRecord{User: usr}
 
 	groups := spec["group"].([]interface{})
+	usr.Groups = make([]string, 0, len(groups))
 	for _, v := range groups {
 		usr.Groups = append(usr.Groups, v.(string))
 	}

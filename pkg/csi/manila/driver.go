@@ -170,7 +170,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
 	}
-	var nscaps []csi.NodeServiceCapability_RPC_Type
+	nscaps := make([]csi.NodeServiceCapability_RPC_Type, 0, len(nodeCapsMap))
 	for c := range nodeCapsMap {
 		nscaps = append(nscaps, c)
 
@@ -195,7 +195,7 @@ func (d *Driver) Run() {
 }
 
 func (d *Driver) addControllerServiceCapabilities(cs []csi.ControllerServiceCapability_RPC_Type) {
-	var caps []*csi.ControllerServiceCapability
+	caps := make([]*csi.ControllerServiceCapability, 0, len(cs))
 
 	for _, c := range cs {
 		klog.Infof("Enabling controller service capability: %v", c.String())
@@ -214,7 +214,7 @@ func (d *Driver) addControllerServiceCapabilities(cs []csi.ControllerServiceCapa
 }
 
 func (d *Driver) addVolumeCapabilityAccessModes(vs []csi.VolumeCapability_AccessMode_Mode) {
-	var caps []*csi.VolumeCapability_AccessMode
+	caps := make([]*csi.VolumeCapability_AccessMode, 0, len(vs))
 
 	for _, c := range vs {
 		klog.Infof("Enabling volume access mode: %v", c.String())
@@ -225,7 +225,7 @@ func (d *Driver) addVolumeCapabilityAccessModes(vs []csi.VolumeCapability_Access
 }
 
 func (d *Driver) addNodeServiceCapabilities(ns []csi.NodeServiceCapability_RPC_Type) {
-	var caps []*csi.NodeServiceCapability
+	caps := make([]*csi.NodeServiceCapability, 0, len(ns))
 
 	for _, c := range ns {
 		klog.Infof("Enabling node service capability: %v", c.String())
