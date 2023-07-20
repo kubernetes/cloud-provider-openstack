@@ -60,7 +60,7 @@ func isShareInErrorState(s string) bool {
 
 // getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
 // Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
-func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
+func getOrCreateShare(manilaClient manilaclient.Interface, shareName string, createOpts *shares.CreateOpts) (*shares.Share, manilaError, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -90,10 +90,10 @@ func getOrCreateShare(shareName string, createOpts *shares.CreateOpts, manilaCli
 		return share, 0, nil
 	}
 
-	return waitForShareStatus(share.ID, []string{shareCreating, shareCreatingFromSnapshot}, shareAvailable, false, manilaClient)
+	return waitForShareStatus(manilaClient, share.ID, []string{shareCreating, shareCreatingFromSnapshot}, shareAvailable, false)
 }
 
-func deleteShare(shareID string, manilaClient manilaclient.Interface) error {
+func deleteShare(manilaClient manilaclient.Interface, shareID string) error {
 	if err := manilaClient.DeleteShare(shareID); err != nil {
 		if clouderrors.IsNotFound(err) {
 			klog.V(4).Infof("volume with share ID %s not found, assuming it to be already deleted", shareID)
@@ -105,7 +105,7 @@ func deleteShare(shareID string, manilaClient manilaclient.Interface) error {
 	return nil
 }
 
-func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
+func tryDeleteShare(manilaClient manilaclient.Interface, share *shares.Share) {
 	if share == nil {
 		return
 	}
@@ -116,13 +116,13 @@ func tryDeleteShare(share *shares.Share, manilaClient manilaclient.Interface) {
 		return
 	}
 
-	_, _, err := waitForShareStatus(share.ID, []string{shareDeleting}, "", true, manilaClient)
+	_, _, err := waitForShareStatus(manilaClient, share.ID, []string{shareDeleting}, "", true)
 	if err != nil && !wait.Interrupted(err) {
 		klog.Errorf("couldn't retrieve volume %s in a roll-back procedure: %v", share.Name, err)
 	}
 }
 
-func extendShare(shareID string, newSizeInGiB int, manilaClient manilaclient.Interface) (*shares.Share, error) {
+func extendShare(manilaClient manilaclient.Interface, shareID string, newSizeInGiB int) (*shares.Share, error) {
 	opts := shares.ExtendOpts{
 		NewSize: newSizeInGiB,
 	}
@@ -131,7 +131,7 @@ func extendShare(shareID string, newSizeInGiB int, manilaClient manilaclient.Int
 		return nil, err
 	}
 
-	share, manilaErrCode, err := waitForShareStatus(shareID, []string{shareExtending}, shareAvailable, false, manilaClient)
+	share, manilaErrCode, err := waitForShareStatus(manilaClient, shareID, []string{shareExtending}, shareAvailable, false)
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
@@ -143,7 +143,7 @@ func extendShare(shareID string, newSizeInGiB int, manilaClient manilaclient.Int
 	return share, nil
 }
 
-func waitForShareStatus(shareID string, validTransientStates []string, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*shares.Share, manilaError, error) {
+func waitForShareStatus(manilaClient manilaclient.Interface, shareID string, validTransientStates []string, desiredStatus string, successOnNotFound bool) (*shares.Share, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -185,7 +185,7 @@ func waitForShareStatus(shareID string, validTransientStates []string, desiredSt
 		}
 
 		if isShareInErrorState(share.Status) {
-			manilaErrMsg, err := lastResourceError(shareID, manilaClient)
+			manilaErrMsg, err := lastResourceError(manilaClient, shareID)
 			if err != nil {
 				return false, fmt.Errorf("share %s is in error state, error description could not be retrieved: %v", shareID, err)
 			}

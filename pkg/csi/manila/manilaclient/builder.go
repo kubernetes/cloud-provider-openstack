@@ -28,6 +28,14 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
+const (
+	minimumManilaVersion = "2.37"
+)
+
+var (
+	manilaMicroversionRegexp = regexp.MustCompile(`^(\d+)\.(\d+)$`)
+)
+
 type ClientBuilder struct {
 	UserAgent          string
 	ExtraUserAgentData []string
@@ -37,13 +45,30 @@ func (cb *ClientBuilder) New(o *client.AuthOpts) (Interface, error) {
 	return New(o, cb.UserAgent, cb.ExtraUserAgentData)
 }
 
-const (
-	minimumManilaVersion = "2.37"
-)
+func New(o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
+	// Authenticate and create Manila v2 client
+	provider, err := client.NewOpenStackClient(o, userAgent, extraUserAgentData...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate: %v", err)
+	}
 
-var (
-	manilaMicroversionRegexp = regexp.MustCompile(`^(\d+)\.(\d+)$`)
-)
+	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{
+		Region:       o.Region,
+		Availability: o.EndpointType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
+	}
+
+	// Check client's and server's versions for compatibility
+
+	client.Microversion = minimumManilaVersion
+	if err = validateManilaClient(client); err != nil {
+		return nil, fmt.Errorf("Manila v2 client validation failed: %v", err)
+	}
+
+	return &Client{c: client}, nil
+}
 
 func splitManilaMicroversion(microversion string) (major, minor int) {
 	if err := validateManilaMicroversion(microversion); err != nil {
@@ -95,33 +120,4 @@ func validateManilaClient(c *gophercloud.ServiceClient) error {
 	}
 
 	return nil
-}
-
-func New(o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
-	// Authenticate and create Manila v2 client
-	provider, err := client.NewOpenStackClient(o, userAgent, extraUserAgentData...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate: %v", err)
-	}
-
-	client, err := openstack.NewSharedFileSystemV2(provider, gophercloud.EndpointOpts{
-		Region:       o.Region,
-		Availability: o.EndpointType,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
-	}
-
-	// Check client's and server's versions for compatibility
-
-	client.Microversion = minimumManilaVersion
-	if err = validateManilaClient(client); err != nil {
-		return nil, fmt.Errorf("Manila v2 client validation failed: %v", err)
-	}
-
-	return &Client{c: client}, nil
-}
-
-func NewFromServiceClient(c *gophercloud.ServiceClient) *Client {
-	return &Client{c: c}
 }

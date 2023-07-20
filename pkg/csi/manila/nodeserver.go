@@ -128,8 +128,11 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	// Build volume context for fwd plugin
 
 	sa := getShareAdapter(ns.d.shareProto)
-
-	volumeContext, err = sa.BuildVolumeContext(&shareadapters.VolumeContextArgs{Locations: availableExportLocations, Options: shareOpts})
+	opts := &shareadapters.VolumeContextArgs{
+		Locations: availableExportLocations,
+		Options:   shareOpts,
+	}
+	volumeContext, err = sa.BuildVolumeContext(opts)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.InvalidArgument, "failed to build volume context for volume %s: %v", volID, err)
 	}
@@ -138,7 +141,10 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 }
 
 func buildNodePublishSecret(accessRight *shares.AccessRight, sa shareadapters.ShareAdapter, volID volumeID) (map[string]string, error) {
-	secret, err := sa.BuildNodePublishSecret(&shareadapters.SecretArgs{AccessRight: accessRight})
+	opts := &shareadapters.SecretArgs{
+		AccessRight: accessRight,
+	}
+	secret, err := sa.BuildNodePublishSecret(opts)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to build publish secret for volume %s: %v", volID, err)
 	}
@@ -147,7 +153,10 @@ func buildNodePublishSecret(accessRight *shares.AccessRight, sa shareadapters.Sh
 }
 
 func buildNodeStageSecret(accessRight *shares.AccessRight, sa shareadapters.ShareAdapter, volID volumeID) (map[string]string, error) {
-	secret, err := sa.BuildNodeStageSecret(&shareadapters.SecretArgs{AccessRight: accessRight})
+	opts := &shareadapters.SecretArgs{
+		AccessRight: accessRight,
+	}
+	secret, err := sa.BuildNodeStageSecret(opts)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to build stage secret for volume %s: %v", volID, err)
 	}
@@ -201,7 +210,6 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			secret, err = buildNodePublishSecret(accessRight, getShareAdapter(ns.d.shareProto), volID)
 		}
 	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +287,6 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		}
 	}
 	ns.nodeStageCacheMtx.Unlock()
-
 	if err != nil {
 		return nil, err
 	}
