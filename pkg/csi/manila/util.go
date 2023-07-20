@@ -26,7 +26,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
 	"google.golang.org/grpc/codes"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/capabilities"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/klog/v2"
@@ -68,6 +67,7 @@ const (
 )
 
 var (
+	// TODO: add 001 and add a refernce to these codes
 	manilaErrorCodesMap = map[string]manilaError{
 		"002": manilaErrNoValidHost,
 		"003": manilaErrUnexpectedNetwork,
@@ -129,7 +129,7 @@ func bytesToGiB(sizeInBytes int64) int {
 	return sizeInGiB
 }
 
-func lastResourceError(resourceID string, manilaClient manilaclient.Interface) (manilaErrorMessage, error) {
+func lastResourceError(manilaClient manilaclient.Interface, resourceID string) (manilaErrorMessage, error) {
 	msgs, err := manilaClient.GetUserMessages(&messages.ListOpts{
 		ResourceID:   resourceID,
 		MessageLevel: "ERROR",
@@ -232,7 +232,7 @@ func coalesceValue(v string) string {
 	return v
 }
 
-func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext, compatOpts *options.CompatibilityOptions, shareTypeCaps capabilities.ManilaCapabilities) error {
+func verifyVolumeCompatibility(sizeInGiB int, req *csi.CreateVolumeRequest, share *shares.Share, shareOpts *options.ControllerVolumeContext) error {
 	if share.Size != sizeInGiB {
 		return fmt.Errorf("size mismatch: wanted %d, got %d", share.Size, sizeInGiB)
 	}

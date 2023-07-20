@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
 )
@@ -49,8 +48,6 @@ type DriverOpts struct {
 
 	ManilaClientBuilder manilaclient.Builder
 	CSIClientBuilder    csiclient.Builder
-
-	CompatOpts *options.CompatibilityOptions
 }
 
 type Driver struct {
@@ -64,8 +61,6 @@ type Driver struct {
 
 	serverEndpoint string
 	fwdEndpoint    string
-
-	compatOpts *options.CompatibilityOptions
 
 	ids *identityServer
 	cs  *controllerServer
@@ -103,7 +98,14 @@ func argNotEmpty(val, name string) error {
 }
 
 func NewDriver(o *DriverOpts) (*Driver, error) {
-	for k, v := range map[string]string{"node ID": o.NodeID, "driver name": o.DriverName, "driver endpoint": o.ServerCSIEndpoint, "FWD endpoint": o.FwdCSIEndpoint, "share protocol selector": o.ShareProto} {
+	m := map[string]string{
+		"node ID":                 o.NodeID,
+		"driver name":             o.DriverName,
+		"driver endpoint":         o.ServerCSIEndpoint,
+		"FWD endpoint":            o.FwdCSIEndpoint,
+		"share protocol selector": o.ShareProto,
+	}
+	for k, v := range m {
 		if err := argNotEmpty(v, k); err != nil {
 			return nil, err
 		}
@@ -118,7 +120,6 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		serverEndpoint:      o.ServerCSIEndpoint,
 		fwdEndpoint:         o.FwdCSIEndpoint,
 		shareProto:          strings.ToUpper(o.ShareProto),
-		compatOpts:          o.CompatOpts,
 		manilaClientBuilder: o.ManilaClientBuilder,
 		csiClientBuilder:    o.CSIClientBuilder,
 		clusterID:           o.ClusterID,

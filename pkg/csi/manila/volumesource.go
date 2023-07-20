@@ -28,12 +28,12 @@ import (
 )
 
 type volumeCreator interface {
-	create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error)
+	create(manilaClient manilaclient.Interface, req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error)
 }
 
 type blankVolume struct{}
 
-func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
+func (blankVolume) create(manilaClient manilaclient.Interface, req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
 	createOpts := &shares.CreateOpts{
 		AvailabilityZone: shareOpts.AvailabilityZone,
 		ShareProto:       shareOpts.Protocol,
@@ -45,7 +45,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 		Metadata:         shareMetadata,
 	}
 
-	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
+	share, manilaErrCode, err := getOrCreateShare(manilaClient, shareName, createOpts)
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", shareName)
@@ -53,7 +53,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 
 		if manilaErrCode != 0 {
 			// An error has occurred, try to roll-back the share
-			tryDeleteShare(share, manilaClient)
+			tryDeleteShare(manilaClient, share)
 		}
 
 		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to create volume %s: %v", shareName, err)
@@ -64,7 +64,7 @@ func (blankVolume) create(req *csi.CreateVolumeRequest, shareName string, sizeIn
 
 type volumeFromSnapshot struct{}
 
-func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, manilaClient manilaclient.Interface, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
+func (volumeFromSnapshot) create(manilaClient manilaclient.Interface, req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
 	snapshotSource := req.GetVolumeContentSource().GetSnapshot()
 
 	if snapshotSource.GetSnapshotId() == "" {
@@ -100,7 +100,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 		Metadata:         shareMetadata,
 	}
 
-	share, manilaErrCode, err := getOrCreateShare(shareName, createOpts, manilaClient)
+	share, manilaErrCode, err := getOrCreateShare(manilaClient, shareName, createOpts)
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", share.Name)
@@ -108,7 +108,7 @@ func (volumeFromSnapshot) create(req *csi.CreateVolumeRequest, shareName string,
 
 		if manilaErrCode != 0 {
 			// An error has occurred, try to roll-back the share
-			tryDeleteShare(share, manilaClient)
+			tryDeleteShare(manilaClient, share)
 		}
 
 		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to restore snapshot %s into volume %s: %v", snapshotSource.GetSnapshotId(), shareName, err)
