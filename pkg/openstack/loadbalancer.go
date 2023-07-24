@@ -801,21 +801,6 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 	return nil
 }
 
-// isSecurityGroupNotFound return true while 'err' is object of gophercloud.ErrResourceNotFound
-func isSecurityGroupNotFound(err error) bool {
-	errType := reflect.TypeOf(err).String()
-	errTypeSlice := strings.Split(errType, ".")
-	errTypeValue := ""
-	if len(errTypeSlice) != 0 {
-		errTypeValue = errTypeSlice[len(errTypeSlice)-1]
-	}
-	if errTypeValue == "ErrResourceNotFound" {
-		return true
-	}
-
-	return false
-}
-
 // deleteListeners deletes listeners and its default pool.
 func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.Listener) error {
 	for _, listener := range listenerList {
@@ -2028,6 +2013,12 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
+	} else {
+		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
+		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
+		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+			return status, err
+		}
 	}
 
 	return status, nil
@@ -2154,6 +2145,9 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
 	}
+	// We don't try to lookup and delete the SG here when `manage-security-group=false` as `UpdateLoadBalancer()` is
+	// only called on changes to the list of the Nodes. Deletion of the SG on reconfiguration will be handled by
+	// EnsureLoadBalancer() that is the true LB reconcile function.
 
 	return nil
 }
@@ -2222,7 +2216,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		// If the security group of LB not exist, create it later
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			lbSecGroupID = ""
 		} else {
 			return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
@@ -2522,11 +2516,10 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		klog.InfoS("Updated load balancer tags", "lbID", loadbalancer.ID)
 	}
 
-	// Delete the Security Group
-	if lbaas.opts.ManageSecurityGroups {
-		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
-			return err
-		}
+	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
+	// orphan created SGs even if CPO got reconfigured.
+	if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+		return err
 	}
 
 	return nil
@@ -2538,7 +2531,7 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Servi
 	lbSecGroupName := getSecurityGroupName(service)
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			// It is OK when the security group has been deleted by others.
 			return nil
 		}
