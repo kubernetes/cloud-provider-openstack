@@ -801,21 +801,6 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 	return nil
 }
 
-// isSecurityGroupNotFound return true while 'err' is object of gophercloud.ErrResourceNotFound
-func isSecurityGroupNotFound(err error) bool {
-	errType := reflect.TypeOf(err).String()
-	errTypeSlice := strings.Split(errType, ".")
-	errTypeValue := ""
-	if len(errTypeSlice) != 0 {
-		errTypeValue = errTypeSlice[len(errTypeSlice)-1]
-	}
-	if errTypeValue == "ErrResourceNotFound" {
-		return true
-	}
-
-	return false
-}
-
 // deleteListeners deletes listeners and its default pool.
 func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.Listener) error {
 	for _, listener := range listenerList {
@@ -1408,8 +1393,10 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 		listenerCreateOpt.Protocol = listeners.ProtocolHTTP
 	}
 
-	if len(svcConf.allowedCIDR) > 0 {
-		listenerCreateOpt.AllowedCIDRs = svcConf.allowedCIDR
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
+		if len(svcConf.allowedCIDR) > 0 {
+			listenerCreateOpt.AllowedCIDRs = svcConf.allowedCIDR
+		}
 	}
 	return listenerCreateOpt
 }
@@ -1766,18 +1753,19 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.timeoutTCPInspect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutTCPInspect, 0)
 	}
 
-	var listenerAllowedCIDRs []string
 	sourceRanges, err := GetLoadBalancerSourceRanges(service, svcConf.preferredIPFamily)
 	if err != nil {
 		return fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
 		klog.V(4).Info("LoadBalancerSourceRanges is suppported")
-		listenerAllowedCIDRs = sourceRanges.StringSlice()
+		svcConf.allowedCIDR = sourceRanges.StringSlice()
+	} else if lbaas.opts.LBProvider == "ovn" && lbaas.opts.ManageSecurityGroups {
+		klog.V(4).Info("LoadBalancerSourceRanges will be enforced on the SG created and attached to LB members")
+		svcConf.allowedCIDR = sourceRanges.StringSlice()
 	} else {
-		klog.Warning("LoadBalancerSourceRanges is ignored")
+		klog.Warning("LoadBalancerSourceRanges are ignored")
 	}
-	svcConf.allowedCIDR = listenerAllowedCIDRs
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
 		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
@@ -2024,9 +2012,15 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer, svcConf.preferredIPFamily, svcConf.lbMemberSubnetID)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, nodes, svcConf)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
+		}
+	} else {
+		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
+		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
+		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+			return status, err
 		}
 	}
 
@@ -2077,14 +2071,6 @@ func (lbaas *LbaasV2) ensureSecurityRule(sgRuleCreateOpts rules.CreateOpts) erro
 		return fmt.Errorf("failed to create rule for security group %s: %v", sgRuleCreateOpts.SecGroupID, err)
 	}
 	return nil
-}
-
-// ensureSecurityGroup ensures security group exist for specific loadbalancer service.
-// Creating security group for specific loadbalancer service when it does not exist.
-func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node,
-	loadbalancer *loadbalancers.LoadBalancer, preferredIPFamily corev1.IPFamily, memberSubnetID string) error {
-
-	return lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, apiService, nodes, memberSubnetID)
 }
 
 func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
@@ -2149,11 +2135,14 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.updateSecurityGroup(clusterName, service, nodes, svcConf.lbMemberSubnetID)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, nodes, svcConf)
 		if err != nil {
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
 	}
+	// We don't try to lookup and delete the SG here when `manage-security-group=false` as `UpdateLoadBalancer()` is
+	// only called on changes to the list of the Nodes. Deletion of the SG on reconfiguration will be handled by
+	// EnsureLoadBalancer() that is the true LB reconcile function.
 
 	return nil
 }
@@ -2210,7 +2199,7 @@ func getRulesToCreateAndDelete(wantedRules []rules.CreateOpts, existingRules []r
 }
 
 // ensureAndUpdateOctaviaSecurityGroup handles the creation and update of the security group and the securiry rules for the octavia load balancer
-func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, memberSubnetID string) error {
+func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	// get service ports
 	ports := apiService.Spec.Ports
 	if len(ports) == 0 {
@@ -2222,7 +2211,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		// If the security group of LB not exist, create it later
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			lbSecGroupID = ""
 		} else {
 			return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
@@ -2244,15 +2233,22 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")
-	subnet, err := subnets.Get(lbaas.network, memberSubnetID).Extract()
+	subnet, err := subnets.Get(lbaas.network, svcConf.lbMemberSubnetID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return fmt.Errorf(
-			"failed to find subnet %s from openstack: %v", memberSubnetID, err)
+			"failed to find subnet %s from openstack: %v", svcConf.lbMemberSubnetID, err)
 	}
 
 	etherType := rules.EtherType4
 	if netutils.IsIPv6CIDRString(subnet.CIDR) {
 		etherType = rules.EtherType6
+	}
+	cidrs := []string{subnet.CIDR}
+	if lbaas.opts.LBProvider == "ovn" {
+		// OVN keeps the source IP of the incoming traffic. This means that we cannot just open the LB range, but we
+		// need to open for the whole world. This can be restricted by using the service.spec.loadBalancerSourceRanges.
+		// svcConf.allowedCIDR will give us the ranges calculated by GetLoadBalancerSourceRanges() earlier.
+		cidrs = svcConf.allowedCIDR
 	}
 
 	existingRules, err := getSecurityGroupRules(lbaas.network, rules.ListOpts{SecGroupID: lbSecGroupID})
@@ -2266,6 +2262,8 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	wantedRules := make([]rules.CreateOpts, 0, len(ports)+1)
 
 	if apiService.Spec.HealthCheckNodePort != 0 {
+		// TODO(dulek): How should this work with OVN…? Do we need to allow all?
+		//              Probably the traffic goes from the compute node?
 		wantedRules = append(wantedRules,
 			rules.CreateOpts{
 				Direction:      rules.DirIngress,
@@ -2283,17 +2281,19 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		if port.NodePort == 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
 			continue
 		}
-		wantedRules = append(wantedRules,
-			rules.CreateOpts{
-				Direction:      rules.DirIngress,
-				Protocol:       rules.RuleProtocol(port.Protocol),
-				EtherType:      etherType,
-				RemoteIPPrefix: subnet.CIDR,
-				SecGroupID:     lbSecGroupID,
-				PortRangeMin:   int(port.NodePort),
-				PortRangeMax:   int(port.NodePort),
-			},
-		)
+		for _, cidr := range cidrs {
+			wantedRules = append(wantedRules,
+				rules.CreateOpts{
+					Direction:      rules.DirIngress,
+					Protocol:       rules.RuleProtocol(port.Protocol),
+					EtherType:      etherType,
+					RemoteIPPrefix: cidr,
+					SecGroupID:     lbSecGroupID,
+					PortRangeMin:   int(port.NodePort),
+					PortRangeMax:   int(port.NodePort),
+				},
+			)
+		}
 	}
 
 	toCreate, toDelete := getRulesToCreateAndDelete(wantedRules, existingRules)
@@ -2325,11 +2325,6 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		return err
 	}
 	return nil
-}
-
-// updateSecurityGroup updating security group for specific loadbalancer service.
-func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, memberSubnetID string) error {
-	return lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, apiService, nodes, memberSubnetID)
 }
 
 // EnsureLoadBalancerDeleted deletes the specified load balancer
@@ -2522,11 +2517,10 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		klog.InfoS("Updated load balancer tags", "lbID", loadbalancer.ID)
 	}
 
-	// Delete the Security Group
-	if lbaas.opts.ManageSecurityGroups {
-		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
-			return err
-		}
+	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
+	// orphan created SGs even if CPO got reconfigured.
+	if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+		return err
 	}
 
 	return nil
@@ -2538,7 +2532,7 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Servi
 	lbSecGroupName := getSecurityGroupName(service)
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			// It is OK when the security group has been deleted by others.
 			return nil
 		}
