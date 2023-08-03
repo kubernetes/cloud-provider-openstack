@@ -128,7 +128,7 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 		return nil, err
 	}
 
-	addresses, err := nodeAddresses(&server.Server, ports, i.networkingOpts)
+	addresses, err := nodeAddresses(&server.Server, ports, i.network, i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}
