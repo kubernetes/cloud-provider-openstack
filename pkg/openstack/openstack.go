@@ -78,31 +78,32 @@ type LoadBalancer struct {
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
 type LoadBalancerOpts struct {
-	Enabled               bool                `gcfg:"enabled"`              // if false, disables the controller
-	LBVersion             string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
-	SubnetID              string              `gcfg:"subnet-id"`            // overrides autodetection.
-	MemberSubnetID        string              `gcfg:"member-subnet-id"`     // overrides autodetection.
-	NetworkID             string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
-	FloatingNetworkID     string              `gcfg:"floating-network-id"`  // If specified, will create floating ip for loadbalancer, or do not create floating ip.
-	FloatingSubnetID      string              `gcfg:"floating-subnet-id"`   // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
-	FloatingSubnet        string              `gcfg:"floating-subnet"`      // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
-	FloatingSubnetTags    string              `gcfg:"floating-subnet-tags"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
-	LBClasses             map[string]*LBClass // Predefined named Floating networks and subnets
-	LBMethod              string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
-	LBProvider            string              `gcfg:"lb-provider"`
-	CreateMonitor         bool                `gcfg:"create-monitor"`
-	MonitorDelay          util.MyDuration     `gcfg:"monitor-delay"`
-	MonitorTimeout        util.MyDuration     `gcfg:"monitor-timeout"`
-	MonitorMaxRetries     uint                `gcfg:"monitor-max-retries"`
-	ManageSecurityGroups  bool                `gcfg:"manage-security-groups"`
-	InternalLB            bool                `gcfg:"internal-lb"` // default false
-	CascadeDelete         bool                `gcfg:"cascade-delete"`
-	FlavorID              string              `gcfg:"flavor-id"`
-	AvailabilityZone      string              `gcfg:"availability-zone"`
-	EnableIngressHostname bool                `gcfg:"enable-ingress-hostname"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
-	IngressHostnameSuffix string              `gcfg:"ingress-hostname-suffix"` // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
-	MaxSharedLB           int                 `gcfg:"max-shared-lb"`           //  Number of Services in maximum can share a single load balancer. Default 2
-	ContainerStore        string              `gcfg:"container-store"`         // Used to specify the store of the tls-container-ref
+	Enabled                        bool                `gcfg:"enabled"`              // if false, disables the controller
+	LBVersion                      string              `gcfg:"lb-version"`           // overrides autodetection. Only support v2.
+	SubnetID                       string              `gcfg:"subnet-id"`            // overrides autodetection.
+	MemberSubnetID                 string              `gcfg:"member-subnet-id"`     // overrides autodetection.
+	NetworkID                      string              `gcfg:"network-id"`           // If specified, will create virtual ip from a subnet in network which has available IP addresses
+	FloatingNetworkID              string              `gcfg:"floating-network-id"`  // If specified, will create floating ip for loadbalancer, or do not create floating ip.
+	FloatingSubnetID               string              `gcfg:"floating-subnet-id"`   // If specified, will create floating ip for loadbalancer in this particular floating pool subnetwork.
+	FloatingSubnet                 string              `gcfg:"floating-subnet"`      // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	FloatingSubnetTags             string              `gcfg:"floating-subnet-tags"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	LBClasses                      map[string]*LBClass // Predefined named Floating networks and subnets
+	LBMethod                       string              `gcfg:"lb-method"` // default to ROUND_ROBIN.
+	LBProvider                     string              `gcfg:"lb-provider"`
+	CreateMonitor                  bool                `gcfg:"create-monitor"`
+	MonitorDelay                   util.MyDuration     `gcfg:"monitor-delay"`
+	MonitorTimeout                 util.MyDuration     `gcfg:"monitor-timeout"`
+	MonitorMaxRetries              uint                `gcfg:"monitor-max-retries"`
+	ManageSecurityGroups           bool                `gcfg:"manage-security-groups"`
+	InternalLB                     bool                `gcfg:"internal-lb"` // default false
+	CascadeDelete                  bool                `gcfg:"cascade-delete"`
+	FlavorID                       string              `gcfg:"flavor-id"`
+	AvailabilityZone               string              `gcfg:"availability-zone"`
+	EnableIngressHostname          bool                `gcfg:"enable-ingress-hostname"`            // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default false.
+	IngressHostnameSuffix          string              `gcfg:"ingress-hostname-suffix"`            // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
+	MaxSharedLB                    int                 `gcfg:"max-shared-lb"`                      //  Number of Services in maximum can share a single load balancer. Default 2
+	ContainerStore                 string              `gcfg:"container-store"`                    // Used to specify the store of the tls-container-ref
+	ProviderRequiresSerialAPICalls bool                `gcfg:"provider-requires-serial-api-calls"` // default false, the provider supportes the "bulk update" API call
 	// revive:disable:var-naming
 	TlsContainerRef string `gcfg:"default-tls-container-ref"` //  reference to a tls container
 	// revive:enable:var-naming
@@ -209,6 +210,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.TlsContainerRef = ""
 	cfg.LoadBalancer.ContainerStore = "barbican"
 	cfg.LoadBalancer.MaxSharedLB = 2
+	cfg.LoadBalancer.ProviderRequiresSerialAPICalls = false
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {

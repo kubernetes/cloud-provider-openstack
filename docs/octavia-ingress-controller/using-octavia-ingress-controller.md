@@ -159,6 +159,15 @@ Here are several other config options are not included in the example configurat
       provider: amphora
     ```
 
+- Option to specify that the Octavia provider does not support creating fully-populated loadbalancers using a single [API
+  call](https://docs.openstack.org/api-ref/load-balancer/v2/?expanded=create-a-load-balancer-detail#creating-a-fully-populated-load-balancer).
+  Setting this option to true will create loadbalancers using serial API calls which first create an unpopulated
+  loadbalancer, then populate its listeners, pools and members. This is a compatibility option at the expense of
+  increased load on the OpenStack API.
+    ```yaml
+    octavia:
+      provider-requires-serial-api-calls: true
+    ```
 ### Deploy octavia-ingress-controller
 
 ```shell
