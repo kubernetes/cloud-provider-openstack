@@ -151,6 +151,12 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	d.serverEndpoint = endpointAddress(serverProto, serverAddr)
 	d.fwdEndpoint = endpointAddress(fwdProto, fwdAddr)
 
+	d.ids = &identityServer{d: d}
+
+	return d, nil
+}
+
+func (d *Driver) SetupControllerService() {
 	d.addControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
@@ -165,6 +171,10 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
 	})
 
+	d.cs = &controllerServer{d: d}
+}
+
+func (d *Driver) SetupNodeService() {
 	var supportsNodeStage bool
 
 	nodeCapsMap, err := d.initProxiedDriver()
@@ -182,14 +192,14 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 
 	d.addNodeServiceCapabilities(nscaps)
 
-	d.ids = &identityServer{d: d}
-	d.cs = &controllerServer{d: d}
 	d.ns = &nodeServer{d: d, supportsNodeStage: supportsNodeStage, nodeStageCache: make(map[volumeID]stageCacheEntry)}
-
-	return d, nil
 }
 
 func (d *Driver) Run() {
+	if nil == d.cs && nil == d.ns {
+		klog.Fatal("No CSI services initialized")
+	}
+
 	s := nonBlockingGRPCServer{}
 	s.start(d.serverEndpoint, d.ids, d.cs, d.ns)
 	s.wait()
@@ -317,9 +327,15 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids *identityServer, cs *
 
 	s.server = server
 
-	csi.RegisterIdentityServer(server, ids)
-	csi.RegisterControllerServer(server, cs)
-	csi.RegisterNodeServer(server, ns)
+	if ids != nil {
+		csi.RegisterIdentityServer(server, ids)
+	}
+	if cs != nil {
+		csi.RegisterControllerServer(server, cs)
+	}
+	if ns != nil {
+		csi.RegisterNodeServer(server, ns)
+	}
 
 	klog.Infof("listening for connections on %#v", listener.Addr())
 
