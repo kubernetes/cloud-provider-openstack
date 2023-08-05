@@ -99,7 +99,6 @@ func argNotEmpty(val, name string) error {
 
 func NewDriver(o *DriverOpts) (*Driver, error) {
 	m := map[string]string{
-		"node ID":                 o.NodeID,
 		"driver name":             o.DriverName,
 		"driver endpoint":         o.ServerCSIEndpoint,
 		"FWD endpoint":            o.FwdCSIEndpoint,
@@ -156,7 +155,9 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	return d, nil
 }
 
-func (d *Driver) SetupControllerService() {
+func (d *Driver) SetupControllerService() error {
+	klog.Info("Providing controller service")
+
 	d.addControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
@@ -172,14 +173,21 @@ func (d *Driver) SetupControllerService() {
 	})
 
 	d.cs = &controllerServer{d: d}
+	return nil
 }
 
-func (d *Driver) SetupNodeService() {
+func (d *Driver) SetupNodeService() error {
+	if err := argNotEmpty(d.nodeID, "node ID"); err != nil {
+		return err
+	}
+
+	klog.Info("Providing node service")
+
 	var supportsNodeStage bool
 
 	nodeCapsMap, err := d.initProxiedDriver()
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
+		return fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
 	}
 	nscaps := make([]csi.NodeServiceCapability_RPC_Type, 0, len(nodeCapsMap))
 	for c := range nodeCapsMap {
@@ -193,6 +201,7 @@ func (d *Driver) SetupNodeService() {
 	d.addNodeServiceCapabilities(nscaps)
 
 	d.ns = &nodeServer{d: d, supportsNodeStage: supportsNodeStage, nodeStageCache: make(map[volumeID]stageCacheEntry)}
+	return nil
 }
 
 func (d *Driver) Run() {

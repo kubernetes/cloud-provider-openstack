@@ -49,6 +49,9 @@ func TestDriver(t *testing.T) {
 		t.Fatalf("failed to initialize CSI Manila driver: %v", err)
 	}
 
+	d.SetupControllerService()
+	d.SetupNodeService()
+
 	go d.Run()
 
 	config := sanity.NewTestConfig()
