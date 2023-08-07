@@ -10,6 +10,7 @@ commonAnnotations: {}
 #   "helm.sh/hook-delete-policy": before-hook-creation
 
 # Image repository name and tag
+imagePullSecrets: []
 image:
   repository: registry.k8s.io/provider-os/openstack-cloud-controller-manager
   tag: ""
