@@ -208,6 +208,34 @@ func TestGetRulesToCreateAndDelete(t *testing.T) {
 			},
 		},
 		{
+			testName: "Protocol case mismatch",
+			wantedRules: []rules.CreateOpts{
+				{
+					Direction:      "ingress",
+					EtherType:      "IPv4",
+					SecGroupID:     "foo",
+					PortRangeMax:   123,
+					PortRangeMin:   123,
+					Protocol:       "TCP",
+					RemoteIPPrefix: "10.0.0.0/8",
+				},
+			},
+			existingRules: []rules.SecGroupRule{
+				{
+					ID:             "bar",
+					Direction:      "ingress",
+					EtherType:      "IPv4",
+					SecGroupID:     "foo",
+					PortRangeMax:   123,
+					PortRangeMin:   123,
+					Protocol:       "tcp",
+					RemoteIPPrefix: "10.0.0.0/8",
+				},
+			},
+			toCreate: []rules.CreateOpts{},
+			toDelete: []rules.SecGroupRule{},
+		},
+		{
 			testName: "changing a port number",
 			wantedRules: []rules.CreateOpts{
 				{
