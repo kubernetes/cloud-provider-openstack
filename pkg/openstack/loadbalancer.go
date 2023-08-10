@@ -1680,22 +1680,20 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 
+		// If LB class doesn't define FIP network or subnet, get it from svc annotation or fall back to configuration
 		if floatingNetworkID == "" {
 			floatingNetworkID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingNetworkID, lbaas.opts.FloatingNetworkID)
-			if floatingNetworkID == "" {
-				var err error
-				floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
-				if err != nil {
-					klog.Warningf("Failed to find floating-network-id for Service %s: %v", serviceName, err)
-				}
+		}
+
+		// If there's no annotation and configuration, try to autodetect the FIP network by looking up external nets
+		if floatingNetworkID == "" {
+			floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
+			if err != nil {
+				klog.Warningf("Failed to find floating-network-id for Service %s: %v", serviceName, err)
 			}
 		}
 
-		// apply defaults from CCM config
-		if floatingNetworkID == "" {
-			floatingNetworkID = lbaas.opts.FloatingNetworkID
-		}
-
+		// try to get FIP subnet from configuration
 		if !floatingSubnet.Configured() {
 			annos := floatingSubnetSpec{}
 			annos.subnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID, "")
@@ -1714,7 +1712,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 
-		// check subnets belongs to network
+		// check configured subnet belongs to network
 		if floatingNetworkID != "" && floatingSubnet.subnetID != "" {
 			mc := metrics.NewMetricContext("subnet", "get")
 			subnet, err := subnets.Get(lbaas.network, floatingSubnet.subnetID).Extract()
