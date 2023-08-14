@@ -1,13 +1,15 @@
+emeritus_approvers:
+- chrigl
+- lingxiankong
+- ramineni
 approvers:
-- chrigl
-- lingxiankong
-- ramineni
+- dulek
+- jichenjc
+- kayrus
 - zetaab
-- jichenjc
 reviewers:
-- chrigl
-- Fedosin
+- dulek
 - jichenjc
-- lingxiankong
-- ramineni
+- kayrus
+- mdbooth
 - zetaab
