@@ -449,6 +449,22 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
 	}
 
+	if os.config.Octavia.ProviderRequiresSerialAPICalls {
+		logger.Info("updating pool members using serial API calls")
+		// Serially update pool members
+		err = openstackutil.SeriallyReconcilePoolMembers(os.Octavia, pool, *nodePort, lbID, nodes)
+		if err != nil {
+			return nil, fmt.Errorf("error reconciling pool members for pool %s: %v", pool.ID, err)
+		}
+		_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
+		if err != nil {
+			return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
+		}
+		logger.Info("pool members updated")
+
+		return &pool.ID, nil
+	}
+
 	// Batch update pool members
 	var members []pools.BatchUpdateMemberOpts
 	for _, node := range nodes {

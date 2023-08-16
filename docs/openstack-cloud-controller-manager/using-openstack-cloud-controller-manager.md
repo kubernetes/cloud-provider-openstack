@@ -281,6 +281,13 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `max-shared-lb`
   The maximum number of Services that share a load balancer. Default: 2
 
+* `provider-requires-serial-api-calls`
+  Some Octavia providers do not support creating fully-populated loadbalancers using a single [API
+  call](https://docs.openstack.org/api-ref/load-balancer/v2/?expanded=create-a-load-balancer-detail#creating-a-fully-populated-load-balancer).
+  Setting this option to true will create loadbalancers using serial API calls which first create an unpopulated
+  loadbalancer, then populate its listeners, pools and members. This is a compatibility option at the expense of
+  increased load on the OpenStack API. Default: false 
+
 NOTE:
 
 * When using `ovn` provider service has limited scope - `create_monitor` is not supported and only supported `lb-method` is `SOURCE_IP`.

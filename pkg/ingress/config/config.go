@@ -57,4 +57,9 @@ type octaviaConfig struct {
 	// (Optional) Flavor ID to create the load balancer.
 	// If empty, the default flavor will be used.
 	FlavorID string `mapstructure:"flavor-id"`
+
+	// (Optional) If the ingress controller should use serial API calls when creating and updating
+	// the load balancer instead of the bulk update API call.
+	// Default is false.
+	ProviderRequiresSerialAPICalls bool `mapstructure:"provider-requires-serial-api-calls"`
 }
