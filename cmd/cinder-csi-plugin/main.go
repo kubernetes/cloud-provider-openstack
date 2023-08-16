@@ -27,6 +27,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
@@ -71,6 +72,7 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
+		Version: version.Version,
 	}
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
