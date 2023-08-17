@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 	"k8s.io/cloud-provider-openstack/pkg/kms/server"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
@@ -49,6 +50,7 @@ func main() {
 			err := server.Run(cloudConfig, socketPath, sigChan)
 			return err
 		},
+		Version: version.Version,
 	}
 
 	cmd.PersistentFlags().StringVar(&socketPath, "socketpath", "", "Barbican KMS Plugin unix socket endpoint")

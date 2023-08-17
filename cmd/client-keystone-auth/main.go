@@ -31,6 +31,7 @@ import (
 	"golang.org/x/term"
 
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	kflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
 )
@@ -168,6 +169,7 @@ func main() {
 	var applicationCredentialID string
 	var applicationCredentialName string
 	var applicationCredentialSecret string
+	var showVersion bool
 
 	pflag.StringVar(&url, "keystone-url", os.Getenv("OS_AUTH_URL"), "URL for the OpenStack Keystone API")
 	pflag.StringVar(&domain, "domain-name", os.Getenv("OS_DOMAIN_NAME"), "Keystone domain name")
@@ -180,13 +182,22 @@ func main() {
 	pflag.StringVar(&applicationCredentialID, "application-credential-id", os.Getenv("OS_APPLICATION_CREDENTIAL_ID"), "Application Credential ID")
 	pflag.StringVar(&applicationCredentialName, "application-credential-name", os.Getenv("OS_APPLICATION_CREDENTIAL_NAME"), "Application Credential Name")
 	pflag.StringVar(&applicationCredentialSecret, "application-credential-secret", os.Getenv("OS_APPLICATION_CREDENTIAL_SECRET"), "Application Credential Secret")
+	pflag.BoolVar(&showVersion, "version", false, "Show current version and exit")
 
 	logs.AddFlags(pflag.CommandLine)
-	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	pflag.CommandLine.AddGoFlagSet(klogFlags)
 	kflag.InitFlags()
+
+	pflag.Parse()
+
+	if showVersion {
+		fmt.Println(version.Version)
+		os.Exit(0)
+	}
+
+	logs.InitLogs()
+	defer logs.FlushLogs()
 
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
