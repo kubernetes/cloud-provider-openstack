@@ -545,6 +545,14 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 	}
 
 	if loadbalancer, err = openstackutil.WaitActiveAndGetLoadBalancer(lbaas.lb, loadbalancer.ID); err != nil {
+		if loadbalancer.ProvisioningStatus == errorStatus {
+			// If LB landed in ERROR state we should delete it and retry the creation later.
+			if err = lbaas.deleteLoadBalancer(loadbalancer, service, svcConf, true); err != nil {
+				return nil, fmt.Errorf("loadbalancer %s is in ERROR state and there was an error when removing it: %v", loadbalancer.ID, err)
+			}
+			return nil, fmt.Errorf("loadbalancer %s has gone into ERROR state, please check Octavia for details. Load balancer was "+
+				"deleted and its creation will be retried", loadbalancer.ID)
+		}
 		return nil, err
 	}
 
@@ -2428,6 +2436,83 @@ func (lbaas *LbaasV2) deleteFIPIfCreatedByProvider(fip *floatingips.FloatingIP, 
 	return true, nil
 }
 
+// deleteLoadBalancer removes the LB and it's children either by using Octavia cascade deletion or manually
+func (lbaas *LbaasV2) deleteLoadBalancer(loadbalancer *loadbalancers.LoadBalancer, service *corev1.Service, svcConf *serviceConfig, needDeleteLB bool) error {
+	if needDeleteLB && lbaas.opts.CascadeDelete {
+		klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+		if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, true); err != nil {
+			return err
+		}
+		klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+	} else {
+		// get all listeners associated with this loadbalancer
+		listenerList, err := openstackutil.GetListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
+		if err != nil {
+			return fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.ID, err)
+		}
+
+		if !needDeleteLB {
+			var listenersToDelete []listeners.Listener
+			curListenerMapping := make(map[listenerKey]*listeners.Listener)
+			for i, l := range listenerList {
+				key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
+				curListenerMapping[key] = &listenerList[i]
+			}
+
+			for _, port := range service.Spec.Ports {
+				proto := getListenerProtocol(port.Protocol, svcConf)
+				listener, isPresent := curListenerMapping[listenerKey{
+					Protocol: proto,
+					Port:     int(port.Port),
+				}]
+				if isPresent && cpoutil.Contains(listener.Tags, loadbalancer.Name) {
+					listenersToDelete = append(listenersToDelete, *listener)
+				}
+			}
+			listenerList = listenersToDelete
+		}
+
+		// get all pools (and health monitors) associated with this loadbalancer
+		var monitorIDs []string
+		for _, listener := range listenerList {
+			pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
+			if err != nil && err != cpoerrors.ErrNotFound {
+				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
+			}
+			if pool != nil {
+				if pool.MonitorID != "" {
+					monitorIDs = append(monitorIDs, pool.MonitorID)
+				}
+			}
+		}
+
+		// delete monitors
+		for _, monitorID := range monitorIDs {
+			klog.InfoS("Deleting health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
+			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, loadbalancer.ID); err != nil {
+				return err
+			}
+			klog.InfoS("Deleted health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
+		}
+
+		// delete listeners
+		if err := lbaas.deleteListeners(loadbalancer.ID, listenerList); err != nil {
+			return err
+		}
+
+		if needDeleteLB {
+			// delete the loadbalancer in old way, i.e. no cascading.
+			klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+			if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, false); err != nil {
+				return err
+			}
+			klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+		}
+	}
+
+	return nil
+}
+
 func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	legacyName := lbaas.getLoadBalancerLegacyName(ctx, clusterName, service)
@@ -2500,76 +2585,8 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		}
 	}
 
-	if needDeleteLB && lbaas.opts.CascadeDelete {
-		klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-		if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, true); err != nil {
-			return err
-		}
-		klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-	} else {
-		// get all listeners associated with this loadbalancer
-		listenerList, err := openstackutil.GetListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
-		if err != nil {
-			return fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.ID, err)
-		}
-
-		if !needDeleteLB {
-			var listenersToDelete []listeners.Listener
-			curListenerMapping := make(map[listenerKey]*listeners.Listener)
-			for i, l := range listenerList {
-				key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
-				curListenerMapping[key] = &listenerList[i]
-			}
-
-			for _, port := range service.Spec.Ports {
-				proto := getListenerProtocol(port.Protocol, svcConf)
-				listener, isPresent := curListenerMapping[listenerKey{
-					Protocol: proto,
-					Port:     int(port.Port),
-				}]
-				if isPresent && cpoutil.Contains(listener.Tags, lbName) {
-					listenersToDelete = append(listenersToDelete, *listener)
-				}
-			}
-			listenerList = listenersToDelete
-		}
-
-		// get all pools (and health monitors) associated with this loadbalancer
-		var monitorIDs []string
-		for _, listener := range listenerList {
-			pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
-			if err != nil && err != cpoerrors.ErrNotFound {
-				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
-			}
-			if pool != nil {
-				if pool.MonitorID != "" {
-					monitorIDs = append(monitorIDs, pool.MonitorID)
-				}
-			}
-		}
-
-		// delete monitors
-		for _, monitorID := range monitorIDs {
-			klog.InfoS("Deleting health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
-			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, loadbalancer.ID); err != nil {
-				return err
-			}
-			klog.InfoS("Deleted health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
-		}
-
-		// delete listeners
-		if err := lbaas.deleteListeners(loadbalancer.ID, listenerList); err != nil {
-			return err
-		}
-
-		if needDeleteLB {
-			// delete the loadbalancer in old way, i.e. no cascading.
-			klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-			if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, false); err != nil {
-				return err
-			}
-			klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-		}
+	if err = lbaas.deleteLoadBalancer(loadbalancer, service, svcConf, needDeleteLB); err != nil {
+		return err
 	}
 
 	// Remove the Service's tag from the load balancer.
