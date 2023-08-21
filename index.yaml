@@ -458,21 +458,6 @@ entries:
     version: 2.28.0-alpha.2
   - apiVersion: v1
     appVersion: v1.27.1
-    created: "2023-08-18T03:32:47.424697743Z"
-    description: Openstack Cloud Controller Manager Helm Chart
-    digest: 3d6b894536015d94cae3d91980f861952d2a8b9b9c90b656da50b71b99c16ad4
-    home: https://github.com/kubernetes/cloud-provider-openstack
-    icon: https://object-storage-ca-ymq-1.vexxhost.net/swift/v1/6e4619c416ff4bd19e1c087f27a43eea/www-images-prod/openstack-logo/OpenStack-Logo-Vertical.png
-    maintainers:
-    - email: f.kloeker@telekom.de
-      name: eumel8
-      url: https://www.telekom.com
-    name: openstack-cloud-controller-manager
-    urls:
-    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-2.27.2/openstack-cloud-controller-manager-2.27.2.tgz
-    version: 2.27.2
-  - apiVersion: v1
-    appVersion: v1.27.1
     created: "2023-04-24T06:27:32.111610998Z"
     description: Openstack Cloud Controller Manager Helm Chart
     digest: fbb6d59f15ca8bafcf7219e6c83815e10a86a8b2e5aaf2ddc086f62a09da5e0c
@@ -736,6 +721,20 @@ entries:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-1.0.0/openstack-cloud-controller-manager-1.0.0.tgz
     version: 1.0.0
   openstack-manila-csi:
+  - apiVersion: v1
+    appVersion: v1.27.1
+    created: "2023-08-21T02:59:45.885778032Z"
+    description: Manila CSI Chart for OpenStack
+    digest: d387b673142b7a16a9c39a611de8757f44f8fb0cf90923468cb361392fb0842a
+    home: http://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: brtknr@bath.edu
+      name: brtknr
+    name: openstack-manila-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-2.28.0-alpha.4/openstack-manila-csi-2.28.0-alpha.4.tgz
+    version: 2.28.0-alpha.4
   - apiVersion: v1
     appVersion: v1.27.1
     created: "2023-05-25T11:11:11.749929733Z"
