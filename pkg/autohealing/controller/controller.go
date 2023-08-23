@@ -222,8 +222,7 @@ func (c *Controller) GetLeaderElectionLock() (resourcelock.Interface, error) {
 	id = id + "_" + string(uuid.NewUUID())
 
 	rl, err := resourcelock.New(
-		//TODO(acumino): Migrate configmapsleases to leases in vesrion 1.24.
-		resourcelock.ConfigMapsLeasesResourceLock,
+		resourcelock.LeasesResourceLock,
 		leaderElectionResourceLockNamespace,
 		leaderElectionResourceLockName,
 		c.leaderElectionClient.CoreV1(),
