@@ -1,54 +1,53 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"os"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	pb "k8s.io/kms/apis/v1beta1"
+	pb "k8s.io/kms/apis/v2"
 )
 
 //This client is for test purpose only, Kubernetes api server will call to kms plugin grpc server
 
 func main() {
-
 	connection, err := grpc.Dial("unix:///var/lib/kms/kms.sock", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer func() { _ = connection.Close() }()
 	if err != nil {
-		fmt.Printf("\nConnection to KMS plugin failed, error: %v", err)
+		log.Fatalf("Connection to KMS plugin failed, error: %v", err)
 	}
 
 	kmsClient := pb.NewKeyManagementServiceClient(connection)
-	request := &pb.VersionRequest{Version: "v1beta1"}
-	_, err = kmsClient.Version(context.TODO(), request)
-
+	request := &pb.StatusRequest{}
+	status, err := kmsClient.Status(context.TODO(), request)
 	if err != nil {
-		fmt.Printf("\nError in getting version from KMS Plugin: %v", err)
+		log.Fatalf("Error in getting version from KMS Plugin: %v", err)
 	}
+
+	if status.Version != "v2" {
+		log.Fatalf("Unsupported KMS Plugin version: %s", status.Version)
+	}
+
+	log.Printf("KMS plugin version: %s", status.Version)
 
 	secretBytes := []byte("mypassword")
 
 	//Encryption Request to KMS Plugin
 	encRequest := &pb.EncryptRequest{
-		Version: "v1beta1",
-		Plain:   secretBytes}
+		Plaintext: secretBytes,
+	}
 	encResponse, err := kmsClient.Encrypt(context.TODO(), encRequest)
-
 	if err != nil {
-		fmt.Printf("\nEncrypt Request Failed: %v", err)
-		os.Exit(1)
+		log.Fatalf("Encrypt Request Failed: %v", err)
 	}
 
-	cipher := string(encResponse.Cipher)
-	fmt.Println("cipher:", cipher)
+	cipher := string(encResponse.Ciphertext)
+	log.Printf("cipher: %s", cipher)
 
 	//Decryption Request to KMS plugin
 	decRequest := &pb.DecryptRequest{
-		Version: "v1beta1",
-		Cipher:  encResponse.Cipher,
+		Ciphertext: encResponse.Ciphertext,
 	}
 
 	decResponse, err := kmsClient.Decrypt(context.TODO(), decRequest)
@@ -56,5 +55,5 @@ func main() {
 		log.Fatalf("Unable to decrypt response: %v", err)
 	}
 
-	fmt.Printf("\n\ndecryption response %v", decResponse)
+	log.Printf("Decryption response: %v", decResponse)
 }
