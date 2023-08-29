@@ -27,5 +27,4 @@
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
     - role: install-cpo-occm
       run_e2e: true
-      build_image: true
       environment: "{{ global_env }}"
