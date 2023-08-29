@@ -36,11 +36,12 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-# Set nodeSelector where the controller shut run, i.e. controlplane nodes
+# Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:
   node-role.kubernetes.io/control-plane: ""
 
-# Set tolerations for nodes where the controller should run, i.e. node should uninitialized, controlplane...
+# Set tolerations for nodes where the controller should run, i.e. node
+# should be uninitialized, controlplane...
 tolerations:
   - key: node.cloudprovider.kubernetes.io/uninitialized
     value: "true"
