@@ -47,7 +47,7 @@ const (
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
-	// Volume Name
+	// Volume Name - dummy change
 	volName := req.GetName()
 	volCapabilities := req.GetVolumeCapabilities()
 
