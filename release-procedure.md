@@ -27,6 +27,6 @@ $ git push upstream vX.Y.Z
 4. [Github Actions](https://github.com/kubernetes/cloud-provider-openstack/actions/workflows/release-cpo.yaml) will make [new draft release](https://github.com/kubernetes/cloud-provider-openstack/releases) to repository.
 Cloudbuild should build new images to gcr.io/k8s-staging-provider-os. 
 
-5. Make PR https://github.com/kubernetes/k8s.io/blob/main/k8s.gcr.io/images/k8s-staging-provider-os/images.yaml to promote gcr.io images to registry.k8s.io.
+5. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote gcr.io images to registry.k8s.io.
 
 6. Make release notes and publish the release after the new images are published.
