@@ -158,6 +158,9 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            {{- if .Values.csi.plugin.httpEndpoint.enabled }}
+            - "--http-endpoint=:{{ .Values.csi.plugin.httpEndpoint.port }}"
+            {{- end }}
             {{- if .Values.csi.plugin.extraArgs }}
             {{- with .Values.csi.plugin.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
@@ -174,6 +177,11 @@ spec:
             - containerPort: 9808
               name: healthz
               protocol: TCP
+            {{- if .Values.csi.plugin.httpEndpoint.enabled }}
+            - containerPort: {{ .Values.csi.plugin.httpEndpoint.port }}
+              name: http
+              protocol: TCP
+            {{- end }}
           # The probe
           livenessProbe:
             failureThreshold: {{ .Values.csi.livenessprobe.failureThreshold }}

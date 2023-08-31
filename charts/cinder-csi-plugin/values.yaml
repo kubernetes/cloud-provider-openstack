@@ -111,6 +111,14 @@ csi:
       nodeSelector: {}
       tolerations: []
     resources: {}
+    # Enable built-in http server through the http-endpoint flag
+    httpEndpoint:
+      enabled: false
+      port: 8080
+    # Create Prometheus Operator PodMonitor. Requires http server above.
+    # See https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor
+    podMonitor:
+      enabled: false
     extraArgs: {}
 
 # Log verbosity level.
