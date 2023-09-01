@@ -764,22 +764,13 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 				continue
 			}
 
-			// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
-			// We're doing that before actually applying the SG as if tagging would fail we wouldn't be able to find the port
-			// when deleting the SG and operation would be stuck forever. It's better to find more ports than not all of them.
-			mc := metrics.NewMetricContext("port_tag", "add")
-			err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr()
-			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, err)
-			}
-
 			// Add the SG to the port
 			// TODO(dulek): This isn't an atomic operation. In order to protect from lost update issues we should use
 			//              `revision_number` handling to make sure our update to `security_groups` field wasn't preceded
 			//              by a different one. Same applies to a removal of the SG.
 			newSGs := append(port.SecurityGroups, sg)
 			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
-			mc = metrics.NewMetricContext("port", "update")
+			mc := metrics.NewMetricContext("port", "update")
 			res := neutronports.Update(network, port.ID, updateOpts)
 			if mc.ObserveRequest(res.Err) != nil {
 				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
@@ -793,7 +784,7 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 // disassociateSecurityGroupForLB removes the given security group from the ports
 func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg string) error {
 	// Find all the ports that have the security group associated.
-	listOpts := neutronports.ListOpts{TagsAny: sg}
+	listOpts := neutronports.ListOpts{SecurityGroups: []string{sg}}
 	allPorts, err := openstackutil.GetPorts[neutronports.Port](network, listOpts)
 	if err != nil {
 		return err
@@ -809,17 +800,23 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 
 		// Update port security groups
 		newSGs := existingSGs.List()
+		// TODO(dulek): This should be done using Neutron's revision_number to make sure
+		//              we don't trigger a lost update issue.
 		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
 		mc := metrics.NewMetricContext("port", "update")
 		res := neutronports.Update(network, port.ID, updateOpts)
 		if mc.ObserveRequest(res.Err) != nil {
 			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 		}
-		// Remove the security group ID tag from the port.
-		mc = metrics.NewMetricContext("port_tag", "delete")
-		err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr()
-		if mc.ObserveRequest(err) != nil {
-			return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
+
+		// Remove the security group ID tag from the port. Please note we don't tag ports with SG IDs anymore,
+		// so this stays for backward compatibility. It's reasonable to delete it in the future. 404s are ignored.
+		if slices.Contains(port.Tags, sg) {
+			mc = metrics.NewMetricContext("port_tag", "delete")
+			err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr()
+			if mc.ObserveRequest(err) != nil {
+				return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
+			}
 		}
 	}
 
@@ -2087,7 +2084,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	} else {
 		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
 		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
-		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+		if err := lbaas.ensureSecurityGroupDeleted(clusterName, service); err != nil {
 			return status, err
 		}
 	}
@@ -2593,15 +2590,15 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 
 	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
 	// orphan created SGs even if CPO got reconfigured.
-	if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
+	if err := lbaas.ensureSecurityGroupDeleted(clusterName, service); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// EnsureSecurityGroupDeleted deleting security group for specific loadbalancer service.
-func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Service) error {
+// ensureSecurityGroupDeleted deleting security group for specific loadbalancer service.
+func (lbaas *LbaasV2) ensureSecurityGroupDeleted(_ string, service *corev1.Service) error {
 	// Generate Name
 	lbSecGroupName := getSecurityGroupName(service)
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
