@@ -22,4 +22,5 @@ const (
 	eventLBSourceRangesIgnored         = "LoadBalancerSourceRangesIgnored"
 	eventLBAZIgnored                   = "LoadBalancerAvailabilityZonesIgnored"
 	eventLBFloatingIPSkipped           = "LoadBalancerFloatingIPSkipped"
+	eventLBRename                      = "LoadBalancerRename"
 )
