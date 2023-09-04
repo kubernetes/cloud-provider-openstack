@@ -49,7 +49,6 @@ import (
 // Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
 // this timeout is used for waiting until the Loadbalancer provisioning status goes to ACTIVE state.
 const (
-	servicePrefix                       = "kube_service_"
 	defaultLoadBalancerSourceRangesIPv4 = "0.0.0.0/0"
 	defaultLoadBalancerSourceRangesIPv6 = "::/0"
 	activeStatus                        = "ACTIVE"
@@ -93,10 +92,14 @@ const (
 	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
 
 	// Octavia resources name formats
+	servicePrefix  = "kube_service_"
 	lbFormat       = "%s%s_%s_%s"
-	listenerFormat = "listener_%d_%s"
-	poolFormat     = "pool_%d_%s"
-	monitorFormat  = "monitor_%d_%s"
+	listenerPrefix = "listener_"
+	listenerFormat = listenerPrefix + "%d_%s"
+	poolPrefix     = "pool_"
+	poolFormat     = poolPrefix + "%d_%s"
+	monitorPrefix  = "monitor_"
+	monitorFormat  = monitorPrefix + "%d_%s"
 )
 
 // LbaasV2 is a LoadBalancer implementation based on Octavia
@@ -1550,13 +1553,11 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 	return nil
 }
 
-func (lbaas *LbaasV2) updateServiceAnnotations(service *corev1.Service, annotations map[string]string) {
+func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, key, value string) {
 	if service.ObjectMeta.Annotations == nil {
 		service.ObjectMeta.Annotations = map[string]string{}
 	}
-	for key, value := range annotations {
-		service.ObjectMeta.Annotations[key] = value
-	}
+	service.ObjectMeta.Annotations[key] = value
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -1608,6 +1609,17 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, fmt.Errorf("failed to get load balancer %s: %v", svcConf.lbID, err)
 		}
 
+		// Here we test for a clusterName that could have had changed in the deployment.
+		if lbHasOldClusterName(loadbalancer, clusterName) {
+			msg := "Loadbalancer %s has a name of %s with incorrect cluster-name component. Renaming it to %s."
+			klog.Infof(msg, loadbalancer.ID, loadbalancer.Name, lbName)
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBRename, msg, loadbalancer.ID, loadbalancer.Name, lbName)
+			loadbalancer, err = renameLoadBalancer(lbaas.lb, loadbalancer, lbName, clusterName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update load balancer %s with an updated name", svcConf.lbID)
+			}
+		}
+
 		// If this LB name matches the default generated name, the Service 'owns' the LB, but it's also possible for this
 		// LB to be shared by other Services.
 		// If the names don't match, this is a LB this Service wants to attach.
@@ -1655,6 +1667,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		// This is a Service created before shared LB is supported or a brand new LB.
 		isLBOwner = true
 	}
+
+	// Make sure LB ID will be saved at this point.
+	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, loadbalancer.ID)
 
 	if loadbalancer.ProvisioningStatus != activeStatus {
 		return nil, fmt.Errorf("load balancer %s is not ACTIVE, current provisioning status: %s", loadbalancer.ID, loadbalancer.ProvisioningStatus)
@@ -1722,12 +1737,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, err
 		}
 	}
-	// Add annotation to Service and add LB name to load balancer tags.
-	annotationUpdate := map[string]string{
-		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
-		ServiceAnnotationLoadBalancerAddress: addr,
-	}
-	lbaas.updateServiceAnnotations(service, annotationUpdate)
+
+	// save address into the annotation
+	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
+
+	// add LB name to load balancer tags.
 	if svcConf.supportLBTags {
 		lbTags := loadbalancer.Tags
 		if !cpoutil.Contains(lbTags, lbName) {
