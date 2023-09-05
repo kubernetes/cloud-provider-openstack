@@ -52,6 +52,18 @@
       floating-network-id=$external_network_id
       EOF
 
+      if [[ "{{ octavia_provider }}" != "" ]]; then
+      cat <<EOF >> {{ ansible_user_dir }}/cloud.conf
+      lb-provider={{ octavia_provider }}
+      EOF
+      fi
+
+      if [[ "{{ octavia_provider }}" == "ovn" ]]; then
+      cat <<EOF >> {{ ansible_user_dir }}/cloud.conf
+      lb-method=SOURCE_IP_PORT
+      EOF
+      fi
+
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
 
 - name: Replace manifests
@@ -125,6 +137,7 @@
       # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
       DEVSTACK_OS_RC={{ devstack_workdir }}/openrc \
+      OCTAVIA_PROVIDER={{ octavia_provider }} \
       bash tests/e2e/cloudprovider/test-lb-service.sh
   timeout: 3600
   ignore_errors: true

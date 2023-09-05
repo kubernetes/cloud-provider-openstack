@@ -8,6 +8,7 @@
     github_pr: 123
     global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
+    octavia_provider: ""
 
   roles:
     - role: install-golang
@@ -28,4 +29,5 @@
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
     - role: install-cpo-occm
       run_e2e: true
+      octavia_provider: "{{ octavia_provider }}"
       environment: "{{ global_env }}"
