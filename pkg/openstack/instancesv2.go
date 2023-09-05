@@ -28,6 +28,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog/v2"
 )
 
@@ -38,6 +39,7 @@ type InstancesV2 struct {
 	region           string
 	regionProviderID bool
 	networkingOpts   NetworkingOpts
+	metadataServer   metadata.IMetadata
 }
 
 // InstancesV2 returns an implementation of InstancesV2 for OpenStack.
@@ -74,6 +76,7 @@ func (os *OpenStack) instancesv2() (*InstancesV2, bool) {
 		region:           os.epOpts.Region,
 		regionProviderID: regionalProviderID,
 		networkingOpts:   os.networkingOpts,
+		metadataServer:   metadata.GetMetadataProvider(os.metadataOpts.SearchOrder),
 	}, true
 }
 
@@ -151,6 +154,22 @@ func (i *InstancesV2) makeInstanceID(srv *servers.Server) string {
 
 func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*ServerAttributesExt, error) {
 	if node.Spec.ProviderID == "" {
+		instanceID, err := i.metadataServer.GetInstanceID()
+		if err == nil {
+			mc := metrics.NewMetricContext("server", "get")
+			result := servers.Get(i.compute, instanceID)
+			if mc.ObserveRequest(result.Err) != nil {
+				return nil, fmt.Errorf("error get server %v: %v", instanceID, r.Err)
+			}
+			server := ServerAttributesExt{}
+			if err = result.ExtractInto(server); err != nil {
+				return nil, fmt.Errorf("error extracting server from get result:  %v", err)
+			}
+			return &server, nil
+		} else {
+			klog.Warningf("Can not get instance ID from instance metadata: %v", err)
+		}
+
 		opt := servers.ListOpts{
 			Name: fmt.Sprintf("^%s$", node.Name),
 		}
