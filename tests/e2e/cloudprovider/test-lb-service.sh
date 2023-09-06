@@ -20,11 +20,11 @@ LB_SUBNET_NAME=${LB_SUBNET_NAME:-"private-subnet"}
 AUTO_CLEAN_UP=${AUTO_CLEAN_UP:-"true"}
 
 function delete_resources() {
+  ERROR_CODE="$?"
+
   if [[ ${AUTO_CLEAN_UP} != "true" ]]; then
     exit ${ERROR_CODE}
   fi
-
-  ERROR_CODE="$?"
 
   printf "\n>>>>>>> Deleting k8s services\n"
   kubectl -n ${NAMESPACE} get svc -o name | xargs -r kubectl -n $NAMESPACE delete
