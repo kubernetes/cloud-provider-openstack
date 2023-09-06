@@ -17,8 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"flag"
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -41,34 +39,9 @@ var (
 )
 
 func main() {
-	if err := flag.CommandLine.Parse([]string{}); err != nil {
-		klog.Fatalf("Unable to parse flags: %v", err)
-	}
-
 	cmd := &cobra.Command{
 		Use:   "Cinder",
 		Short: "CSI based Cinder driver",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Glog requires this otherwise it complains.
-			if err := flag.CommandLine.Parse(nil); err != nil {
-				return fmt.Errorf("unable to parse flags: %w", err)
-			}
-
-			// This is a temporary hack to enable proper logging until upstream dependencies
-			// are migrated to fully utilize klog instead of glog.
-			klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-			klog.InitFlags(klogFlags)
-
-			// Sync the glog and klog flags.
-			cmd.Flags().VisitAll(func(f1 *pflag.Flag) {
-				f2 := klogFlags.Lookup(f1.Name)
-				if f2 != nil {
-					value := f1.Value.String()
-					_ = f2.Value.Set(value)
-				}
-			})
-			return nil
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
@@ -99,7 +72,6 @@ func main() {
 }
 
 func handle() {
-
 	// Initialize cloud
 	d := cinder.NewDriver(endpoint, cluster)
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
