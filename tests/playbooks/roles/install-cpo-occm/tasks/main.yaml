@@ -116,6 +116,7 @@
 
 - name: Run functional tests for openstack-cloud-controller-manager
   when: run_e2e
+  register: run_tests
   shell:
     executable: /bin/bash
     cmd: |
@@ -125,3 +126,34 @@
       GATEWAY_IP=172.24.5.1 \
       DEVSTACK_OS_RC={{ devstack_workdir }}/openrc \
       bash tests/e2e/cloudprovider/test-lb-service.sh
+  timeout: 3600
+  ignore_errors: true
+
+- name: Print logs for debugging
+  when:
+    - run_e2e
+    - run_tests.failed
+  block:
+  - name: Show openstack-cloud-controller-manager pod logs
+    shell:
+      executable: /bin/bash
+      cmd: |
+        kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager
+
+  - name: Show Octavia logs
+    become: true
+    shell:
+      executable: /bin/bash
+      cmd: |
+        sudo journalctl -u devstack@o-api.service --no-pager
+
+  - name: Show Neutron logs
+    become: true
+    shell:
+      executable: /bin/bash
+      cmd: |
+        sudo journalctl -u devstack@q-svc.service --no-pager
+
+  - name: &failmsg2 Stop due to prior failure of tests
+    fail:
+      msg: *failmsg2
