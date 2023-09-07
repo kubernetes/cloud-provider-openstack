@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"context"
-	goflag "flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
-	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/component-base/cli"
@@ -96,10 +94,6 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kube_autohealer_config.yaml)")
-
-	log.InitFlags(nil)
-	_ = goflag.CommandLine.Parse(nil)
-	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
 }
 
 // initConfig reads in config file and ENV variables if set.
