@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -33,7 +32,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	kflag "k8s.io/component-base/cli/flag"
-	"k8s.io/klog/v2"
 )
 
 const errRespTemplate string = `{
@@ -167,10 +165,6 @@ func main() {
 	pflag.BoolVar(&showVersion, "version", false, "Show current version and exit")
 
 	logs.AddFlags(pflag.CommandLine)
-
-	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(klogFlags)
-	pflag.CommandLine.AddGoFlagSet(klogFlags)
 
 	kflag.InitFlags()
 
