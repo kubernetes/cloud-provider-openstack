@@ -55,19 +55,18 @@ func main() {
 		}
 	})
 
-	pflag.Parse()
-
-	if showVersion {
-		fmt.Println(version.Version)
-		os.Exit(0)
-	}
-
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
 	config := keystone.NewConfig()
 	config.AddFlags(pflag.CommandLine)
+
 	kflag.InitFlags()
+
+	if showVersion {
+		fmt.Println(version.Version)
+		os.Exit(0)
+	}
 
 	if err := config.ValidateFlags(); err != nil {
 		klog.Errorf("%v", err)
