@@ -187,9 +187,8 @@ func main() {
 	logs.AddFlags(pflag.CommandLine)
 
 	pflag.CommandLine.AddGoFlagSet(klogFlags)
-	kflag.InitFlags()
 
-	pflag.Parse()
+	kflag.InitFlags()
 
 	if showVersion {
 		fmt.Println(version.Version)
