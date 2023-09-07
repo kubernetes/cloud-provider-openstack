@@ -42,7 +42,7 @@ var (
 
 func main() {
 	cmd := &cobra.Command{
-		Use:   "Cinder",
+		Use:   "cinder-csi-plugin",
 		Short: "CSI based Cinder driver",
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
