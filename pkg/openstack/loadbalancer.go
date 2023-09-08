@@ -2390,7 +2390,7 @@ func (lbaas *LbaasV2) deleteLoadBalancer(loadbalancer *loadbalancers.LoadBalance
 					Protocol: proto,
 					Port:     int(port.Port),
 				}]
-				if isPresent && cpoutil.Contains(listener.Tags, loadbalancer.Name) {
+				if isPresent && cpoutil.Contains(listener.Tags, svcConf.lbName) {
 					listenersToDelete = append(listenersToDelete, *listener)
 				}
 			}
@@ -2451,6 +2451,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 	if err := lbaas.checkServiceDelete(service, svcConf); err != nil {
 		return err
 	}
+	svcConf.lbName = lbName
 
 	if svcConf.lbID != "" {
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(lbaas.lb, svcConf.lbID)
