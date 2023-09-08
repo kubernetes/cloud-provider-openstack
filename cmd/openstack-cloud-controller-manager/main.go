@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
@@ -42,18 +41,18 @@ import (
 )
 
 func main() {
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
 	}
 
 	fss := cliflag.NamedFlagSets{}
+	openstack.AddExtraFlags(fss.FlagSet("OpenStack Client"))
+
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, names.CCMControllerAliases(), fss, wait.NeverStop)
-
-	openstack.AddExtraFlags(pflag.CommandLine)
-
-	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	klog.V(1).Infof("openstack-cloud-controller-manager version: %s", version.Version)
 
