@@ -88,7 +88,7 @@ func (check *NodeConditionCheck) IsWorkerSupported() bool {
 	return true
 }
 
-func newNodeConditionCheck(config interface{}) (HealthCheck, error) {
+func NewNodeConditionCheck(config interface{}) (HealthCheck, error) {
 	check := NodeConditionCheck{
 		UnhealthyDuration: 300 * time.Second,
 		Types:             []string{"Ready"},
@@ -109,8 +109,4 @@ func newNodeConditionCheck(config interface{}) (HealthCheck, error) {
 	}
 
 	return &check, nil
-}
-
-func init() {
-	registerHealthCheck(NodeConditionType, newNodeConditionCheck)
 }

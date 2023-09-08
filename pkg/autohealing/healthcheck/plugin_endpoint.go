@@ -184,7 +184,7 @@ func (check *EndpointCheck) Check(node NodeInfo, controller NodeController) bool
 	return check.checkDuration(node, controller, true)
 }
 
-func newEndpointCheck(config interface{}) (HealthCheck, error) {
+func NewEndpointCheck(config interface{}) (HealthCheck, error) {
 	check := EndpointCheck{
 		Protocol:            "https",
 		Port:                6443,
@@ -209,8 +209,4 @@ func newEndpointCheck(config interface{}) (HealthCheck, error) {
 	}
 
 	return &check, nil
-}
-
-func init() {
-	registerHealthCheck(EndpointType, newEndpointCheck)
 }

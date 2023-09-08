@@ -38,9 +38,7 @@ import (
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
-	// revive:disable:blank-imports
-	_ "k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/register"
-	// revive:enable:blank-imports
+	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
 )
@@ -119,6 +117,13 @@ func createKubeClients(apiserverHost string, kubeConfig string) (*kubernetes.Cli
 
 // NewController creates a new autohealer controller.
 func NewController(conf config.Config) *Controller {
+	// register healthchecks
+	healthcheck.RegisterHealthCheck(healthcheck.EndpointType, healthcheck.NewEndpointCheck)
+	healthcheck.RegisterHealthCheck(healthcheck.NodeConditionType, healthcheck.NewNodeConditionCheck)
+
+	// register clouds
+	cloudprovider.RegisterCloudProvider(openstack.ProviderName, openstack.NewOpenStackCloudProvider)
+
 	// initialize k8s clients
 	kubeClient, leaderElectionClient, err := createKubeClients(conf.Kubernetes.ApiserverHost, conf.Kubernetes.KubeConfig)
 	if err != nil {
