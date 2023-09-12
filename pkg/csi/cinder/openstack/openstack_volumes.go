@@ -96,11 +96,11 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 		}
 
 		if nextPageURL != "" {
-			queryParams, err := url.ParseQuery(nextPageURL)
+			pageURL, err := url.Parse(nextPageURL)
 			if err != nil {
 				return false, err
 			}
-			nextPageToken = queryParams.Get("marker")
+			nextPageToken = pageURL.Query().Get("marker")
 		}
 
 		return false, nil

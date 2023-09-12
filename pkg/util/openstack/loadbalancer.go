@@ -57,16 +57,6 @@ const (
 
 var (
 	octaviaVersion string
-
-	// ErrNotFound is used to inform that the object is missing.
-	// Deprecated: use cpoerrors.ErrNotFound instead.
-	// TODO: remove in v1.27.0.
-	ErrNotFound = cpoerrors.ErrNotFound
-
-	// ErrMultipleResults is used when we unexpectedly get back multiple results.
-	// Deprecated: use cpoerrors.ErrMultipleResults instead.
-	// TODO: remove in v1.27.0.
-	ErrMultipleResults = cpoerrors.ErrMultipleResults
 )
 
 // getOctaviaVersion returns the current Octavia API version.
@@ -193,7 +183,7 @@ func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalance
 			klog.InfoS("Load balancer ACTIVE", "lbID", loadbalancerID)
 			return true, nil
 		} else if loadbalancer.ProvisioningStatus == errorStatus {
-			return true, fmt.Errorf("loadbalancer has gone into ERROR state")
+			return true, fmt.Errorf("loadbalancer %s has gone into ERROR state", loadbalancerID)
 		} else {
 			return false, nil
 		}
@@ -668,11 +658,15 @@ func CreateL7Rule(client *gophercloud.ServiceClient, policyID string, opts l7pol
 }
 
 // UpdateHealthMonitor updates a health monitor.
-func UpdateHealthMonitor(client *gophercloud.ServiceClient, monitorID string, opts monitors.UpdateOpts) error {
+func UpdateHealthMonitor(client *gophercloud.ServiceClient, monitorID string, opts monitors.UpdateOpts, lbID string) error {
 	mc := metrics.NewMetricContext("loadbalancer_healthmonitor", "update")
 	_, err := monitors.Update(client, monitorID, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return fmt.Errorf("failed to update healthmonitor: %v", err)
+	}
+
+	if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating healthmonitor: %v", lbID, err)
 	}
 
 	return nil

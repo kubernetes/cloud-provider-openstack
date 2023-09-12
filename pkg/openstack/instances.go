@@ -27,9 +27,10 @@ import (
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
+	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/pagination"
 	"github.com/mitchellh/mapstructure"
 	v1 "k8s.io/api/core/v1"
@@ -48,6 +49,7 @@ import (
 // Instances encapsulates an implementation of Instances for OpenStack.
 type Instances struct {
 	compute          *gophercloud.ServiceClient
+	network          *gophercloud.ServiceClient
 	region           string
 	regionProviderID bool
 	opts             metadata.Opts
@@ -148,6 +150,12 @@ func (os *OpenStack) instances() (*Instances, bool) {
 		return nil, false
 	}
 
+	network, err := client.NewNetworkV2(os.provider, os.epOpts)
+	if err != nil {
+		klog.Errorf("unable to access network v2 API : %v", err)
+		return nil, false
+	}
+
 	regionalProviderID := false
 	if isRegionalProviderID := sysos.Getenv(RegionalProviderIDEnv); isRegionalProviderID == "true" {
 		regionalProviderID = true
@@ -155,6 +163,7 @@ func (os *OpenStack) instances() (*Instances, bool) {
 
 	return &Instances{
 		compute:          compute,
+		network:          network,
 		region:           os.epOpts.Region,
 		regionProviderID: regionalProviderID,
 		opts:             os.metadataOpts,
@@ -226,12 +235,12 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 		return []v1.NodeAddress{}, err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(i.compute, server.ID)
+	ports, err := getAttachedPorts(i.network, server.ID)
 	if err != nil {
 		return []v1.NodeAddress{}, err
 	}
 
-	addresses, err := nodeAddresses(server, interfaces, i.networkingOpts)
+	addresses, err := nodeAddresses(server, ports, i.network, i.networkingOpts)
 	if err != nil {
 		return []v1.NodeAddress{}, err
 	}
@@ -332,11 +341,11 @@ func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloud
 		return nil, err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(i.compute, srv.ID)
+	ports, err := getAttachedPorts(i.network, srv.ID)
 	if err != nil {
 		return nil, err
 	}
-	addresses, err := nodeAddresses(srv, interfaces, i.networkingOpts)
+	addresses, err := nodeAddresses(srv, ports, i.network, i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -564,13 +573,13 @@ func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*S
 // * access IPs
 // * metadata hostname
 // * server object Addresses (floating type)
-func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
+func nodeAddresses(srv *servers.Server, ports []PortWithTrunkDetails, client *gophercloud.ServiceClient, networkingOpts NetworkingOpts) ([]v1.NodeAddress, error) {
 	addrs := []v1.NodeAddress{}
 
 	// parse private IP addresses first in an ordered manner
-	for _, iface := range interfaces {
-		for _, fixedIP := range iface.FixedIPs {
-			if iface.PortState == "ACTIVE" {
+	for _, port := range ports {
+		for _, fixedIP := range port.FixedIPs {
+			if port.Status == "ACTIVE" {
 				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
 				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
 					AddToNodeAddresses(&addrs,
@@ -624,7 +633,40 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 		return nil, err
 	}
 
-	var networks []string
+	// Add the addresses assigned on subports via trunk
+	// This exposes the vlan networks to which subports are attached
+	for _, port := range ports {
+		for _, subport := range port.TrunkDetails.SubPorts {
+			p, err := neutronports.Get(client, subport.PortID).Extract()
+			if err != nil {
+				klog.Errorf("Failed to get subport %s details: %v", subport.PortID, err)
+				continue
+			}
+			n, err := networks.Get(client, p.NetworkID).Extract()
+			if err != nil {
+				klog.Errorf("Failed to get subport %s network details: %v", subport.PortID, err)
+				continue
+			}
+			for _, fixedIP := range p.FixedIPs {
+				klog.V(5).Infof("Node '%s' is found subport '%s' address '%s/%s'", srv.Name, p.Name, n.Name, fixedIP.IPAddress)
+				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
+				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+					addr := Address{IPType: "fixed", Addr: fixedIP.IPAddress}
+					subportAddresses := map[string][]Address{n.Name: {addr}}
+					srvAddresses, ok := addresses[n.Name]
+					if !ok {
+						addresses[n.Name] = subportAddresses[n.Name]
+					} else {
+						// this is to take care the corner case
+						// where the same network is attached to the node both directly and via trunk
+						addresses[n.Name] = append(srvAddresses, subportAddresses[n.Name]...)
+					}
+				}
+			}
+		}
+	}
+
+	networks := make([]string, 0, len(addresses))
 	for k := range addresses {
 		networks = append(networks, k)
 	}
@@ -674,6 +716,7 @@ func nodeAddresses(srv *servers.Server, interfaces []attachinterfaces.Interface,
 		sortNodeAddresses(addrs, networkingOpts.AddressSortOrder)
 	}
 
+	klog.V(5).Infof("Node '%s' returns addresses '%v'", srv.Name, addrs)
 	return addrs, nil
 }
 
@@ -683,31 +726,30 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 		return nil, err
 	}
 
-	interfaces, err := getAttachedInterfacesByID(client, srv.ID)
+	ports, err := getAttachedPorts(client, srv.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	return nodeAddresses(&srv.Server, interfaces, networkingOpts)
+	return nodeAddresses(&srv.Server, ports, client, networkingOpts)
 }
 
-// getAttachedInterfacesByID returns the node interfaces of the specified instance.
-func getAttachedInterfacesByID(client *gophercloud.ServiceClient, serviceID string) ([]attachinterfaces.Interface, error) {
-	var interfaces []attachinterfaces.Interface
-
-	mc := metrics.NewMetricContext("server_os_interface", "list")
-	pager := attachinterfaces.List(client, serviceID)
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		s, err := attachinterfaces.ExtractInterfaces(page)
-		if err != nil {
-			return false, err
-		}
-		interfaces = append(interfaces, s...)
-		return true, nil
-	})
-	if mc.ObserveRequest(err) != nil {
-		return interfaces, err
+// getAttachedPorts returns a list of ports attached to a server.
+func getAttachedPorts(client *gophercloud.ServiceClient, serverID string) ([]PortWithTrunkDetails, error) {
+	listOpts := neutronports.ListOpts{
+		DeviceID: serverID,
 	}
 
-	return interfaces, nil
+	var ports []PortWithTrunkDetails
+
+	allPages, err := neutronports.List(client, listOpts).AllPages()
+	if err != nil {
+		return ports, err
+	}
+	err = neutronports.ExtractPortsInto(allPages, &ports)
+	if err != nil {
+		return ports, err
+	}
+
+	return ports, nil
 }

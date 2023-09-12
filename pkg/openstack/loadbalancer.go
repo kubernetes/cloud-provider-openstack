@@ -40,13 +40,13 @@ import (
 	secgroups "github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups"
 	"gopkg.in/godo.v2/glob"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
+	"k8s.io/utils/strings/slices"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
@@ -422,6 +422,15 @@ func getSecurityGroupName(service *corev1.Service) string {
 	return securityGroupName
 }
 
+func getSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
+	mc := metrics.NewMetricContext("security_group_rule", "list")
+	page, err := rules.List(client, opts).AllPages()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+	return rules.ExtractRules(page)
+}
+
 func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) listeners.Protocol {
 	// Make neutron-lbaas code work
 	if svcConf != nil {
@@ -442,7 +451,7 @@ func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) liste
 	}
 }
 
-func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName string, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) (*loadbalancers.LoadBalancer, error) {
+func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) (*loadbalancers.LoadBalancer, error) {
 	createOpts := loadbalancers.CreateOpts{
 		Name:        name,
 		Description: fmt.Sprintf("Kubernetes external service %s/%s from cluster %s", service.Namespace, service.Name, clusterName),
@@ -488,28 +497,30 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		createOpts.VipAddress = loadBalancerIP
 	}
 
-	for portIndex, port := range service.Spec.Ports {
-		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
-		listenerCreateOpt.Name = cutString(fmt.Sprintf("listener_%d_%s", portIndex, name))
-		members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
-		if err != nil {
-			return nil, err
-		}
-		poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
-		poolCreateOpt.Members = members
-		// Pool name must be provided to create fully populated loadbalancer
-		poolCreateOpt.Name = cutString(fmt.Sprintf("pool_%d_%s", portIndex, name))
-		var withHealthMonitor string
-		if svcConf.enableMonitor {
-			opts := lbaas.buildMonitorCreateOpts(svcConf, port)
-			opts.Name = cutString(fmt.Sprintf("monitor_%d_%s", port.Port, name))
-			poolCreateOpt.Monitor = &opts
-			withHealthMonitor = " with healthmonitor"
-		}
+	if !lbaas.opts.ProviderRequiresSerialAPICalls {
+		for portIndex, port := range service.Spec.Ports {
+			listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf)
+			listenerCreateOpt.Name = cpoutil.CutString255(fmt.Sprintf("listener_%d_%s", portIndex, name))
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+			if err != nil {
+				return nil, err
+			}
+			poolCreateOpt := lbaas.buildPoolCreateOpt(string(listenerCreateOpt.Protocol), service, svcConf)
+			poolCreateOpt.Members = members
+			// Pool name must be provided to create fully populated loadbalancer
+			poolCreateOpt.Name = cpoutil.CutString255(fmt.Sprintf("pool_%d_%s", portIndex, name))
+			var withHealthMonitor string
+			if svcConf.enableMonitor {
+				opts := lbaas.buildMonitorCreateOpts(svcConf, port)
+				opts.Name = cpoutil.CutString255(fmt.Sprintf("monitor_%d_%s", port.Port, name))
+				poolCreateOpt.Monitor = &opts
+				withHealthMonitor = " with healthmonitor"
+			}
 
-		listenerCreateOpt.DefaultPool = &poolCreateOpt
-		createOpts.Listeners = append(createOpts.Listeners, listenerCreateOpt)
-		klog.V(2).Infof("Loadbalancer %s: adding pool%s using protocol %s with %d members", name, withHealthMonitor, poolCreateOpt.Protocol, len(newMembers))
+			listenerCreateOpt.DefaultPool = &poolCreateOpt
+			createOpts.Listeners = append(createOpts.Listeners, listenerCreateOpt)
+			klog.V(2).Infof("Loadbalancer %s: adding pool%s using protocol %s with %d members", name, withHealthMonitor, poolCreateOpt.Protocol, len(newMembers))
+		}
 	}
 
 	mc := metrics.NewMetricContext("loadbalancer", "create")
@@ -528,6 +539,14 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 	}
 
 	if loadbalancer, err = openstackutil.WaitActiveAndGetLoadBalancer(lbaas.lb, loadbalancer.ID); err != nil {
+		if loadbalancer.ProvisioningStatus == errorStatus {
+			// If LB landed in ERROR state we should delete it and retry the creation later.
+			if err = lbaas.deleteLoadBalancer(loadbalancer, service, svcConf, true); err != nil {
+				return nil, fmt.Errorf("loadbalancer %s is in ERROR state and there was an error when removing it: %v", loadbalancer.ID, err)
+			}
+			return nil, fmt.Errorf("loadbalancer %s has gone into ERROR state, please check Octavia for details. Load balancer was "+
+				"deleted and its creation will be retried", loadbalancer.ID)
+		}
 		return nil, err
 	}
 
@@ -574,21 +593,12 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 // GetLoadBalancerName returns the constructed load balancer name.
 func (lbaas *LbaasV2) GetLoadBalancerName(_ context.Context, clusterName string, service *corev1.Service) string {
 	name := fmt.Sprintf("%s%s_%s_%s", servicePrefix, clusterName, service.Namespace, service.Name)
-	return cutString(name)
+	return cpoutil.CutString255(name)
 }
 
 // getLoadBalancerLegacyName returns the legacy load balancer name for backward compatibility.
 func (lbaas *LbaasV2) getLoadBalancerLegacyName(_ context.Context, _ string, service *corev1.Service) string {
 	return cloudprovider.DefaultLoadBalancerName(service)
-}
-
-// cutString makes sure the string length doesn't exceed 255, which is usually the maximum string length in OpenStack.
-func cutString(original string) string {
-	ret := original
-	if len(original) > 255 {
-		ret = original[:255]
-	}
-	return ret
 }
 
 // The LB needs to be configured with instance addresses on the same
@@ -684,24 +694,24 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
-func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
+func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
 	ipAddress, err := nodeAddressForLB(&node, preferredIPFamily)
 	if err != nil {
 		return "", err
 	}
 
-	instanceID := node.Spec.ProviderID
-	if ind := strings.LastIndex(instanceID, "/"); ind >= 0 {
-		instanceID = instanceID[(ind + 1):]
+	_, instanceID, err := instanceIDFromProviderID(node.Spec.ProviderID)
+	if err != nil {
+		return "", fmt.Errorf("can't determine instance ID from ProviderID when autodetecting LB subnet: %w", err)
 	}
 
-	interfaces, err := getAttachedInterfacesByID(compute, instanceID)
+	ports, err := getAttachedPorts(network, instanceID)
 	if err != nil {
 		return "", err
 	}
 
-	for _, intf := range interfaces {
-		for _, fixedIP := range intf.FixedIPs {
+	for _, port := range ports {
+		for _, fixedIP := range port.FixedIPs {
 			if fixedIP.IPAddress == ipAddress {
 				return fixedIP.SubnetID, nil
 			}
@@ -712,15 +722,13 @@ func getSubnetIDForLB(compute *gophercloud.ServiceClient, node corev1.Node, pref
 }
 
 // applyNodeSecurityGroupIDForLB associates the security group with all the ports on the nodes.
-func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *gophercloud.ServiceClient, nodes []*corev1.Node, sg string) error {
+func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, nodes []*corev1.Node, sg string) error {
 	for _, node := range nodes {
-		nodeName := types.NodeName(node.Name)
-		srv, err := getServerByName(compute, nodeName)
+		serverID, _, err := instanceIDFromProviderID(node.Spec.ProviderID)
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting server ID from the node: %w", err)
 		}
-
-		listOpts := neutronports.ListOpts{DeviceID: srv.ID}
+		listOpts := neutronports.ListOpts{DeviceID: serverID}
 		allPorts, err := openstackutil.GetPorts(network, listOpts)
 		if err != nil {
 			return err
@@ -728,31 +736,20 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 
 		for _, port := range allPorts {
 			// If the Security Group is already present on the port, skip it.
-			// As soon as this only supports Go 1.18, this can be replaces by
-			// slices.Contains.
-			if func() bool {
-				for _, currentSG := range port.SecurityGroups {
-					if currentSG == sg {
-						return true
-					}
-				}
-				return false
-			}() {
+			if slices.Contains(port.SecurityGroups, sg) {
 				continue
 			}
 
+			// Add the SG to the port
+			// TODO(dulek): This isn't an atomic operation. In order to protect from lost update issues we should use
+			//              `revision_number` handling to make sure our update to `security_groups` field wasn't preceded
+			//              by a different one. Same applies to a removal of the SG.
 			newSGs := append(port.SecurityGroups, sg)
 			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
 			mc := metrics.NewMetricContext("port", "update")
 			res := neutronports.Update(network, port.ID, updateOpts)
 			if mc.ObserveRequest(res.Err) != nil {
 				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
-			}
-			// Add the security group ID as a tag to the port in order to find all these ports when removing the security group.
-			mc = metrics.NewMetricContext("port_tag", "add")
-			err := neutrontags.Add(network, "ports", port.ID, sg).ExtractErr()
-			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to add tag %s to port %s: %v", sg, port.ID, err)
 			}
 		}
 	}
@@ -763,7 +760,7 @@ func applyNodeSecurityGroupIDForLB(compute *gophercloud.ServiceClient, network *
 // disassociateSecurityGroupForLB removes the given security group from the ports
 func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg string) error {
 	// Find all the ports that have the security group associated.
-	listOpts := neutronports.ListOpts{TagsAny: sg}
+	listOpts := neutronports.ListOpts{SecurityGroups: []string{sg}}
 	allPorts, err := openstackutil.GetPorts(network, listOpts)
 	if err != nil {
 		return err
@@ -779,36 +776,27 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 
 		// Update port security groups
 		newSGs := existingSGs.List()
+		// TODO(dulek): This should be done using Neutron's revision_number to make sure
+		//              we don't trigger a lost update issue.
 		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
 		mc := metrics.NewMetricContext("port", "update")
 		res := neutronports.Update(network, port.ID, updateOpts)
 		if mc.ObserveRequest(res.Err) != nil {
 			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 		}
-		// Remove the security group ID tag from the port.
-		mc = metrics.NewMetricContext("port_tag", "delete")
-		err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr()
-		if mc.ObserveRequest(err) != nil {
-			return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
+
+		// Remove the security group ID tag from the port. Please note we don't tag ports with SG IDs anymore,
+		// so this stays for backward compatibility. It's reasonable to delete it in the future. 404s are ignored.
+		if slices.Contains(port.Tags, sg) {
+			mc = metrics.NewMetricContext("port_tag", "delete")
+			err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr()
+			if mc.ObserveRequest(err) != nil {
+				return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
+			}
 		}
 	}
 
 	return nil
-}
-
-// isSecurityGroupNotFound return true while 'err' is object of gophercloud.ErrResourceNotFound
-func isSecurityGroupNotFound(err error) bool {
-	errType := reflect.TypeOf(err).String()
-	errTypeSlice := strings.Split(errType, ".")
-	errTypeValue := ""
-	if len(errTypeSlice) != 0 {
-		errTypeValue = errTypeSlice[len(errTypeSlice)-1]
-	}
-	if errTypeValue == "ErrResourceNotFound" {
-		return true
-	}
-
-	return false
 }
 
 // deleteListeners deletes listeners and its default pool.
@@ -1075,7 +1063,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 				MaxRetries: svcConf.healthMonitorMaxRetries,
 			}
 			klog.Infof("Updating health monitor %s updateOpts %+v", monitorID, updateOpts)
-			if err := openstackutil.UpdateHealthMonitor(lbaas.lb, monitorID, updateOpts); err != nil {
+			if err := openstackutil.UpdateHealthMonitor(lbaas.lb, monitorID, updateOpts, lbID); err != nil {
 				return err
 			}
 		}
@@ -1173,6 +1161,16 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 			return nil, err
 		}
 		klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
+	}
+
+	if lbaas.opts.ProviderRequiresSerialAPICalls {
+		klog.V(2).Infof("Using serial API calls to update members for pool %s", pool.ID)
+		var nodePort int = int(port.NodePort)
+
+		if err := openstackutil.SeriallyReconcilePoolMembers(lbaas.lb, pool, nodePort, lbID, nodes); err != nil {
+			return nil, err
+		}
+		return pool, nil
 	}
 
 	curMembers := sets.New[string]()
@@ -1403,8 +1401,10 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 		listenerCreateOpt.Protocol = listeners.ProtocolHTTP
 	}
 
-	if len(svcConf.allowedCIDR) > 0 {
-		listenerCreateOpt.AllowedCIDRs = svcConf.allowedCIDR
+	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
+		if len(svcConf.allowedCIDR) > 0 {
+			listenerCreateOpt.AllowedCIDRs = svcConf.allowedCIDR
+		}
 	}
 	return listenerCreateOpt
 }
@@ -1531,7 +1531,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 		} else {
 			svcConf.lbMemberSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 			if len(svcConf.lbMemberSubnetID) == 0 && len(nodes) > 0 {
-				subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], svcConf.preferredIPFamily)
+				subnetID, err := getSubnetIDForLB(lbaas.network, *nodes[0], svcConf.preferredIPFamily)
 				if err != nil {
 					return fmt.Errorf("no subnet-id found for service %s: %v", serviceName, err)
 				}
@@ -1645,7 +1645,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.lbMemberSubnetID = svcConf.lbSubnetID
 	}
 	if len(svcConf.lbNetworkID) == 0 && len(svcConf.lbSubnetID) == 0 {
-		subnetID, err := getSubnetIDForLB(lbaas.compute, *nodes[0], svcConf.preferredIPFamily)
+		subnetID, err := getSubnetIDForLB(lbaas.network, *nodes[0], svcConf.preferredIPFamily)
 		if err != nil {
 			return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
 		}
@@ -1688,22 +1688,20 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 
+		// If LB class doesn't define FIP network or subnet, get it from svc annotation or fall back to configuration
 		if floatingNetworkID == "" {
 			floatingNetworkID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingNetworkID, lbaas.opts.FloatingNetworkID)
-			if floatingNetworkID == "" {
-				var err error
-				floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
-				if err != nil {
-					klog.Warningf("Failed to find floating-network-id for Service %s: %v", serviceName, err)
-				}
+		}
+
+		// If there's no annotation and configuration, try to autodetect the FIP network by looking up external nets
+		if floatingNetworkID == "" {
+			floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
+			if err != nil {
+				klog.Warningf("Failed to find floating-network-id for Service %s: %v", serviceName, err)
 			}
 		}
 
-		// apply defaults from CCM config
-		if floatingNetworkID == "" {
-			floatingNetworkID = lbaas.opts.FloatingNetworkID
-		}
-
+		// try to get FIP subnet from configuration
 		if !floatingSubnet.Configured() {
 			annos := floatingSubnetSpec{}
 			annos.subnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFloatingSubnetID, "")
@@ -1722,7 +1720,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 
-		// check subnets belongs to network
+		// check configured subnet belongs to network
 		if floatingNetworkID != "" && floatingSubnet.subnetID != "" {
 			mc := metrics.NewMetricContext("subnet", "get")
 			subnet, err := subnets.Get(lbaas.network, floatingSubnet.subnetID).Extract()
@@ -1761,18 +1759,19 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.timeoutTCPInspect = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutTCPInspect, 0)
 	}
 
-	var listenerAllowedCIDRs []string
 	sourceRanges, err := GetLoadBalancerSourceRanges(service, svcConf.preferredIPFamily)
 	if err != nil {
 		return fmt.Errorf("failed to get source ranges for loadbalancer service %s: %v", serviceName, err)
 	}
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
 		klog.V(4).Info("LoadBalancerSourceRanges is suppported")
-		listenerAllowedCIDRs = sourceRanges.StringSlice()
+		svcConf.allowedCIDR = sourceRanges.StringSlice()
+	} else if lbaas.opts.LBProvider == "ovn" && lbaas.opts.ManageSecurityGroups {
+		klog.V(4).Info("LoadBalancerSourceRanges will be enforced on the SG created and attached to LB members")
+		svcConf.allowedCIDR = sourceRanges.StringSlice()
 	} else {
-		klog.Warning("LoadBalancerSourceRanges is ignored")
+		klog.Warning("LoadBalancerSourceRanges are ignored")
 	}
-	svcConf.allowedCIDR = listenerAllowedCIDRs
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
 		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
@@ -1928,9 +1927,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			if err != cpoerrors.ErrNotFound {
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 			}
-
-			klog.InfoS("Creating fully populated loadbalancer", "lbName", lbName, "service", klog.KObj(service))
-			loadbalancer, err = lbaas.createFullyPopulatedOctaviaLoadBalancer(lbName, clusterName, service, nodes, svcConf)
+			klog.InfoS("Creating loadbalancer", "lbName", lbName, "service", klog.KObj(service))
+			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, nodes, svcConf)
 			if err != nil {
 				return nil, fmt.Errorf("error creating loadbalancer %s: %v", lbName, err)
 			}
@@ -1951,8 +1949,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 	klog.V(4).InfoS("Load balancer ensured", "lbID", loadbalancer.ID, "isLBOwner", isLBOwner, "createNewLB", createNewLB)
 
-	// This is an existing load balancer, either created by occm for other Services or by the user outside of cluster.
-	if !createNewLB {
+	// This is an existing load balancer, either created by occm for other Services or by the user outside of cluster, or
+	// a newly created, unpopulated loadbalancer that needs populating.
+	if !createNewLB || (lbaas.opts.ProviderRequiresSerialAPICalls && createNewLB) {
 		curListeners := loadbalancer.Listeners
 		curListenerMapping := make(map[listenerKey]*listeners.Listener)
 		for i, l := range curListeners {
@@ -1967,17 +1966,17 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 
 		for portIndex, port := range service.Spec.Ports {
-			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cutString(fmt.Sprintf("listener_%d_%s", portIndex, lbName)), curListenerMapping, port, svcConf, service)
+			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cpoutil.CutString255(fmt.Sprintf("listener_%d_%s", portIndex, lbName)), curListenerMapping, port, svcConf, service)
 			if err != nil {
 				return nil, err
 			}
 
-			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, lbName)), listener, service, port, nodes, svcConf)
+			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.CutString255(fmt.Sprintf("pool_%d_%s", portIndex, lbName)), listener, service, port, nodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
 
-			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cutString(fmt.Sprintf("monitor_%d_%s", portIndex, lbName)), pool, port, svcConf); err != nil {
+			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cpoutil.CutString255(fmt.Sprintf("monitor_%d_%s", portIndex, lbName)), pool, port, svcConf); err != nil {
 				return nil, err
 			}
 
@@ -2019,9 +2018,15 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureSecurityGroup(clusterName, service, nodes, loadbalancer, svcConf.preferredIPFamily, svcConf.lbMemberSubnetID)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, nodes, svcConf)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
+		}
+	} else {
+		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
+		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
+		if err := lbaas.ensureSecurityGroupDeleted(clusterName, service); err != nil {
+			return status, err
 		}
 	}
 
@@ -2060,40 +2065,18 @@ func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubN
 }
 
 // group, if it not present.
-func (lbaas *LbaasV2) ensureSecurityRule(
-	direction rules.RuleDirection,
-	protocol rules.RuleProtocol,
-	etherType rules.RuleEtherType,
-	remoteIPPrefix, secGroupID string,
-	portRangeMin, portRangeMax int,
-) error {
-	sgRuleCreateOpts := rules.CreateOpts{
-		Direction:      direction,
-		Protocol:       protocol,
-		PortRangeMax:   portRangeMin,
-		PortRangeMin:   portRangeMax,
-		RemoteIPPrefix: remoteIPPrefix,
-		SecGroupID:     secGroupID,
-		EtherType:      etherType,
-	}
-
+func (lbaas *LbaasV2) ensureSecurityRule(sgRuleCreateOpts rules.CreateOpts) error {
 	mc := metrics.NewMetricContext("security_group_rule", "create")
 	_, err := rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
 	if err != nil && cpoerrors.IsConflictError(err) {
 		// Conflict means the SG rule already exists, so ignoring that error.
+		klog.Warningf("Security group rule already found when trying to create it. This indicates concurrent "+
+			"updates to the SG %s and is unexpected", sgRuleCreateOpts.SecGroupID)
 		return mc.ObserveRequest(nil)
 	} else if mc.ObserveRequest(err) != nil {
-		return fmt.Errorf("failed to create rule for security group %s: %v", secGroupID, err)
+		return fmt.Errorf("failed to create rule for security group %s: %v", sgRuleCreateOpts.SecGroupID, err)
 	}
 	return nil
-}
-
-// ensureSecurityGroup ensures security group exist for specific loadbalancer service.
-// Creating security group for specific loadbalancer service when it does not exist.
-func (lbaas *LbaasV2) ensureSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node,
-	loadbalancer *loadbalancers.LoadBalancer, preferredIPFamily corev1.IPFamily, memberSubnetID string) error {
-
-	return lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, apiService, nodes, memberSubnetID)
 }
 
 func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
@@ -2151,18 +2134,21 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, loadbalancer.Name)), &listener, service, port, nodes, svcConf)
+		_, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.CutString255(fmt.Sprintf("pool_%d_%s", portIndex, loadbalancer.Name)), &listener, service, port, nodes, svcConf)
 		if err != nil {
 			return err
 		}
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.updateSecurityGroup(clusterName, service, nodes, svcConf.lbMemberSubnetID)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, nodes, svcConf)
 		if err != nil {
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
 	}
+	// We don't try to lookup and delete the SG here when `manage-security-group=false` as `UpdateLoadBalancer()` is
+	// only called on changes to the list of the Nodes. Deletion of the SG on reconfiguration will be handled by
+	// EnsureLoadBalancer() that is the true LB reconcile function.
 
 	return nil
 }
@@ -2174,8 +2160,52 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 	return mc.ObserveReconcile(err)
 }
 
+func compareSecurityGroupRuleAndCreateOpts(rule rules.SecGroupRule, opts rules.CreateOpts) bool {
+	return rule.Direction == string(opts.Direction) &&
+		strings.EqualFold(rule.Protocol, string(opts.Protocol)) &&
+		rule.EtherType == string(opts.EtherType) &&
+		rule.RemoteIPPrefix == opts.RemoteIPPrefix &&
+		rule.PortRangeMin == opts.PortRangeMin &&
+		rule.PortRangeMax == opts.PortRangeMax
+}
+
+func getRulesToCreateAndDelete(wantedRules []rules.CreateOpts, existingRules []rules.SecGroupRule) ([]rules.CreateOpts, []rules.SecGroupRule) {
+	toCreate := make([]rules.CreateOpts, 0, len(wantedRules))     // Max is all rules need creation
+	toDelete := make([]rules.SecGroupRule, 0, len(existingRules)) // Max will be all the existing rules to be deleted
+	// Surely this can be done in a more efficient way. Is it worth optimizing if most of
+	// the time we'll deal with just 1 or 2 elements in each array? I doubt it.
+	for _, existingRule := range existingRules {
+		found := false
+		for _, wantedRule := range wantedRules {
+			if compareSecurityGroupRuleAndCreateOpts(existingRule, wantedRule) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// in existingRules but not in wantedRules, delete
+			toDelete = append(toDelete, existingRule)
+		}
+	}
+	for _, wantedRule := range wantedRules {
+		found := false
+		for _, existingRule := range existingRules {
+			if compareSecurityGroupRuleAndCreateOpts(existingRule, wantedRule) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// in wantedRules but not in exisitngRules, create
+			toCreate = append(toCreate, wantedRule)
+		}
+	}
+
+	return toCreate, toDelete
+}
+
 // ensureAndUpdateOctaviaSecurityGroup handles the creation and update of the security group and the securiry rules for the octavia load balancer
-func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, memberSubnetID string) error {
+func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	// get service ports
 	ports := apiService.Spec.Ports
 	if len(ports) == 0 {
@@ -2187,7 +2217,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
 		// If the security group of LB not exist, create it later
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			lbSecGroupID = ""
 		} else {
 			return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
@@ -2209,64 +2239,99 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")
-	subnet, err := subnets.Get(lbaas.network, memberSubnetID).Extract()
+	subnet, err := subnets.Get(lbaas.network, svcConf.lbMemberSubnetID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return fmt.Errorf(
-			"failed to find subnet %s from openstack: %v", memberSubnetID, err)
+			"failed to find subnet %s from openstack: %v", svcConf.lbMemberSubnetID, err)
 	}
 
 	etherType := rules.EtherType4
 	if netutils.IsIPv6CIDRString(subnet.CIDR) {
 		etherType = rules.EtherType6
 	}
-
-	if apiService.Spec.HealthCheckNodePort != 0 {
-		err = lbaas.ensureSecurityRule(
-			rules.DirIngress,
-			rules.ProtocolTCP,
-			etherType,
-			subnet.CIDR,
-			lbSecGroupID,
-			int(apiService.Spec.HealthCheckNodePort),
-			int(apiService.Spec.HealthCheckNodePort),
-		)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to apply security rule for health check node port, %w",
-				err)
-		}
+	cidrs := []string{subnet.CIDR}
+	if lbaas.opts.LBProvider == "ovn" {
+		// OVN keeps the source IP of the incoming traffic. This means that we cannot just open the LB range, but we
+		// need to open for the whole world. This can be restricted by using the service.spec.loadBalancerSourceRanges.
+		// svcConf.allowedCIDR will give us the ranges calculated by GetLoadBalancerSourceRanges() earlier.
+		cidrs = svcConf.allowedCIDR
 	}
 
-	// ensure rules for node security group
+	existingRules, err := getSecurityGroupRules(lbaas.network, rules.ListOpts{SecGroupID: lbSecGroupID})
+	if err != nil {
+		return fmt.Errorf(
+			"failed to find security group rules in %s: %v", lbSecGroupID, err)
+	}
+
+	// List of the security group rules wanted in the SG.
+	// Number of Ports plus the potential HealthCheckNodePort.
+	wantedRules := make([]rules.CreateOpts, 0, len(ports)+1)
+
+	if apiService.Spec.HealthCheckNodePort != 0 {
+		// TODO(dulek): How should this work with OVN…? Do we need to allow all?
+		//              Probably the traffic goes from the compute node?
+		wantedRules = append(wantedRules,
+			rules.CreateOpts{
+				Direction:      rules.DirIngress,
+				Protocol:       rules.ProtocolTCP,
+				EtherType:      etherType,
+				RemoteIPPrefix: subnet.CIDR,
+				SecGroupID:     lbSecGroupID,
+				PortRangeMin:   int(apiService.Spec.HealthCheckNodePort),
+				PortRangeMax:   int(apiService.Spec.HealthCheckNodePort),
+			},
+		)
+	}
+
 	for _, port := range ports {
 		if port.NodePort == 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
 			continue
 		}
-		err = lbaas.ensureSecurityRule(
-			rules.DirIngress,
-			rules.RuleProtocol(port.Protocol),
-			etherType,
-			subnet.CIDR,
-			lbSecGroupID,
-			int(port.NodePort),
-			int(port.NodePort),
-		)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to apply security rule for port %d, %w",
-				port.NodePort, err)
-		}
-
-		if err := applyNodeSecurityGroupIDForLB(lbaas.compute, lbaas.network, nodes, lbSecGroupID); err != nil {
-			return err
+		for _, cidr := range cidrs {
+			protocol := strings.ToLower(string(port.Protocol)) // K8s uses TCP, Neutron uses tcp, etc.
+			wantedRules = append(wantedRules,
+				rules.CreateOpts{
+					Direction:      rules.DirIngress,
+					Protocol:       rules.RuleProtocol(protocol),
+					EtherType:      etherType,
+					RemoteIPPrefix: cidr,
+					SecGroupID:     lbSecGroupID,
+					PortRangeMin:   int(port.NodePort),
+					PortRangeMax:   int(port.NodePort),
+				},
+			)
 		}
 	}
-	return nil
-}
 
-// updateSecurityGroup updating security group for specific loadbalancer service.
-func (lbaas *LbaasV2) updateSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, memberSubnetID string) error {
-	return lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, apiService, nodes, memberSubnetID)
+	toCreate, toDelete := getRulesToCreateAndDelete(wantedRules, existingRules)
+
+	// create new rules
+	for _, opts := range toCreate {
+		err := lbaas.ensureSecurityRule(opts)
+		if err != nil {
+			return fmt.Errorf("failed to apply security rule (%v), %w", opts, err)
+		}
+	}
+
+	// delete unneeded rules
+	for _, existingRule := range toDelete {
+		klog.Infof("Deleting rule %s from security group %s (%s)", existingRule.ID, existingRule.SecGroupID, lbSecGroupName)
+		mc := metrics.NewMetricContext("security_group_rule", "delete")
+		err := rules.Delete(lbaas.network, existingRule.ID).ExtractErr()
+		if err != nil && cpoerrors.IsNotFound(err) {
+			// ignore 404
+			klog.Warningf("Security group rule %s found missing when trying to delete it. This indicates concurrent "+
+				"updates to the SG %s and is unexpected", existingRule.ID, existingRule.SecGroupID)
+			return mc.ObserveRequest(nil)
+		} else if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to delete security group rule %s: %w", existingRule.ID, err)
+		}
+	}
+
+	if err := applyNodeSecurityGroupIDForLB(lbaas.network, nodes, lbSecGroupID); err != nil {
+		return err
+	}
+	return nil
 }
 
 // EnsureLoadBalancerDeleted deletes the specified load balancer
@@ -2294,6 +2359,83 @@ func (lbaas *LbaasV2) deleteFIPIfCreatedByProvider(fip *floatingips.FloatingIP, 
 	}
 	klog.InfoS("Deleted floating IP for service", "floatingIP", fip.FloatingIP, "service", klog.KObj(service))
 	return true, nil
+}
+
+// deleteLoadBalancer removes the LB and it's children either by using Octavia cascade deletion or manually
+func (lbaas *LbaasV2) deleteLoadBalancer(loadbalancer *loadbalancers.LoadBalancer, service *corev1.Service, svcConf *serviceConfig, needDeleteLB bool) error {
+	if needDeleteLB && lbaas.opts.CascadeDelete {
+		klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+		if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, true); err != nil {
+			return err
+		}
+		klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+	} else {
+		// get all listeners associated with this loadbalancer
+		listenerList, err := openstackutil.GetListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
+		if err != nil {
+			return fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.ID, err)
+		}
+
+		if !needDeleteLB {
+			var listenersToDelete []listeners.Listener
+			curListenerMapping := make(map[listenerKey]*listeners.Listener)
+			for i, l := range listenerList {
+				key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
+				curListenerMapping[key] = &listenerList[i]
+			}
+
+			for _, port := range service.Spec.Ports {
+				proto := getListenerProtocol(port.Protocol, svcConf)
+				listener, isPresent := curListenerMapping[listenerKey{
+					Protocol: proto,
+					Port:     int(port.Port),
+				}]
+				if isPresent && cpoutil.Contains(listener.Tags, loadbalancer.Name) {
+					listenersToDelete = append(listenersToDelete, *listener)
+				}
+			}
+			listenerList = listenersToDelete
+		}
+
+		// get all pools (and health monitors) associated with this loadbalancer
+		var monitorIDs []string
+		for _, listener := range listenerList {
+			pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
+			if err != nil && err != cpoerrors.ErrNotFound {
+				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
+			}
+			if pool != nil {
+				if pool.MonitorID != "" {
+					monitorIDs = append(monitorIDs, pool.MonitorID)
+				}
+			}
+		}
+
+		// delete monitors
+		for _, monitorID := range monitorIDs {
+			klog.InfoS("Deleting health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
+			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, loadbalancer.ID); err != nil {
+				return err
+			}
+			klog.InfoS("Deleted health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
+		}
+
+		// delete listeners
+		if err := lbaas.deleteListeners(loadbalancer.ID, listenerList); err != nil {
+			return err
+		}
+
+		if needDeleteLB {
+			// delete the loadbalancer in old way, i.e. no cascading.
+			klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+			if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, false); err != nil {
+				return err
+			}
+			klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
+		}
+	}
+
+	return nil
 }
 
 func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
@@ -2368,76 +2510,8 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		}
 	}
 
-	if needDeleteLB && lbaas.opts.CascadeDelete {
-		klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-		if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, true); err != nil {
-			return err
-		}
-		klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-	} else {
-		// get all listeners associated with this loadbalancer
-		listenerList, err := openstackutil.GetListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
-		if err != nil {
-			return fmt.Errorf("error getting LB %s listeners: %v", loadbalancer.ID, err)
-		}
-
-		if !needDeleteLB {
-			var listenersToDelete []listeners.Listener
-			curListenerMapping := make(map[listenerKey]*listeners.Listener)
-			for i, l := range listenerList {
-				key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
-				curListenerMapping[key] = &listenerList[i]
-			}
-
-			for _, port := range service.Spec.Ports {
-				proto := getListenerProtocol(port.Protocol, svcConf)
-				listener, isPresent := curListenerMapping[listenerKey{
-					Protocol: proto,
-					Port:     int(port.Port),
-				}]
-				if isPresent && cpoutil.Contains(listener.Tags, lbName) {
-					listenersToDelete = append(listenersToDelete, *listener)
-				}
-			}
-			listenerList = listenersToDelete
-		}
-
-		// get all pools (and health monitors) associated with this loadbalancer
-		var monitorIDs []string
-		for _, listener := range listenerList {
-			pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
-			if err != nil && err != cpoerrors.ErrNotFound {
-				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
-			}
-			if pool != nil {
-				if pool.MonitorID != "" {
-					monitorIDs = append(monitorIDs, pool.MonitorID)
-				}
-			}
-		}
-
-		// delete monitors
-		for _, monitorID := range monitorIDs {
-			klog.InfoS("Deleting health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
-			if err := openstackutil.DeleteHealthMonitor(lbaas.lb, monitorID, loadbalancer.ID); err != nil {
-				return err
-			}
-			klog.InfoS("Deleted health monitor", "monitorID", monitorID, "lbID", loadbalancer.ID)
-		}
-
-		// delete listeners
-		if err := lbaas.deleteListeners(loadbalancer.ID, listenerList); err != nil {
-			return err
-		}
-
-		if needDeleteLB {
-			// delete the loadbalancer in old way, i.e. no cascading.
-			klog.InfoS("Deleting load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-			if err := openstackutil.DeleteLoadbalancer(lbaas.lb, loadbalancer.ID, false); err != nil {
-				return err
-			}
-			klog.InfoS("Deleted load balancer", "lbID", loadbalancer.ID, "service", klog.KObj(service))
-		}
+	if err = lbaas.deleteLoadBalancer(loadbalancer, service, svcConf, needDeleteLB); err != nil {
+		return err
 	}
 
 	// Remove the Service's tag from the load balancer.
@@ -2459,23 +2533,22 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		klog.InfoS("Updated load balancer tags", "lbID", loadbalancer.ID)
 	}
 
-	// Delete the Security Group
-	if lbaas.opts.ManageSecurityGroups {
-		if err := lbaas.EnsureSecurityGroupDeleted(clusterName, service); err != nil {
-			return err
-		}
+	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
+	// orphan created SGs even if CPO got reconfigured.
+	if err := lbaas.ensureSecurityGroupDeleted(clusterName, service); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// EnsureSecurityGroupDeleted deleting security group for specific loadbalancer service.
-func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Service) error {
+// ensureSecurityGroupDeleted deleting security group for specific loadbalancer service.
+func (lbaas *LbaasV2) ensureSecurityGroupDeleted(_ string, service *corev1.Service) error {
 	// Generate Name
 	lbSecGroupName := getSecurityGroupName(service)
 	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
 	if err != nil {
-		if isSecurityGroupNotFound(err) {
+		if cpoerrors.IsNotFound(err) {
 			// It is OK when the security group has been deleted by others.
 			return nil
 		}

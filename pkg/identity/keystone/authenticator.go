@@ -71,7 +71,7 @@ func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 		return nil, fmt.Errorf("failed to extract roles information from Keystone response: %v", err)
 	}
 
-	var userRoles []string
+	userRoles := make([]string, 0, len(roles))
 	for _, role := range roles {
 		userRoles = append(userRoles, role.Name)
 	}
@@ -90,19 +90,18 @@ func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 // revive:enable:unexported-return
 
 func (k *Keystoner) GetGroups(token string, userID string) ([]string, error) {
-	var userGroups []string
-
 	k.client.ProviderClient.SetToken(token)
 	allGroupPages, err := users.ListGroups(k.client, userID).AllPages()
 	if err != nil {
-		return userGroups, fmt.Errorf("failed to get user groups from Keystone: %v", err)
+		return nil, fmt.Errorf("failed to get user groups from Keystone: %v", err)
 	}
 
 	allGroups, err := groups.ExtractGroups(allGroupPages)
 	if err != nil {
-		return userGroups, fmt.Errorf("failed to extract user groups from Keystone response: %v", err)
+		return nil, fmt.Errorf("failed to extract user groups from Keystone response: %v", err)
 	}
 
+	userGroups := make([]string, 0, len(allGroups))
 	for _, g := range allGroups {
 		userGroups = append(userGroups, g.Name)
 	}

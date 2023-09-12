@@ -18,6 +18,7 @@
         - cinder
         - neutron
         - octavia
+        - ovn-octavia
         - barbican
     - role: install-k3s
       worker_node_count: 0

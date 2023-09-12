@@ -23,7 +23,6 @@ import (
 
 	"github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 )
 
 func TestDriver(t *testing.T) {
@@ -44,7 +43,6 @@ func TestDriver(t *testing.T) {
 			FwdCSIEndpoint:      fwdEndpoint,
 			ManilaClientBuilder: &fakeManilaClientBuilder{},
 			CSIClientBuilder:    &fakeCSIClientBuilder{},
-			CompatOpts:          &options.CompatibilityOptions{},
 		})
 
 	if err != nil {

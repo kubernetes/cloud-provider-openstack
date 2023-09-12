@@ -12,14 +12,13 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/kms/barbican"
 	"k8s.io/cloud-provider-openstack/pkg/kms/encryption/aescbc"
 	"k8s.io/klog/v2"
-	pb "k8s.io/kms/apis/v1beta1"
+	pb "k8s.io/kms/apis/v2"
 )
 
 const (
 	netProtocol    = "unix"
-	version        = "v1beta1"
-	runtimename    = "barbican"
-	runtimeversion = "0.0.1"
+	version        = "v2"
+	runtimeversion = "0.0.2"
 )
 
 type BarbicanService interface {
@@ -100,13 +99,13 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 }
 
 // Version returns KMS service version
-func (s *KMSserver) Version(ctx context.Context, req *pb.VersionRequest) (*pb.VersionResponse, error) {
+func (s *KMSserver) Status(ctx context.Context, req *pb.StatusRequest) (*pb.StatusResponse, error) {
 	klog.V(4).Infof("Version Information Requested by Kubernetes api server")
 
-	res := &pb.VersionResponse{
-		Version:        version,
-		RuntimeName:    runtimename,
-		RuntimeVersion: runtimeversion,
+	res := &pb.StatusResponse{
+		Version: version,
+		Healthz: "ok",
+		KeyId:   s.cfg.KeyManager.KeyID,
 	}
 
 	return res, nil
@@ -116,19 +115,20 @@ func (s *KMSserver) Version(ctx context.Context, req *pb.VersionRequest) (*pb.Ve
 func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.DecryptResponse, error) {
 	klog.V(4).Infof("Decrypt Request by Kubernetes api server")
 
+	// TODO: consider using req.KeyId
 	key, err := s.barbican.GetSecret(s.cfg.KeyManager.KeyID)
 	if err != nil {
 		klog.V(4).Infof("Failed to get key %v: ", err)
 		return nil, err
 	}
 
-	plain, err := aescbc.Decrypt(req.Cipher, key)
+	plain, err := aescbc.Decrypt(req.Ciphertext, key)
 	if err != nil {
 		klog.V(4).Infof("Failed to decrypt data %v: ", err)
 		return nil, err
 	}
 
-	return &pb.DecryptResponse{Plain: plain}, nil
+	return &pb.DecryptResponse{Plaintext: plain}, nil
 }
 
 // Encrypt encrypts DEK
@@ -142,11 +142,11 @@ func (s *KMSserver) Encrypt(ctx context.Context, req *pb.EncryptRequest) (*pb.En
 		return nil, err
 	}
 
-	cipher, err := aescbc.Encrypt(req.Plain, key)
+	cipher, err := aescbc.Encrypt(req.Plaintext, key)
 
 	if err != nil {
 		klog.V(4).Infof("Failed to encrypt data %v: ", err)
 		return nil, err
 	}
-	return &pb.EncryptResponse{Cipher: cipher}, nil
+	return &pb.EncryptResponse{Ciphertext: cipher}, nil
 }

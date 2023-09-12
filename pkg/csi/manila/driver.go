@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
-	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
 )
@@ -49,8 +48,6 @@ type DriverOpts struct {
 
 	ManilaClientBuilder manilaclient.Builder
 	CSIClientBuilder    csiclient.Builder
-
-	CompatOpts *options.CompatibilityOptions
 }
 
 type Driver struct {
@@ -64,8 +61,6 @@ type Driver struct {
 
 	serverEndpoint string
 	fwdEndpoint    string
-
-	compatOpts *options.CompatibilityOptions
 
 	ids *identityServer
 	cs  *controllerServer
@@ -103,7 +98,14 @@ func argNotEmpty(val, name string) error {
 }
 
 func NewDriver(o *DriverOpts) (*Driver, error) {
-	for k, v := range map[string]string{"node ID": o.NodeID, "driver name": o.DriverName, "driver endpoint": o.ServerCSIEndpoint, "FWD endpoint": o.FwdCSIEndpoint, "share protocol selector": o.ShareProto} {
+	m := map[string]string{
+		"node ID":                 o.NodeID,
+		"driver name":             o.DriverName,
+		"driver endpoint":         o.ServerCSIEndpoint,
+		"FWD endpoint":            o.FwdCSIEndpoint,
+		"share protocol selector": o.ShareProto,
+	}
+	for k, v := range m {
 		if err := argNotEmpty(v, k); err != nil {
 			return nil, err
 		}
@@ -118,7 +120,6 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		serverEndpoint:      o.ServerCSIEndpoint,
 		fwdEndpoint:         o.FwdCSIEndpoint,
 		shareProto:          strings.ToUpper(o.ShareProto),
-		compatOpts:          o.CompatOpts,
 		manilaClientBuilder: o.ManilaClientBuilder,
 		csiClientBuilder:    o.CSIClientBuilder,
 		clusterID:           o.ClusterID,
@@ -170,7 +171,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
 	}
-	var nscaps []csi.NodeServiceCapability_RPC_Type
+	nscaps := make([]csi.NodeServiceCapability_RPC_Type, 0, len(nodeCapsMap))
 	for c := range nodeCapsMap {
 		nscaps = append(nscaps, c)
 
@@ -195,7 +196,7 @@ func (d *Driver) Run() {
 }
 
 func (d *Driver) addControllerServiceCapabilities(cs []csi.ControllerServiceCapability_RPC_Type) {
-	var caps []*csi.ControllerServiceCapability
+	caps := make([]*csi.ControllerServiceCapability, 0, len(cs))
 
 	for _, c := range cs {
 		klog.Infof("Enabling controller service capability: %v", c.String())
@@ -214,7 +215,7 @@ func (d *Driver) addControllerServiceCapabilities(cs []csi.ControllerServiceCapa
 }
 
 func (d *Driver) addVolumeCapabilityAccessModes(vs []csi.VolumeCapability_AccessMode_Mode) {
-	var caps []*csi.VolumeCapability_AccessMode
+	caps := make([]*csi.VolumeCapability_AccessMode, 0, len(vs))
 
 	for _, c := range vs {
 		klog.Infof("Enabling volume access mode: %v", c.String())
@@ -225,7 +226,7 @@ func (d *Driver) addVolumeCapabilityAccessModes(vs []csi.VolumeCapability_Access
 }
 
 func (d *Driver) addNodeServiceCapabilities(ns []csi.NodeServiceCapability_RPC_Type) {
-	var caps []*csi.NodeServiceCapability
+	caps := make([]*csi.NodeServiceCapability, 0, len(ns))
 
 	for _, c := range ns {
 		klog.Infof("Enabling node service capability: %v", c.String())

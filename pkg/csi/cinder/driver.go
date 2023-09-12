@@ -94,7 +94,10 @@ func NewDriver(endpoint, cluster string) *Driver {
 			csi.ControllerServiceCapability_RPC_LIST_VOLUMES_PUBLISHED_NODES,
 			csi.ControllerServiceCapability_RPC_GET_VOLUME,
 		})
-	d.AddVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER})
+	d.AddVolumeCapabilityAccessModes(
+		[]csi.VolumeCapability_AccessMode_Mode{
+			csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		})
 
 	// ignoring error, because AddNodeServiceCapabilities is public
 	// and so potentially used somewhere else.
@@ -109,7 +112,7 @@ func NewDriver(endpoint, cluster string) *Driver {
 }
 
 func (d *Driver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) {
-	var csc []*csi.ControllerServiceCapability
+	csc := make([]*csi.ControllerServiceCapability, 0, len(cl))
 
 	for _, c := range cl {
 		klog.Infof("Enabling controller service capability: %v", c.String())
@@ -120,22 +123,28 @@ func (d *Driver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapa
 }
 
 func (d *Driver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) []*csi.VolumeCapability_AccessMode {
-	var vca []*csi.VolumeCapability_AccessMode
+	vca := make([]*csi.VolumeCapability_AccessMode, 0, len(vc))
+
 	for _, c := range vc {
 		klog.Infof("Enabling volume access mode: %v", c.String())
 		vca = append(vca, NewVolumeCapabilityAccessMode(c))
 	}
+
 	d.vcap = vca
+
 	return vca
 }
 
 func (d *Driver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error {
-	var nsc []*csi.NodeServiceCapability
+	nsc := make([]*csi.NodeServiceCapability, 0, len(nl))
+
 	for _, n := range nl {
 		klog.Infof("Enabling node service capability: %v", n.String())
 		nsc = append(nsc, NewNodeServiceCapability(n))
 	}
+
 	d.nscap = nsc
+
 	return nil
 }
 
@@ -149,6 +158,7 @@ func (d *Driver) ValidateControllerServiceRequest(c csi.ControllerServiceCapabil
 			return nil
 		}
 	}
+
 	return status.Error(codes.InvalidArgument, c.String())
 }
 

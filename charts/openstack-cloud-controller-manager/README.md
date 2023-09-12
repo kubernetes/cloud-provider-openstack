@@ -13,11 +13,11 @@ You need to configure an `openstack-ccm.yaml` values file with at least:
   - with password: `cloudConfig.global.username` and `cloudconfig.global.password`
   - with application credentials: (`cloudConfig.global.application-credential-id` or `cloudConfig.global.application-credential-name`) and `cloudConfig.global.application-credential-secret`
 - Load balancing
-  - `cloudConfig.loadbalancer.floating-network-id` **or**
-  - `cloudConfig.loadbalancer.floating-subnet-id` **or**
-  - `cloudConfig.loadbalancer.floating-subnet`
+  - `cloudConfig.loadBalancer.floating-network-id` **or**
+  - `cloudConfig.loadBalancer.floating-subnet-id` **or**
+  - `cloudConfig.loadBalancer.floating-subnet`
 
-If you want to enable health checks for your Load Balancers (optional), set `cloudConfig.loadbalancer.create-monitor: true`.
+If you want to enable health checks for your Load Balancers (optional), set `cloudConfig.loadBalancer.create-monitor: true`.
 
 Then run:
 

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -x
 
 # Copyright 2022 The Kubernetes Authors.
 #
@@ -51,7 +51,16 @@ copy_deps() {
 
 # Commmon lib /lib64/ld-linux-*.so.2
 # needs for all utils
-mkdir -p ${DEST}/lib64 && cp -Lv /lib64/ld-linux-*.so.2 ${DEST}/lib64/
+ARCH=$(uname -m)
+if [ $ARCH = "aarch64" ] || [ $ARCH = "armv7l" ]; then
+  mkdir -p ${DEST}/lib && cp -Lv /lib/ld-linux-*.so.* ${DEST}/lib/
+elif [ $ARCH = "s390x" ]; then
+  mkdir -p ${DEST}/lib && cp -Lv /lib/ld64.so.* ${DEST}/lib/
+elif [ $ARCH = "ppc64le" ]; then
+  mkdir -p ${DEST}/lib64 && cp -Lv /lib64/ld64.so.* ${DEST}/lib64/
+else
+  mkdir -p ${DEST}/lib64 && cp -Lv /lib64/ld-linux-*.so.* ${DEST}/lib64/
+fi
 
 # This utils are using by
 # go mod k8s.io/mount-utils

@@ -36,28 +36,25 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-# Set nodeSelector where the controller shut run, i.e. controlplane nodes
-nodeSelector: []
-# nodeSelector:
-#   node-role.kubernetes.io/controlplane: "true"
+# Set nodeSelector where the controller should run, i.e. controlplane nodes
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
 
-# Set tolerations for nodes where the controller should run, i.e. node should uninitialized, controlplane...
-tolerations: []
-# tolerations:
-#   - key: node.cloudprovider.kubernetes.io/uninitialized
-#     value: "true"
-#     effect: NoSchedule
-#   - key: node-role.kubernetes.io/controlplane
-#     value: "true"
-#     effect: NoSchedule
-#   - key: node-role.kubernetes.io/etcd
-#     value: "true"
-#     effect: NoExecute
+# Set tolerations for nodes where the controller should run, i.e. node
+# should be uninitialized, controlplane...
+tolerations:
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    value: "true"
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
 
 # Set security settings for the controller pods
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
 podSecurityContext:
   runAsUser: 1001
+  # seccompProfile:
+  #   type: RuntimeDefault
 
 # List of controllers should be enabled.
 # Use '*' to enable all controllers.
@@ -128,3 +125,7 @@ extraVolumeMounts:
 # cluster name that used for created cluster
 cluster:
   name: kubernetes
+
+clusterRoleName: system:cloud-controller-manager
+
+serviceAccountName: cloud-controller-manager

@@ -120,3 +120,7 @@ spec:
     {{- if .Values.nodeplugin.priorityClassName }}
       priorityClassName: {{ .Values.nodeplugin.priorityClassName }}
     {{- end }}
+    {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+    {{- end }}

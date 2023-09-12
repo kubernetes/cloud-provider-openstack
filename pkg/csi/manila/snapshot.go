@@ -38,7 +38,7 @@ const (
 
 // getOrCreateSnapshot retrieves an existing snapshot with name=snapName, or creates a new one if it doesn't exist yet.
 // Instead of waiting for the snapshot to become available (as getOrCreateShare does), CSI's ready_to_use flag is used to signal readiness
-func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient manilaclient.Interface) (*snapshots.Snapshot, error) {
+func getOrCreateSnapshot(manilaClient manilaclient.Interface, snapName, sourceShareID string) (*snapshots.Snapshot, error) {
 	var (
 		snapshot *snapshots.Snapshot
 		err      error
@@ -72,7 +72,7 @@ func getOrCreateSnapshot(snapName, sourceShareID string, manilaClient manilaclie
 	return snapshot, nil
 }
 
-func deleteSnapshot(snapID string, manilaClient manilaclient.Interface) error {
+func deleteSnapshot(manilaClient manilaclient.Interface, snapID string) error {
 	if err := manilaClient.DeleteSnapshot(snapID); err != nil {
 		if clouderrors.IsNotFound(err) {
 			klog.V(4).Infof("snapshot %s not found, assuming it to be already deleted", snapID)
@@ -84,24 +84,24 @@ func deleteSnapshot(snapID string, manilaClient manilaclient.Interface) error {
 	return nil
 }
 
-func tryDeleteSnapshot(snapshot *snapshots.Snapshot, manilaClient manilaclient.Interface) {
+func tryDeleteSnapshot(manilaClient manilaclient.Interface, snapshot *snapshots.Snapshot) {
 	if snapshot == nil {
 		return
 	}
 
-	if err := deleteSnapshot(snapshot.ID, manilaClient); err != nil {
+	if err := deleteSnapshot(manilaClient, snapshot.ID); err != nil {
 		// TODO failure to delete a snapshot in an error state needs proper monitoring support
 		klog.Errorf("couldn't delete snapshot %s in a roll-back procedure: %v", snapshot.ID, err)
 		return
 	}
 
-	_, _, err := waitForSnapshotStatus(snapshot.ID, snapshotDeleting, "", true, manilaClient)
+	_, _, err := waitForSnapshotStatus(manilaClient, snapshot.ID, snapshotDeleting, "", true)
 	if err != nil && !wait.Interrupted(err) {
 		klog.Errorf("couldn't retrieve snapshot %s in a roll-back procedure: %v", snapshot.ID, err)
 	}
 }
 
-func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, successOnNotFound bool, manilaClient manilaclient.Interface) (*snapshots.Snapshot, manilaError, error) {
+func waitForSnapshotStatus(manilaClient manilaclient.Interface, snapshotID, currentStatus, desiredStatus string, successOnNotFound bool) (*snapshots.Snapshot, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -133,7 +133,7 @@ func waitForSnapshotStatus(snapshotID, currentStatus, desiredStatus string, succ
 		case desiredStatus:
 			isAvailable = true
 		case shareError:
-			manilaErrMsg, err := lastResourceError(snapshotID, manilaClient)
+			manilaErrMsg, err := lastResourceError(manilaClient, snapshotID)
 			if err != nil {
 				return false, fmt.Errorf("snapshot %s is in error state, error description could not be retrieved: %v", snapshotID, err)
 			}

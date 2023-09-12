@@ -122,7 +122,7 @@ func NewResourceTracker(ingressName string, client *gophercloud.ServiceClient, l
 
 	logger := log.WithFields(log.Fields{"ingress": ingressName, "lbID": lbID})
 
-	var oldPoolIDs []string
+	oldPoolIDs := make([]string, 0, len(oldPoolMapping))
 	for _, poolID := range oldPoolMapping {
 		oldPoolIDs = append(oldPoolIDs, poolID)
 	}
@@ -181,7 +181,7 @@ func (rt *ResourceTracker) CreateResources() error {
 		rt.logger.WithFields(log.Fields{"poolName": pool.Name, "poolID": poolID}).Info("pool members updated ")
 	}
 
-	var curPoolIDs []string
+	curPoolIDs := make([]string, 0, len(poolMapping))
 	for _, id := range poolMapping {
 		curPoolIDs = append(curPoolIDs, id)
 	}
@@ -447,6 +447,22 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
 	if err != nil {
 		return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
+	}
+
+	if os.config.Octavia.ProviderRequiresSerialAPICalls {
+		logger.Info("updating pool members using serial API calls")
+		// Serially update pool members
+		err = openstackutil.SeriallyReconcilePoolMembers(os.Octavia, pool, *nodePort, lbID, nodes)
+		if err != nil {
+			return nil, fmt.Errorf("error reconciling pool members for pool %s: %v", pool.ID, err)
+		}
+		_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)
+		if err != nil {
+			return nil, fmt.Errorf("error waiting for loadbalancer %s to be active: %v", lbID, err)
+		}
+		logger.Info("pool members updated")
+
+		return &pool.ID, nil
 	}
 
 	// Batch update pool members

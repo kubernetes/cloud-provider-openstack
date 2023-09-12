@@ -16,6 +16,10 @@ shareProtocols:
  #     dir: /var/lib/kubelet/plugins/cephfs.csi.ceph.com
  #     sockFile: csi.sock
 
+# ImagePullSecret for all pods
+imagePullSecrets: []
+# - name: my-imagepull-secret
+
 extraLabels: {}
 # CSI Manila spec
 csimanila:
