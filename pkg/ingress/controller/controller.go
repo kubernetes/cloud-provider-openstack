@@ -596,12 +596,10 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationLoadBalancerKeepFloatingIP, err)
 	}
 
-	if keepFloating {
-		logger.Debug("keep floating IP")
-	} else {
+	if !keepFloating {
 		// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
 		// any floating IPs associated with the load balancer VIP port.
-		logger.Debug("deleting floating IP")
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID, "vIP": loadbalancer.VipAddress}).Info("deleting VIP or floating")
 
 		if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", "", ""); err != nil {
 			return fmt.Errorf("failed to delete floating IP: %v", err)
