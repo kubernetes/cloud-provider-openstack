@@ -167,8 +167,9 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 			if err != nil {
 				return "", err
 			}
+		} else {
+			fip = &fips[0]
 		}
-		fip = &fips[0]
 	}
 
 	return fip.FloatingIP, nil
