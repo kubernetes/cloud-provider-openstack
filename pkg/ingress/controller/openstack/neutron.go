@@ -93,50 +93,81 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 		return "", fmt.Errorf("more than one floating IPs for port %s found", portID)
 	}
 
+	// check if provided fip is available
 	var fip *floatingips.FloatingIP
-	if len(fips) == 0 {
-		floatIPOpts := floatingips.CreateOpts{
-			PortID:            portID,
+	if existingfloatingIP != "" {
+		// try to find fip
+		opts := floatingips.ListOpts{
+			FloatingIP:        existingfloatingIP,
 			FloatingNetworkID: floatingIPNetwork,
-			Description:       description,
 		}
-		if existingfloatingIP != "" {
-			// try to find fip
-			opts := &floatingips.ListOpts{
-				FloatingIP:        existingfloatingIP,
-				FloatingNetworkID: floatingIPNetwork,
-			}
-			allPages, err := floatingips.List(os.neutron, opts).AllPages()
-			if err != nil {
-				return "", err
-			}
-			osFips, err := floatingips.ExtractFloatingIPs(allPages)
-			if err != nil {
-				return "", err
-			}
-			if len(osFips) != 1 {
-				return "", err
-			}
-			// check if fip is used
-			if osFips[0].PortID != "" {
-				return "", fmt.Errorf("floating IP %s already used by port %s", osFips[0].FloatingIP, osFips[0].PortID)
-			}
+		osFips, err := os.getFloatingIPs(opts)
+		if err != nil {
+			return "", err
+		}
+		if len(osFips) != 1 {
+			return "", fmt.Errorf("error when searching floating IPs %s, %d floating IPs found", existingfloatingIP, len(osFips))
+		}
+		// check if fip is already attached to the correct port
+		if osFips[0].PortID == portID {
+			return osFips[0].FloatingIP, nil
+		}
+		// check if fip is used
+		if osFips[0].PortID != "" {
+			return "", fmt.Errorf("floating IP %s already used by port %s", osFips[0].FloatingIP, osFips[0].PortID)
+		}
+		fip = &osFips[0]
+	}
+
+	// if port don't have fip
+	if len(fips) == 0 {
+		// if user provided fip to use
+		if fip != nil {
 			updateOpts := floatingips.UpdateOpts{
 				PortID:      &portID,
 				Description: &description,
 			}
 			// attach fip to lb vip
-			fip, err = floatingips.Update(os.neutron, osFips[0].ID, updateOpts).Extract()
+			fip, err = floatingips.Update(os.neutron, fip.ID, updateOpts).Extract()
 			if err != nil {
 				return "", err
 			}
 		} else {
+			floatIPOpts := floatingips.CreateOpts{
+				PortID:            portID,
+				FloatingNetworkID: floatingIPNetwork,
+				Description:       description,
+			}
 			fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
 			if err != nil {
 				return "", err
 			}
 		}
 	} else {
+		// if port exist but the fip binded to it's not the one provided by user
+		if fip.FloatingIP != fips[0].FloatingIP {
+			// disassociate old fip : if update fip without disassociate
+			// Openstack retrun http 409 error
+			// "Cannot associate floating IP with port using fixed
+			//  IP, as that fixed IP already has a floating IP on
+			//  external network"
+			updateDisassociateOpts := floatingips.UpdateOpts{
+				PortID: new(string),
+			}
+			_, err = floatingips.Update(os.neutron, fips[0].ID, updateDisassociateOpts).Extract()
+			if err != nil {
+				return "", err
+			}
+			// associate new fip
+			updateOpts := floatingips.UpdateOpts{
+				PortID:      &portID,
+				Description: &description,
+			}
+			fip, err = floatingips.Update(os.neutron, fip.ID, updateOpts).Extract()
+			if err != nil {
+				return "", err
+			}
+		}
 		fip = &fips[0]
 	}
 

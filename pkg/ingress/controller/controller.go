@@ -108,8 +108,8 @@ const (
 	IngressAnnotationLoadBalancerKeepFloatingIP = "octavia.ingress.kubernetes.io/keep-floatingip"
 
 	// IngressAnnotationFloatingIp is the key of the annotation on an ingress to set floating IP that will be associated to LoadBalancers.
-	// If the floatingIP is not available, a new one will be created.
-	IngressAnnotationFloatingIp = "octavia.ingress.kubernetes.io/floatingip"
+	// If the floatingIP is not available, an error will be returned.
+	IngressAnnotationFloatingIP = "octavia.ingress.kubernetes.io/floatingip"
 
 	// IngressAnnotationSourceRangesKey is the key of the annotation on an ingress to set allowed IP ranges on their LoadBalancers.
 	// It should be a comma-separated list of CIDRs.
@@ -599,7 +599,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 	if !keepFloating {
 		// Delete the floating IP for the load balancer VIP. We don't check if the Ingress is internal or not, just delete
 		// any floating IPs associated with the load balancer VIP port.
-		logger.WithFields(log.Fields{"lbID": loadbalancer.ID, "vIP": loadbalancer.VipAddress}).Info("deleting VIP or floating")
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID, "VIP": loadbalancer.VipAddress}).Info("deleting floating IPs associated with the load balancer VIP port")
 
 		if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", "", ""); err != nil {
 			return fmt.Errorf("failed to delete floating IP: %v", err)
@@ -929,33 +929,19 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	// Allocate floating ip for loadbalancer vip if the external network is configured and the Ingress is not internal.
 	if !isInternal && c.config.Octavia.FloatingIPNetwork != "" {
 
-		floatingIPSetting := getStringFromIngressAnnotation(ing, IngressAnnotationFloatingIp, "")
+		floatingIPSetting := getStringFromIngressAnnotation(ing, IngressAnnotationFloatingIP, "")
 		if err != nil {
-			return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationFloatingIp, err)
+			return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationFloatingIP, err)
 		}
 
 		description := fmt.Sprintf("Floating IP for Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName)
-		successReUseFIPS := false
 
 		if floatingIPSetting != "" {
 			logger.Info("try to use floating IP : ", floatingIPSetting)
 			address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, floatingIPSetting, c.config.Octavia.FloatingIPNetwork, description)
 			if err != nil {
-				logger.Info("failed to use provided floating IP ", floatingIPSetting, " : ", err)
-			} else {
-				successReUseFIPS = true
+				return fmt.Errorf("failed to use provided floating IP %s : %v", floatingIPSetting, err)
 			}
-		}
-
-		if !successReUseFIPS {
-			logger.Info("creating floating IP")
-
-			address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, "", c.config.Octavia.FloatingIPNetwork, description)
-			if err != nil {
-				return fmt.Errorf("failed to create floating IP: %v", err)
-			}
-
-			logger.WithFields(log.Fields{"fip": address}).Info("floating IP created")
 		}
 	}
 
