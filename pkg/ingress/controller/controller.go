@@ -937,7 +937,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 		description := fmt.Sprintf("Floating IP for Kubernetes ingress %s in namespace %s from cluster %s", ingName, ingNamespace, clusterName)
 
 		if floatingIPSetting != "" {
-			logger.Info("try to use floating IP : ", floatingIPSetting)
+			logger.Info("try to use floating IP: ", floatingIPSetting)
 			address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, floatingIPSetting, c.config.Octavia.FloatingIPNetwork, description)
 			if err != nil {
 				return fmt.Errorf("failed to use provided floating IP %s : %v", floatingIPSetting, err)
