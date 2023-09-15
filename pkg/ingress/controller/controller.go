@@ -938,11 +938,14 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 
 		if floatingIPSetting != "" {
 			logger.Info("try to use floating IP: ", floatingIPSetting)
-			address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, floatingIPSetting, c.config.Octavia.FloatingIPNetwork, description)
-			if err != nil {
-				return fmt.Errorf("failed to use provided floating IP %s : %v", floatingIPSetting, err)
-			}
+		} else {
+			logger.Info("creating new floating IP")
 		}
+		address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, floatingIPSetting, c.config.Octavia.FloatingIPNetwork, description)
+		if err != nil {
+			return fmt.Errorf("failed to use provided floating IP %s : %v", floatingIPSetting, err)
+		}
+		logger.Info("floating IP ", address, " configured")
 	}
 
 	// Update ingress status

@@ -122,10 +122,18 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 
 	var fip *floatingips.FloatingIP
 
-	// check if provided fip is available
-	if existingfloatingIP != "" {
+	if existingfloatingIP == "" {
+		if len(fips) == 1 {
+			fip = &fips[0]
+		} else {
+			fip, err = os.createFloatingIP(portID, floatingIPNetwork, description)
+			if err != nil {
+				return "", err
+			}
+		}
+	} else {
 		// if user provide FIP
-		// try to it
+		// check if provided fip is available
 		opts := floatingips.ListOpts{
 			FloatingIP:        existingfloatingIP,
 			FloatingNetworkID: floatingIPNetwork,
@@ -146,27 +154,14 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 		if osFips[0].PortID != "" {
 			return "", fmt.Errorf("floating IP %s already used by port %s", osFips[0].FloatingIP, osFips[0].PortID)
 		}
-		fip = &osFips[0]
-	}
 
-	// if port don't have fip
-	if len(fips) == 0 {
-		// if user provided fip to use
-		if fip != nil {
-			// attach fip to lb vip
-			fip, err = os.associateFloatingIP(fip, portID, description)
+		// if port don't have fip
+		if len(fips) == 0 {
+			fip, err = os.associateFloatingIP(&osFips[0], portID, description)
 			if err != nil {
 				return "", err
 			}
-		} else {
-			fip, err = os.createFloatingIP(portID, floatingIPNetwork, description)
-			if err != nil {
-				return "", err
-			}
-		}
-	} else {
-		// if port exist but the fip binded to it's not the one provided by user
-		if fip.FloatingIP != fips[0].FloatingIP {
+		} else if osFips[0].FloatingIP != fips[0].FloatingIP {
 			// disassociate old fip : if update fip without disassociate
 			// Openstack retrun http 409 error
 			// "Cannot associate floating IP with port using fixed
@@ -177,7 +172,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 				return "", err
 			}
 			// associate new fip
-			fip, err = os.associateFloatingIP(fip, portID, description)
+			fip, err = os.associateFloatingIP(&osFips[0], portID, description)
 			if err != nil {
 				return "", err
 			}
