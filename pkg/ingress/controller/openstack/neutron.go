@@ -47,6 +47,33 @@ func (os *OpenStack) getFloatingIPs(listOpts floatingips.ListOpts) ([]floatingip
 	return allFIPs, nil
 }
 
+func (os *OpenStack) createFloatingIP(portID string, floatingNetworkID string, description string) (*floatingips.FloatingIP, error) {
+	floatIPOpts := floatingips.CreateOpts{
+		PortID:            portID,
+		FloatingNetworkID: floatingNetworkID,
+		Description:       description,
+	}
+	return floatingips.Create(os.neutron, floatIPOpts).Extract()
+}
+
+// associateFloatingIP associate an unused floating IP to a given Port
+func (os *OpenStack) associateFloatingIP(fip *floatingips.FloatingIP, portID string, description string) (*floatingips.FloatingIP, error) {
+	updateOpts := floatingips.UpdateOpts{
+		PortID:      &portID,
+		Description: &description,
+	}
+	return floatingips.Update(os.neutron, fip.ID, updateOpts).Extract()
+}
+
+// disassociateFloatingIP disassociate a floating IP from a port
+func (os *OpenStack) disassociateFloatingIP(fip *floatingips.FloatingIP, description string) (*floatingips.FloatingIP, error) {
+	updateDisassociateOpts := floatingips.UpdateOpts{
+		PortID:      new(string),
+		Description: &description,
+	}
+	return floatingips.Update(os.neutron, fip.ID, updateDisassociateOpts).Extract()
+}
+
 // GetSubnet get a subnet by the given ID.
 func (os *OpenStack) GetSubnet(subnetID string) (*subnets.Subnet, error) {
 	subnet, err := subnets.Get(os.neutron, subnetID).Extract()
@@ -93,10 +120,12 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 		return "", fmt.Errorf("more than one floating IPs for port %s found", portID)
 	}
 
-	// check if provided fip is available
 	var fip *floatingips.FloatingIP
+
+	// check if provided fip is available
 	if existingfloatingIP != "" {
-		// try to find fip
+		// if user provide FIP
+		// try to it
 		opts := floatingips.ListOpts{
 			FloatingIP:        existingfloatingIP,
 			FloatingNetworkID: floatingIPNetwork,
@@ -112,7 +141,8 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 		if osFips[0].PortID == portID {
 			return osFips[0].FloatingIP, nil
 		}
-		// check if fip is used
+		// check if fip is already used by other port
+		// We might consider if here we shouldn't detach that FIP instead of returning error
 		if osFips[0].PortID != "" {
 			return "", fmt.Errorf("floating IP %s already used by port %s", osFips[0].FloatingIP, osFips[0].PortID)
 		}
@@ -123,22 +153,13 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 	if len(fips) == 0 {
 		// if user provided fip to use
 		if fip != nil {
-			updateOpts := floatingips.UpdateOpts{
-				PortID:      &portID,
-				Description: &description,
-			}
 			// attach fip to lb vip
-			fip, err = floatingips.Update(os.neutron, fip.ID, updateOpts).Extract()
+			fip, err = os.associateFloatingIP(fip, portID, description)
 			if err != nil {
 				return "", err
 			}
 		} else {
-			floatIPOpts := floatingips.CreateOpts{
-				PortID:            portID,
-				FloatingNetworkID: floatingIPNetwork,
-				Description:       description,
-			}
-			fip, err = floatingips.Create(os.neutron, floatIPOpts).Extract()
+			fip, err = os.createFloatingIP(portID, floatingIPNetwork, description)
 			if err != nil {
 				return "", err
 			}
@@ -151,19 +172,12 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 			// "Cannot associate floating IP with port using fixed
 			//  IP, as that fixed IP already has a floating IP on
 			//  external network"
-			updateDisassociateOpts := floatingips.UpdateOpts{
-				PortID: new(string),
-			}
-			_, err = floatingips.Update(os.neutron, fips[0].ID, updateDisassociateOpts).Extract()
+			_, err = os.disassociateFloatingIP(&fips[0], "")
 			if err != nil {
 				return "", err
 			}
 			// associate new fip
-			updateOpts := floatingips.UpdateOpts{
-				PortID:      &portID,
-				Description: &description,
-			}
-			fip, err = floatingips.Update(os.neutron, fip.ID, updateOpts).Extract()
+			fip, err = os.associateFloatingIP(fip, portID, description)
 			if err != nil {
 				return "", err
 			}
