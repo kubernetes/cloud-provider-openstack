@@ -20,11 +20,11 @@ LB_SUBNET_NAME=${LB_SUBNET_NAME:-"private-subnet"}
 AUTO_CLEAN_UP=${AUTO_CLEAN_UP:-"true"}
 
 function delete_resources() {
+  ERROR_CODE="$?"
+
   if [[ ${AUTO_CLEAN_UP} != "true" ]]; then
     exit ${ERROR_CODE}
   fi
-
-  ERROR_CODE="$?"
 
   printf "\n>>>>>>> Deleting k8s services\n"
   kubectl -n ${NAMESPACE} get svc -o name | xargs -r kubectl -n $NAMESPACE delete
@@ -33,6 +33,12 @@ function delete_resources() {
 
   printf "\n>>>>>>> Deleting openstack load balancer \n"
   openstack loadbalancer delete test_shared_user_lb --cascade
+
+  printf "\n>>>>>>> Deleting openstack FIPs \n"
+  fips=$(openstack floating ip list --tag occm-test -f value -c ID)
+  for fip in $fips; do
+      openstack floating ip delete ${fip}
+  done
 
   if [[ "$ERROR_CODE" != "0" ]]; then
     printf "\n>>>>>>> Dump openstack-cloud-controller-manager logs \n"
@@ -438,7 +444,6 @@ metadata:
   name: ${service1}
   namespace: $NAMESPACE
   annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
     loadbalancer.openstack.org/enable-health-monitor: "false"
 spec:
   type: LoadBalancer
@@ -474,7 +479,6 @@ metadata:
   name: ${service2}
   namespace: $NAMESPACE
   annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
     loadbalancer.openstack.org/enable-health-monitor: "false"
     loadbalancer.openstack.org/load-balancer-id: "$lbID"
 spec:
@@ -521,7 +525,6 @@ metadata:
   name: ${service2}
   namespace: $NAMESPACE
   annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
     loadbalancer.openstack.org/enable-health-monitor: "false"
     loadbalancer.openstack.org/load-balancer-id: "$lbID"
 spec:
@@ -580,7 +583,6 @@ metadata:
   name: ${service3}
   namespace: $NAMESPACE
   annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
     loadbalancer.openstack.org/enable-health-monitor: "false"
     loadbalancer.openstack.org/load-balancer-id: "$lbID"
 spec:
@@ -614,7 +616,6 @@ metadata:
   name: ${service4}
   namespace: $NAMESPACE
   annotations:
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
     loadbalancer.openstack.org/enable-health-monitor: "false"
     loadbalancer.openstack.org/load-balancer-id: "$lbID"
 spec:
@@ -725,6 +726,20 @@ function test_shared_user_lb {
     printf "\n>>>>>>> Waiting for openstack load balancer $lbID ACTIVE after creating listener \n"
     wait_for_loadbalancer $lbID
 
+    printf "\n>>>>>>> Getting an external network \n"
+    extNetID=$(openstack network list --external -f value -c ID | head -1)
+    if [[ -z extNetID ]]; then
+        printf "\n>>>>>>> FAIL: failed to find an external network\n"
+        exit 1
+    fi
+    fip=$(openstack floating ip create --tag occm-test -f value -c id ${extNetID})
+    if [ $? -ne 0 ]; then
+        printf "\n>>>>>>> FAIL: failed to create FIP\n"
+        exit 1
+    fi
+    vip=$(openstack loadbalancer show $lbID -f value -c vip_port_id)
+    openstack floating ip set --port ${vip} ${fip}
+
     local service1="test-shared-user-lb"
     printf "\n>>>>>>> Create Service ${service1}\n"
     cat <<EOF | kubectl apply -f -
@@ -735,7 +750,6 @@ metadata:
   namespace: $NAMESPACE
   annotations:
     loadbalancer.openstack.org/load-balancer-id: "$lbID"
-    service.beta.kubernetes.io/openstack-internal-load-balancer: "true"
     loadbalancer.openstack.org/enable-health-monitor: "false"
 spec:
   type: LoadBalancer
