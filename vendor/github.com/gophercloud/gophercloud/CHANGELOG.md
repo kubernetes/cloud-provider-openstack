@@ -1,3 +1,35 @@
+## v1.6.0 (2023-08-30)
+
+New features and improvements:
+
+* [GH-2712](https://github.com/gophercloud/gophercloud/pull/2712) [v1] README: minor change to test backport workflow
+* [GH-2713](https://github.com/gophercloud/gophercloud/pull/2713) [v1] tests: run MultiAttach with a capable Cinder Type
+* [GH-2714](https://github.com/gophercloud/gophercloud/pull/2714) [v1] Add CRUD support for encryption in volume v3 types
+* [GH-2715](https://github.com/gophercloud/gophercloud/pull/2715) [v1] Add projectID to fwaas_v2 policy CreateOpts and ListOpts
+* [GH-2716](https://github.com/gophercloud/gophercloud/pull/2716) [v1] Add projectID to fwaas_v2 CreateOpts
+* [GH-2717](https://github.com/gophercloud/gophercloud/pull/2717) [v1] [manila]: add reset and force delete actions to a snapshot
+* [GH-2718](https://github.com/gophercloud/gophercloud/pull/2718) [v1] [cinder]: add reset and force delete actions to volumes and snapshots
+* [GH-2721](https://github.com/gophercloud/gophercloud/pull/2721) [v1] orchestration: Explicit error in optionsmap creation
+* [GH-2723](https://github.com/gophercloud/gophercloud/pull/2723) [v1] Add conductor API to Baremetal V1
+* [GH-2729](https://github.com/gophercloud/gophercloud/pull/2729) [v1] networking/v2/ports: allow list filter by security group
+
+CI changes:
+
+* [GH-2675](https://github.com/gophercloud/gophercloud/pull/2675) [v1][CI] Drop periodic jobs from stable branch
+* [GH-2683](https://github.com/gophercloud/gophercloud/pull/2683) [v1] CI tweaks
+
+
+## v1.5.0 (2023-06-21)
+
+New features and improvements:
+
+* [GH-2634](https://github.com/gophercloud/gophercloud/pull/2634) baremetal: update inspection inventory with recent additions
+* [GH-2635](https://github.com/gophercloud/gophercloud/pull/2635) [manila]: Add Share Replicas support
+* [GH-2637](https://github.com/gophercloud/gophercloud/pull/2637) [FWaaS_v2]: Add FWaaS_V2 workflow and enable tests
+* [GH-2639](https://github.com/gophercloud/gophercloud/pull/2639) Implement errors.Unwrap() on unexpected status code errors
+* [GH-2648](https://github.com/gophercloud/gophercloud/pull/2648) [manila]: implement share transfer API
+
+
 ## v1.4.0 (2023-05-25)
 
 New features and improvements:
