@@ -16,6 +16,15 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// CutString255 makes sure the string length doesn't exceed 255, which is usually the maximum string length in OpenStack.
+func CutString255(original string) string {
+	ret := original
+	if len(original) > 255 {
+		ret = original[:255]
+	}
+	return ret
+}
+
 // MyDuration is the encoding.TextUnmarshaler interface for time.Duration
 type MyDuration struct {
 	time.Duration

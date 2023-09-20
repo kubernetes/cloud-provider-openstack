@@ -29,6 +29,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/ingress/config"
 	"k8s.io/cloud-provider-openstack/pkg/ingress/controller"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
@@ -54,6 +55,7 @@ var rootCmd = &cobra.Command{
 		signal.Notify(sigterm, syscall.SIGINT)
 		<-sigterm
 	},
+	Version: version.Version,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.

@@ -16,12 +16,14 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	kflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
 )
@@ -32,6 +34,10 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to parse flags: %v", err)
 	}
+
+	var showVersion bool
+	pflag.BoolVar(&showVersion, "version", false, "Show current version and exit")
+
 	// This is a temporary hack to enable proper logging until upstream dependencies
 	// are migrated to fully utilize klog instead of glog.
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
@@ -48,6 +54,13 @@ func main() {
 			_ = f2.Value.Set(value)
 		}
 	})
+
+	pflag.Parse()
+
+	if showVersion {
+		fmt.Println(version.Version)
+		os.Exit(0)
+	}
 
 	logs.InitLogs()
 	defer logs.FlushLogs()

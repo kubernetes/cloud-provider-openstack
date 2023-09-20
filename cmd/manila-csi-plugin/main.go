@@ -28,6 +28,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 )
@@ -124,6 +125,7 @@ func main() {
 
 			d.Run()
 		},
+		Version: version.Version,
 	}
 
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
