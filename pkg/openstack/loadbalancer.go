@@ -64,6 +64,7 @@ const (
 	activeStatus                        = "ACTIVE"
 	errorStatus                         = "ERROR"
 	annotationXForwardedFor             = "X-Forwarded-For"
+	annotationXForwardedProtocol        = "X-Forwarded-Proto"
 
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
 	ServiceAnnotationLoadBalancerConnLimit            = "loadbalancer.openstack.org/connection-limit"
@@ -83,6 +84,7 @@ const (
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
 	ServiceAnnotationLoadBalancerTimeoutTCPInspect    = "loadbalancer.openstack.org/timeout-tcp-inspect"
 	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
+	ServiceAnnotationLoadBalancerXForwardedProto      = "loadbalancer.openstack.org/x-forwarded-proto"
 	ServiceAnnotationLoadBalancerFlavorID             = "loadbalancer.openstack.org/flavor-id"
 	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether to create health monitor for the load balancer
@@ -333,6 +335,7 @@ type serviceConfig struct {
 	lbPublicNetworkID       string
 	lbPublicSubnetSpec      *floatingSubnetSpec
 	keepClientIP            bool
+	keepClientProtocol      bool
 	enableProxyProtocol     bool
 	timeoutClientData       int
 	timeoutMemberConnect    int
@@ -437,6 +440,8 @@ func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) liste
 		if svcConf.tlsContainerRef != "" {
 			return listeners.ProtocolTerminatedHTTPS
 		} else if svcConf.keepClientIP {
+			return listeners.ProtocolHTTP
+		} else if svcConf.keepClientProtocol {
 			return listeners.ProtocolHTTP
 		}
 	}
@@ -1322,6 +1327,19 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListene
 			}
 			listenerChanged = true
 		}
+		listenerKeepClientProtocol := listener.InsertHeaders[annotationXForwardedProtocol] == "true"
+		if svcConf.keepClientProtocol != listenerKeepClientProtocol {
+			updateOpts.InsertHeaders = &listener.InsertHeaders
+			if svcConf.keepClientProtocol {
+				if *updateOpts.InsertHeaders == nil {
+					*updateOpts.InsertHeaders = make(map[string]string)
+				}
+				(*updateOpts.InsertHeaders)[annotationXForwardedProtocol] = "true"
+			} else {
+				delete(*updateOpts.InsertHeaders, annotationXForwardedProtocol)
+			}
+			listenerChanged = true
+		}
 		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
 			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
 			listenerChanged = true
@@ -1368,9 +1386,10 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 	listenerProtocol := listeners.Protocol(port.Protocol)
 
 	listenerCreateOpt := listeners.CreateOpts{
-		Protocol:     listenerProtocol,
-		ProtocolPort: int(port.Port),
-		ConnLimit:    &svcConf.connLimit,
+		Protocol:      listenerProtocol,
+		ProtocolPort:  int(port.Port),
+		ConnLimit:     &svcConf.connLimit,
+		InsertHeaders: map[string]string{},
 	}
 
 	if svcConf.supportLBTags {
@@ -1385,9 +1404,11 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 	}
 
 	if svcConf.keepClientIP {
-		listenerCreateOpt.InsertHeaders = map[string]string{annotationXForwardedFor: "true"}
+		listenerCreateOpt.InsertHeaders[annotationXForwardedFor] = "true"
 	}
-
+	if svcConf.keepClientProtocol {
+		listenerCreateOpt.InsertHeaders[annotationXForwardedProtocol] = "true"
+	}
 	if svcConf.tlsContainerRef != "" {
 		listenerCreateOpt.DefaultTlsContainerRef = svcConf.tlsContainerRef
 	}
@@ -1398,6 +1419,9 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 		listenerCreateOpt.Protocol = listeners.ProtocolTerminatedHTTPS
 	} else if svcConf.keepClientIP && listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
 		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
+		listenerCreateOpt.Protocol = listeners.ProtocolHTTP
+	} else if svcConf.keepClientProtocol && listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
+		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedProto)
 		listenerCreateOpt.Protocol = listeners.ProtocolHTTP
 	}
 
@@ -1542,11 +1566,13 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 
 	// This affects the protocol of listener and pool
 	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
+	keepClientProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedProto, false)
 	useProxyProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
 	if useProxyProtocol && keepClientIP {
 		return fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 	}
 	svcConf.keepClientIP = keepClientIP
+	svcConf.keepClientProtocol = keepClientProtocol
 	svcConf.enableProxyProtocol = useProxyProtocol
 
 	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
@@ -1566,6 +1592,7 @@ func (lbaas *LbaasV2) checkServiceDelete(service *corev1.Service, svcConf *servi
 
 	// This affects the protocol of listener and pool
 	svcConf.keepClientIP = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
+	svcConf.keepClientProtocol = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedProto, false)
 	svcConf.enableProxyProtocol = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
 	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
 
@@ -1746,10 +1773,12 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
 	useProxyProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
+	keepClientProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedProto, false)
 	if useProxyProtocol && keepClientIP {
 		return fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 	}
 	svcConf.keepClientIP = keepClientIP
+	svcConf.keepClientProtocol = keepClientProtocol
 	svcConf.enableProxyProtocol = useProxyProtocol
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
