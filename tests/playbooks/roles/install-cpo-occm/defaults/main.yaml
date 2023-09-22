@@ -7,3 +7,6 @@ image_registry_host: localhost
 run_e2e: false
 # Used for access the private registry image from k8s
 remote_registry_host: "{{ ansible_default_ipv4.address }}"
+
+# Octavia provider to configure OCCM with. Empty means we'll use a default
+octavia_provider: ""

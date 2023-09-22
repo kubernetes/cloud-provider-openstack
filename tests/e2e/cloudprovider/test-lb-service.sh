@@ -18,6 +18,7 @@ CLUSTER_TENANT=${CLUSTER_TENANT:-"demo"}
 CLUSTER_USER=${CLUSTER_USER:-"demo"}
 LB_SUBNET_NAME=${LB_SUBNET_NAME:-"private-subnet"}
 AUTO_CLEAN_UP=${AUTO_CLEAN_UP:-"true"}
+OCTAVIA_PROVIDER=${OCTAVIA_PROVIDER:-""}
 
 function delete_resources() {
   ERROR_CODE="$?"
@@ -289,6 +290,11 @@ function test_forwarded {
     local service="test-x-forwarded-for"
     local public_ip=$(curl -sS ifconfig.me)
     local local_ip=$(ip route get 8.8.8.8 | head -1 | awk '{print $7}')
+
+    if [[ ${OCTAVIA_PROVIDER} == "ovn" ]]; then
+        printf "\n>>>>>>> Skipping Service ${service} test for OVN provider\n"
+        return 0
+    fi
 
     printf "\n>>>>>>> Create the Service ${service}\n"
     cat <<EOF | kubectl apply -f -
@@ -714,7 +720,11 @@ function test_shared_user_lb {
     fi
 
     printf "\n>>>>>>> Creating openstack load balancer: --vip-subnet-id $subid \n"
-    lbID=$(openstack loadbalancer create --vip-subnet-id $subid --name test_shared_user_lb -f value -c id)
+    provider_option=""
+    if [[ ${OCTAVIA_PROVIDER} != "" ]]; then
+        provider_option="--provider=${OCTAVIA_PROVIDER}"
+    fi
+    lbID=$(openstack loadbalancer create --vip-subnet-id $subid --name test_shared_user_lb -f value -c id ${provider_option})
     if [ $? -ne 0 ]; then
         printf "\n>>>>>>> FAIL: failed to create load balancer\n"
         exit 1
