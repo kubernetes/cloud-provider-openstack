@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -107,7 +108,11 @@ type LbaasV2 struct {
 	LoadBalancer
 }
 
-var _ cloudprovider.LoadBalancer = &LbaasV2{}
+var (
+	// List based on Octavia documentation https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-pool-detail#protocol-combinations-listener-pool
+	proxyProtocolSupportedListeners = []listeners.Protocol{listeners.ProtocolHTTP, listeners.ProtocolHTTPS, listeners.ProtocolTCP, listeners.ProtocolTerminatedHTTPS}
+	_                               = &LbaasV2{}
+)
 
 // serviceConfig contains configurations for creating a Service.
 type serviceConfig struct {
@@ -857,7 +862,12 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listener.Protocol)
 	if svcConf.enableProxyProtocol {
-		poolProto = v2pools.ProtocolPROXY
+		if isProtocolProxyProtocolSupported(listener.Protocol) {
+			poolProto = v2pools.ProtocolPROXY
+		} else {
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBProxyProtocolUnsupported,
+				"PROXY protocol is not supported for %s listeners, falling back to %s", listener.Protocol, listener.Protocol)
+		}
 	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		poolProto = v2pools.ProtocolHTTP
 	}
@@ -924,7 +934,12 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listenerProtocol)
 	if svcConf.enableProxyProtocol {
-		poolProto = v2pools.ProtocolPROXY
+		if isProtocolProxyProtocolSupported(listenerProtocol) {
+			poolProto = v2pools.ProtocolPROXY
+		} else {
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBProxyProtocolUnsupported,
+				"PROXY protocol is not supported for %s listeners, falling back to %s", listenerProtocol, listenerProtocol)
+		}
 	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		if svcConf.keepClientIP && svcConf.tlsContainerRef != "" {
 			klog.V(4).Infof("Forcing to use %q protocol for pool because annotations %q %q are set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor, ServiceAnnotationTlsContainerRef)
@@ -2129,6 +2144,14 @@ func GetLoadBalancerSourceRanges(service *corev1.Service, preferredIPFamily core
 		}
 	}
 	return ipnets, nil
+}
+
+// isProtocolProxyProtocolSupported checks if the ListenProtocol can be used with the ProxyProtocol
+// for the pool configuration. In the case of UDP listener, Octavia doesn't support the ProxyProtocol
+// and should not be enabled to avoid 403 from Octavia API.
+// https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-pool-detail#protocol-combinations-listener-pool
+func isProtocolProxyProtocolSupported(protocol string) bool {
+	return slices.Contains(proxyProtocolSupportedListeners, listeners.Protocol(protocol))
 }
 
 // PreserveGopherError preserves the error details delivered with the response
