@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	expslices "golang.org/x/exp/slices"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -129,7 +130,11 @@ type servicePatcher struct {
 	updated *corev1.Service
 }
 
-var _ cloudprovider.LoadBalancer = &LbaasV2{}
+var (
+	// List based on Octavia documentation https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-pool-detail#protocol-combinations-listener-pool
+	proxyProtocolSupportedListeners                            = []listeners.Protocol{listeners.ProtocolHTTP, listeners.ProtocolHTTPS, listeners.ProtocolTCP, listeners.ProtocolTerminatedHTTPS}
+	_                               cloudprovider.LoadBalancer = &LbaasV2{}
+)
 
 // negate returns a negated matches for a given one
 func negate(f matcher) matcher { return func(s *subnets.Subnet) bool { return !f(s) } }
@@ -1133,7 +1138,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listener.Protocol)
-	if svcConf.enableProxyProtocol {
+	if svcConf.enableProxyProtocol && isProtocolProxyProtocolSupported(listener.Protocol) {
 		poolProto = v2pools.ProtocolPROXY
 	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		poolProto = v2pools.ProtocolHTTP
@@ -1201,7 +1206,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev1.Service, svcConf *serviceConfig) v2pools.CreateOpts {
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listenerProtocol)
-	if svcConf.enableProxyProtocol {
+	if svcConf.enableProxyProtocol && isProtocolProxyProtocolSupported(listenerProtocol) {
 		poolProto = v2pools.ProtocolPROXY
 	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		if svcConf.keepClientIP && svcConf.tlsContainerRef != "" {
@@ -2602,6 +2607,14 @@ func GetLoadBalancerSourceRanges(service *corev1.Service, preferredIPFamily core
 		}
 	}
 	return ipnets, nil
+}
+
+// isProtocolProxyProtocolSupported checks if the ListenProtocol can be used with the ProxyProtocol
+// for the pool configuration. In the case of UDP listener, Octavia doesn't support the ProxyProtocol
+// and should not be enabled to avoid 403 from Octavia API.
+// https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-pool-detail#protocol-combinations-listener-pool
+func isProtocolProxyProtocolSupported(protocol string) bool {
+	return expslices.Contains(proxyProtocolSupportedListeners, listeners.Protocol(protocol))
 }
 
 // PreserveGopherError preserves the error details delivered with the response
