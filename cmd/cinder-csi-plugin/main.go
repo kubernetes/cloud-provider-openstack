@@ -21,6 +21,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -31,11 +33,13 @@ import (
 )
 
 var (
-	endpoint     string
-	nodeID       string
-	cloudConfig  []string
-	cluster      string
-	httpEndpoint string
+	endpoint                    string
+	nodeID                      string
+	cloudConfig                 []string
+	cluster                     string
+	httpEndpoint                string
+	kubeconfig                  string
+	vsDeletionProtectionEnabled bool
 )
 
 func main() {
@@ -65,6 +69,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
+	cmd.PersistentFlags().BoolVar(&vsDeletionProtectionEnabled, "enable-vs-deletion-protection", false, "If set, The VS will be added a finalizer while a PVC created base on it, ensure the VS couldn't be deleted before the PVC be deleted.")
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	code := cli.Run(cmd)
@@ -85,6 +90,24 @@ func handle() {
 
 	//Initialize Metadata
 	metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+
+	var restConfig *rest.Config
+	if kubeconfig != "" {
+		restConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	} else {
+		restConfig, err = rest.InClusterConfig()
+	}
+	if err != nil {
+		klog.Warningf("Failed to init rest config: %v", err)
+		return
+	}
+	if vsDeletionProtectionEnabled {
+		err = cinder.StartContollerWatcher(restConfig)
+		if err != nil {
+			klog.Warningf("Failed to StartContollerWatcher: %v", err)
+			return
+		}
+	}
 
 	d.SetupDriver(cloud, mount, metadata)
 	d.Run()

@@ -99,6 +99,7 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            - "--enable-vs-deletion-protection"
             - "--v=1"
           env:
             - name: CSI_ENDPOINT
