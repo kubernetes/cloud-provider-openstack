@@ -35,6 +35,7 @@ import (
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/controller"
+	"k8s.io/cloud-provider-openstack/pkg/version"
 )
 
 var (
@@ -82,6 +83,7 @@ var rootCmd = &cobra.Command{
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 	},
+	Version: version.Version,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.

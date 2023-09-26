@@ -11,7 +11,6 @@
       git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
 
 - name: Build and upload openstack-cloud-controller-manager image
-  when: build_image
   shell:
     executable: /bin/bash
     cmd: |
@@ -19,8 +18,8 @@
 
       make push-multiarch-image-openstack-cloud-controller-manager \
         ARCHS='amd64' \
-        REGISTRY={{ image_registry_host }} \
-        VERSION=v0.0.{{ github_pr }}
+        VERSION=v0.0.{{ github_pr }} \
+        REGISTRY={{ image_registry_host }}
 
 - name: Prepare openstack-cloud-controller-manager config
   shell:
@@ -55,79 +54,27 @@
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
 
+- name: Replace manifests
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      # replace image with built image
+      sed -i "s#registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.28.0#{{ remote_registry_host }}/openstack-cloud-controller-manager:v0.0.{{ github_pr }}#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+      sed -i "s#node-role.kubernetes.io/control-plane: \"\"#node-role.kubernetes.io/control-plane: \"true\"#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+      sed -i "s#--v=1#--v=5#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+      cat manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+
 - name: Deploy openstack-cloud-controller-manager
   shell:
     executable: /bin/bash
     cmd: |
-      set -x
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
 
-      cat <<EOF | kubectl apply -f -
-      ---
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: cloud-controller-manager
-        namespace: kube-system
-      ---
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: system:cloud-controller-manager
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: cluster-admin
-      subjects:
-      - kind: ServiceAccount
-        name: cloud-controller-manager
-        namespace: kube-system
-      ---
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: openstack-cloud-controller-manager
-        namespace: kube-system
-        labels:
-          k8s-app: openstack-cloud-controller-manager
-      spec:
-        replicas: 1
-        selector:
-          matchLabels:
-            k8s-app: openstack-cloud-controller-manager
-        template:
-          metadata:
-            labels:
-              k8s-app: openstack-cloud-controller-manager
-          spec:
-            tolerations:
-            - key: node.cloudprovider.kubernetes.io/uninitialized
-              value: "true"
-              effect: NoSchedule
-            - key: node-role.kubernetes.io/master
-              effect: NoSchedule
-            - key: node-role.kubernetes.io/control-plane
-              effect: NoSchedule
-            serviceAccountName: cloud-controller-manager
-            containers:
-              - name: openstack-cloud-controller-manager
-                image: "{{ image_url }}"
-                args:
-                  - /bin/openstack-cloud-controller-manager
-                  - --v=4
-                  - --cloud-config=/etc/config/cloud.conf
-                  - --cloud-provider=openstack
-                  - --use-service-account-credentials=false
-                  - --bind-address=127.0.0.1
-                volumeMounts:
-                  - mountPath: /etc/config
-                    name: cloud-config-volume
-                    readOnly: true
-            hostNetwork: true
-            volumes:
-            - name: cloud-config-volume
-              secret:
-                secretName: cloud-config
-      EOF
+      kubectl apply -f manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+      kubectl apply -f manifests/controller-manager/cloud-controller-manager-roles.yaml
+      kubectl apply -f manifests/controller-manager/cloud-controller-manager-role-bindings.yaml
+  ignore_errors: true
 
 - name: Wait for openstack-cloud-controller-manager up and running
   shell:
@@ -147,7 +94,9 @@
       shell:
         executable: /bin/bash
         cmd: |
-          kubectl -n kube-system describe deployment openstack-cloud-controller-manager
+          kubectl describe nodes
+          kubectl get pods -n kube-system -o wide
+          kubectl -n kube-system describe ds openstack-cloud-controller-manager
       register: describe_occm
       changed_when: false
 
@@ -159,7 +108,7 @@
       shell:
         executable: /bin/bash
         cmd: |
-          kubectl -n kube-system logs deployment/openstack-cloud-controller-manager
+          kubectl -n kube-system logs ds/openstack-cloud-controller-manager
 
     - name: &failmsg Stop due to prior failure of openstack-cloud-controller-manager
       fail:
@@ -167,6 +116,7 @@
 
 - name: Run functional tests for openstack-cloud-controller-manager
   when: run_e2e
+  register: run_tests
   shell:
     executable: /bin/bash
     cmd: |
@@ -176,3 +126,34 @@
       GATEWAY_IP=172.24.5.1 \
       DEVSTACK_OS_RC={{ devstack_workdir }}/openrc \
       bash tests/e2e/cloudprovider/test-lb-service.sh
+  timeout: 3600
+  ignore_errors: true
+
+- name: Print logs for debugging
+  when:
+    - run_e2e
+    - run_tests.failed
+  block:
+  - name: Show openstack-cloud-controller-manager pod logs
+    shell:
+      executable: /bin/bash
+      cmd: |
+        kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager
+
+  - name: Show Octavia logs
+    become: true
+    shell:
+      executable: /bin/bash
+      cmd: |
+        sudo journalctl -u devstack@o-api.service --no-pager
+
+  - name: Show Neutron logs
+    become: true
+    shell:
+      executable: /bin/bash
+      cmd: |
+        sudo journalctl -u devstack@q-svc.service --no-pager
+
+  - name: &failmsg2 Stop due to prior failure of tests
+    fail:
+      msg: *failmsg2

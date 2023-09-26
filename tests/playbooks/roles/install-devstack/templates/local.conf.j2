@@ -51,21 +51,24 @@ enable_service c-sch
 # Neutron
 enable_plugin neutron ${GIT_BASE}/openstack/neutron.git {{ branch }}
 enable_service q-svc
-enable_service q-agt
-enable_service q-dhcp
-enable_service q-l3
-enable_service q-meta
+enable_service q-ovn-metadata-agent
+enable_service q-trunk
+enable_service q-qos
+enable_service ovn-controller
+enable_service ovn-northd
+enable_service ovs-vswitchd
+enable_service ovsdb-server
+
+ML2_L3_PLUGIN="ovn-router,trunk,qos"
+OVN_L3_CREATE_PUBLIC_NETWORK="True"
+PUBLIC_BRIDGE_MTU="1430"
+
 IP_VERSION=4
 IPV4_ADDRS_SAFE_TO_USE=10.1.0.0/26
 FIXED_RANGE=10.1.0.0/26
 NETWORK_GATEWAY=10.1.0.1
 FLOATING_RANGE=172.24.5.0/24
 PUBLIC_NETWORK_GATEWAY=172.24.5.1
-Q_PLUGIN=ml2
-Q_ML2_TENANT_NETWORK_TYPE=vxlan
-Q_DVR_MODE=legacy
-Q_AGENT=openvswitch
-Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch
 {% endif %}
 
 {% if "octavia" in enable_services %}
@@ -75,6 +78,7 @@ enable_service octavia
 enable_service o-cw
 enable_service o-hm
 enable_service o-hk
+enable_service o-da
 enable_service o-api
 
 LIBS_FROM_GIT+=,python-octaviaclient
@@ -87,6 +91,10 @@ OCTAVIA_MGMT_SUBNET_END=10.51.0.254
 {% if octavia_amphora_url %}
 OCTAVIA_AMP_IMAGE_FILE={{ octavia_amphora_dir }}/{{ octavia_amphora_filename }}
 {% endif %}
+{% endif %}
+
+{% if "ovn-octavia" in enable_services %}
+enable_plugin ovn-octavia-provider https://opendev.org/openstack/ovn-octavia-provider {{ branch }}
 {% endif %}
 
 {% if "barbican" in enable_services %}
@@ -130,6 +138,9 @@ global_physnet_mtu = 1430
 [[post-config|$OCTAVIA_CONF]]
 [api_settings]
 allow_tls_terminated_listeners = True
+{% if "ovn-octavia" in enable_services %}
+enabled_provider_drivers = amphora:'Octavia Amphora driver',ovn:'Octavia OVN driver'
+{% endif %}
 [controller_worker]
 loadbalancer_topology = SINGLE
 amp_active_retries = 60
