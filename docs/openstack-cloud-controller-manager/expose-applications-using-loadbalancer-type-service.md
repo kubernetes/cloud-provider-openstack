@@ -192,7 +192,11 @@ Request Body:
 
 - `loadbalancer.openstack.org/health-monitor-max-retries`
 
-  Defines the health monitor retry count for the loadbalancer pools.
+  Defines the health monitor retry count for the loadbalancer pool members.
+
+- `loadbalancer.openstack.org/health-monitor-max-retries-down`
+
+  Defines the health monitor retry count for the loadbalancer pool members to be marked down.
 
 - `loadbalancer.openstack.org/flavor-id`
 
@@ -255,7 +259,8 @@ subnet-id="fa6a4e6c-6ae4-4dde-ae86-3e2f452c1f03"
 create-monitor=true
 monitor-delay=60s
 monitor-timeout=30s
-monitor-max-retries=5
+monitor-max-retries=1
+monitor-max-retries-down=3
 
 [LoadBalancerClass "internetFacing"]
 floating-network-id="c57af0a0-da92-49be-a98a-345ceca004b3"
