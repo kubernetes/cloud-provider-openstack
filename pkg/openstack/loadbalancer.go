@@ -55,7 +55,7 @@ import (
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
-// Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use,
+// Note: when creating a new Loadbalancer (VM), it can take some time before it is ready for use, foobar
 // this timeout is used for waiting until the Loadbalancer provisioning status goes to ACTIVE state.
 const (
 	servicePrefix                       = "kube_service_"
