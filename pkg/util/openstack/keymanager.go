@@ -119,7 +119,7 @@ func DeleteSecrets(client *gophercloud.ServiceClient, partName string) error {
 			}
 			mc := metrics.NewMetricContext("secret", "delete")
 			err = secrets.Delete(client, secretID).ExtractErr()
-			if mc.ObserveRequest(err) != nil {
+			if mc.ObserveRequest(err) != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}
 		}

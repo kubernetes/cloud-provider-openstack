@@ -558,16 +558,6 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 	lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 	logger := log.WithFields(log.Fields{"ingress": key})
 
-	// Delete Barbican secrets
-	if c.osClient.Barbican != nil && ing.Spec.TLS != nil {
-		nameFilter := fmt.Sprintf("kube_ingress_%s_%s_%s", c.config.ClusterName, ing.Namespace, ing.Name)
-		if err := openstackutil.DeleteSecrets(c.osClient.Barbican, nameFilter); err != nil {
-			return fmt.Errorf("failed to remove Barbican secrets: %v", err)
-		}
-
-		logger.Info("Barbican secrets deleted")
-	}
-
 	// If load balancer doesn't exist, assume it's already deleted.
 	loadbalancer, err := openstackutil.GetLoadbalancerByName(c.osClient.Octavia, lbName)
 	if err != nil {
@@ -621,6 +611,16 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Infof("loadbalancer delete failed: %s", err)
 	} else {
 		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("loadbalancer deleted")
+	}
+
+	// Delete Barbican secrets
+	if c.osClient.Barbican != nil && ing.Spec.TLS != nil {
+		nameFilter := fmt.Sprintf("kube_ingress_%s_%s_%s", c.config.ClusterName, ing.Namespace, ing.Name)
+		if err := openstackutil.DeleteSecrets(c.osClient.Barbican, nameFilter); err != nil {
+			return fmt.Errorf("failed to remove Barbican secrets: %v", err)
+		}
+
+		logger.Info("Barbican secrets deleted")
 	}
 
 	return err
