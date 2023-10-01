@@ -94,6 +94,7 @@ type LoadBalancerOpts struct {
 	MonitorDelay          util.MyDuration     `gcfg:"monitor-delay"`
 	MonitorTimeout        util.MyDuration     `gcfg:"monitor-timeout"`
 	MonitorMaxRetries     uint                `gcfg:"monitor-max-retries"`
+	MonitorMaxRetriesDown uint                `gcfg:"monitor-max-retries-down"`
 	ManageSecurityGroups  bool                `gcfg:"manage-security-groups"`
 	NodeSecurityGroupIDs  []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
 	InternalLB            bool                `gcfg:"internal-lb"` // default false
@@ -203,6 +204,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.MonitorDelay = util.MyDuration{Duration: 5 * time.Second}
 	cfg.LoadBalancer.MonitorTimeout = util.MyDuration{Duration: 3 * time.Second}
 	cfg.LoadBalancer.MonitorMaxRetries = 1
+	cfg.LoadBalancer.MonitorMaxRetriesDown = 3
 	cfg.LoadBalancer.CascadeDelete = true
 	cfg.LoadBalancer.EnableIngressHostname = false
 	cfg.LoadBalancer.IngressHostnameSuffix = defaultProxyHostnameSuffix

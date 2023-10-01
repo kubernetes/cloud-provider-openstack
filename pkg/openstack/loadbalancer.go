@@ -88,12 +88,13 @@ const (
 	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
-	ServiceAnnotationLoadBalancerEnableHealthMonitor     = "loadbalancer.openstack.org/enable-health-monitor"
-	ServiceAnnotationLoadBalancerHealthMonitorDelay      = "loadbalancer.openstack.org/health-monitor-delay"
-	ServiceAnnotationLoadBalancerHealthMonitorTimeout    = "loadbalancer.openstack.org/health-monitor-timeout"
-	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries = "loadbalancer.openstack.org/health-monitor-max-retries"
-	ServiceAnnotationLoadBalancerLoadbalancerHostname    = "loadbalancer.openstack.org/hostname"
-	ServiceAnnotationLoadBalancerAddress                 = "loadbalancer.openstack.org/load-balancer-address"
+	ServiceAnnotationLoadBalancerEnableHealthMonitor         = "loadbalancer.openstack.org/enable-health-monitor"
+	ServiceAnnotationLoadBalancerHealthMonitorDelay          = "loadbalancer.openstack.org/health-monitor-delay"
+	ServiceAnnotationLoadBalancerHealthMonitorTimeout        = "loadbalancer.openstack.org/health-monitor-timeout"
+	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries     = "loadbalancer.openstack.org/health-monitor-max-retries"
+	ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown = "loadbalancer.openstack.org/health-monitor-max-retries-down"
+	ServiceAnnotationLoadBalancerLoadbalancerHostname        = "loadbalancer.openstack.org/hostname"
+	ServiceAnnotationLoadBalancerAddress                     = "loadbalancer.openstack.org/load-balancer-address"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -325,33 +326,34 @@ func tagList(tags string) ([]string, bool, bool) {
 
 // serviceConfig contains configurations for creating a Service.
 type serviceConfig struct {
-	internal                bool
-	connLimit               int
-	configClassName         string
-	lbNetworkID             string
-	lbSubnetID              string
-	lbMemberSubnetID        string
-	lbPublicNetworkID       string
-	lbPublicSubnetSpec      *floatingSubnetSpec
-	keepClientIP            bool
-	enableProxyProtocol     bool
-	timeoutClientData       int
-	timeoutMemberConnect    int
-	timeoutMemberData       int
-	timeoutTCPInspect       int
-	allowedCIDR             []string
-	enableMonitor           bool
-	flavorID                string
-	availabilityZone        string
-	tlsContainerRef         string
-	lbID                    string
-	lbName                  string
-	supportLBTags           bool
-	healthCheckNodePort     int
-	healthMonitorDelay      int
-	healthMonitorTimeout    int
-	healthMonitorMaxRetries int
-	preferredIPFamily       corev1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
+	internal                    bool
+	connLimit                   int
+	configClassName             string
+	lbNetworkID                 string
+	lbSubnetID                  string
+	lbMemberSubnetID            string
+	lbPublicNetworkID           string
+	lbPublicSubnetSpec          *floatingSubnetSpec
+	keepClientIP                bool
+	enableProxyProtocol         bool
+	timeoutClientData           int
+	timeoutMemberConnect        int
+	timeoutMemberData           int
+	timeoutTCPInspect           int
+	allowedCIDR                 []string
+	enableMonitor               bool
+	flavorID                    string
+	availabilityZone            string
+	tlsContainerRef             string
+	lbID                        string
+	lbName                      string
+	supportLBTags               bool
+	healthCheckNodePort         int
+	healthMonitorDelay          int
+	healthMonitorTimeout        int
+	healthMonitorMaxRetries     int
+	healthMonitorMaxRetriesDown int
+	preferredIPFamily           corev1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
 }
 
 type listenerKey struct {
@@ -1040,11 +1042,15 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 			}
 			monitorID = ""
 		}
-		if svcConf.healthMonitorDelay != monitor.Delay || svcConf.healthMonitorTimeout != monitor.Timeout || svcConf.healthMonitorMaxRetries != monitor.MaxRetries {
+		if svcConf.healthMonitorDelay != monitor.Delay ||
+			svcConf.healthMonitorTimeout != monitor.Timeout ||
+			svcConf.healthMonitorMaxRetries != monitor.MaxRetries ||
+			svcConf.healthMonitorMaxRetriesDown != monitor.MaxRetriesDown {
 			updateOpts := v2monitors.UpdateOpts{
-				Delay:      svcConf.healthMonitorDelay,
-				Timeout:    svcConf.healthMonitorTimeout,
-				MaxRetries: svcConf.healthMonitorMaxRetries,
+				Delay:          svcConf.healthMonitorDelay,
+				Timeout:        svcConf.healthMonitorTimeout,
+				MaxRetries:     svcConf.healthMonitorMaxRetries,
+				MaxRetriesDown: svcConf.healthMonitorMaxRetriesDown,
 			}
 			klog.Infof("Updating health monitor %s updateOpts %+v", monitorID, updateOpts)
 			if err := openstackutil.UpdateHealthMonitor(lbaas.lb, monitorID, updateOpts); err != nil {
@@ -1091,10 +1097,11 @@ func (lbaas *LbaasV2) canUseHTTPMonitor(port corev1.ServicePort) bool {
 // buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
 func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
 	opts := v2monitors.CreateOpts{
-		Type:       string(port.Protocol),
-		Delay:      svcConf.healthMonitorDelay,
-		Timeout:    svcConf.healthMonitorTimeout,
-		MaxRetries: svcConf.healthMonitorMaxRetries,
+		Type:           string(port.Protocol),
+		Delay:          svcConf.healthMonitorDelay,
+		Timeout:        svcConf.healthMonitorTimeout,
+		MaxRetries:     svcConf.healthMonitorMaxRetries,
+		MaxRetriesDown: svcConf.healthMonitorMaxRetriesDown,
 	}
 	if port.Protocol == corev1.ProtocolUDP {
 		opts.Type = "UDP-CONNECT"
@@ -1524,6 +1531,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
 	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
+	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
 	return nil
 }
 
@@ -1759,6 +1767,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
 	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
+	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
 	return nil
 }
 
