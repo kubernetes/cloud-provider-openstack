@@ -98,7 +98,8 @@ func TestReadConfig(t *testing.T) {
  create-monitor = yes
  monitor-delay = 1m
  monitor-timeout = 30s
- monitor-max-retries = 3
+ monitor-max-retries = 1
+ monitor-max-retries-down = 3
  [Metadata]
  search-order = configDrive, metadataService
  `))
@@ -131,16 +132,19 @@ func TestReadConfig(t *testing.T) {
 	}
 
 	if !cfg.LoadBalancer.CreateMonitor {
-		t.Errorf("incorrect lb.createmonitor: %t", cfg.LoadBalancer.CreateMonitor)
+		t.Errorf("incorrect lb.create-monitor: %t", cfg.LoadBalancer.CreateMonitor)
 	}
 	if cfg.LoadBalancer.MonitorDelay.Duration != 1*time.Minute {
-		t.Errorf("incorrect lb.monitordelay: %s", cfg.LoadBalancer.MonitorDelay)
+		t.Errorf("incorrect lb.monitor-delay: %s", cfg.LoadBalancer.MonitorDelay)
 	}
 	if cfg.LoadBalancer.MonitorTimeout.Duration != 30*time.Second {
-		t.Errorf("incorrect lb.monitortimeout: %s", cfg.LoadBalancer.MonitorTimeout)
+		t.Errorf("incorrect lb.monitor-timeout: %s", cfg.LoadBalancer.MonitorTimeout)
 	}
-	if cfg.LoadBalancer.MonitorMaxRetries != 3 {
-		t.Errorf("incorrect lb.monitormaxretries: %d", cfg.LoadBalancer.MonitorMaxRetries)
+	if cfg.LoadBalancer.MonitorMaxRetries != 1 {
+		t.Errorf("incorrect lb.monitor-max-retries: %d", cfg.LoadBalancer.MonitorMaxRetries)
+	}
+	if cfg.LoadBalancer.MonitorMaxRetriesDown != 3 {
+		t.Errorf("incorrect lb.monitor-max-retries-down: %d", cfg.LoadBalancer.MonitorMaxRetriesDown)
 	}
 	if cfg.Metadata.SearchOrder != "configDrive, metadataService" {
 		t.Errorf("incorrect md.search-order: %v", cfg.Metadata.SearchOrder)
@@ -187,7 +191,8 @@ clouds:
  create-monitor = yes
  monitor-delay = 1m
  monitor-timeout = 30s
- monitor-max-retries = 3
+ monitor-max-retries = 1
+ monitor-max-retries-down = 3
  [Metadata]
  search-order = configDrive, metadataService
 `))
@@ -227,7 +232,15 @@ clouds:
 
 	// Make non-global sections dont get overwritten
 	if !cfg.LoadBalancer.CreateMonitor {
-		t.Errorf("incorrect lb.createmonitor: %t", cfg.LoadBalancer.CreateMonitor)
+		t.Errorf("incorrect lb.create-monitor: %t", cfg.LoadBalancer.CreateMonitor)
+	}
+
+	if cfg.LoadBalancer.MonitorMaxRetries != 1 {
+		t.Errorf("incorrect lb.monitor-max-retries: %d", cfg.LoadBalancer.MonitorMaxRetries)
+	}
+
+	if cfg.LoadBalancer.MonitorMaxRetriesDown != 3 {
+		t.Errorf("incorrect lb.monitor-max-retries-down: %d", cfg.LoadBalancer.MonitorMaxRetriesDown)
 	}
 }
 
