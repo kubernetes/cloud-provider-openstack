@@ -228,6 +228,9 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `monitor-max-retries`
   The number of successful checks before changing the operating status of the load balancer member to ONLINE. A valid value is from 1 to 10. Default: 1
 
+* `monitor-max-retries-down`
+  The number of unsuccessful checks before changing the operating status of the load balancer member to ERROR. A valid value is from 1 to 10. Default: 3
+
 * `monitor-timeout`
   The maximum time, in seconds, that a monitor waits to connect backend before it times out. Default: 3
 
