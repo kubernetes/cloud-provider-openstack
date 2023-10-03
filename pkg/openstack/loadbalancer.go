@@ -1032,9 +1032,10 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 				}
 				klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s", floatIP.FloatingIP, lb.ID)
 			}
-
 		} else {
-			klog.Warningf("Floating network configuration not provided for Service %s, forcing to ensure an internal load balancer service", serviceName)
+			msg := "Floating network configuration not provided for Service %s, forcing to ensure an internal load balancer service"
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBForceInternal, msg, serviceName)
+			klog.Warningf(msg, serviceName)
 		}
 	}
 
@@ -1723,7 +1724,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		if floatingNetworkID == "" {
 			floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
 			if err != nil {
-				klog.Warningf("Failed to find floating-network-id for Service %s: %v", serviceName, err)
+				msg := "Failed to find floating-network-id for Service %s: %v"
+				lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBExternalNetworkSearchFailed, msg, serviceName, err)
+				klog.Warningf(msg, serviceName, err)
 			}
 		}
 
@@ -1796,7 +1799,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		klog.V(4).Info("LoadBalancerSourceRanges will be enforced on the SG created and attached to LB members")
 		svcConf.allowedCIDR = sourceRanges.StringSlice()
 	} else {
-		klog.Warning("LoadBalancerSourceRanges are ignored")
+		msg := "LoadBalancerSourceRanges are ignored for Service %s because Octavia provider does not support it"
+		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBSourceRangesIgnored, msg, serviceName)
+		klog.Warningf(msg, serviceName)
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
@@ -1807,7 +1812,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureAvailabilityZones, lbaas.opts.LBProvider) {
 		svcConf.availabilityZone = availabilityZone
 	} else if availabilityZone != "" {
-		klog.Warning("LoadBalancer Availability Zones aren't supported. Please, upgrade Octavia API to version 2.14 or later (Ussuri release) to use them")
+		msg := "LoadBalancer Availability Zones aren't supported. Please, upgrade Octavia API to version 2.14 or later (Ussuri release) to use them for Service %s"
+		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBAZIgnored, msg, serviceName)
+		klog.Warningf(msg, serviceName)
 	}
 
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
