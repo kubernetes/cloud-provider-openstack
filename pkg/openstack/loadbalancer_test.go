@@ -1,13 +1,14 @@
 package openstack
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type testPopListener struct {
@@ -457,6 +458,79 @@ func TestGetRulesToCreateAndDelete(t *testing.T) {
 			toCreate, toDelete := getRulesToCreateAndDelete(tt.wantedRules, tt.existingRules)
 			assert.ElementsMatch(t, tt.toCreate, toCreate)
 			assert.ElementsMatch(t, tt.toDelete, toDelete)
+		})
+	}
+}
+
+func Test_getListenerProtocol(t *testing.T) {
+	type testArg struct {
+		protocol corev1.Protocol
+		svcConf  *serviceConfig
+	}
+
+	tests := []struct {
+		name     string
+		testArg  testArg
+		expected listeners.Protocol
+	}{
+		{
+			name: "not nil svcConf and tlsContainerRef is not empty",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					tlsContainerRef: "tls-container-ref",
+				},
+			},
+			expected: listeners.ProtocolTerminatedHTTPS,
+		},
+		{
+			name: "not nil svcConf and keepClientIP is true",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					keepClientIP: true,
+				},
+			},
+			expected: listeners.ProtocolHTTP,
+		},
+		{
+			name: "nil svcConf with TCP protocol",
+			testArg: testArg{
+				svcConf:  nil,
+				protocol: corev1.ProtocolTCP,
+			},
+			expected: listeners.ProtocolTCP,
+		},
+		{
+			name: "nil svcConf with UDP protocol",
+			testArg: testArg{
+				svcConf:  nil,
+				protocol: corev1.ProtocolUDP,
+			},
+			expected: listeners.ProtocolUDP,
+		},
+		{
+			name: "test for no specification on svc and a random protocol to test it return value",
+			testArg: testArg{
+				svcConf:  nil,
+				protocol: corev1.ProtocolSCTP,
+			},
+			expected: listeners.ProtocolSCTP,
+		},
+		{
+			name: "passing a svcConf tls container ref with a keep client IP",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					tlsContainerRef: "tls-container-ref",
+					keepClientIP:    true,
+				},
+			},
+			expected: listeners.ProtocolTerminatedHTTPS,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getListenerProtocol(tt.testArg.protocol, tt.testArg.svcConf); !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("getListenerProtocol() = %v, expected %v", got, tt.expected)
+			}
 		})
 	}
 }
