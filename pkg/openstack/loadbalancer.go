@@ -416,7 +416,7 @@ func popListener(existingListeners []listeners.Listener, id string) []listeners.
 
 func getSecurityGroupName(service *corev1.Service) string {
 	securityGroupName := fmt.Sprintf("lb-sg-%s-%s-%s", service.UID, service.Namespace, service.Name)
-	//OpenStack requires that the name of a security group is shorter than 255 bytes.
+	// OpenStack requires that the name of a security group is shorter than 255 bytes.
 	if len(securityGroupName) > 255 {
 		securityGroupName = securityGroupName[:255]
 	}
@@ -644,13 +644,13 @@ func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (str
 func getStringFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting string) string {
 	klog.V(4).Infof("getStringFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
 	if annotationValue, ok := service.Annotations[annotationKey]; ok {
-		//if there is an annotation for this setting, set the "setting" var to it
+		// if there is an annotation for this setting, set the "setting" var to it
 		// annotationValue can be empty, it is working as designed
 		// it makes possible for instance provisioning loadbalancer without floatingip
 		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, annotationValue)
 		return annotationValue
 	}
-	//if there is no annotation, set "settings" var to the value from cloud config
+	// if there is no annotation, set "settings" var to the value from cloud config
 	if defaultSetting != "" {
 		klog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting: %v = %v", annotationKey, defaultSetting)
 	}
@@ -1049,7 +1049,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 		if err != nil {
 			return err
 		}
-		//Recreate health monitor with correct protocol if externalTrafficPolicy was changed
+		// Recreate health monitor with correct protocol if externalTrafficPolicy was changed
 		createOpts := lbaas.buildMonitorCreateOpts(svcConf, port)
 		if createOpts.Type != monitor.Type {
 			klog.InfoS("Recreating health monitor for the pool", "pool", pool.ID, "oldMonitor", monitorID)
@@ -2051,7 +2051,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 }
 
 func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubNetListOpsFunction) ([]subnets.Subnet, error) {
-	var opts = subnets.ListOpts{NetworkID: networkID}
+	opts := subnets.ListOpts{NetworkID: networkID}
 	for _, f := range tweak {
 		if f != nil {
 			f(&opts)

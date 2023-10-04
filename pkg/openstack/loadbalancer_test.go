@@ -1,13 +1,15 @@
 package openstack
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type testPopListener struct {
@@ -457,6 +459,48 @@ func TestGetRulesToCreateAndDelete(t *testing.T) {
 			toCreate, toDelete := getRulesToCreateAndDelete(tt.wantedRules, tt.existingRules)
 			assert.ElementsMatch(t, tt.toCreate, toCreate)
 			assert.ElementsMatch(t, tt.toDelete, toDelete)
+		})
+	}
+}
+
+func Test_getSecurityGroupName(t *testing.T) {
+	tests := []struct {
+		name    string
+		service *corev1.Service
+	}{
+		{
+			name: "regular test security group name and length",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					UID:       "12345",
+					Namespace: "security-group-namespace",
+					Name:      "security-group-name",
+				},
+			},
+		},
+		{
+			name: "security group name longer than 255 byte",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					UID:       "12345678-90ab-cdef-0123-456789abcdef",
+					Namespace: "security-group-longer-test-namespace",
+					Name:      "security-group-longer-test-service-name-with-more-than-255-byte",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expectedSecurityGroupName := fmt.Sprintf("lb-sg-%s-%s-%s", test.service.UID, test.service.Namespace, test.service.Name)
+
+			if len(expectedSecurityGroupName) > 255 {
+				expectedSecurityGroupName = expectedSecurityGroupName[:255]
+			}
+
+			actualSecurityGroupName := getSecurityGroupName(test.service)
+
+			assert.Equal(t, expectedSecurityGroupName, actualSecurityGroupName)
 		})
 	}
 }
