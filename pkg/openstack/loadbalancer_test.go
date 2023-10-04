@@ -1,13 +1,16 @@
 package openstack
 
 import (
+	"context"
+	"fmt"
 	"sort"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type testPopListener struct {
@@ -457,6 +460,69 @@ func TestGetRulesToCreateAndDelete(t *testing.T) {
 			toCreate, toDelete := getRulesToCreateAndDelete(tt.wantedRules, tt.existingRules)
 			assert.ElementsMatch(t, tt.toCreate, toCreate)
 			assert.ElementsMatch(t, tt.toDelete, toDelete)
+		})
+	}
+}
+
+func TestLbaasV2_GetLoadBalancerName(t *testing.T) {
+	lbaas := &LbaasV2{}
+	var ctx context.Context
+
+	type testArgs struct {
+		ctx         context.Context
+		clusterName string
+		service     *corev1.Service
+	}
+	tests := []struct {
+		name     string
+		testArgs testArgs
+	}{
+		{
+			name: "check valid input with short name",
+			testArgs: testArgs{
+				ctx:         ctx,
+				clusterName: "my-valid-cluster",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "valid-cluster-namespace",
+						Name:      "valid-name",
+					},
+				},
+			},
+		},
+		{
+			name: "check valid input with longer names",
+			testArgs: testArgs{
+				ctx:         ctx,
+				clusterName: "a-longer-valid-cluster",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "a-longer-valid-cluster-namespace",
+						Name:      "a-longer-valid-name",
+					},
+				},
+			},
+		},
+		{
+			name: "check empty input",
+			testArgs: testArgs{
+				ctx:         ctx,
+				clusterName: "",
+				service:     &corev1.Service{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expectedResult := fmt.Sprintf("%s%s_%s_%s", servicePrefix, tt.testArgs.clusterName, tt.testArgs.service.Namespace, tt.testArgs.service.Name)
+
+			if len(expectedResult) > 255 {
+				expectedResult = expectedResult[:255]
+			}
+
+			if got := lbaas.GetLoadBalancerName(tt.testArgs.ctx, tt.testArgs.clusterName, tt.testArgs.service); got != expectedResult {
+				t.Errorf("LbaasV2.GetLoadBalancerName() = %v, want %v", got, expectedResult)
+			}
 		})
 	}
 }
