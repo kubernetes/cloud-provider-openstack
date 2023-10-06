@@ -9,6 +9,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type testPopListener struct {
@@ -530,6 +531,51 @@ func Test_getListenerProtocol(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getListenerProtocol(tt.testArg.protocol, tt.testArg.svcConf); !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("getListenerProtocol() = %v, expected %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func Test_getSecurityGroupName(t *testing.T) {
+	type args struct {
+		service *corev1.Service
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "security group name is parsed correctly if less than 255 characters",
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       "test_uid",
+						Namespace: "test_ns",
+						Name:      "test_name",
+					},
+				},
+			},
+			want: "lb-sg-test_uid-test_ns-test_name",
+		},
+		{
+			name: "security group name is trimmed correctly if more than 255 characters",
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       "test_uid_with_more_than_255_characters",
+						Namespace: `test_namespace_with_more_than_255_characters_LoremipsumdolorsitametconsecteturadipiscingelitMaurissemperveldiamaposuereVivamustempusliberonecmaximuspellentesque`,
+						Name:      `test_name_with_more_than_255_characters_LoremipsumdolorsiaurissemperveldiamaposuereVivamustempusliberonecmaximuspellentesquetametconsecteturadipiscingelitM`,
+					},
+				},
+			},
+			want: `lb-sg-test_uid_with_more_than_255_characters-test_namespace_with_more_than_255_characters_LoremipsumdolorsitametconsecteturadipiscingelitMaurissemperveldiamaposuereVivamustempusliberonecmaximuspellentesque-test_name_with_more_than_255_characters_Lo`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getSecurityGroupName(tt.args.service); got != tt.want {
+				t.Errorf("getSecurityGroupName() = %v, want %v", got, tt.want)
 			}
 		})
 	}
