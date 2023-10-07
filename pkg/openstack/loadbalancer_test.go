@@ -945,3 +945,31 @@ func Test_getBoolFromServiceAnnotation(t *testing.T) {
 		})
 	}
 }
+
+func TestLbaasV2_updateServiceAnnotations(t *testing.T) {
+	service := &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Annotations: nil,
+		},
+	}
+
+	annotations := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	}
+
+	lbaas := LbaasV2{}
+	lbaas.updateServiceAnnotations(service, annotations)
+
+	serviceAnnotations := make([]map[string]string, 0)
+	for key, value := range service.ObjectMeta.Annotations {
+		serviceAnnotations = append(serviceAnnotations, map[string]string{key: value})
+	}
+
+	expectedAnnotations := []map[string]string{
+		{"key1": "value1"},
+		{"key2": "value2"},
+	}
+
+	assert.ElementsMatch(t, expectedAnnotations, serviceAnnotations)
+}
