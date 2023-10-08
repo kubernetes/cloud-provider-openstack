@@ -767,10 +767,11 @@ func TestLbaasV2_GetLoadBalancerName(t *testing.T) {
 
 func Test_buildPoolCreateOpt(t *testing.T) {
 	type args struct {
-		protocol string
-		svcConf  *serviceConfig
-		service  *corev1.Service
-		lbaasV2  *LbaasV2
+		protocol    string
+		svcConf     *serviceConfig
+		service     *corev1.Service
+		lbaasV2     *LbaasV2
+		lbAlgorithm string
 	}
 	tests := []struct {
 		name string
