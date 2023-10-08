@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -650,6 +651,176 @@ func TestLbaasV2_GetLoadBalancerName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := lbaas.GetLoadBalancerName(tt.testArgs.ctx, tt.testArgs.clusterName, tt.testArgs.service)
 			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func Test_buildPoolCreateOpt(t *testing.T) {
+	type args struct {
+		protocol string
+		svcConf  *serviceConfig
+		service  *corev1.Service
+		lbaasV2  *LbaasV2
+	}
+	tests := []struct {
+		name string
+		args args
+		want pools.CreateOpts
+	}{
+		{
+			name: "test for proxy protocol enabled",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientIP:        true,
+					tlsContainerRef:     "tls-container-ref",
+					enableProxyProtocol: true,
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for proxy protocol enabled",
+				Protocol:    pools.ProtocolPROXY,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for pool protocol http with proxy protocol disabled",
+			args: args{
+				protocol: "HTTP",
+				svcConf: &serviceConfig{
+					keepClientIP:        true,
+					tlsContainerRef:     "tls-container-ref",
+					enableProxyProtocol: false,
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for pool protocol http with proxy protocol disabled",
+				Protocol:    pools.ProtocolHTTP,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for pool protocol UDP with proxy protocol disabled",
+			args: args{
+				protocol: "UDP",
+				svcConf: &serviceConfig{
+					keepClientIP:        true,
+					tlsContainerRef:     "tls-container-ref",
+					enableProxyProtocol: false,
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for pool protocol UDP with proxy protocol disabled",
+				Protocol:    pools.ProtocolHTTP,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for session affinity none",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientIP:    true,
+					tlsContainerRef: "tls-container-ref",
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityNone,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for session affinity none",
+				Protocol:    pools.ProtocolHTTP,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: nil,
+			},
+		},
+		{
+			name: "test for session affinity client ip",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientIP:    true,
+					tlsContainerRef: "tls-container-ref",
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for session affinity client ip",
+				Protocol:    pools.ProtocolHTTP,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.args.lbaasV2.buildPoolCreateOpt(tt.args.protocol, tt.args.service, tt.args.svcConf, tt.name)
+			assert.Equal(t, got, tt.want)
 		})
 	}
 }
