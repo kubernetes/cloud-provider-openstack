@@ -9,6 +9,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type testPopListener struct {
@@ -531,6 +532,64 @@ func Test_getListenerProtocol(t *testing.T) {
 			if got := getListenerProtocol(tt.testArg.protocol, tt.testArg.svcConf); !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("getListenerProtocol() = %v, expected %v", got, tt.expected)
 			}
+		})
+	}
+}
+
+func Test_getIntFromServiceAnnotation(t *testing.T) {
+	type args struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting int
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		{
+			name: "return default setting if no service annotation",
+			args: args{
+				defaultSetting: 1,
+				annotationKey:  "bar",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "2"},
+					},
+				},
+			},
+			want: 1,
+		},
+		{
+			name: "return annotation key if it exists in service annotation",
+			args: args{
+				defaultSetting: 1,
+				annotationKey:  "foo",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "2"},
+					},
+				},
+			},
+			want: 2,
+		},
+		{
+			name: "return default setting if key isn't valid integer",
+			args: args{
+				defaultSetting: 1,
+				annotationKey:  "foo",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "bar"},
+					},
+				},
+			},
+			want: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, getIntFromServiceAnnotation(tt.args.service, tt.args.annotationKey, tt.args.defaultSetting))
 		})
 	}
 }
