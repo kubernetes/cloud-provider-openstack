@@ -99,6 +99,12 @@ cloudConfig:
   blockStorage:
   metadata:
 
+# Allow for specifying internal IP addresses for multiple hostnames
+# hostAliases:
+#   - ip: "10.0.0.1"
+#     hostnames:
+#     - "keystone.hostname.com"
+
 ## Pod priority settings
 ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
 priorityClassName:

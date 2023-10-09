@@ -156,6 +156,10 @@ spec:
       affinity: {{ toYaml .Values.csi.plugin.nodePlugin.affinity | nindent 8 }}
       nodeSelector: {{ toYaml .Values.csi.plugin.nodePlugin.nodeSelector | nindent 8 }}
       tolerations: {{ toYaml .Values.csi.plugin.nodePlugin.tolerations | nindent 8 }}
+      {{- with .Values.csi.plugin.nodePlugin.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
     {{- end }}

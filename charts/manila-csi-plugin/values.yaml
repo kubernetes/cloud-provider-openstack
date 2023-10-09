@@ -66,6 +66,11 @@ nodeplugin:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Allow for specifying internal IP addresses for multiple hostnames
+  # hostAliases:
+  #   - ip: "10.0.0.1"
+  #     hostnames:
+  #     - "keystone.hostname.com"
   priorityClassName: ""
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
@@ -102,6 +107,11 @@ controllerplugin:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # Allow for specifying internal IP addresses for multiple hostnames
+  # hostAliases:
+  #   - ip: "10.0.0.1"
+  #     hostnames:
+  #     - "keystone.hostname.com"
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
 
