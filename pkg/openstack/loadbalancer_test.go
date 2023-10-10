@@ -1,6 +1,7 @@
 package openstack
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"testing"
@@ -590,6 +591,65 @@ func Test_getIntFromServiceAnnotation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, getIntFromServiceAnnotation(tt.args.service, tt.args.annotationKey, tt.args.defaultSetting))
+		})
+	}
+}
+
+func TestLbaasV2_GetLoadBalancerName(t *testing.T) {
+	lbaas := &LbaasV2{}
+
+	type testArgs struct {
+		ctx         context.Context
+		clusterName string
+		service     *corev1.Service
+	}
+	tests := []struct {
+		name     string
+		testArgs testArgs
+		expected string
+	}{
+		{
+			name: "valid input with short name",
+			testArgs: testArgs{
+				ctx:         context.Background(),
+				clusterName: "my-valid-cluster",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "valid-cluster-namespace",
+						Name:      "valid-name",
+					},
+				},
+			},
+			expected: "kube_service_my-valid-cluster_valid-cluster-namespace_valid-name",
+		},
+		{
+			name: "input that surpass value maximum length",
+			testArgs: testArgs{
+				ctx:         context.Background(),
+				clusterName: "a-longer-valid-cluster",
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "a-longer-valid-cluster-namespace",
+						Name:      "a-longer-valid-name-for-the-load-balance-name-to-test-if-the-length-of-value-is-longer-than-required-maximum-length-random-addition-hardcode-number-to-make-it-above-length-255-at-the-end-yeah-so-the-rest-is-additional-input",
+					},
+				},
+			},
+			expected: "kube_service_a-longer-valid-cluster_a-longer-valid-cluster-namespace_a-longer-valid-name-for-the-load-balance-name-to-test-if-the-length-of-value-is-longer-than-required-maximum-length-random-addition-hardcode-number-to-make-it-above-length-255-at-the-end",
+		},
+		{
+			name: "empty input",
+			testArgs: testArgs{
+				ctx:         context.Background(),
+				clusterName: "",
+				service:     &corev1.Service{},
+			},
+			expected: "kube_service___",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := lbaas.GetLoadBalancerName(tt.testArgs.ctx, tt.testArgs.clusterName, tt.testArgs.service)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
