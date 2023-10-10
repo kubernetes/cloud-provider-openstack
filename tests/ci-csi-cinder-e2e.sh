@@ -44,7 +44,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 -m pip install requests ansible
+apt-get update
+apt-get install -y python3-requests ansible
 
 # If BOSKOS_HOST is set then acquire a resource of type ${RESOURCE_TYPE} from Boskos.
 if [ -n "${BOSKOS_HOST:-}" ]; then
