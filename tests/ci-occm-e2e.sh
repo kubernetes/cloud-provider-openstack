@@ -45,7 +45,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 -m pip install requests ansible
+# This is CI, we don't really care about breaking system packages.
+python3 -m pip install requests ansible --break-system-packages
 
 # If BOSKOS_HOST is set then acquire a resource of type ${RESOURCE_TYPE} from Boskos.
 if [ -n "${BOSKOS_HOST:-}" ]; then
