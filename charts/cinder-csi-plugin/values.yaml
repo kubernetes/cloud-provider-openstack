@@ -81,6 +81,11 @@ csi:
       tolerations:
         - operator: Exists
       kubeletDir: /var/lib/kubelet
+      # Allow for specifying internal IP addresses for multiple hostnames
+      # hostAliases:
+      #   - ip: "10.0.0.1"
+      #     hostnames:
+      #     - "keystone.hostname.com"
     controllerPlugin:
       replicas: 1
       strategy:
@@ -110,6 +115,11 @@ csi:
       affinity: {}
       nodeSelector: {}
       tolerations: []
+      # Allow for specifying internal IP addresses for multiple hostnames
+      # hostAliases:
+      #   - ip: "10.0.0.1"
+      #     hostnames:
+      #     - "keystone.hostname.com"
     resources: {}
     # Enable built-in http server through the http-endpoint flag
     httpEndpoint:
