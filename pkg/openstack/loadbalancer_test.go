@@ -870,3 +870,78 @@ func Test_getSecurityGroupName(t *testing.T) {
 		})
 	}
 }
+
+func Test_getBoolFromServiceAnnotation(t *testing.T) {
+	type testargs struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting bool
+	}
+	tests := []struct {
+		name     string
+		testargs testargs
+		want     bool
+	}{
+		{
+			name: "Return default setting if no service annotation",
+			testargs: testargs{
+				annotationKey:  "bar",
+				defaultSetting: true,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "false"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Return annotation key if it exists in service annotation (true)",
+			testargs: testargs{
+				annotationKey:  "foo",
+				defaultSetting: false,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "true"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "Return annotation key if it exists in service annotation (false)",
+			testargs: testargs{
+				annotationKey:  "foo",
+				defaultSetting: true,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "false"},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "Return default setting if key isn't a valid boolean value",
+			testargs: testargs{
+				annotationKey:  "foo",
+				defaultSetting: true,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"foo": "invalid"},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getBoolFromServiceAnnotation(tt.testargs.service, tt.testargs.annotationKey, tt.testargs.defaultSetting)
+			if got != tt.want {
+				t.Errorf("getBoolFromServiceAnnotation() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
