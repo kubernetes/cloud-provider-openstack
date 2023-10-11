@@ -824,3 +824,49 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 		})
 	}
 }
+
+func Test_getSecurityGroupName(t *testing.T) {
+	tests := []struct {
+		name     string
+		service  *corev1.Service
+		expected string
+	}{
+		{
+			name: "regular test security group name and length",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					UID:       "12345",
+					Namespace: "security-group-namespace",
+					Name:      "security-group-name",
+				},
+			},
+			expected: "lb-sg-12345-security-group-namespace-security-group-name",
+		},
+		{
+			name: "security group name longer than 255 byte",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					UID:       "12345678-90ab-cdef-0123-456789abcdef",
+					Namespace: "security-group-longer-test-namespace",
+					Name:      "security-group-longer-test-service-name-with-more-than-255-byte-this-test-should-be-longer-than-255-i-need-that-ijiojohoo-afhwefkbfk-jwebfwbifwbewifobiu-efbiobfoiqwebi-the-end-e-end-pardon-the-long-string-i-really-apologize-if-this-is-a-bad-thing-to-do",
+				},
+			},
+			expected: "lb-sg-12345678-90ab-cdef-0123-456789abcdef-security-group-longer-test-namespace-security-group-longer-test-service-name-with-more-than-255-byte-this-test-should-be-longer-than-255-i-need-that-ijiojohoo-afhwefkbfk-jwebfwbifwbewifobiu-efbiobfoiqwebi-the-end",
+		},
+		{
+			name: "test the security group name with all empty param",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{},
+			},
+			expected: "lb-sg---",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := getSecurityGroupName(test.service)
+
+			assert.Equal(t, test.expected, got)
+		})
+	}
+}
