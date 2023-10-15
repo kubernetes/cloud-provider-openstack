@@ -160,6 +160,12 @@ secret:
 
 storageClass:
   enabled: true
+  parameters:
+    enabled: false
+    # type: gp2
+    # availabilityZone: us-east-1a
+    # additionalParameters:
+    #   volumeSize: 10Gi
   delete:
     isDefault: false
     allowVolumeExpansion: true
