@@ -108,6 +108,26 @@ const (
 	// IngressControllerTag is added to the related resources.
 	IngressControllerTag = "octavia.ingress.kubernetes.io"
 
+	// IngressAnnotationTimeoutClientData is the timeout for frontend client inactivity.
+	// If not set, this value defaults to the Octavia configuration key `timeout_client_data`.
+	// Refer to https://docs.openstack.org/octavia/latest/configuration/configref.html#haproxy_amphora.timeout_client_data
+	IngressAnnotationTimeoutClientData = "octavia.ingress.kubernetes.io/timeout-client-data"
+
+	// IngressAnnotationTimeoutMemberData is the timeout for backend member inactivity.
+	// If not set, this value defaults to the Octavia configuration key `timeout_member_data`.
+	// Refer to https://docs.openstack.org/octavia/latest/configuration/configref.html#haproxy_amphora.timeout_member_data
+	IngressAnnotationTimeoutMemberData = "octavia.ingress.kubernetes.io/timeout-member-data"
+
+	// IngressAnnotationTimeoutMemberConnect is the timeout for backend member connection.
+	// If not set, this value defaults to the Octavia configuration key `timeout_member_connect`.
+	// Refer to https://docs.openstack.org/octavia/latest/configuration/configref.html#haproxy_amphora.timeout_member_connect
+	IngressAnnotationTimeoutMemberConnect = "octavia.ingress.kubernetes.io/timeout-member-connect"
+
+	// IngressAnnotationTimeoutTCPInspect is the time to wait for TCP packets for content inspection.
+	// If not set, this value defaults to the Octavia configuration key `timeout_tcp_inspect`.
+	// Refer to https://docs.openstack.org/octavia/latest/configuration/configref.html#haproxy_amphora.timeout_tcp_inspect
+	IngressAnnotationTimeoutTCPInspect = "octavia.ingress.kubernetes.io/timeout-tcp-inspect"
+
 	// IngressSecretCertName is certificate key name defined in the secret data.
 	IngressSecretCertName = "tls.crt"
 	// IngressSecretKeyName is private key name defined in the secret data.
@@ -728,8 +748,13 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 
 	// Create listener
 	sourceRanges := getStringFromIngressAnnotation(ing, IngressAnnotationSourceRangesKey, "0.0.0.0/0")
+	timeoutClientData := maybeGetIntFromIngressAnnotation(ing, IngressAnnotationTimeoutClientData)
+	timeoutMemberConnect := maybeGetIntFromIngressAnnotation(ing, IngressAnnotationTimeoutMemberConnect)
+	timeoutMemberData := maybeGetIntFromIngressAnnotation(ing, IngressAnnotationTimeoutMemberData)
+	timeoutTCPInspect := maybeGetIntFromIngressAnnotation(ing, IngressAnnotationTimeoutTCPInspect)
+
 	listenerAllowedCIDRs := strings.Split(sourceRanges, ",")
-	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs, listenerAllowedCIDRs)
+	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs, listenerAllowedCIDRs, timeoutClientData, timeoutMemberData, timeoutTCPInspect, timeoutMemberConnect)
 	if err != nil {
 		return err
 	}
@@ -1015,6 +1040,23 @@ func getStringFromIngressAnnotation(ingress *nwv1.Ingress, annotationKey string,
 	}
 
 	return defaultValue
+}
+
+// maybeGetIntFromIngressAnnotation searches a given Ingress for a specific annotationKey and either returns the
+// annotation's value
+func maybeGetIntFromIngressAnnotation(ingress *nwv1.Ingress, annotationKey string) *int {
+	klog.V(4).Infof("maybeGetIntFromIngressAnnotation(%s/%s, %v33)", ingress.Namespace, ingress.Name, annotationKey)
+	if annotationValue, ok := ingress.Annotations[annotationKey]; ok {
+		klog.V(4).Infof("Found a Service Annotation for key: %v", annotationKey)
+		returnValue, err := strconv.Atoi(annotationValue)
+		if err != nil {
+			klog.V(4).Infof("Invalid integer found on Service Annotation: %v = %v", annotationKey, annotationValue)
+			return nil
+		}
+		return &returnValue
+	}
+	klog.V(4).Infof("Could not find a Service Annotation; falling back to default setting for annotation %v", annotationKey)
+	return nil
 }
 
 // privateKeyFromPEM converts a PEM block into a crypto.PrivateKey.
