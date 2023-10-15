@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 type testPopListener struct {
@@ -1214,6 +1215,331 @@ func Test_getStringFromServiceAnnotation(t *testing.T) {
 			got := getStringFromServiceAnnotation(test.testArgs.service, test.testArgs.annotationKey, test.testArgs.defaultSetting)
 
 			assert.Equal(t, test.expected, got)
+		})
+	}
+}
+
+func Test_nodeAddressForLB(t *testing.T) {
+	type testArgs struct {
+		node              *corev1.Node
+		preferredIPFamily corev1.IPFamily
+	}
+
+	tests := []struct {
+		name        string
+		testArgs    testArgs
+		expect      string
+		expectedErr error
+	}{
+		{
+			name: "Empty Address with IPv4 protocol family ",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "Empty Address with IPv6 protocol family ",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "valid address with IPv4 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "valid address with IPv6 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple IPv4 address",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "192.168.1.2",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple IPv6 address",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:0db8:85a3:3333:1111:8a2e:9999:8888",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple mix addresses expecting IPv6 response",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple mix addresses expecting IPv4 response",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2009:0db8:85a3:0003:0001:8a2e:0370:9999",
+							},
+
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:0db8:85a3:0000:1111:8a2e:9798:7334",
+							},
+
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "single valid IPv4 address without preferred valid specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "single valid IPv6 address without preferred valid specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple valid IPv6 address without preferred valid specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.0.1",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:1111:2222:8a2e:6869:7334",
+							},
+						},
+					},
+				},
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "invalid IPv4 address specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "invalid IPv6 address specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "Ignore NodeExternalDNS address with IPv4 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeExternalDNS,
+								Address: "example.com",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "Ignore NodeExternalDNS address with IPv6 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeExternalDNS,
+								Address: "example.com",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := nodeAddressForLB(test.testArgs.node, test.testArgs.preferredIPFamily)
+			if test.expectedErr != nil {
+				assert.EqualError(t, err, test.expectedErr.Error())
+			} else {
+				assert.NoError(t, test.expectedErr, err)
+			}
+
+			assert.Equal(t, test.expect, got)
 		})
 	}
 }
