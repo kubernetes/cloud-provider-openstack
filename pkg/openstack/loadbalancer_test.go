@@ -2,6 +2,7 @@ package openstack
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -1214,6 +1215,97 @@ func Test_getStringFromServiceAnnotation(t *testing.T) {
 			got := getStringFromServiceAnnotation(test.testArgs.service, test.testArgs.annotationKey, test.testArgs.defaultSetting)
 
 			assert.Equal(t, test.expected, got)
+		})
+	}
+}
+
+func TestLbaasV2_getMemberSubnetID(t *testing.T) {
+	lbaasOpts := LoadBalancerOpts{
+		LBClasses: map[string]*LBClass{
+			"lbclassKey": {
+				MemberSubnetID: "lb-class-member-subnet-id-5678",
+			},
+		},
+		MemberSubnetID: "default-memberSubnetId",
+	}
+
+	tests := []struct {
+		name    string
+		opts    LoadBalancerOpts
+		service *corev1.Service
+		svcConf *serviceConfig
+		want    string
+		wantErr error
+	}{
+		{
+			name: "get member subnet id from service annotation",
+			opts: LoadBalancerOpts{},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerMemberSubnetID: "member-subnet-id",
+						ServiceAnnotationLoadBalancerClass:          "svc-annotation-loadbalance-class",
+					},
+				},
+			},
+			svcConf: &serviceConfig{},
+			want:    "member-subnet-id",
+			wantErr: nil,
+		},
+		{
+			name: "get member subnet id from config class",
+			opts: lbaasOpts,
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerClass: "lbclassKey",
+					},
+				},
+			},
+			svcConf: &serviceConfig{},
+			want:    "lb-class-member-subnet-id-5678",
+			wantErr: nil,
+		},
+		{
+			name:    "get member subnet id from default config",
+			opts:    lbaasOpts,
+			service: &corev1.Service{},
+			svcConf: &serviceConfig{},
+			want:    "lb-class-memberSubnetId",
+			wantErr: nil,
+		},
+		{
+			name: "error when loadbalancer class not found",
+			opts: LoadBalancerOpts{},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerClass: "invalid-lb-class",
+					},
+				},
+			},
+			svcConf: &serviceConfig{},
+			want:    "",
+			wantErr: fmt.Errorf("invalid loadbalancer class \"invalid-lb-class\""),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := LbaasV2{
+				LoadBalancer: LoadBalancer{
+					opts: tt.opts,
+				},
+			}
+
+			got, err := lbaas.getMemberSubnetID(tt.service, tt.svcConf)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+			} else {
+				assert.NoError(t, err, tt.wantErr)
+			}
+
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
