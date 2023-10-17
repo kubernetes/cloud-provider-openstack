@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -188,4 +189,72 @@ func TestSortNodeAddressesWithMultipleCIDRs(t *testing.T) {
 	}
 
 	executeSortNodeAddressesTest(t, addressSortOrder, want)
+}
+
+func TestAddToNodeAddresses(t *testing.T) {
+	type args struct {
+		addresses    *[]v1.NodeAddress
+		addAddresses v1.NodeAddress
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "it adds address into the addresses slice",
+			args: args{
+				addresses: &[]v1.NodeAddress{
+					{
+						Address: "test-1",
+					},
+					{
+						Address: "test-2",
+					},
+				},
+				addAddresses: v1.NodeAddress{
+					Address: "test-3",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			AddToNodeAddresses(tt.args.addresses, tt.args.addAddresses)
+			assert.Contains(t, *tt.args.addresses, tt.args.addAddresses)
+		})
+	}
+}
+
+func TestRemoveFromNodeAddresses(t *testing.T) {
+	type args struct {
+		addresses       *[]v1.NodeAddress
+		removeAddresses v1.NodeAddress
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "it adds address into the addresses slice",
+			args: args{
+				addresses: &[]v1.NodeAddress{
+					{
+						Address: "test-1",
+					},
+					{
+						Address: "test-2",
+					},
+				},
+				removeAddresses: v1.NodeAddress{
+					Address: "test-2",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			RemoveFromNodeAddresses(tt.args.addresses, tt.args.removeAddresses)
+			assert.NotContains(t, *tt.args.addresses, tt.args.removeAddresses)
+		})
+	}
 }
