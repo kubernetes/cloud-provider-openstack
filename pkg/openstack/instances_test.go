@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -188,4 +189,75 @@ func TestSortNodeAddressesWithMultipleCIDRs(t *testing.T) {
 	}
 
 	executeSortNodeAddressesTest(t, addressSortOrder, want)
+}
+
+func Test_instanceIDFromProviderID(t *testing.T) {
+	type args struct {
+		providerID string
+	}
+	tests := []struct {
+		name           string
+		args           args
+		wantInstanceID string
+		wantRegion     string
+		wantErr        bool
+	}{
+		{
+			name: "it parses region & instanceID correctly from providerID",
+			args: args{
+				providerID: "openstack://us-east-1/testInstanceID",
+			},
+			wantInstanceID: "testInstanceID",
+			wantRegion:     "us-east-1",
+			wantErr:        false,
+		},
+		{
+			name: "it parses instanceID if providerID has empty protocol & no region",
+			args: args{
+				providerID: "/testInstanceID",
+			},
+			wantInstanceID: "testInstanceID",
+			wantRegion:     "",
+			wantErr:        false,
+		},
+		{
+			name: "it returns error in case of invalid providerID format with no region",
+			args: args{
+				providerID: "openstack://us-east-1-testInstanceID",
+			},
+			wantInstanceID: "",
+			wantRegion:     "",
+			wantErr:        true,
+		},
+		{
+			name: "it parses correct instanceID in case the region name is the empty string",
+			args: args{
+				providerID: "openstack:///testInstanceID",
+			},
+			wantInstanceID: "testInstanceID",
+			wantRegion:     "",
+			wantErr:        false,
+		},
+		{
+			name: "it appends openstack:// in case of missing protocol in providerID",
+			args: args{
+				providerID: "us-east-1/testInstanceID",
+			},
+			wantInstanceID: "testInstanceID",
+			wantRegion:     "us-east-1",
+			wantErr:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotInstanceID, gotRegion, err := instanceIDFromProviderID(tt.args.providerID)
+			assert.Equal(t, tt.wantInstanceID, gotInstanceID)
+			assert.Equal(t, tt.wantRegion, gotRegion)
+			if tt.wantErr == true {
+				assert.ErrorContains(t, err, "didn't match expected format")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
