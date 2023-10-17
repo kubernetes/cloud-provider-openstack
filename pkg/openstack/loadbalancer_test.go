@@ -973,3 +973,138 @@ func TestLbaasV2_updateServiceAnnotations(t *testing.T) {
 
 	assert.ElementsMatch(t, expectedAnnotations, serviceAnnotations)
 }
+
+func Test_getStringFromServiceAnnotation(t *testing.T) {
+	type testArgs struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting string
+	}
+
+	tests := []struct {
+		name     string
+		testArgs testArgs
+		expected string
+	}{
+		{
+			name: "enter empty arguments",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{},
+				},
+				annotationKey:  "",
+				defaultSetting: "",
+			},
+			expected: "",
+		},
+		{
+			name: "enter valid arguments with annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "annotation-Value",
+		},
+		{
+			name: "valid arguments without annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "default-setting",
+		},
+		{
+			name: "enter argument without default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: "annotation-Value",
+		},
+		{
+			name: "enter argument without annotation and default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: "",
+		},
+		{
+			name: "enter argument with a non-existing annotationKey with default setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "invalid-annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "default-setting",
+		},
+		{
+			name: "enter argument with a non-existing annotationKey without a default setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "invalid-annotationKey",
+				defaultSetting: "",
+			},
+			expected: "",
+		},
+		{
+			name: "no name-space and service name but valid annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "annotation-Value",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := getStringFromServiceAnnotation(test.testArgs.service, test.testArgs.annotationKey, test.testArgs.defaultSetting)
+
+			assert.Equal(t, test.expected, got)
+		})
+	}
+}
