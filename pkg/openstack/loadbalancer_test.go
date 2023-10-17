@@ -538,6 +538,115 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 }
 
+func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
+	type fields struct {
+		LoadBalancer LoadBalancer
+	}
+	type result struct {
+		HostName  string
+		IPAddress string
+	}
+	type args struct {
+		service *corev1.Service
+		svcConf *serviceConfig
+		addr    string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   result
+	}{
+		{
+			name: "it should return hostname from service annotation",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "test",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"loadbalancer.openstack.org/hostname": "testHostName"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: false,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				HostName: "testHostName",
+			},
+		},
+		{
+			name: "it should return fakehostname if proxyProtocol & IngressHostName is enabled without svc annotation",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: true,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"test": "key"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: true,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				HostName: "10.10.0.6.ingress-suffix",
+			},
+		},
+		{
+			name: "it should default to ip address if not hostname can be found from svc or proxyProtocol",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"test": "key"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: false,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				IPAddress: "10.10.0.6",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := &LbaasV2{
+				LoadBalancer: tt.fields.LoadBalancer,
+			}
+
+			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
+			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
+			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
+
+		})
+	}
+}
+
 func Test_getIntFromServiceAnnotation(t *testing.T) {
 	type args struct {
 		service        *corev1.Service
