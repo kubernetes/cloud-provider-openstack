@@ -1543,3 +1543,89 @@ func Test_nodeAddressForLB(t *testing.T) {
 		})
 	}
 }
+
+func TestLbaasV2_getMemberSubnetID(t *testing.T) {
+	lbaasOpts := LoadBalancerOpts{
+		LBClasses: map[string]*LBClass{
+			"lbclassKey": {
+				MemberSubnetID: "lb-class-member-subnet-id-5678",
+			},
+		},
+		MemberSubnetID: "default-memberSubnetId",
+	}
+
+	tests := []struct {
+		name    string
+		opts    LoadBalancerOpts
+		service *corev1.Service
+		want    string
+		wantErr string
+	}{
+		{
+			name: "get member subnet id from service annotation",
+			opts: LoadBalancerOpts{},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerMemberSubnetID: "member-subnet-id",
+						ServiceAnnotationLoadBalancerClass:          "svc-annotation-loadbalance-class",
+					},
+				},
+			},
+			want:    "member-subnet-id",
+			wantErr: "",
+		},
+		{
+			name: "get member subnet id from config class",
+			opts: lbaasOpts,
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerClass: "lbclassKey",
+					},
+				},
+			},
+			want:    "lb-class-member-subnet-id-5678",
+			wantErr: "",
+		},
+		{
+			name:    "get member subnet id from default config",
+			opts:    lbaasOpts,
+			service: &corev1.Service{},
+			want:    "default-memberSubnetId",
+			wantErr: "",
+		},
+		{
+			name: "error when loadbalancer class not found",
+			opts: LoadBalancerOpts{},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerClass: "invalid-lb-class",
+					},
+				},
+			},
+			want:    "",
+			wantErr: "invalid loadbalancer class \"invalid-lb-class\"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := LbaasV2{
+				LoadBalancer: LoadBalancer{
+					opts: tt.opts,
+				},
+			}
+
+			got, err := lbaas.getMemberSubnetID(tt.service, &serviceConfig{})
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
