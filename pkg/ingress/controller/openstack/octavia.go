@@ -330,7 +330,7 @@ func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription s
 }
 
 // EnsureListener creates a loadbalancer listener in octavia if it does not exist, wait for the loadbalancer to be ACTIVE.
-func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []string, listenerAllowedCIDRs []string) (*listeners.Listener, error) {
+func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []string, listenerAllowedCIDRs []string, timeoutClientData, timeoutMemberData, timeoutTCPInspect, timeoutMemberConnect *int) (*listeners.Listener, error) {
 	listener, err := openstackutil.GetListenerByName(os.Octavia, name, lbID)
 	if err != nil {
 		if err != cpoerrors.ErrNotFound {
@@ -340,10 +340,14 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 		log.WithFields(log.Fields{"lbID": lbID, "listenerName": name}).Info("creating listener")
 
 		opts := listeners.CreateOpts{
-			Name:           name,
-			Protocol:       "HTTP",
-			ProtocolPort:   80, // Ingress Controller only supports http/https for now
-			LoadbalancerID: lbID,
+			Name:                 name,
+			Protocol:             "HTTP",
+			ProtocolPort:         80, // Ingress Controller only supports http/https for now
+			LoadbalancerID:       lbID,
+			TimeoutClientData:    timeoutClientData,
+			TimeoutMemberData:    timeoutMemberData,
+			TimeoutMemberConnect: timeoutMemberConnect,
+			TimeoutTCPInspect:    timeoutTCPInspect,
 		}
 		if len(secretRefs) > 0 {
 			opts.DefaultTlsContainerRef = secretRefs[0]
