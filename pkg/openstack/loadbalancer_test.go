@@ -2,7 +2,6 @@ package openstack
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -643,7 +642,6 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
 			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
 			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
-
 		})
 	}
 }
@@ -1233,9 +1231,8 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 		name    string
 		opts    LoadBalancerOpts
 		service *corev1.Service
-		svcConf *serviceConfig
 		want    string
-		wantErr error
+		wantErr string
 	}{
 		{
 			name: "get member subnet id from service annotation",
@@ -1248,9 +1245,8 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 					},
 				},
 			},
-			svcConf: &serviceConfig{},
 			want:    "member-subnet-id",
-			wantErr: nil,
+			wantErr: "",
 		},
 		{
 			name: "get member subnet id from config class",
@@ -1262,17 +1258,15 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 					},
 				},
 			},
-			svcConf: &serviceConfig{},
 			want:    "lb-class-member-subnet-id-5678",
-			wantErr: nil,
+			wantErr: "",
 		},
 		{
 			name:    "get member subnet id from default config",
 			opts:    lbaasOpts,
 			service: &corev1.Service{},
-			svcConf: &serviceConfig{},
-			want:    "lb-class-memberSubnetId",
-			wantErr: nil,
+			want:    "default-memberSubnetId",
+			wantErr: "",
 		},
 		{
 			name: "error when loadbalancer class not found",
@@ -1284,9 +1278,8 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 					},
 				},
 			},
-			svcConf: &serviceConfig{},
 			want:    "",
-			wantErr: fmt.Errorf("invalid loadbalancer class \"invalid-lb-class\""),
+			wantErr: "invalid loadbalancer class \"invalid-lb-class\"",
 		},
 	}
 
@@ -1298,14 +1291,14 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 				},
 			}
 
-			got, err := lbaas.getMemberSubnetID(tt.service, tt.svcConf)
-			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+			got, err := lbaas.getMemberSubnetID(tt.service)
+			if err != nil {
+				assert.EqualError(t, err, tt.wantErr)
 			} else {
-				assert.NoError(t, err, tt.wantErr)
+				if assert.NoError(t, err) {
+					assert.Equal(t, tt.want, got)
+				}
 			}
-
-			assert.Equal(t, tt.want, got)
 		})
 	}
 }
