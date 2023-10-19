@@ -1629,3 +1629,128 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildBatchUpdateMemberOpts(t *testing.T) {
+
+	// Sample Nodes
+	node1 := &corev1.Node{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "node-1",
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: "192.168.1.1",
+				},
+			},
+		},
+	}
+	node2 := &corev1.Node{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "node-2",
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: "192.168.1.2",
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name                    string
+		nodes                   []*corev1.Node
+		port                    corev1.ServicePort
+		svcConf                 *serviceConfig
+		expectedLen             int
+		expectedNewMembersCount int
+	}{
+		{
+			name:  "NodePortequalszero",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 0},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+			},
+			expectedLen:             0,
+			expectedNewMembersCount: 0,
+		},
+		{
+			name:  "Valid nodes, canUseHTTPMonitor=false",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 8080},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+				enableMonitor:       false,
+			},
+			expectedLen:             2,
+			expectedNewMembersCount: 2,
+		},
+		{
+			name:  "Valid nodes, canUseHTTPMonitor=true",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 8080},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+				enableMonitor:       true,
+			},
+			expectedLen:             2,
+			expectedNewMembersCount: 2,
+		},
+		{
+			name:  "Invalid preferred IP family, fallback to default",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 0},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   "invalid-family",
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+			},
+			expectedLen:             0,
+			expectedNewMembersCount: 0,
+		},
+		{
+			name: "ErrNoAddressFound happens and no member is created",
+			nodes: []*corev1.Node{
+				{
+					ObjectMeta: v1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{},
+					},
+				},
+			},
+			port: corev1.ServicePort{NodePort: 8080},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+				enableMonitor:       false,
+			},
+			expectedLen:             0,
+			expectedNewMembersCount: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			lbaas := &LbaasV2{}
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(tc.port, tc.nodes, tc.svcConf)
+			assert.Len(t, members, tc.expectedLen)
+			assert.NoError(t, err)
+
+			if tc.expectedNewMembersCount == 0 {
+				assert.Empty(t, newMembers)
+			} else {
+				assert.Len(t, newMembers, tc.expectedNewMembersCount)
+			}
+		})
+	}
+}
