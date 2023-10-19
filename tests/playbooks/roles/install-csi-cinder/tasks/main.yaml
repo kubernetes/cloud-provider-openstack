@@ -16,10 +16,10 @@
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
 
-      VERSION={{ github_pr }} \
-      REGISTRY={{ image_registry_host }} \
-      IMAGE_NAMES=cinder-csi-plugin \
-      make upload-image-amd64
+      make push-multiarch-image-cinder-csi-plugin \
+        ARCHS='amd64' \
+        VERSION=v0.0.{{ github_pr }} \
+        REGISTRY={{ image_registry_host }}
 
 - name: Prepare cloud config
   shell:
@@ -60,8 +60,8 @@
       sed -i "/cloud\.conf/c\  cloud.conf: $b64data" manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml
 
       # replace image with built image
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.26.3#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.26.3#{{ remote_registry_host }}/cinder-csi-plugin-amd64:{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.26.4#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.26.4#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml

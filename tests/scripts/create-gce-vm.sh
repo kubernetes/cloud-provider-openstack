@@ -23,9 +23,8 @@ GCP_ZONE=${GCP_ZONE:-"us-east4-a"}
 GCP_MACHINE_MIN_CPU_PLATFORM=${GCP_MACHINE_MIN_CPU_PLATFORM:-"Intel Cascade Lake"}
 GCP_MACHINE_TYPE=${GCP_MACHINE_TYPE:-"n2-standard-8"}
 GCP_NETWORK_NAME=${GCP_NETWORK_NAME:-"${CLUSTER_NAME}-mynetwork"}
-# Flavors are default or preinstalled:
+# Flavor options are: default
 # * default: installs devstack via cloud-init, OPENSTACK_RELEASE only works on default
-# * preinstalled: uses a already installed devstack
 FLAVOR=${FLAVOR:="default"}
 PRIVATE_IP="10.0.2.15"
 
@@ -90,11 +89,12 @@ main() {
     init_networks
   fi
 
-  if [[ ${FLAVOR} = "default" ]]; then
+  case "${FLAVOR}" in
+  "default")
     if ! gcloud compute disks describe devstack-${FLAVOR} --zone "${GCP_ZONE}" > /dev/null 2>&1;
     then
       gcloud compute disks create devstack-${FLAVOR} \
-        --image-project ubuntu-os-cloud --image-family ubuntu-2004-lts \
+        --image-project ubuntu-os-cloud --image-family ubuntu-2204-lts \
         --zone "${GCP_ZONE}"
     fi
 
@@ -104,14 +104,12 @@ main() {
         --source-disk devstack-${FLAVOR} --source-disk-zone "${GCP_ZONE}" \
         --licenses "https://www.googleapis.com/compute/v1/projects/vm-options/global/licenses/enable-vmx"
     fi
-  elif [[ ${FLAVOR} = "preinstalled" ]]; then
-    if ! gcloud compute images describe devstack-${FLAVOR} > /dev/null 2>&1;
-    then
-      gcloud compute images create devstack-${FLAVOR} \
-        --source-uri gs://artifacts.k8s-staging-capi-openstack.appspot.com/test/devstack/2021-03-28/devstack.raw.tar.gz \
-        --licenses "https://www.googleapis.com/compute/v1/projects/vm-options/global/licenses/enable-vmx"
-    fi
-  fi
+    ;;
+  *)
+    echo "Unsupported flavor: ${FLAVOR}"
+    exit 1
+    ;;
+  esac
 
   if ! gcloud compute instances describe devstack --zone "${GCP_ZONE}" > /dev/null 2>&1;
   then

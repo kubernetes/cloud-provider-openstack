@@ -20,7 +20,7 @@ TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk '/^module/ { print $$2 }' go.mod)
 DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
-SOURCES := $(shell find $(DEST) -name '*.go' 2>/dev/null)
+SOURCES := Makefile go.mod go.sum $(shell find $(DEST) -name '*.go' 2>/dev/null)
 HAS_GOX := $(shell command -v gox;)
 GOX_PARALLEL ?= 3
 
@@ -31,18 +31,14 @@ TEMP_DIR	:=$(shell mktemp -d)
 TAR_FILE	?= rootfs.tar
 
 GOOS		?= $(shell go env GOOS)
-GIT_VERSION     := $(shell git describe --dirty --tags --match='v*')
-VERSION         ?= $(GIT_VERSION)
-ALPINE_ARCH	:=
-DEBIAN_ARCH	:=
-QEMUARCH	:=
-QEMUVERSION	:= "v4.2.0-4"
+GOPROXY		?= $(shell go env GOPROXY)
+VERSION         ?= $(shell git describe --dirty --tags --match='v*')
 GOARCH		:=
 GOFLAGS		:=
 TAGS		:=
-LDFLAGS		:= "-w -s -X 'k8s.io/component-base/version.gitVersion=$(GIT_VERSION)'"
+LDFLAGS		:= "-w -s -X 'k8s.io/component-base/version.gitVersion=$(VERSION)' -X 'k8s.io/cloud-provider-openstack/pkg/version.Version=$(VERSION)'"
 GOX_LDFLAGS	:= $(shell echo "$(LDFLAGS) -extldflags \"-static\"")
-REGISTRY	?= k8scloudprovider
+REGISTRY	?= registry.k8s.io/provider-os
 IMAGE_OS	?= linux
 IMAGE_NAMES	?= openstack-cloud-controller-manager \
 				cinder-csi-plugin \
@@ -62,9 +58,6 @@ BUILD_CMDS	?= openstack-cloud-controller-manager \
 				magnum-auto-healer \
 				client-keystone-auth
 
-# This option is for running docker manifest command
-export DOCKER_CLI_EXPERIMENTAL := enabled
-
 # CTI targets
 
 $(GOBIN):
@@ -73,84 +66,17 @@ $(GOBIN):
 
 work: $(GOBIN)
 
-ifeq ($(ARCH),arm)
-    DEBIAN_ARCH=$(ARCH)
-    GOARCH=$(ARCH)
-    QEMUARCH=$(ARCH)
-    ALPINE_ARCH=arm32v7
-else ifeq ($(ARCH),arm64)
-    DEBIAN_ARCH=$(ARCH)
-    GOARCH=$(ARCH)
-    QEMUARCH=aarch64
-    ALPINE_ARCH=arm64v8
-else
-    DEBIAN_ARCH=$(ARCH)
-    GOARCH=$(ARCH)
-    QEMUARCH=$(ARCH)
-    ALPINE_ARCH=$(ARCH)
-endif
-
 build-all-archs:
 	@for arch in $(ARCHS); do $(MAKE) ARCH=$${arch} build ; done
 
-build: $(addprefix build-cmd-,$(BUILD_CMDS))
+build: $(BUILD_CMDS)
 
-client-keystone-auth: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
+$(BUILD_CMDS): $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) GOPROXY=${GOPROXY} go build \
+		-trimpath \
 		-ldflags $(LDFLAGS) \
-		-o client-keystone-auth \
-		cmd/client-keystone-auth/main.go
-
-# Remove individual go build targets, once we migrate openlab-zuul-jobs
-# to use new build-cmd-% targets.
-cinder-csi-plugin: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o cinder-csi-plugin \
-		cmd/cinder-csi-plugin/main.go
-
-# This target is for supporting CI jobs of release-1.17 branch. We should delete this target once 1.17 support is dropped and change the cinder-csi-plugin related CI jobs to use target image-cinder-csi-plugin
-image-csi-plugin:
-	$(MAKE) image-cinder-csi-plugin
-
-manila-csi-plugin: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o manila-csi-plugin \
-		cmd/manila-csi-plugin/main.go
-
-# Remove this individual go build target, once we remove
-# image-controller-manager below.
-openstack-cloud-controller-manager: work $(SOURCES)
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
-		-ldflags $(LDFLAGS) \
-		-o openstack-cloud-controller-manager-$(ARCH) \
-		cmd/openstack-cloud-controller-manager/main.go
-
-# Remove individual image builder once we migrate openlab-zuul-jobs
-# to use new image-openstack-cloud-controller-manager target.
-image-controller-manager: work openstack-cloud-controller-manager
-ifeq ($(GOOS),linux)
-	cp -r cluster/images/openstack-cloud-controller-manager $(TEMP_DIR)
-	cp openstack-cloud-controller-manager-$(ARCH) $(TEMP_DIR)/openstack-cloud-controller-manager
-	cp $(TEMP_DIR)/openstack-cloud-controller-manager/Dockerfile.build $(TEMP_DIR)/openstack-cloud-controller-manager/Dockerfile
-	$(CONTAINER_ENGINE) build -t $(REGISTRY)/openstack-cloud-controller-manager:$(VERSION) $(TEMP_DIR)/openstack-cloud-controller-manager
-	rm -rf $(TEMP_DIR)/openstack-cloud-controller-manager
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-build-cmd-%: work $(SOURCES)
-	@# Keep binary with no arch mark. We should remove this once we correct
-	@# openlab-zuul-jobs.
-	CGO_ENABLED=0 GOOS=$(GOOS) go build \
-		-ldflags $(LDFLAGS) \
-		-o $* \
-		cmd/$*/main.go
-	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
-		-ldflags $(LDFLAGS) \
-		-o $*-$(ARCH) \
-		cmd/$*/main.go
+		-o $@ \
+		cmd/$@/main.go
 
 test: unit functional
 
@@ -230,65 +156,29 @@ realclean: clean
 shell:
 	$(SHELL) -i
 
-push-manifest-%:
-	$(CONTAINER_ENGINE) manifest create --amend $(REGISTRY)/$*:$(VERSION) $(shell echo $(ARCHS) | sed -e "s~[^ ]*~$(REGISTRY)/$*\-&:$(VERSION)~g")
-	@for arch in $(ARCHS); do $(CONTAINER_ENGINE) manifest annotate --os $(IMAGE_OS) --arch $${arch} $(REGISTRY)/$*:${VERSION} $(REGISTRY)/$*-$${arch}:${VERSION}; done
-	$(CONTAINER_ENGINE) manifest push --purge $(REGISTRY)/$*:${VERSION}
+# Build a single image for the local default platform and push to the local
+# container engine
+build-local-image-%:
+	$(CONTAINER_ENGINE) buildx build --output type=docker \
+		--build-arg VERSION=$(VERSION) \
+		--tag $(REGISTRY)/$*:$(VERSION) \
+		--target $* \
+		.
 
-push-all-manifest: $(addprefix push-manifest-,$(IMAGE_NAMES))
+# Build all images locally
+build-local-images: $(addprefix build-image-,$(IMAGE_NAMES))
 
-build-images: $(addprefix image-,$(IMAGE_NAMES))
+# Build a single image for all architectures in ARCHS and push it to REGISTRY
+push-multiarch-image-%:
+	$(CONTAINER_ENGINE) buildx build --output type=registry \
+		--build-arg VERSION=$(VERSION) \
+		--tag $(REGISTRY)/$*:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		--target $* \
+		.
 
-push-images: $(addprefix push-image-,$(IMAGE_NAMES))
-
-image-%: work
-	$(MAKE) $(addprefix build-cmd-,$*)
-ifeq ($(GOOS),linux)
-	cp -r cluster/images/$* $(TEMP_DIR)
-
-ifneq ($(ARCH),amd64)
-	$(CONTAINER_ENGINE) run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	curl -sSL https://github.com/multiarch/qemu-user-static/releases/download/$(QEMUVERSION)/x86_64_qemu-$(QEMUARCH)-static.tar.gz | tar -xz -C $(TEMP_DIR)/$*
-	@# Ensure we don't get surprised by umask settings
-	chmod 0755 $(TEMP_DIR)/$*/qemu-$(QEMUARCH)-static
-	sed "/^FROM .*/a COPY qemu-$(QEMUARCH)-static /usr/bin/" $(TEMP_DIR)/$*/Dockerfile.build > $(TEMP_DIR)/$*/Dockerfile.build.tmp
-	mv $(TEMP_DIR)/$*/Dockerfile.build.tmp $(TEMP_DIR)/$*/Dockerfile.build
-endif
-
-	cp $*-$(ARCH) $(TEMP_DIR)/$*
-	$(CONTAINER_ENGINE) build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t build-$*-$(ARCH) -f $(TEMP_DIR)/$*/Dockerfile.build $(TEMP_DIR)/$*
-	$(CONTAINER_ENGINE) create --name build-$*-$(ARCH) build-$*-$(ARCH)
-	$(CONTAINER_ENGINE) export build-$*-$(ARCH) > $(TEMP_DIR)/$*/$(TAR_FILE)
-
-	@echo "build image $(REGISTRY)/$*-$(ARCH)"
-	$(CONTAINER_ENGINE) build --build-arg ALPINE_ARCH=$(ALPINE_ARCH) --build-arg ARCH=$(ARCH) --build-arg DEBIAN_ARCH=$(DEBIAN_ARCH) --pull -t $(REGISTRY)/$*-$(ARCH):$(VERSION) $(TEMP_DIR)/$*
-
-	rm -rf $(TEMP_DIR)/$*
-	$(CONTAINER_ENGINE) rm build-$*-$(ARCH)
-	$(CONTAINER_ENGINE) rmi build-$*-$(ARCH)
-else
-	$(error Please set GOOS=linux for building the image)
-endif
-
-push-image-%:
-	@echo "push image $*-$(ARCH) to $(REGISTRY)"
-ifneq ($(and $(DOCKER_USERNAME),$(DOCKER_PASSWORD)),)
-	@$(CONTAINER_ENGINE) login -u="$(DOCKER_USERNAME)" -p="$(DOCKER_PASSWORD)"
-endif
-	$(CONTAINER_ENGINE) push $(REGISTRY)/$*-$(ARCH):$(VERSION)
-
-images: $(addprefix build-arch-image-,$(ARCH))
-
-images-all-archs: $(addprefix build-arch-image-,$(ARCHS))
-
-build-arch-image-%:
-	@echo "Building images for ARCH=$*"
-	$(MAKE) ARCH=$* build-images
-
-upload-image-%:
-	$(MAKE) ARCH=$* build-images push-images
-
-upload-images: $(addprefix upload-image-,$(ARCHS)) push-all-manifest
+# Push all multiarch images
+push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 
 version:
 	@echo ${VERSION}
