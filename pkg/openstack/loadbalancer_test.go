@@ -2,6 +2,7 @@ package openstack
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
@@ -1751,6 +1752,132 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 			} else {
 				assert.Len(t, newMembers, tc.expectedNewMembersCount)
 			}
+		})
+	}
+}
+
+func Test_getSubnetID(t *testing.T) {
+	type args struct {
+		svcConf *serviceConfig
+		service *corev1.Service
+		lbaasV2 *LbaasV2
+	}
+	tests := []struct {
+		name        string
+		args        args
+		want        string
+		expectedErr string
+	}{
+		{
+			name: "test get subnet from service annotation",
+			args: args{
+				svcConf: &serviceConfig{},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBClasses: map[string]*LBClass{
+								"test-class": {
+									SubnetID: "test-class-subnet-id",
+								},
+							},
+						},
+					},
+				},
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							"loadbalancer.openstack.org/subnet-id": "annotation-test-id",
+							"loadbalancer.openstack.org/class":     "test-class",
+						},
+					},
+				},
+			},
+			want: "annotation-test-id",
+		},
+		{
+			name: "test get subnet from config class",
+			args: args{
+				svcConf: &serviceConfig{},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBClasses: map[string]*LBClass{
+								"test-class": {
+									SubnetID: "test-class-subnet-id",
+								},
+							},
+						},
+					},
+				},
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							"loadbalancer.openstack.org/class": "test-class",
+						},
+					},
+				},
+			},
+			want: "test-class-subnet-id",
+		},
+		{
+			name: "test get subnet from config class with invalid loadbalancer class",
+			args: args{
+				svcConf: &serviceConfig{},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBClasses: map[string]*LBClass{
+								"decoy-class": {
+									SubnetID: "test-id",
+								},
+							},
+							SubnetID: "test-subnet-id",
+						},
+					},
+				},
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							"loadbalancer.openstack.org/class": "test-class",
+						},
+					},
+				},
+			},
+			want:        "",
+			expectedErr: fmt.Sprintf("invalid loadbalancer class %q", "test-class"),
+		},
+		{
+			name: "test get subnet from default config",
+			args: args{
+				svcConf: &serviceConfig{},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBClasses: map[string]*LBClass{
+								"test-config-class-subnet-id": {
+									SubnetID: "test-id",
+								},
+							},
+							SubnetID: "test-default-subnet-id",
+						},
+					},
+				},
+				service: &corev1.Service{},
+			},
+			want: "test-default-subnet-id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.args.lbaasV2.getSubnetID(tt.args.service, tt.args.svcConf)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			}
+			if tt.expectedErr == "" {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
