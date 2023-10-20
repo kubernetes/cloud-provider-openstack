@@ -644,7 +644,6 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
 			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
 			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
-
 		})
 	}
 }
@@ -1632,7 +1631,6 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 }
 
 func TestBuildBatchUpdateMemberOpts(t *testing.T) {
-
 	// Sample Nodes
 	node1 := &corev1.Node{
 		ObjectMeta: v1.ObjectMeta{
@@ -1877,6 +1875,100 @@ func Test_getSubnetID(t *testing.T) {
 			if tt.expectedErr == "" {
 				assert.NoError(t, err)
 			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestLbaasV2_getNetworkID(t *testing.T) {
+	lbaas := LbaasV2{
+		LoadBalancer: LoadBalancer{
+			opts: LoadBalancerOpts{
+				LBClasses: map[string]*LBClass{
+					"lbclassKey": {
+						NetworkID: "lb-class-network-id-1234",
+					},
+				},
+				NetworkID: "default-lb-class-networkId",
+			},
+		},
+	}
+
+	type testArg struct {
+		service *corev1.Service
+	}
+	tests := []struct {
+		name    string
+		lbaas   LbaasV2
+		arg     testArg
+		want    string
+		wantErr string
+	}{
+		{
+			name:  "get network id from service annotation",
+			lbaas: LbaasV2{},
+			arg: testArg{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							ServiceAnnotationLoadBalancerNetworkID: "subnet-id",
+						},
+					},
+				},
+			},
+			want:    "subnet-id",
+			wantErr: "",
+		},
+		{
+			name:  "get network id from config class",
+			lbaas: lbaas,
+			arg: testArg{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							ServiceAnnotationLoadBalancerClass: "lbclassKey",
+						},
+					},
+				},
+			},
+			want:    "lb-class-network-id-1234",
+			wantErr: "",
+		},
+		{
+			name:  "get network id from default config",
+			lbaas: lbaas,
+			arg: testArg{
+				service: &corev1.Service{},
+			},
+			want:    "default-lb-class-networkId",
+			wantErr: "",
+		},
+		{
+			name:  "error when loadbalancer class not found",
+			lbaas: LbaasV2{},
+			arg: testArg{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{
+							ServiceAnnotationLoadBalancerClass: "invalid-lb-class",
+						},
+					},
+				},
+			},
+			want:    "",
+			wantErr: "invalid loadbalancer class \"invalid-lb-class\"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.lbaas.getNetworkID(tt.arg.service, &serviceConfig{})
+
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
