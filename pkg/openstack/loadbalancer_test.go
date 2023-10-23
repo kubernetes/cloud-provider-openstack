@@ -1295,10 +1295,10 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 			if err != nil {
 				assert.EqualError(t, err, tt.wantErr)
 			} else {
-				if assert.NoError(t, err) {
-					assert.Equal(t, tt.want, got)
-				}
+				assert.NoError(t, err)
 			}
+
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
