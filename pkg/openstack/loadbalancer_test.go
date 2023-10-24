@@ -540,6 +540,172 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 }
 
+func TestLbaasV2_checkListenerPorts(t *testing.T) {
+	type args struct {
+		service            *corev1.Service
+		curListenerMapping map[listenerKey]*listeners.Listener
+		isLBOwner          bool
+		lbName             string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "error is not thrown if loadblanacer matches & if port is already in use by a lb",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "https",
+								Port:     9090,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: false,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "error is thrown if loadbalancer doesn't matches & if port is already in use by a service",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "https",
+								Port:     9090,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb", "test-lb1"},
+					},
+				},
+				isLBOwner: false,
+				lbName:    "test-lb2",
+			},
+			wantErr: true,
+		},
+		{
+			name: "error is not thrown if lbOwner is present & no tags on service",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "https",
+								Port:     9090,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID: "listenerid",
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "error is not thrown if lbOwner is true & there are tags on service",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "http",
+								Port:     9091,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "error is not thrown if listener key doesn't match port & protocol",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "http",
+								Port:     9091,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: false,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := &LbaasV2{
+				LoadBalancer: LoadBalancer{},
+			}
+			err := lbaas.checkListenerPorts(tt.args.service, tt.args.curListenerMapping, tt.args.isLBOwner, tt.args.lbName)
+			if tt.wantErr == true {
+				assert.ErrorContains(t, err, "already exists")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 	type fields struct {
 		LoadBalancer LoadBalancer
