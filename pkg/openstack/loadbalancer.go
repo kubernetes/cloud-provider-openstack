@@ -917,7 +917,8 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 		return "", fmt.Errorf("failed when getting floating IP for port %s: %v", portID, err)
 	}
 
-	if floatIP != nil {
+	loadBalancerIP := service.Spec.LoadBalancerIP
+	if floatIP != nil && floatIP.FloatingIP == loadBalancerIP {
 		klog.V(4).Infof("Found floating ip %v by loadbalancer port id %q", floatIP, portID)
 	}
 
@@ -953,10 +954,11 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 			service.Namespace, service.Name)
 	}
 
-	// second attempt: fetch floating IP specified in service Spec.LoadBalancerIP
-	// if found, associate floating IP with loadbalancer's VIP port
-	loadBalancerIP := service.Spec.LoadBalancerIP
-	if floatIP == nil && loadBalancerIP != "" {
+	// Second attempt: Fetch the floating IP specified in the service Spec.LoadBalancerIP.
+	// Attach the floating IP to the load balancer's VIP port in the following cases:
+	//  1. If the load balancer hasn't been assigned a floating IP before.
+	//  2. If the load balancer has been assigned a floating IP, but the IP has been changed.
+	if (floatIP == nil && loadBalancerIP != "") || (floatIP != nil && floatIP.FloatingIP != loadBalancerIP) {
 		opts := floatingips.ListOpts{
 			FloatingIP: loadBalancerIP,
 		}
