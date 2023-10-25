@@ -262,7 +262,7 @@ To build cinder-csi-plugin image
 
 ```
 $ export ARCH=amd64 # Defaults to amd64
-$ make image-cinder-csi-plugin
+$ make build-local-image-cinder-csi-plugin
 ``` 
 
 ### Testing
