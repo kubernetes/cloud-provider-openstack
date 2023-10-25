@@ -677,6 +677,7 @@ func getIntFromServiceAnnotation(service *corev1.Service, annotationKey string, 
 }
 
 // getBoolFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's boolean value or a specified defaultSetting
+// If the annotation is not found or is not a valid boolean ("true" or "false"), it falls back to the defaultSetting and logs a message accordingly.
 func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting bool) bool {
 	klog.V(4).Infof("getBoolFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
 	if annotationValue, ok := service.Annotations[annotationKey]; ok {
@@ -687,7 +688,8 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 		case "false":
 			returnValue = false
 		default:
-			returnValue = defaultSetting
+			klog.Infof("Found a non-boolean Service Annotation: %v = %v (falling back to default setting: %v)", annotationKey, annotationValue, defaultSetting)
+			return defaultSetting
 		}
 
 		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, returnValue)
