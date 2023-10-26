@@ -1784,7 +1784,7 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 				},
 			}
 
-			got, err := lbaas.getMemberSubnetID(tt.service, &serviceConfig{})
+			got, err := lbaas.getMemberSubnetID(tt.service)
 			if tt.wantErr != "" {
 				assert.EqualError(t, err, tt.wantErr)
 			} else {

@@ -1435,7 +1435,7 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 }
 
 // getMemberSubnetID gets the configured member-subnet-id from the different possible sources.
-func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service) (string, error) {
 	// Get Member Subnet from Service Annotation
 	memberSubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerMemberSubnetID, "")
 	if memberSubnetIDAnnotation != "" {
@@ -1534,7 +1534,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Find subnet ID for creating members
-	memberSubnetID, err := lbaas.getMemberSubnetID(service, svcConf)
+	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
 		return fmt.Errorf("unable to get member-subnet-id, %w", err)
 	}
@@ -1681,7 +1681,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	// Override the specific member-subnet-id, if explictly configured.
 	// Otherwise use subnet-id.
-	memberSubnetID, err := lbaas.getMemberSubnetID(service, svcConf)
+	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
 		return fmt.Errorf("unable to get member-subnet-id, %w", err)
 	}
