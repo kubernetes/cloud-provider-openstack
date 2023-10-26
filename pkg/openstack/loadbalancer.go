@@ -916,9 +916,8 @@ func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portI
 //     b) If Spec.LoadBalancerIP is specified, try to create a FIP with that address.
 //     By default, this is not allowed by the Neutron policy for regular users!
 func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Service, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, isLBOwner bool) (string, error) {
-	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
-	// We need to fetch the FIP attached to load balancer's VIP port for both codepaths
+	// Retrieve the Floating IP associated with the load balancer's VIP port for both code paths.
 	portID := lb.VipPortID
 	floatIP, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
 	if err != nil {
@@ -932,14 +931,14 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 			service.Namespace, service.Name)
 	}
 
-	// 1) if we've found a FIP attached to LBs VIP port, we'll be using that.
+	// On the initial attempt, if we discover a Floating IP attached to the Load Balancer's VIP port.
 	if svcConf.internal && isLBOwner {
 		// if we found a FIP, this is an internal service and we are the owner we should attempt to delete it
 		if floatIP != nil {
 			keepFloatingAnnotation := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerKeepFloatingIP, false)
 			fipDeleted := false
 			if !keepFloatingAnnotation {
-				klog.V(4).Infof("Deleting floating IP %v attached to loadbalancer port id %q for internal service %s", floatIP, portID, serviceName)
+				klog.V(4).Infof("Deleting floating IP %v attached to loadbalancer port id %q for internal service %s", floatIP, portID, getFullServiceName(service))
 				fipDeleted, err = lbaas.deleteFIPIfCreatedByProvider(floatIP, portID, service)
 				if err != nil {
 					return "", err
@@ -1064,8 +1063,8 @@ func (lbaas *LbaasV2) processWithFloatIP(portID string, floatIP *floatingips.Flo
 
 func (lbaas *LbaasV2) processWithoutFloatIP(clusterName, portID string, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, svc *corev1.Service) (string, error) {
 
-	// second attempt: fetch floating IP specified in service Spec.LoadBalancerIP
-	// if found, associate floating IP with loadbalancer's VIP port
+	// Second attempt: Retrieve the Floating IP specified in service Spec.LoadBalancerIP.
+	//  If found, associate the Floating IP with the Load Balancer's VIP port.
 	loadBalancerIP := getLoadBalancerIP(svc)
 	if loadBalancerIP != "" {
 		if err := lbaas.associateFloatingIP(loadBalancerIP, portID); err != nil {
@@ -1079,7 +1078,7 @@ func (lbaas *LbaasV2) processWithoutFloatIP(clusterName, portID string, lb *load
 		return lb.VipAddress, nil
 	}
 
-	// third attempt: create a new floating IP
+	// Third attempt: create a new Floating IP and attach it to the load balancer.
 	return lbaas.createAndAssociateNewFloatingIP(clusterName, portID, loadBalancerIP, lb, svcConf, svc)
 }
 
@@ -1560,7 +1559,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	if len(service.Spec.Ports) == 0 {
 		return fmt.Errorf("no ports provided to openstack load balancer")
 	}
-	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	serviceName := getFullServiceName(service)
 
 	if len(service.Spec.IPFamilies) > 0 {
 		// Since OCCM does not support multiple load-balancers per service yet,
@@ -1637,7 +1636,7 @@ func (lbaas *LbaasV2) checkServiceDelete(service *corev1.Service, svcConf *servi
 }
 
 func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
-	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	serviceName := getFullServiceName(service)
 
 	if len(nodes) == 0 {
 		return fmt.Errorf("there are no available nodes for LoadBalancer service %s", serviceName)
@@ -1943,7 +1942,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// Use more meaningful name for the load balancer but still need to check the legacy name for backward compatibility.
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	svcConf.lbName = lbName
-	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	serviceName := getFullServiceName(service)
 	var loadbalancer *loadbalancers.LoadBalancer
 	isLBOwner := false
 	createNewLB := false
@@ -2151,7 +2150,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		return err
 	}
 
-	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	serviceName := getFullServiceName(service)
 	klog.V(2).Infof("Updating %d nodes for Service %s in cluster %s", len(nodes), serviceName, clusterName)
 
 	// Get load balancer
