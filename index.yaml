@@ -541,6 +541,21 @@ entries:
     version: 2.29.0-alpha.0
   - apiVersion: v1
     appVersion: v1.28.1
+    created: "2023-10-26T09:35:26.155662326Z"
+    description: Openstack Cloud Controller Manager Helm Chart
+    digest: 88a3fe29e5e940d589c486aa4b631b61ea820f4917fa2a9ef7912b02fceef720
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://object-storage-ca-ymq-1.vexxhost.net/swift/v1/6e4619c416ff4bd19e1c087f27a43eea/www-images-prod/openstack-logo/OpenStack-Logo-Vertical.png
+    maintainers:
+    - email: f.kloeker@telekom.de
+      name: eumel8
+      url: https://www.telekom.com
+    name: openstack-cloud-controller-manager
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-2.28.2/openstack-cloud-controller-manager-2.28.2.tgz
+    version: 2.28.2
+  - apiVersion: v1
+    appVersion: v1.28.1
     created: "2023-10-19T17:14:37.464848952Z"
     description: Openstack Cloud Controller Manager Helm Chart
     digest: cde5ff5d8f48870f99375a9191b322256a0a09a4874319ad09d3f7549b4e710b
