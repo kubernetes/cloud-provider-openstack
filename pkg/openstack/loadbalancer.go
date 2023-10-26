@@ -431,7 +431,6 @@ func getSecurityGroupName(service *corev1.Service) string {
 }
 
 func getLoadBalancerIP(service *corev1.Service) string {
-
 	return service.Spec.LoadBalancerIP
 }
 
@@ -559,7 +558,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 				return nil, fmt.Errorf("loadbalancer %s is in ERROR state and there was an error when removing it: %v", loadbalancer.ID, err)
 			}
 			return nil, fmt.Errorf("loadbalancer %s has gone into ERROR state, please check Octavia for details. Load balancer was "+
-					"deleted and its creation will be retried", loadbalancer.ID)
+				"deleted and its creation will be retried", loadbalancer.ID)
 		}
 		return nil, err
 	}
@@ -933,7 +932,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 			service.Namespace, service.Name)
 	}
 
-	// first attempt: if we've found a FIP attached to LBs VIP port, we'll be using that.
+	// 1) if we've found a FIP attached to LBs VIP port, we'll be using that.
 	if svcConf.internal && isLBOwner {
 		// if we found a FIP, this is an internal service and we are the owner we should attempt to delete it
 		if floatIP != nil {
@@ -958,10 +957,70 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 	}
 
 	if floatIP != nil {
-		return lbaas.floatIPExistsStrategy(portID, floatIP, service)
+		return lbaas.processWithFloatIP(portID, floatIP, service)
 	}
 
-	return lbaas.noFloatIPStrategy(clusterName, portID, lb, svcConf, service)
+	return lbaas.processWithoutFloatIP(clusterName, portID, lb, svcConf, service)
+}
+
+func (lbaas *LbaasV2) createAndAssociateNewFloatingIP(clusterName, portID, loadBalancerIP string, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, svc *corev1.Service) (string, error) {
+
+	var floatIP *floatingips.FloatingIP
+	var err error
+
+	klog.V(2).Infof("Creating floating IP %s for loadbalancer %s", loadBalancerIP, lb.ID)
+
+	floatIPOpts := floatingips.CreateOpts{
+		FloatingNetworkID: svcConf.lbPublicNetworkID,
+		PortID:            portID,
+		Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", getFullServiceName(svc), clusterName),
+	}
+
+	if svcConf.lbPublicSubnetSpec.MatcherConfigured() {
+		var foundSubnet subnets.Subnet
+		// tweak list options for tags
+		foundSubnets, err := svcConf.lbPublicSubnetSpec.ListSubnetsForNetwork(lbaas, svcConf.lbPublicNetworkID)
+		if err != nil {
+			return "", err
+		}
+		if len(foundSubnets) == 0 {
+			return "", fmt.Errorf("no subnet matching %s found for network %s",
+				svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
+		}
+
+		// try to create floating IP in matching subnets (tags already filtered by list options)
+		klog.V(4).Infof("found %d subnets matching %s for network %s", len(foundSubnets),
+			svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
+		for _, subnet := range foundSubnets {
+			floatIPOpts.SubnetID = subnet.ID
+			floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
+			if err == nil {
+				foundSubnet = subnet
+				break
+			}
+			klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
+		}
+		if err != nil {
+			return "", fmt.Errorf("no free subnet matching %q found for network %s (last error %s)",
+				svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID, err)
+		}
+		klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, foundSubnet.Name, foundSubnet.ID)
+	} else {
+		if svcConf.lbPublicSubnetSpec != nil {
+			floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
+		}
+		floatIPOpts.FloatingIP = loadBalancerIP
+		if floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts); err != nil {
+			return "", err
+		}
+		klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s", floatIP.FloatingIP, lb.ID)
+	}
+
+	if floatIP != nil {
+		return floatIP.FloatingIP, nil
+	}
+
+	return lb.VipAddress, nil
 }
 
 func (lbaas *LbaasV2) associateFloatingIP(loadBalancerIP, portID string) error {
@@ -987,7 +1046,7 @@ func (lbaas *LbaasV2) associateFloatingIP(loadBalancerIP, portID string) error {
 	return nil
 }
 
-func (lbaas *LbaasV2) floatIPExistsStrategy(portID string, floatIP *floatingips.FloatingIP, service *corev1.Service) (string, error) {
+func (lbaas *LbaasV2) processWithFloatIP(portID string, floatIP *floatingips.FloatingIP, service *corev1.Service) (string, error) {
 
 	klog.V(4).Infof("Found floating ip %v by loadbalancer port id %q", floatIP, portID)
 
@@ -1003,8 +1062,10 @@ func (lbaas *LbaasV2) floatIPExistsStrategy(portID string, floatIP *floatingips.
 	return floatIP.FloatingIP, nil
 }
 
-func (lbaas *LbaasV2) noFloatIPStrategy(clusterName, portID string, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, svc *corev1.Service) (string, error) {
+func (lbaas *LbaasV2) processWithoutFloatIP(clusterName, portID string, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, svc *corev1.Service) (string, error) {
 
+	// second attempt: fetch floating IP specified in service Spec.LoadBalancerIP
+	// if found, associate floating IP with loadbalancer's VIP port
 	loadBalancerIP := getLoadBalancerIP(svc)
 	if loadBalancerIP != "" {
 		if err := lbaas.associateFloatingIP(loadBalancerIP, portID); err != nil {
@@ -1013,66 +1074,13 @@ func (lbaas *LbaasV2) noFloatIPStrategy(clusterName, portID string, lb *loadbala
 		return loadBalancerIP, nil
 	}
 
-	// create and assign the new floating IP to load balancer
-	var floatIP *floatingips.FloatingIP
-	var err error
-	if svcConf.lbPublicNetworkID != "" {
-		klog.V(2).Infof("Creating floating IP %s for loadbalancer %s", loadBalancerIP, lb.ID)
-
-		floatIPOpts := floatingips.CreateOpts{
-			FloatingNetworkID: svcConf.lbPublicNetworkID,
-			PortID:            portID,
-			Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", getFullServiceName(svc), clusterName),
-		}
-
-		if svcConf.lbPublicSubnetSpec.MatcherConfigured() {
-			var foundSubnet subnets.Subnet
-			// tweak list options for tags
-			foundSubnets, err := svcConf.lbPublicSubnetSpec.ListSubnetsForNetwork(lbaas, svcConf.lbPublicNetworkID)
-			if err != nil {
-				return "", err
-			}
-			if len(foundSubnets) == 0 {
-				return "", fmt.Errorf("no subnet matching %s found for network %s",
-					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
-			}
-
-			// try to create floating IP in matching subnets (tags already filtered by list options)
-			klog.V(4).Infof("found %d subnets matching %s for network %s", len(foundSubnets),
-				svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
-			for _, subnet := range foundSubnets {
-				floatIPOpts.SubnetID = subnet.ID
-				floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
-				if err == nil {
-					foundSubnet = subnet
-					break
-				}
-				klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
-			}
-			if err != nil {
-				return "", fmt.Errorf("no free subnet matching %q found for network %s (last error %s)",
-					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID, err)
-			}
-			klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, foundSubnet.Name, foundSubnet.ID)
-		} else {
-			if svcConf.lbPublicSubnetSpec != nil {
-				floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
-			}
-			floatIPOpts.FloatingIP = loadBalancerIP
-			if floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts); err != nil {
-				return "", err
-			}
-			klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s", floatIP.FloatingIP, lb.ID)
-		}
-	} else {
+	if svcConf.lbPublicNetworkID == "" {
 		klog.Warningf("Floating network configuration not provided for Service %s, forcing to ensure an internal load balancer service", getFullServiceName(svc))
+		return lb.VipAddress, nil
 	}
 
-	if floatIP != nil {
-		return floatIP.FloatingIP, nil
-	}
-
-	return lb.VipAddress, nil
+	// third attempt: create a new floating IP
+	return lbaas.createAndAssociateNewFloatingIP(clusterName, portID, loadBalancerIP, lb, svcConf, svc)
 }
 
 func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool *v2pools.Pool, port corev1.ServicePort, svcConf *serviceConfig) error {
@@ -1115,10 +1123,10 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 
 	// update new monitor parameters
 	if name != monitor.Name ||
-			svcConf.healthMonitorDelay != monitor.Delay ||
-			svcConf.healthMonitorTimeout != monitor.Timeout ||
-			svcConf.healthMonitorMaxRetries != monitor.MaxRetries ||
-			svcConf.healthMonitorMaxRetriesDown != monitor.MaxRetriesDown {
+		svcConf.healthMonitorDelay != monitor.Delay ||
+		svcConf.healthMonitorTimeout != monitor.Timeout ||
+		svcConf.healthMonitorMaxRetries != monitor.MaxRetries ||
+		svcConf.healthMonitorMaxRetriesDown != monitor.MaxRetriesDown {
 		updateOpts := v2monitors.UpdateOpts{
 			Name:           &name,
 			Delay:          svcConf.healthMonitorDelay,
@@ -1665,7 +1673,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	if svcConf.tlsContainerRef != "" {
 		if lbaas.secret == nil {
 			return fmt.Errorf("failed to create a TLS Terminated loadbalancer because openstack keymanager client is not "+
-					"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
+				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
 		}
 
 		// check if container exists for 'barbican' container store
@@ -2128,7 +2136,7 @@ func (lbaas *LbaasV2) ensureSecurityRule(sgRuleCreateOpts rules.CreateOpts) erro
 	if err != nil && cpoerrors.IsConflictError(err) {
 		// Conflict means the SG rule already exists, so ignoring that error.
 		klog.Warningf("Security group rule already found when trying to create it. This indicates concurrent "+
-				"updates to the SG %s and is unexpected", sgRuleCreateOpts.SecGroupID)
+			"updates to the SG %s and is unexpected", sgRuleCreateOpts.SecGroupID)
 		return mc.ObserveRequest(nil)
 	} else if mc.ObserveRequest(err) != nil {
 		return fmt.Errorf("failed to create rule for security group %s: %v", sgRuleCreateOpts.SecGroupID, err)
@@ -2224,11 +2232,11 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 
 func compareSecurityGroupRuleAndCreateOpts(rule rules.SecGroupRule, opts rules.CreateOpts) bool {
 	return rule.Direction == string(opts.Direction) &&
-			strings.EqualFold(rule.Protocol, string(opts.Protocol)) &&
-			rule.EtherType == string(opts.EtherType) &&
-			rule.RemoteIPPrefix == opts.RemoteIPPrefix &&
-			rule.PortRangeMin == opts.PortRangeMin &&
-			rule.PortRangeMax == opts.PortRangeMax
+		strings.EqualFold(rule.Protocol, string(opts.Protocol)) &&
+		rule.EtherType == string(opts.EtherType) &&
+		rule.RemoteIPPrefix == opts.RemoteIPPrefix &&
+		rule.PortRangeMin == opts.PortRangeMin &&
+		rule.PortRangeMax == opts.PortRangeMax
 }
 
 func getRulesToCreateAndDelete(wantedRules []rules.CreateOpts, existingRules []rules.SecGroupRule) ([]rules.CreateOpts, []rules.SecGroupRule) {
@@ -2383,7 +2391,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		if err != nil && cpoerrors.IsNotFound(err) {
 			// ignore 404
 			klog.Warningf("Security group rule %s found missing when trying to delete it. This indicates concurrent "+
-					"updates to the SG %s and is unexpected", existingRule.ID, existingRule.SecGroupID)
+				"updates to the SG %s and is unexpected", existingRule.ID, existingRule.SecGroupID)
 			return mc.ObserveRequest(nil)
 		} else if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to delete security group rule %s: %w", existingRule.ID, err)
