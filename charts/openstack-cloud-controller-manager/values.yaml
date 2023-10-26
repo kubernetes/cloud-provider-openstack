@@ -113,3 +113,7 @@ extraVolumeMounts:
 # cluster name that used for created cluster
 cluster:
   name: kubernetes
+
+clusterRoleName: system:cloud-controller-manager
+
+serviceAccountName: cloud-controller-manager

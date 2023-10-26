@@ -1,12 +1,13 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: system:openstack-cloud-controller-manager
+  name: {{ .Values.clusterRoleName }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: system:openstack-cloud-controller-manager
+  name: {{ .Values.clusterRoleName }}
 subjects:
 - kind: ServiceAccount
-  name: openstack-cloud-controller-manager
+  name: {{ .Values.serviceAccountName }}
   namespace: {{ .Release.Namespace | quote }}
