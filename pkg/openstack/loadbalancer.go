@@ -73,6 +73,7 @@ const (
 	ServiceAnnotationLoadBalancerFloatingSubnetTags   = "loadbalancer.openstack.org/floating-subnet-tags"
 	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
+	ServiceAnnotationLoadBalancerFloatingIP           = "loadbalancer.openstack.org/floating-ip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
@@ -431,7 +432,13 @@ func getSecurityGroupName(service *corev1.Service) string {
 }
 
 func getLoadBalancerIP(service *corev1.Service) string {
-	return service.Spec.LoadBalancerIP
+	loadBalancerIP := service.Spec.LoadBalancerIP
+	if annotations := service.Annotations; annotations != nil {
+		if val, ok := annotations[ServiceAnnotationLoadBalancerFloatingIP]; ok && val != "" {
+			return val
+		}
+	}
+	return loadBalancerIP
 }
 
 func getFullServiceName(service *corev1.Service) string {

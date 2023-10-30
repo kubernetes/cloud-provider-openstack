@@ -303,13 +303,17 @@ spec:
 
 Sometimes it's useful to use an existing available floating IP rather than creating a new one, especially in the automation scenario. In the example below, 122.112.219.229 is an available floating IP created in the OpenStack Networking service.
 
-> NOTE: If 122.112.219.229 is not available, a new floating IP will be created automatically from the configured public network. If 122.112.219.229 is already associated with another port, the Service creation will fail.
+The service’s annotation loadbalancer.openstack.org/floating-ip can also be utilized to specify a desired floating IP. If this annotation exists and is not empty, the value contained in it will be used as the floating IP. Otherwise, the spec.loadBalancerIP field will be used as shown in the example below.
+
+> NOTE: If the specified floating-ip is not available, a new floating IP will be created automatically from the configured public network. If the specified floating-ip is already associated with another port, the Service creation will fail. 
 
 ```yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: nginx-internet
+  annotations:
+    loadbalancer.openstack.org/floating-ip: "122.112.219.220"  
 spec:
   type: LoadBalancer
   selector:
