@@ -9,6 +9,11 @@ commonAnnotations: {}
 #   "helm.sh/hook-weight": "-100"
 #   "helm.sh/hook-delete-policy": before-hook-creation
 
+# List of secrets to use as image pull secret
+imagePullSecrets: []
+# - pull-secret-1
+# - pull-secret-2
+
 # Image repository name and tag
 image:
   repository: registry.k8s.io/provider-os/openstack-cloud-controller-manager
