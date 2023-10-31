@@ -134,6 +134,12 @@ Request Body:
 
   If 'true', the floating IP will **NOT** be deleted. Default is 'false'.
 
+- `loadbalancer.openstack.org/floating-ip`
+
+  This annotation is utilized to specify the floating IP for the load balancer. 
+
+  If set, both newly created and pre-existing load balancers will utilize it. Furthermore, its precedence is higher than that of `Spec.LoadBalanccerIP`.
+
 - `loadbalancer.openstack.org/proxy-protocol`
 
   If 'true', the loadbalancer pool protocol will be set as `PROXY`. Default is 'false'.

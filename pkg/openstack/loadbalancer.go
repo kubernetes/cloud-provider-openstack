@@ -432,13 +432,12 @@ func getSecurityGroupName(service *corev1.Service) string {
 }
 
 func getLoadBalancerIP(service *corev1.Service) string {
-	loadBalancerIP := service.Spec.LoadBalancerIP
 	if annotations := service.Annotations; annotations != nil {
 		if val, ok := annotations[ServiceAnnotationLoadBalancerFloatingIP]; ok && val != "" {
 			return val
 		}
 	}
-	return loadBalancerIP
+	return service.Spec.LoadBalancerIP
 }
 
 func getFullServiceName(service *corev1.Service) string {
@@ -963,7 +962,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 	}
 
 	if floatIP != nil {
-		return lbaas.processWithFloatIP(portID, floatIP, service)
+		return lbaas.processWithFloatIP(portID, floatIP, service, isLBOwner)
 	}
 
 	return lbaas.processWithoutFloatIP(clusterName, portID, lb, svcConf, service)
@@ -1052,13 +1051,13 @@ func (lbaas *LbaasV2) associateFloatingIP(loadBalancerIP, portID string) error {
 	return nil
 }
 
-func (lbaas *LbaasV2) processWithFloatIP(portID string, floatIP *floatingips.FloatingIP, service *corev1.Service) (string, error) {
+func (lbaas *LbaasV2) processWithFloatIP(portID string, floatIP *floatingips.FloatingIP, service *corev1.Service, isLBOwner bool) (string, error) {
 
 	klog.V(4).Infof("Found floating ip %v by loadbalancer port id %q", floatIP, portID)
 
 	loadBalancerIP := getLoadBalancerIP(service)
 
-	if floatIP.FloatingIP != loadBalancerIP && loadBalancerIP != "" {
+	if floatIP.FloatingIP != loadBalancerIP && loadBalancerIP != "" && isLBOwner {
 		if err := lbaas.associateFloatingIP(loadBalancerIP, portID); err != nil {
 			return "", err
 		}
