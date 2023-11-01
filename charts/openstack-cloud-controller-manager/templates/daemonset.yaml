@@ -98,6 +98,9 @@ spec:
               value: /etc/config/cloud.conf
             - name: CLUSTER_NAME
               value: {{ .Values.cluster.name }}
+            {{- if .Values.extraEnv }}
+              {{- toYaml .Values.extraEnv | nindent 12 }}
+            {{- end }}
       {{- if .Values.extraInitContainers }}
       initContainers: {{ toYaml .Values.extraInitContainers | nindent 6 }}
       {{- end }}
