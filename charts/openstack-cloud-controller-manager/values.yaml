@@ -20,6 +20,11 @@ extraInitContainers: []
 #   image: busybox
 #   command: ['sh', '-c', 'echo waiting for 10 seconds; sleep 10;']
 
+# Additional environment variables for the cloud-controller-manager.
+extraEnv: []
+# - name: OS_CCM_REGIONAL
+#   value: "true"
+
 # Set resources for Kubernetes daemonset
 resources: {}
 # resources:
