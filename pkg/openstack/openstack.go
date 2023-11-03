@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/portsecurity"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunk_details"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
@@ -72,6 +73,11 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 type PortWithTrunkDetails struct {
 	neutronports.Port
 	trunk_details.TrunkDetailsExt
+}
+
+type PortWithPortSecurity struct {
+	neutronports.Port
+	portsecurity.PortSecurityExt
 }
 
 // LoadBalancer is used for creating and maintaining load balancers
