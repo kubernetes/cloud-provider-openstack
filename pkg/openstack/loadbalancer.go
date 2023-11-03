@@ -728,22 +728,49 @@ func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, pref
 	return "", cpoerrors.ErrNotFound
 }
 
-// applyNodeSecurityGroupIDForLB associates the security group with all the ports on the nodes.
-func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, nodes []*corev1.Node, sg string) error {
+// isPortMember returns true if IP and subnetID are one of the FixedIPs on the port
+func isPortMember(port PortWithPortSecurity, IP string, subnetID string) bool {
+	for _, fixedIP := range port.FixedIPs {
+		if (subnetID == "" || subnetID == fixedIP.SubnetID) && IP == fixedIP.IPAddress {
+			return true
+		}
+	}
+	return false
+}
+
+// applyNodeSecurityGroupIDForLB associates the security group with the ports being members of the LB on the nodes.
+func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *serviceConfig, nodes []*corev1.Node, sg string) error {
 	for _, node := range nodes {
 		serverID, _, err := instanceIDFromProviderID(node.Spec.ProviderID)
 		if err != nil {
 			return fmt.Errorf("error getting server ID from the node: %w", err)
 		}
+
+		addr, _ := nodeAddressForLB(node, svcConf.preferredIPFamily)
+		if addr == "" {
+			// If node has no viable address let's ignore it.
+			continue
+		}
+
 		listOpts := neutronports.ListOpts{DeviceID: serverID}
-		allPorts, err := openstackutil.GetPorts(network, listOpts)
+		allPorts, err := openstackutil.GetPorts[PortWithPortSecurity](network, listOpts)
 		if err != nil {
 			return err
 		}
 
 		for _, port := range allPorts {
+			// You can't assign an SG to a port with port_security_enabled=false, skip them.
+			if !port.PortSecurityEnabled {
+				continue
+			}
+
 			// If the Security Group is already present on the port, skip it.
 			if slices.Contains(port.SecurityGroups, sg) {
+				continue
+			}
+
+			// Only add SGs to the port actually attached to the LB
+			if !isPortMember(port, addr, svcConf.lbMemberSubnetID) {
 				continue
 			}
 
@@ -768,7 +795,7 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, nodes []*
 func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg string) error {
 	// Find all the ports that have the security group associated.
 	listOpts := neutronports.ListOpts{SecurityGroups: []string{sg}}
-	allPorts, err := openstackutil.GetPorts(network, listOpts)
+	allPorts, err := openstackutil.GetPorts[neutronports.Port](network, listOpts)
 	if err != nil {
 		return err
 	}
@@ -2382,7 +2409,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		}
 	}
 
-	if err := applyNodeSecurityGroupIDForLB(lbaas.network, nodes, lbSecGroupID); err != nil {
+	if err := applyNodeSecurityGroupIDForLB(lbaas.network, svcConf, nodes, lbSecGroupID); err != nil {
 		return err
 	}
 	return nil

@@ -140,15 +140,16 @@ func getSubnet(networkSubnet string, subnetList []subnets.Subnet) *subnets.Subne
 }
 
 // GetPorts gets all the filtered ports.
-func GetPorts(client *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]neutronports.Port, error) {
+func GetPorts[PortType interface{}](client *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]PortType, error) {
 	mc := metrics.NewMetricContext("port", "list")
 	allPages, err := neutronports.List(client, listOpts).AllPages()
 	if mc.ObserveRequest(err) != nil {
-		return []neutronports.Port{}, err
+		return []PortType{}, err
 	}
-	allPorts, err := neutronports.ExtractPorts(allPages)
+	var allPorts []PortType
+	err = neutronports.ExtractPortsInto(allPages, &allPorts)
 	if err != nil {
-		return []neutronports.Port{}, err
+		return []PortType{}, err
 	}
 
 	return allPorts, nil
