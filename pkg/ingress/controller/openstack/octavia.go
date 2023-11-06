@@ -367,7 +367,11 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 	} else {
 		if len(listenerAllowedCIDRs) > 0 && !reflect.DeepEqual(listener.AllowedCIDRs, listenerAllowedCIDRs) {
 			_, err := listeners.Update(os.Octavia, listener.ID, listeners.UpdateOpts{
-				AllowedCIDRs: &listenerAllowedCIDRs,
+				AllowedCIDRs:         &listenerAllowedCIDRs,
+				TimeoutClientData:    timeoutClientData,
+				TimeoutMemberData:    timeoutMemberData,
+				TimeoutMemberConnect: timeoutMemberConnect,
+				TimeoutTCPInspect:    timeoutTCPInspect,
 			}).Extract()
 			if err != nil {
 				return nil, fmt.Errorf("failed to update listener allowed CIDRs: %v", err)
