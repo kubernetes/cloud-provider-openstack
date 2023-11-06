@@ -106,7 +106,7 @@ In cloud-provider-openstack repo directory, run:
 ```
 REGISTRY=<your-dockerhub-account> \
 VERSION=<image-tag> \
-make image-openstack-cloud-controller-manager
+make build-local-image-openstack-cloud-controller-manager
 ```
 
 The above command builds a container image locally with the name:
@@ -121,7 +121,7 @@ You may notice there is a suffix `-amd64` because cloud-provider-openstack suppo
 ARCH=amd64 \
 REGISTRY=<your-dockerhub-account> \
 VERSION=<image-tag> \
-make image-openstack-cloud-controller-manager
+make build-local-image-openstack-cloud-controller-manager
 ```
 
 If the kubernetes cluster can't access the image locally, you need to upload the image to container registry first by running `docker push`.

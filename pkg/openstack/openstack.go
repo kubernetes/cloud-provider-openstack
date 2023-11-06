@@ -27,6 +27,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/portsecurity"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunk_details"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
@@ -36,8 +37,12 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -74,13 +79,19 @@ type PortWithTrunkDetails struct {
 	trunk_details.TrunkDetailsExt
 }
 
+type PortWithPortSecurity struct {
+	neutronports.Port
+	portsecurity.PortSecurityExt
+}
+
 // LoadBalancer is used for creating and maintaining load balancers
 type LoadBalancer struct {
-	secret  *gophercloud.ServiceClient
-	network *gophercloud.ServiceClient
-	lb      *gophercloud.ServiceClient
-	opts    LoadBalancerOpts
-	kclient kubernetes.Interface
+	secret        *gophercloud.ServiceClient
+	network       *gophercloud.ServiceClient
+	lb            *gophercloud.ServiceClient
+	opts          LoadBalancerOpts
+	kclient       kubernetes.Interface
+	eventRecorder record.EventRecorder
 }
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
@@ -160,6 +171,9 @@ type OpenStack struct {
 	useV1Instances        bool // TODO: v1 instance apis can be deleted after the v2 is verified enough
 	nodeInformer          coreinformers.NodeInformer
 	nodeInformerHasSynced func() bool
+
+	eventBroadcaster record.EventBroadcaster
+	eventRecorder    record.EventRecorder
 }
 
 // Config is used to read and store information from the cloud configuration file
@@ -193,6 +207,9 @@ func init() {
 func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	clientset := clientBuilder.ClientOrDie("cloud-controller-manager")
 	os.kclient = clientset
+	os.eventBroadcaster = record.NewBroadcaster()
+	os.eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: os.kclient.CoreV1().Events("")})
+	os.eventRecorder = os.eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "cloud-provider-openstack"})
 }
 
 // ReadConfig reads values from the cloud.conf
@@ -367,7 +384,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient}}, true
+	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder}}, true
 }
 
 // Zones indicates that we support zones

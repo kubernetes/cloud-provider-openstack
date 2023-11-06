@@ -7,7 +7,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
+	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	"github.com/stretchr/testify/assert"
@@ -540,6 +542,172 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 }
 
+func TestLbaasV2_checkListenerPorts(t *testing.T) {
+	type args struct {
+		service            *corev1.Service
+		curListenerMapping map[listenerKey]*listeners.Listener
+		isLBOwner          bool
+		lbName             string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "error is not thrown if loadblanacer matches & if port is already in use by a lb",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "https",
+								Port:     9090,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: false,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "error is thrown if loadbalancer doesn't matches & if port is already in use by a service",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "https",
+								Port:     9090,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb", "test-lb1"},
+					},
+				},
+				isLBOwner: false,
+				lbName:    "test-lb2",
+			},
+			wantErr: true,
+		},
+		{
+			name: "error is not thrown if lbOwner is present & no tags on service",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "https",
+								Port:     9090,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID: "listenerid",
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "error is not thrown if lbOwner is true & there are tags on service",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "http",
+								Port:     9091,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "error is not thrown if listener key doesn't match port & protocol",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: "http",
+								Port:     9091,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "https",
+						Port:     9090,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: false,
+				lbName:    "test-lb",
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := &LbaasV2{
+				LoadBalancer: LoadBalancer{},
+			}
+			err := lbaas.checkListenerPorts(tt.args.service, tt.args.curListenerMapping, tt.args.isLBOwner, tt.args.lbName)
+			if tt.wantErr == true {
+				assert.ErrorContains(t, err, "already exists")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 	type fields struct {
 		LoadBalancer LoadBalancer
@@ -1618,7 +1786,7 @@ func TestLbaasV2_getMemberSubnetID(t *testing.T) {
 				},
 			}
 
-			got, err := lbaas.getMemberSubnetID(tt.service, &serviceConfig{})
+			got, err := lbaas.getMemberSubnetID(tt.service)
 			if tt.wantErr != "" {
 				assert.EqualError(t, err, tt.wantErr)
 			} else {
@@ -1970,6 +2138,153 @@ func TestLbaasV2_getNetworkID(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_buildMonitorCreateOpts(t *testing.T) {
+	type testArg struct {
+		lbaas   *LbaasV2
+		svcConf *serviceConfig
+		port    corev1.ServicePort
+	}
+	tests := []struct {
+		name    string
+		testArg testArg
+		want    v2monitors.CreateOpts
+	}{
+		{
+			name: "test for port protocol udp with ovn provider",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+						},
+						lb: &gophercloud.ServiceClient{},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          6,
+					healthMonitorTimeout:        5,
+					healthMonitorMaxRetries:     4,
+					healthMonitorMaxRetriesDown: 3,
+					healthCheckNodePort:         32100,
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolUDP,
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "test for port protocol udp with ovn provider",
+				Type:           "UDP-CONNECT",
+				Delay:          6,
+				Timeout:        5,
+				MaxRetries:     4,
+				MaxRetriesDown: 3,
+			},
+		},
+		{
+			name: "using tcp with ovn provider",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+						},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          3,
+					healthMonitorTimeout:        8,
+					healthMonitorMaxRetries:     6,
+					healthMonitorMaxRetriesDown: 2,
+					healthCheckNodePort:         31200,
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolTCP,
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "using tcp with ovn provider",
+				Type:           "TCP",
+				Delay:          3,
+				Timeout:        8,
+				MaxRetries:     6,
+				MaxRetriesDown: 2,
+			},
+		},
+		{
+			name: "using node port zero",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+						},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          3,
+					healthMonitorTimeout:        5,
+					healthMonitorMaxRetries:     1,
+					healthMonitorMaxRetriesDown: 2,
+					healthCheckNodePort:         0,
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolTCP,
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "using node port zero",
+				Type:           "TCP",
+				Delay:          3,
+				Timeout:        5,
+				MaxRetries:     1,
+				MaxRetriesDown: 2,
+			},
+		},
+		{
+			name: "using tcp protocol with not-ovn provider",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "amphora",
+						},
+						lb: &gophercloud.ServiceClient{},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          3,
+					healthMonitorTimeout:        4,
+					healthMonitorMaxRetries:     1,
+					healthMonitorMaxRetriesDown: 5,
+					healthCheckNodePort:         310000,
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolTCP,
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "using tcp protocol with not-ovn provider",
+				Type:           "HTTP",
+				Delay:          3,
+				Timeout:        4,
+				MaxRetries:     1,
+				MaxRetriesDown: 5,
+
+				URLPath:       "/healthz",
+				HTTPMethod:    "GET",
+				ExpectedCodes: "200",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.testArg.lbaas.buildMonitorCreateOpts(tt.testArg.svcConf, tt.testArg.port, tt.name)
+			assert.Equal(t, tt.want, result)
 		})
 	}
 }

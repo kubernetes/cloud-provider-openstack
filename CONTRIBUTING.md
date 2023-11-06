@@ -8,7 +8,7 @@ We'd love to accept your patches! Before we can accept them you need to sign Clo
 ## Reporting an issue
 If you find a bug or a feature request related to cloud-provider-openstack you can create a new github issue in this repo @[kubernetes/cloud-provider-openstack](https://github.com/kubernetes/cloud-provider-openstack/issues).
 
-## Submiting a Pull Request
+## Submitting a Pull Request
 * Fork the cloud-provider-openstack repo, develop and test your code changes.
 * Submit a pull request.
 * The bot will automatically assigns someone to review your PR.

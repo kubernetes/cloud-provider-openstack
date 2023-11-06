@@ -27,6 +27,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/containers"
+	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
@@ -691,6 +692,7 @@ func getIntFromServiceAnnotation(service *corev1.Service, annotationKey string, 
 }
 
 // getBoolFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's boolean value or a specified defaultSetting
+// If the annotation is not found or is not a valid boolean ("true" or "false"), it falls back to the defaultSetting and logs a message accordingly.
 func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting bool) bool {
 	klog.V(4).Infof("getBoolFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
 	if annotationValue, ok := service.Annotations[annotationKey]; ok {
@@ -701,7 +703,8 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 		case "false":
 			returnValue = false
 		default:
-			returnValue = defaultSetting
+			klog.Infof("Found a non-boolean Service Annotation: %v = %v (falling back to default setting: %v)", annotationKey, annotationValue, defaultSetting)
+			return defaultSetting
 		}
 
 		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, returnValue)
@@ -739,22 +742,49 @@ func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, pref
 	return "", cpoerrors.ErrNotFound
 }
 
-// applyNodeSecurityGroupIDForLB associates the security group with all the ports on the nodes.
-func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, nodes []*corev1.Node, sg string) error {
+// isPortMember returns true if IP and subnetID are one of the FixedIPs on the port
+func isPortMember(port PortWithPortSecurity, IP string, subnetID string) bool {
+	for _, fixedIP := range port.FixedIPs {
+		if (subnetID == "" || subnetID == fixedIP.SubnetID) && IP == fixedIP.IPAddress {
+			return true
+		}
+	}
+	return false
+}
+
+// applyNodeSecurityGroupIDForLB associates the security group with the ports being members of the LB on the nodes.
+func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *serviceConfig, nodes []*corev1.Node, sg string) error {
 	for _, node := range nodes {
 		serverID, _, err := instanceIDFromProviderID(node.Spec.ProviderID)
 		if err != nil {
 			return fmt.Errorf("error getting server ID from the node: %w", err)
 		}
+
+		addr, _ := nodeAddressForLB(node, svcConf.preferredIPFamily)
+		if addr == "" {
+			// If node has no viable address let's ignore it.
+			continue
+		}
+
 		listOpts := neutronports.ListOpts{DeviceID: serverID}
-		allPorts, err := openstackutil.GetPorts(network, listOpts)
+		allPorts, err := openstackutil.GetPorts[PortWithPortSecurity](network, listOpts)
 		if err != nil {
 			return err
 		}
 
 		for _, port := range allPorts {
+			// You can't assign an SG to a port with port_security_enabled=false, skip them.
+			if !port.PortSecurityEnabled {
+				continue
+			}
+
 			// If the Security Group is already present on the port, skip it.
 			if slices.Contains(port.SecurityGroups, sg) {
+				continue
+			}
+
+			// Only add SGs to the port actually attached to the LB
+			if !isPortMember(port, addr, svcConf.lbMemberSubnetID) {
 				continue
 			}
 
@@ -779,7 +809,7 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, nodes []*
 func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg string) error {
 	// Find all the ports that have the security group associated.
 	listOpts := neutronports.ListOpts{SecurityGroups: []string{sg}}
-	allPorts, err := openstackutil.GetPorts(network, listOpts)
+	allPorts, err := openstackutil.GetPorts[neutronports.Port](network, listOpts)
 	if err != nil {
 		return err
 	}
@@ -1478,7 +1508,7 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 }
 
 // getMemberSubnetID gets the configured member-subnet-id from the different possible sources.
-func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service, svcConf *serviceConfig) (string, error) {
+func (lbaas *LbaasV2) getMemberSubnetID(service *corev1.Service) (string, error) {
 	// Get Member Subnet from Service Annotation
 	memberSubnetIDAnnotation := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerMemberSubnetID, "")
 	if memberSubnetIDAnnotation != "" {
@@ -1577,7 +1607,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Find subnet ID for creating members
-	memberSubnetID, err := lbaas.getMemberSubnetID(service, svcConf)
+	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
 		return fmt.Errorf("unable to get member-subnet-id, %w", err)
 	}
@@ -1681,16 +1711,30 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
 		}
 
-		// check if container exists for 'barbican' container store
-		// tls container ref has the format: https://{keymanager_host}/v1/containers/{uuid}
+		// check if container or secret exists for 'barbican' container store
+		// tls container ref has the format: https://{keymanager_host}/v1/containers/{uuid} or https://{keymanager_host}/v1/secrets/{uuid}
 		if lbaas.opts.ContainerStore == "barbican" {
 			slice := strings.Split(svcConf.tlsContainerRef, "/")
-			containerID := slice[len(slice)-1]
-			container, err := containers.Get(lbaas.secret, containerID).Extract()
-			if err != nil {
-				return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+			if len(slice) < 2 {
+				return fmt.Errorf("invalid tlsContainerRef for service %s", serviceName)
 			}
-			klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
+			barbicanUUID := slice[len(slice)-1]
+			barbicanType := slice[len(slice)-2]
+			if barbicanType == "containers" {
+				container, err := containers.Get(lbaas.secret, barbicanUUID).Extract()
+				if err != nil {
+					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+				}
+				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
+			} else if barbicanType == "secrets" {
+				secret, err := secrets.Get(lbaas.secret, barbicanUUID).Extract()
+				if err != nil {
+					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
+				}
+				klog.V(4).Infof("Default TLS secret %q found", secret.SecretRef)
+			} else {
+				return fmt.Errorf("failed to validate tlsContainerRef for service %s: tlsContainerRef type %s unknown", serviceName, barbicanType)
+			}
 		}
 	}
 
@@ -1724,7 +1768,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 
 	// Override the specific member-subnet-id, if explictly configured.
 	// Otherwise use subnet-id.
-	memberSubnetID, err := lbaas.getMemberSubnetID(service, svcConf)
+	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
 		return fmt.Errorf("unable to get member-subnet-id, %w", err)
 	}
@@ -1766,7 +1810,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		if floatingNetworkID == "" {
 			floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
 			if err != nil {
-				klog.Warningf("Failed to find floating-network-id for Service %s: %v", serviceName, err)
+				msg := "Failed to find floating-network-id for Service %s: %v"
+				lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBExternalNetworkSearchFailed, msg, serviceName, err)
+				klog.Warningf(msg, serviceName, err)
 			}
 		}
 
@@ -1839,7 +1885,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		klog.V(4).Info("LoadBalancerSourceRanges will be enforced on the SG created and attached to LB members")
 		svcConf.allowedCIDR = sourceRanges.StringSlice()
 	} else {
-		klog.Warning("LoadBalancerSourceRanges are ignored")
+		msg := "LoadBalancerSourceRanges are ignored for Service %s because Octavia provider does not support it"
+		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBSourceRangesIgnored, msg, serviceName)
+		klog.Warningf(msg, serviceName)
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
@@ -1850,7 +1898,9 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureAvailabilityZones, lbaas.opts.LBProvider) {
 		svcConf.availabilityZone = availabilityZone
 	} else if availabilityZone != "" {
-		klog.Warning("LoadBalancer Availability Zones aren't supported. Please, upgrade Octavia API to version 2.14 or later (Ussuri release) to use them")
+		msg := "LoadBalancer Availability Zones aren't supported. Please, upgrade Octavia API to version 2.14 or later (Ussuri release) to use them for Service %s"
+		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBAZIgnored, msg, serviceName)
+		klog.Warningf(msg, serviceName)
 	}
 
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
@@ -2403,7 +2453,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		}
 	}
 
-	if err := applyNodeSecurityGroupIDForLB(lbaas.network, nodes, lbSecGroupID); err != nil {
+	if err := applyNodeSecurityGroupIDForLB(lbaas.network, svcConf, nodes, lbSecGroupID); err != nil {
 		return err
 	}
 	return nil
