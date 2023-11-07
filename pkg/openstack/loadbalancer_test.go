@@ -2288,3 +2288,121 @@ func Test_buildMonitorCreateOpts(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildListenerCreateOpt(t *testing.T) {
+	svcConf := &serviceConfig{
+		connLimit: 100,
+		lbName:    "my-lb",
+	}
+	testCases := []struct {
+		name              string
+		port              corev1.ServicePort
+		svcConf           *serviceConfig
+		expectedCreateOpt listeners.CreateOpts
+	}{
+		{
+			name: "Test with basic configuration",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit: 100,
+				lbName:    "my-lb",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with basic configuration",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         nil,
+			},
+		},
+		{
+			name: "Test with TLSContainerRef and X-Forwarded-For",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     443,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				tlsContainerRef: "tls-container-ref",
+				keepClientIP:    true,
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:                   "Test with TLSContainerRef and X-Forwarded-For",
+				Protocol:               listeners.ProtocolTerminatedHTTPS,
+				ProtocolPort:           443,
+				ConnLimit:              &svcConf.connLimit,
+				DefaultTlsContainerRef: "tls-container-ref",
+				InsertHeaders:          map[string]string{"X-Forwarded-For": "true"},
+				Tags:                   nil,
+			},
+		},
+		{
+			name: "Test with TLSContainerRef but without X-Forwarded-For",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     443,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				tlsContainerRef: "tls-container-ref",
+				keepClientIP:    false,
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:                   "Test with TLSContainerRef but without X-Forwarded-For",
+				Protocol:               listeners.ProtocolTerminatedHTTPS,
+				ProtocolPort:           443,
+				ConnLimit:              &svcConf.connLimit,
+				DefaultTlsContainerRef: "tls-container-ref",
+				Tags:                   nil,
+			},
+		},
+		{
+			name: "Test with supported CIDRs",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     8080,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				tlsContainerRef: "tls-container-ref",
+				keepClientIP:    true,
+				allowedCIDR:     []string{"192.168.1.0/24", "10.0.0.0/8"},
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:                   "Test with supported CIDRs",
+				Protocol:               listeners.ProtocolTerminatedHTTPS,
+				ProtocolPort:           8080,
+				ConnLimit:              &svcConf.connLimit,
+				DefaultTlsContainerRef: "tls-container-ref",
+				InsertHeaders:          map[string]string{"X-Forwarded-For": "true"},
+				AllowedCIDRs:           svcConf.allowedCIDR,
+				Tags:                   nil,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			lbaas := &LbaasV2{
+				LoadBalancer{
+					opts: LoadBalancerOpts{
+						LBProvider: "not-ovn",
+					},
+					lb: &gophercloud.ServiceClient{
+						ProviderClient: &gophercloud.ProviderClient{},
+						Endpoint:       "",
+					},
+				},
+			}
+			createOpt := lbaas.buildListenerCreateOpt(tc.port, tc.svcConf, tc.name)
+			assert.Equal(t, tc.expectedCreateOpt, createOpt)
+
+		})
+	}
+}
