@@ -15,7 +15,7 @@
 
 # Cinder CSI Driver Usage Examples
 
-All following examples need to be used inside instance(s) provisoned by openstack, otherwise the attach action will fail due to fail to find instance ID from given openstack cloud.
+All following examples need to be used inside instance(s) provisioned by openstack, otherwise the attach action will fail due to fail to find instance ID from given openstack cloud.
 
 ## Dynamic Volume Provisioning
 
