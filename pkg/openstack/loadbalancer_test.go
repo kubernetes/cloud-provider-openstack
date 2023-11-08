@@ -2385,6 +2385,27 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				Tags:                   nil,
 			},
 		},
+		{
+			name: "Test with Protocol forced to HTTP",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				keepClientIP:    true,
+				tlsContainerRef: "",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:          "Test with Protocol forced to HTTP",
+				Protocol:      listeners.ProtocolHTTP,
+				ProtocolPort:  80,
+				ConnLimit:     &svcConf.connLimit,
+				InsertHeaders: map[string]string{"X-Forwarded-For": "true"},
+				Tags:          nil,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
