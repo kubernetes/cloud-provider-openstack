@@ -32,7 +32,6 @@ cd "${REPO_ROOT}" || exit 1
 # PULL_NUMBER and PULL_BASE_REF are Prow job environment variables
 PR_NUMBER="${PULL_NUMBER:-}"
 [[ -z $PR_NUMBER ]] && echo "PR_NUMBER is required" && exit 1
-PR_BRANCH="${PULL_BASE_REF:-master}"
 CONFIG_ANSIBLE="${CONFIG_ANSIBLE:-"true"}"
 RESOURCE_TYPE="${RESOURCE_TYPE:-"gce-project"}"
 ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
@@ -108,8 +107,8 @@ ansible-playbook -v \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
   tests/playbooks/test-occm-e2e.yaml \
   -e github_pr=${PR_NUMBER} \
-  -e github_pr_branch=${PR_BRANCH} \
-  -e octavia_provider=${OCTAVIA_PROVIDER}
+  -e octavia_provider=${OCTAVIA_PROVIDER} \
+  -e run_e2e=true
 exit_code=$?
 
 # Fetch devstack logs for debugging purpose
