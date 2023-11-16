@@ -27,6 +27,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/containers"
+	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
@@ -1594,16 +1595,30 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
 		}
 
-		// check if container exists for 'barbican' container store
-		// tls container ref has the format: https://{keymanager_host}/v1/containers/{uuid}
+		// check if container or secret exists for 'barbican' container store
+		// tls container ref has the format: https://{keymanager_host}/v1/containers/{uuid} or https://{keymanager_host}/v1/secrets/{uuid}
 		if lbaas.opts.ContainerStore == "barbican" {
 			slice := strings.Split(svcConf.tlsContainerRef, "/")
-			containerID := slice[len(slice)-1]
-			container, err := containers.Get(lbaas.secret, containerID).Extract()
-			if err != nil {
-				return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+			if len(slice) < 2 {
+				return fmt.Errorf("invalid tlsContainerRef for service %s", serviceName)
 			}
-			klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
+			barbicanUUID := slice[len(slice)-1]
+			barbicanType := slice[len(slice)-2]
+			if barbicanType == "containers" {
+				container, err := containers.Get(lbaas.secret, barbicanUUID).Extract()
+				if err != nil {
+					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
+				}
+				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
+			} else if barbicanType == "secrets" {
+				secret, err := secrets.Get(lbaas.secret, barbicanUUID).Extract()
+				if err != nil {
+					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
+				}
+				klog.V(4).Infof("Default TLS secret %q found", secret.SecretRef)
+			} else {
+				return fmt.Errorf("failed to validate tlsContainerRef for service %s: tlsContainerRef type %s unknown", serviceName, barbicanType)
+			}
 		}
 	}
 
