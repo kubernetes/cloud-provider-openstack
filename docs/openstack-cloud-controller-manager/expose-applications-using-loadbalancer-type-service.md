@@ -21,7 +21,7 @@ This page shows how to create Services of LoadBalancer type in Kubernetes cluste
 
 A LoadBalancer type Service is a typical way to expose an application to the internet. It relies on the cloud provider to create an external load balancer with an IP address in the relevant network space. Any traffic that is then directed to this IP address is forwarded on to the application’s service.
 
-**NOTE: for test/PoC with only 1 master node environment, you need remove the label `node.kubernetes.io/exclude-from-external-load-balancers` of the master node otherwise the loadbalancer will not be created. search the label [here](https://pkg.go.dev/k8s.io/api/core/v1) for further information.**
+**NOTE: for test/PoC with only 1 master node environment, you need remove the label `node.kubernetes.io/exclude-from-external-load-balancers` of the master node otherwise the loadbalancer will not be created. Refer to [here](https://kubernetes.io/docs/reference/labels-annotations-taints/#node-kubernetes-io-exclude-from-external-load-balancers) for further information.**
 
 > Note: Different cloud providers may support different Service annotations and features.
 
