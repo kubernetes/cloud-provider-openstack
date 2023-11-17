@@ -708,6 +708,7 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 		})
 	}
 }
+
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 	type fields struct {
 		LoadBalancer LoadBalancer
@@ -1831,6 +1832,7 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 		nodes                   []*corev1.Node
 		port                    corev1.ServicePort
 		svcConf                 *serviceConfig
+		service                 *corev1.Service
 		expectedLen             int
 		expectedNewMembersCount int
 	}{
@@ -1909,7 +1911,7 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			lbaas := &LbaasV2{}
-			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(tc.port, tc.nodes, tc.svcConf)
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(tc.port, tc.nodes, tc.svcConf, tc.service)
 			assert.Len(t, members, tc.expectedLen)
 			assert.NoError(t, err)
 
@@ -2298,6 +2300,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 		name              string
 		port              corev1.ServicePort
 		svcConf           *serviceConfig
+		service           *corev1.Service
 		expectedCreateOpt listeners.CreateOpts
 	}{
 		{
@@ -2400,9 +2403,113 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 					},
 				},
 			}
-			createOpt := lbaas.buildListenerCreateOpt(tc.port, tc.svcConf, tc.name)
+			createOpt := lbaas.buildListenerCreateOpt(tc.port, tc.svcConf, tc.service, tc.name)
 			assert.Equal(t, tc.expectedCreateOpt, createOpt)
+		})
+	}
+}
 
+func TestLbaasV2_customLoadBalancerListenerTag(t *testing.T) {
+	type testArgs struct {
+		service *corev1.Service
+		svcConf *serviceConfig
+	}
+	tests := []struct {
+		name     string
+		testArgs testArgs
+		want     []string
+	}{
+		{
+			name: "Single Custom Tag in Annotation With Disabled 'svcconfig.supportLBTags'",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{ServiceAnnotationLoadBalancerCustomTags: "single-custom-tag"},
+					},
+				},
+				svcConf: &serviceConfig{
+					supportLBTags: false,
+				},
+			},
+			want: nil,
+		},
+		{
+			name: "Empty Custom Tag in Annotation With Disabled 'svcconfig.supportLBTags'",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{ServiceAnnotationLoadBalancerCustomTags: ""},
+					},
+				},
+				svcConf: &serviceConfig{
+					supportLBTags: false,
+				},
+			},
+			want: nil,
+		},
+		{
+			name: "Multiple Custom Tag in Annotation With Disabled 'svcconfig.supportLBTags'",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{ServiceAnnotationLoadBalancerCustomTags: "tag1, tag2, tag3, tag4, multiple-custom-tag"},
+					},
+				},
+				svcConf: &serviceConfig{
+					supportLBTags: false,
+				},
+			},
+			want: nil,
+		},
+		{
+			name: "Empty Custom Tag in Annotation With Enabled 'svcconfig.supportLBTags'",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{ServiceAnnotationLoadBalancerCustomTags: ""},
+					},
+				},
+				svcConf: &serviceConfig{
+					supportLBTags: true,
+				},
+			},
+			want: []string{""},
+		},
+		{
+			name: "Valid Single Custom Tag in Annotation With Enabled 'svcconfig.supportLBTags'",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{ServiceAnnotationLoadBalancerCustomTags: "single-custom-tag"},
+					},
+				},
+				svcConf: &serviceConfig{
+					supportLBTags: true,
+				},
+			},
+			want: []string{"single-custom-tag"},
+		},
+		{
+			name: "Multiple Custom Tag in Annotation With Enabled 'svcconfig.supportLBTags'",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{ServiceAnnotationLoadBalancerCustomTags: "tag1, tag2, tag3, tag4, multiple-custom-tag"},
+					},
+				},
+				svcConf: &serviceConfig{
+					supportLBTags: true,
+				},
+			},
+			want: []string{"tag1", "tag2", "tag3", "tag4", "multiple-custom-tag"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getCustomLoadBalancerTags(tt.testArgs.service, tt.testArgs.svcConf)
+
+			assert.ElementsMatch(t, tt.want, got)
 		})
 	}
 }

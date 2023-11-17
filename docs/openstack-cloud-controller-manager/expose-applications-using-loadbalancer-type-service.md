@@ -236,6 +236,11 @@ Request Body:
   This annotation is automatically added and it contains the floating ip address of the load balancer service.
   When using `loadbalancer.openstack.org/hostname` annotation it is the only place to see the real address of the load balancer.
 
+- `loadbalancer.openstack.org/custom-tags`
+
+  Allows to specify custom tags that all load balancer resources for that Service will be tagged with. 
+  Tags are arbitrary strings, to specify multiple tags separate them using a comma `,` in the annotation.
+
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.

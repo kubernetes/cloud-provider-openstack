@@ -86,6 +86,7 @@ const (
 	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
 	ServiceAnnotationLoadBalancerFlavorID             = "loadbalancer.openstack.org/flavor-id"
 	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
+	ServiceAnnotationLoadBalancerCustomTags           = "loadbalancer.openstack.org/custom-tags"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
 	ServiceAnnotationLoadBalancerEnableHealthMonitor         = "loadbalancer.openstack.org/enable-health-monitor"
@@ -469,6 +470,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 
 	if svcConf.supportLBTags {
 		createOpts.Tags = []string{svcConf.lbName}
+		createOpts.Tags = append(createOpts.Tags, getCustomLoadBalancerTags(service, svcConf)...)
 	}
 
 	if svcConf.flavorID != "" {
@@ -508,8 +510,8 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 
 	if !lbaas.opts.ProviderRequiresSerialAPICalls {
 		for portIndex, port := range service.Spec.Ports {
-			listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, cpoutil.Sprintf255(listenerFormat, portIndex, name))
-			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+			listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, service, cpoutil.Sprintf255(listenerFormat, portIndex, name))
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf, service)
 			if err != nil {
 				return nil, err
 			}
@@ -604,6 +606,23 @@ func (lbaas *LbaasV2) GetLoadBalancerName(_ context.Context, clusterName string,
 // getLoadBalancerLegacyName returns the legacy load balancer name for backward compatibility.
 func (lbaas *LbaasV2) getLoadBalancerLegacyName(_ context.Context, _ string, service *corev1.Service) string {
 	return cloudprovider.DefaultLoadBalancerName(service)
+}
+
+// Returns a list of custom loadbalancer tags for the supported service resources.
+func getCustomLoadBalancerTags(service *corev1.Service, svcConf *serviceConfig) []string {
+	if !svcConf.supportLBTags {
+		return nil
+	}
+
+	annotationVal := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerCustomTags, "")
+
+	tags := strings.Split(annotationVal, ",")
+
+	for i, tag := range tags {
+		tags[i] = strings.TrimSpace(tag)
+	}
+
+	return tags
 }
 
 // The LB needs to be configured with instance addresses on the same
@@ -739,7 +758,7 @@ func isPortMember(port PortWithPortSecurity, IP string, subnetID string) bool {
 }
 
 // applyNodeSecurityGroupIDForLB associates the security group with the ports being members of the LB on the nodes.
-func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *serviceConfig, nodes []*corev1.Node, sg string) error {
+func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, service *corev1.Service, svcConf *serviceConfig, nodes []*corev1.Node, sg string) error {
 	for _, node := range nodes {
 		serverID, _, err := instanceIDFromProviderID(node.Spec.ProviderID)
 		if err != nil {
@@ -784,6 +803,20 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 			res := neutronports.Update(network, port.ID, updateOpts)
 			if mc.ObserveRequest(res.Err) != nil {
 				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
+			}
+
+			tags := getCustomLoadBalancerTags(service, svcConf)
+
+			mc = metrics.NewMetricContext("security_group_tag", "replace")
+			_, err := neutrontags.ReplaceAll(network, "security_groups", port.ID, neutrontags.ReplaceAllOpts{Tags: tags}).Extract()
+			if mc.ObserveRequest(err) != nil {
+				return fmt.Errorf("failed to add tag %s to port %s: %v", tags, port.ID, err)
+			}
+
+			mc = metrics.NewMetricContext("floating_ip_tag", "replace")
+			_, err = neutrontags.ReplaceAll(network, "floatingips", port.ID, neutrontags.ReplaceAllOpts{Tags: tags}).Extract()
+			if mc.ObserveRequest(err) != nil {
+				return fmt.Errorf("failed to add tag %s to port %s of floating_ips: %v", tags, port.ID, err)
 			}
 		}
 	}
@@ -896,10 +929,16 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 	return nil
 }
 
-func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
+func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts, service *corev1.Service, svcConf *serviceConfig) (*floatingips.FloatingIP, error) {
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
 	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
+
+	tags := getCustomLoadBalancerTags(service, svcConf)
+
+	if _, err := neutrontags.ReplaceAll(lbaas.network, "floatingips", floatIP.ID, neutrontags.ReplaceAllOpts{Tags: tags}).Extract(); err != nil {
+		return nil, fmt.Errorf("failed to add custom tags %s to floatingIPs %s with a projectID (%s)", tags, floatIP.ID, floatIP.ProjectID)
+	}
 	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
 		return floatIP, fmt.Errorf("error creating LB floatingip: %s", err)
@@ -1037,7 +1076,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				for _, subnet := range foundSubnets {
 					floatIPOpts.SubnetID = subnet.ID
-					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
+					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts, service, svcConf)
 					if err == nil {
 						foundSubnet = subnet
 						break
@@ -1054,7 +1093,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
 				}
 				floatIPOpts.FloatingIP = loadBalancerIP
-				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts)
+				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts, service, svcConf)
 				if err != nil {
 					return "", err
 				}
@@ -1237,7 +1276,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		curMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", m.Name, m.Address, m.ProtocolPort, m.MonitorPort))
 	}
 
-	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf, service)
 	if err != nil {
 		return nil, err
 	}
@@ -1254,6 +1293,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 }
 
 func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev1.Service, svcConf *serviceConfig, name string) v2pools.CreateOpts {
+	customTags := getCustomLoadBalancerTags(service, svcConf)
+
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listenerProtocol)
 	if svcConf.enableProxyProtocol {
@@ -1284,13 +1325,16 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 		Protocol:    poolProto,
 		LBMethod:    lbmethod,
 		Persistence: persistence,
+		Tags:        customTags,
 	}
 }
 
 // buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
-func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.Set[string], error) {
+func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig, service *corev1.Service) ([]v2pools.BatchUpdateMemberOpts, sets.Set[string], error) {
 	var members []v2pools.BatchUpdateMemberOpts
 	newMembers := sets.New[string]()
+
+	customTags := getCustomLoadBalancerTags(service, svcConf)
 
 	for _, node := range nodes {
 		addr, err := nodeAddressForLB(node, svcConf.preferredIPFamily)
@@ -1315,6 +1359,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 				ProtocolPort: int(port.NodePort),
 				Name:         &node.Name,
 				SubnetID:     memberSubnetID,
+				Tags:         customTags,
 			}
 			if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
 				member.MonitorPort = &svcConf.healthCheckNodePort
@@ -1327,13 +1372,13 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 }
 
 // Make sure the listener is created for Service
-func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
+func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, service *corev1.Service) (*listeners.Listener, error) {
 	listener, isPresent := curListenerMapping[listenerKey{
 		Protocol: getListenerProtocol(port.Protocol, svcConf),
 		Port:     int(port.Port),
 	}]
 	if !isPresent {
-		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, name)
+		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, service, name)
 		listenerCreateOpt.LoadbalancerID = lbID
 
 		klog.V(2).Infof("Creating listener for port %d using protocol %s", int(port.Port), listenerCreateOpt.Protocol)
@@ -1419,7 +1464,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListene
 }
 
 // buildListenerCreateOpt returns listeners.CreateOpts for a specific Service port and configuration
-func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *serviceConfig, name string) listeners.CreateOpts {
+func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *serviceConfig, service *corev1.Service, name string) listeners.CreateOpts {
 	listenerCreateOpt := listeners.CreateOpts{
 		Name:         name,
 		Protocol:     listeners.Protocol(port.Protocol),
@@ -1429,6 +1474,8 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 
 	if svcConf.supportLBTags {
 		listenerCreateOpt.Tags = []string{svcConf.lbName}
+		// add custom tags to LB listener
+		listenerCreateOpt.Tags = append(listenerCreateOpt.Tags, getCustomLoadBalancerTags(service, svcConf)...)
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
@@ -2317,6 +2364,12 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 			return fmt.Errorf("failed to create Security Group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
 		lbSecGroupID = lbSecGroup.ID
+
+		tags := getCustomLoadBalancerTags(apiService, svcConf)
+
+		if _, err := neutrontags.ReplaceAll(lbaas.network, "security-groups", lbSecGroupID, neutrontags.ReplaceAllOpts{Tags: tags}).Extract(); err != nil {
+			return fmt.Errorf("failed to add custom tags %s to security group %s (%s)", tags, lbSecGroupID, lbSecGroupName)
+		}
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")
@@ -2409,7 +2462,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		}
 	}
 
-	if err := applyNodeSecurityGroupIDForLB(lbaas.network, svcConf, nodes, lbSecGroupID); err != nil {
+	if err := applyNodeSecurityGroupIDForLB(lbaas.network, apiService, svcConf, nodes, lbSecGroupID); err != nil {
 		return err
 	}
 	return nil
