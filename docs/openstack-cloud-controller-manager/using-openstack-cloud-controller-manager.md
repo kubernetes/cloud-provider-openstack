@@ -173,10 +173,12 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
   For example, this option can be useful when having multiple or dual-stack interfaces attached to a node and needing a user-controlled, deterministic way of sorting the addresses.
   Default: ""
 
-### Router
+### Route
 
 * `router-id`
-  Specifies the Neutron router ID to manage Kubernetes cluster routes, e.g. for load balancers or compute instances that are not part of the Kubernetes cluster.
+  Specifies the Neutron router ID to activate [route controller](https://kubernetes.io/docs/concepts/architecture/cloud-controller/#route-controller) to manage Kubernetes cluster routes.
+
+  **NOTE: This require openstack-cloud-controller-manager's `--cluster-cidr` flag to be set.**
 
 ###  Load Balancer
 
