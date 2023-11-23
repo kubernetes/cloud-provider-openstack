@@ -8,7 +8,7 @@ csi:
   attacher:
     image:
       repository: registry.k8s.io/sig-storage/csi-attacher
-      tag: v4.2.0
+      tag: v4.4.2
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
@@ -16,28 +16,28 @@ csi:
     topology: "true"
     image:
       repository: registry.k8s.io/sig-storage/csi-provisioner
-      tag: v3.4.1
+      tag: v3.6.2
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
   snapshotter:
     image:
       repository: registry.k8s.io/sig-storage/csi-snapshotter
-      tag: v6.2.1
+      tag: v6.3.2
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
   resizer:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
-      tag: v1.8.0
+      tag: v1.9.2
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
   livenessprobe:
     image:
       repository: registry.k8s.io/sig-storage/livenessprobe
-      tag: v2.9.0
+      tag: v2.11.0
       pullPolicy: IfNotPresent
     failureThreshold: 5
     initialDelaySeconds: 10
@@ -48,7 +48,7 @@ csi:
   nodeDriverRegistrar:
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
-      tag: v2.6.2
+      tag: v2.9.2
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
