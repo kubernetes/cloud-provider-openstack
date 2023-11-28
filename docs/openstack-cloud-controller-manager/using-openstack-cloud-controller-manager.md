@@ -177,6 +177,9 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 
 * `router-id`
   Specifies the Neutron router ID to activate [route controller](https://kubernetes.io/docs/concepts/architecture/cloud-controller/#route-controller) to manage Kubernetes cluster routes.
+* `auto-config-node-security-group`
+  Whether or not to enable auto config node security group feature. The node security group used to ensure the node permit other nodes packets enter into.
+   Default: false 
 
   **NOTE: This require openstack-cloud-controller-manager's `--cluster-cidr` flag to be set.**
 

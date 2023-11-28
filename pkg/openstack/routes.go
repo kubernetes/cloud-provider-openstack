@@ -18,7 +18,10 @@ package openstack
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"net/netip"
+	"slices"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
@@ -27,7 +30,10 @@ import (
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/extraroutes"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/routers"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/groups"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+	secgroups "github.com/gophercloud/utils/v2/openstack/networking/v2/extensions/security/groups"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,12 +47,16 @@ import (
 type Routes struct {
 	network *gophercloud.ServiceClient
 	os      *OpenStack
+	// The ID of the node security group
+	nodeSecurityGroupId string
 	// router's private network IDs
 	networkIDs []string
 	// whether Neutron supports "extraroute-atomic" extension
 	atomicRoutes bool
 	// whether Neutron supports "allowed-address-pairs" extension
 	allowedAddressPairs bool
+	// The auto config node security group feature whether enabled
+	autoConfigSecurityGroup bool
 	// Neutron with no "extraroute-atomic" extension can modify only one route at
 	// once
 	sync.Mutex
@@ -61,11 +71,82 @@ func NewRoutes(os *OpenStack, network *gophercloud.ServiceClient, atomicRoutes b
 	}
 
 	return &Routes{
-		network:             network,
-		os:                  os,
-		atomicRoutes:        atomicRoutes,
-		allowedAddressPairs: allowedAddressPairs,
+		network:                 network,
+		os:                      os,
+		atomicRoutes:            atomicRoutes,
+		allowedAddressPairs:     allowedAddressPairs,
+		autoConfigSecurityGroup: os.routeOpts.AutoConfigSecurityGroup,
 	}, nil
+}
+
+func (r *Routes) getOrCreateNodeSecurityGroup(ctx context.Context, clusterName string) error {
+	r.Lock()
+	defer r.Unlock()
+	sgName := fmt.Sprintf("k8s-node-sg-for-cluster-%s", clusterName)
+	sgId, err := secgroups.IDFromName(ctx, r.network, sgName)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+		mc := metrics.NewMetricContext("security_group", "create")
+		klog.V(2).InfoS("Create node security group", "name", sgName)
+		group, err := groups.Create(ctx, r.network, groups.CreateOpts{Name: sgName}).Extract()
+		if mc.ObserveRequest(err) != nil {
+			return err
+		}
+		sgId = group.ID
+
+	}
+	r.nodeSecurityGroupId = sgId
+	return nil
+}
+
+// checkSecurityGroupRulesExist check whether the ingress security group rules that related to the podCidr and the node (nodeName) are existing,
+// these security group rules use to ensure other nodes permit the traffic from this node (nodeName) or this node's pods pass through.
+func (r *Routes) checkSecurityGroupRulesExist(podCidr string, nodeName types.NodeName, existingRules []rules.SecGroupRule) (bool, bool, error) {
+	nodes, err := r.os.nodeInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return false, false, err
+	}
+	sgRuleForPodCidrFound := false
+	sgRuleForNodeAddressFound := false
+	podPrefix, _ := netip.ParsePrefix(podCidr)
+	nodeAddr := getAddrByNodeName(nodeName, podPrefix.Addr().Is6(), nodes)
+	nodeIp, _ := netip.ParseAddr(nodeAddr)
+
+	for _, rule := range existingRules {
+		sgPrefix, _ := netip.ParsePrefix(rule.RemoteIPPrefix)
+		if sgPrefix.Overlaps(podPrefix) && podPrefix.Bits() >= sgPrefix.Bits() {
+			sgRuleForPodCidrFound = true
+		}
+		if rule.RemoteGroupID == r.nodeSecurityGroupId || sgPrefix.Contains(nodeIp) {
+			sgRuleForNodeAddressFound = true
+		}
+		if sgRuleForPodCidrFound && sgRuleForNodeAddressFound {
+			break
+		}
+	}
+	return sgRuleForPodCidrFound, sgRuleForNodeAddressFound, nil
+}
+
+// checkPortSecurityRules check the port's security rules (SecurityGroups and AllowAddressPairs) whether are valid
+func (r *Routes) checkPortSecurityRules(port *PortWithPortSecurity, route routers.Route) bool {
+
+	// check if the node security group bind to the port
+	if r.autoConfigSecurityGroup && !slices.Contains(port.SecurityGroups, r.nodeSecurityGroupId) {
+		return false
+	}
+
+	if r.allowedAddressPairs {
+		// check whether the related AllowAddressPair is existing
+		for _, addrPair := range port.AllowedAddressPairs {
+			if addrPair.IPAddress == route.DestinationCIDR {
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 // ListRoutes lists all managed routes that belong to the specified clusterName
@@ -88,8 +169,49 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	}
 
 	routes := make([]*cloudprovider.Route, 0, len(router.Routes))
+
+	// detect router's private network ID for further VM ports filtering
+	r.networkIDs, err = getRouterNetworkIDs(ctx, r.network, r.os.routeOpts.RouterID)
+	if err != nil {
+		return nil, err
+	}
+
+	var existingRules []rules.SecGroupRule
+	if r.autoConfigSecurityGroup {
+		if r.nodeSecurityGroupId == "" {
+			klog.V(5).Info("ListRoutes: Cannot found node security group")
+			return routes, nil
+		}
+		existingRules, err = openstackutil.GetSecurityGroupRules(r.network, rules.ListOpts{SecGroupID: r.nodeSecurityGroupId, Direction: string(rules.DirIngress)})
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	for _, item := range router.Routes {
 		nodeName, foundNode := getNodeNameByAddr(item.NextHop, nodes)
+		// If the node found, check whether the necessary rules (SecurityGroup and AllowAddressPair) was set. If
+		// not, the connectivity of different nodes can't be ensure. CreateRoutes need be to trigger to set these
+		// rules.
+		if foundNode {
+			if r.autoConfigSecurityGroup {
+				podCidrRuleExist, nodeAddrRuleExit, err := r.checkSecurityGroupRulesExist(item.DestinationCIDR, nodeName, existingRules)
+				if err != nil {
+					return nil, err
+				}
+				if !(podCidrRuleExist && nodeAddrRuleExit) {
+					continue
+				}
+			}
+			// get the node port that the route next hop addr belong to
+			port, err := r.getPortByIP(ctx, item.NextHop)
+			if err != nil {
+				return nil, err
+			}
+			if port.PortSecurityEnabled && !r.checkPortSecurityRules(port, item) {
+				continue
+			}
+		}
 		route := cloudprovider.Route{
 			Name:            item.DestinationCIDR,
 			TargetNode:      nodeName, //contains the nexthop address if node name was not found
@@ -269,6 +391,65 @@ func updateAllowedAddressPairs(ctx context.Context, network *gophercloud.Service
 	return unwinder, nil
 }
 
+// updateSecurityGroup update the port's security groups
+func updateSecurityGroup(ctx context.Context, network *gophercloud.ServiceClient, port *PortWithPortSecurity, sgs []string) (func(), error) {
+	origSgs := port.SecurityGroups
+	mc := metrics.NewMetricContext("port", "update")
+	_, err := ports.Update(ctx, network, port.ID, ports.UpdateOpts{
+		SecurityGroups: &sgs,
+	}).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+
+	unwinder := func() {
+		klog.V(4).Infof("Reverting security-groups change to port %v", port.ID)
+		mc := metrics.NewMetricContext("port", "update")
+		_, err := ports.Update(ctx, network, port.ID, ports.UpdateOpts{
+			SecurityGroups: &origSgs,
+		}).Extract()
+		if mc.ObserveRequest(err) != nil {
+			klog.Warningf("Unable to reset port's security-groups during error unwind: %v", err)
+		}
+	}
+
+	return unwinder, nil
+}
+
+func createSecurityGroupRule(ctx context.Context, network *gophercloud.ServiceClient, rule rules.CreateOpts) (func(), error) {
+	mc := metrics.NewMetricContext("security_group_rule", "create")
+	newRule, err := rules.Create(ctx, network, rule).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+	unwinder := func() {
+		klog.V(4).Infof("Reverting security-group-rule creation %v", newRule.ID)
+		mc := metrics.NewMetricContext("security_group_rule", "delete")
+		err := rules.Delete(ctx, network, newRule.ID).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			klog.Warningf("Unable to revert security-group-rule creation during error unwind: %v", err)
+		}
+	}
+	return unwinder, nil
+}
+
+func deleteSecurityGroupRule(ctx context.Context, network *gophercloud.ServiceClient, rule *rules.SecGroupRule) (func(), error) {
+	mc := metrics.NewMetricContext("security-group-rule", "delete")
+	err := rules.Delete(ctx, network, rule.ID).ExtractErr()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+	unwinder := func() {
+		klog.V(4).Infof("Reverting security_group_rule deletion %v", rule)
+		mc := metrics.NewMetricContext("security-group-rule", "create")
+		_, err := rules.Create(ctx, network, rules.CreateOpts{SecGroupID: rule.ID, RemoteIPPrefix: rule.RemoteIPPrefix}).Extract()
+		if mc.ObserveRequest(err) != nil {
+			klog.Warningf("Unable to revert security_group_rule deletion error unwind: %v", err)
+		}
+	}
+	return unwinder, nil
+}
+
 // CreateRoute creates the described managed route
 func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint string, route *cloudprovider.Route) error {
 	ip, _, _ := net.ParseCIDR(route.DestinationCIDR)
@@ -289,55 +470,107 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 
 	klog.V(4).Infof("Using nexthop %v for node %v", addr, route.TargetNode)
 
-	if !r.atomicRoutes {
-		// classical logic
-		r.Lock()
-		defer r.Unlock()
-
-		mc := metrics.NewMetricContext("router", "get")
-		router, err := routers.Get(ctx, r.network, r.os.routeOpts.RouterID).Extract()
-		if mc.ObserveRequest(err) != nil {
-			return err
-		}
-
-		routes := router.Routes
-
-		for _, item := range routes {
-			if item.DestinationCIDR == route.DestinationCIDR && item.NextHop == addr {
-				klog.V(4).Infof("Skipping existing route: %v", route)
-				return nil
-			}
-		}
-
-		routes = append(routes, routers.Route{
-			DestinationCIDR: route.DestinationCIDR,
-			NextHop:         addr,
-		})
-
-		unwind, err := updateRoutes(ctx, r.network, router, routes)
-		if err != nil {
-			return err
-		}
-
-		defer onFailure.call(unwind)
-	} else {
-		// atomic route update
-		route := []routers.Route{{
-			DestinationCIDR: route.DestinationCIDR,
-			NextHop:         addr,
-		}}
-		unwind, err := addRoute(ctx, r.network, r.os.routeOpts.RouterID, route)
-		if err != nil {
-			return err
-		}
-
-		defer onFailure.call(unwind)
+	mc := metrics.NewMetricContext("router", "get")
+	router, err := routers.Get(ctx, r.network, r.os.routeOpts.RouterID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return err
 	}
 
-	if !r.allowedAddressPairs {
-		klog.V(4).Infof("Route created (skipping the allowed_address_pairs update): %v", route)
-		onFailure.disarm()
-		return nil
+	routeFound := false
+	for _, item := range router.Routes {
+		if item.DestinationCIDR == route.DestinationCIDR && item.NextHop == addr {
+			routeFound = true
+			break
+		}
+	}
+	if !routeFound {
+		klog.V(5).Info("Router's route rule not found, try to create")
+		if !r.atomicRoutes {
+			// classical logic
+			r.Lock()
+			defer r.Unlock()
+
+			routes := append(router.Routes, routers.Route{
+				DestinationCIDR: route.DestinationCIDR,
+				NextHop:         addr,
+			})
+
+			unwind, err := updateRoutes(ctx, r.network, router, routes)
+			if err != nil {
+				return err
+			}
+
+			defer onFailure.call(unwind)
+		} else {
+			// atomic route update
+			route := []routers.Route{{
+				DestinationCIDR: route.DestinationCIDR,
+				NextHop:         addr,
+			}}
+			unwind, err := addRoute(ctx, r.network, r.os.routeOpts.RouterID, route)
+			if err != nil {
+				return err
+			}
+
+			defer onFailure.call(unwind)
+		}
+	}
+
+	if r.autoConfigSecurityGroup {
+		if r.nodeSecurityGroupId == "" {
+			err = r.getOrCreateNodeSecurityGroup(ctx, clusterName)
+			if err != nil {
+				return err
+			}
+		}
+		// update node security group rules, so that other nodes permit the traffic from this
+		// node (route.TargetNode) or this node's pods pass through
+		origRules, err := openstackutil.GetSecurityGroupRules(r.network, rules.ListOpts{SecGroupID: r.nodeSecurityGroupId, Direction: string(rules.DirIngress)})
+		if err != nil {
+			return err
+		}
+		sgRuleForPodCidrFound, sgRuleForNodeAddressFound, err := r.checkSecurityGroupRulesExist(route.DestinationCIDR, route.TargetNode, origRules)
+		if err != nil {
+			return err
+		}
+		if !sgRuleForPodCidrFound {
+			// add security group rule for the pods of this node (route.TargetNode)
+			klog.V(5).Infof("Security group rule related to podCidr %s not found, try to create", route.DestinationCIDR)
+			etherType := rules.EtherType4
+			if isCIDRv6 {
+				etherType = rules.EtherType6
+			}
+			unwind, err := createSecurityGroupRule(
+				ctx, r.network,
+				rules.CreateOpts{
+					SecGroupID:     r.nodeSecurityGroupId,
+					RemoteIPPrefix: route.DestinationCIDR,
+					Direction:      rules.DirIngress,
+					EtherType:      etherType})
+			if err != nil {
+				return err
+			}
+			defer onFailure.call(unwind)
+		}
+		if !sgRuleForNodeAddressFound {
+			// add security group rule for this node (route.TargetNode)
+			klog.V(5).Infof("Security group rule related to node %s not found, try to create", route.TargetNode)
+			etherType := rules.EtherType4
+			if isCIDRv6 {
+				etherType = rules.EtherType6
+			}
+			unwind, err := createSecurityGroupRule(
+				ctx, r.network,
+				rules.CreateOpts{
+					SecGroupID:     r.nodeSecurityGroupId,
+					RemoteIPPrefix: addr,
+					Direction:      rules.DirIngress,
+					EtherType:      etherType})
+			if err != nil {
+				return err
+			}
+			defer onFailure.call(unwind)
+		}
 	}
 
 	// get the port of addr on target node.
@@ -346,31 +579,59 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		return err
 	}
 	if !port.PortSecurityEnabled {
-		klog.Warningf("Skipping allowed_address_pair for port: %s", port.ID)
+		klog.Warningf("Skipping update of the port : %s (allowed_address_pairs and node security_group)", port.ID)
 		onFailure.disarm()
 		return nil
 	}
 
-	found := false
-	for _, item := range port.AllowedAddressPairs {
-		if item.IPAddress == route.DestinationCIDR {
-			klog.V(4).Infof("Found existing allowed-address-pair: %v", item)
-			found = true
-			break
+	if !r.allowedAddressPairs {
+		klog.V(4).Infof("Route created (skipping the allowed_address_pairs update): %v", route)
+	} else {
+		// update node port's AllowedAddressPairs, so that the packets from the pods can pass through
+		// the node's port and leave the node.
+		allowAddressPairFound := false
+		for _, item := range port.AllowedAddressPairs {
+			if item.IPAddress == route.DestinationCIDR {
+				klog.V(4).Infof("Found existing allowed-address-pair: %v", item)
+				allowAddressPairFound = true
+				break
+			}
+		}
+		var newPairs []ports.AddressPair
+		if !allowAddressPairFound {
+			klog.V(5).Infof("AllowedAddressPairs rule related to podCidr %s not found, try to create", route.DestinationCIDR)
+			newPairs = append(port.AllowedAddressPairs, ports.AddressPair{
+				IPAddress: route.DestinationCIDR,
+			})
+			unwind, err := updateAllowedAddressPairs(ctx, r.network, port, newPairs)
+			if err != nil {
+				return err
+			}
+			defer onFailure.call(unwind)
 		}
 	}
 
-	if !found {
-		newPairs := append(port.AllowedAddressPairs, ports.AddressPair{
-			IPAddress: route.DestinationCIDR,
-		})
-		unwind, err := updateAllowedAddressPairs(ctx, r.network, port, newPairs)
-		if err != nil {
-			return err
+	if r.autoConfigSecurityGroup {
+		// node port bind node security group, so that other nodes' traffic can enter
+		// into this node (route.TargetNode). in other words, permitting the packets the
+		// source addresses are other nodes or their pods enter ino this node (route.TargetNode).
+		nodePortBindSecurityGroup := false
+		for _, sg := range port.SecurityGroups {
+			if sg == r.nodeSecurityGroupId {
+				nodePortBindSecurityGroup = true
+				break
+			}
 		}
-		defer onFailure.call(unwind)
+		if !nodePortBindSecurityGroup {
+			klog.V(5).Infof("Try to bind node security group %s to node %s", r.nodeSecurityGroupId, route.TargetNode)
+			newSgs := append(port.SecurityGroups, r.nodeSecurityGroupId)
+			unwind, err := updateSecurityGroup(ctx, r.network, port, newSgs)
+			if err != nil {
+				return err
+			}
+			defer onFailure.call(unwind)
+		}
 	}
-
 	klog.V(4).Infof("Route created: %v", route)
 	onFailure.disarm()
 	return nil
@@ -453,10 +714,22 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		defer onFailure.call(unwind)
 	}
 
-	if !r.allowedAddressPairs {
-		klog.V(4).Infof("Route deleted (skipping the allowed_address_pairs update): %v", route)
-		onFailure.disarm()
-		return nil
+	origRules, err := openstackutil.GetSecurityGroupRules(r.network, rules.ListOpts{SecGroupID: r.nodeSecurityGroupId, Direction: string(rules.DirIngress)})
+	if err != nil {
+		return err
+	}
+	var staleRule *rules.SecGroupRule
+	for _, rule := range origRules {
+		if rule.RemoteIPPrefix == route.DestinationCIDR {
+			staleRule = &rule
+		}
+	}
+	if staleRule != nil {
+		unwind, err := deleteSecurityGroupRule(ctx, r.network, staleRule)
+		if err != nil {
+			return err
+		}
+		defer onFailure.call(unwind)
 	}
 
 	// get the port of addr on target node.
@@ -465,30 +738,53 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		return err
 	}
 	if !port.PortSecurityEnabled {
-		klog.Warningf("Skipping allowed_address_pair for port: %s", port.ID)
+		klog.Warningf("Skipping update of port : %s (allowed_address_pairs and node security_group)", port.ID)
 		onFailure.disarm()
 		return nil
 	}
 
-	addrPairs := port.AllowedAddressPairs
-	index := -1
-	for i, item := range addrPairs {
-		if item.IPAddress == route.DestinationCIDR {
-			index = i
-			break
+	if !r.allowedAddressPairs {
+		klog.V(4).Infof("Route deleted (skipping the allowed_address_pairs update): %v", route)
+	} else {
+		addrPairs := port.AllowedAddressPairs
+		addrPairIndex := -1
+		for i, item := range addrPairs {
+			if item.IPAddress == route.DestinationCIDR {
+				addrPairIndex = i
+				break
+			}
+		}
+		if addrPairIndex != -1 {
+			// Delete element `index`
+			addrPairs[addrPairIndex] = addrPairs[len(addrPairs)-1]
+			addrPairs = addrPairs[:len(addrPairs)-1]
+
+			unwind, err := updateAllowedAddressPairs(ctx, r.network, port, addrPairs)
+			if err != nil {
+				return err
+			}
+			defer onFailure.call(unwind)
 		}
 	}
 
-	if index != -1 {
-		// Delete element `index`
-		addrPairs[index] = addrPairs[len(addrPairs)-1]
-		addrPairs = addrPairs[:len(addrPairs)-1]
-
-		unwind, err := updateAllowedAddressPairs(ctx, r.network, port, addrPairs)
-		if err != nil {
-			return err
+	if r.autoConfigSecurityGroup {
+		sgs := port.SecurityGroups
+		sgIndex := -1
+		for i, item := range sgs {
+			if item == r.nodeSecurityGroupId {
+				sgIndex = i
+			}
 		}
-		defer onFailure.call(unwind)
+		if sgIndex != -1 {
+			// Delete element `index`
+			sgs[sgIndex] = sgs[len(sgs)-1]
+			sgs = sgs[:len(sgs)-1]
+			unwind, err := updateSecurityGroup(ctx, r.network, port, sgs)
+			if err != nil {
+				return err
+			}
+			defer onFailure.call(unwind)
+		}
 	}
 
 	klog.V(4).Infof("Route deleted: %v", route)
