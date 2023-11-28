@@ -312,7 +312,7 @@ func (k *Auth) authenticateToken(w http.ResponseWriter, r *http.Request, token s
 	var response status
 	response.Authenticated = true
 
-	// Modify user info accoding to the sync configuration.
+	// Modify user info according to the sync configuration.
 	response.User = *k.syncer.syncRoles(&info)
 
 	data["status"] = response
