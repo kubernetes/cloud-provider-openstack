@@ -90,7 +90,7 @@ This feature allows CSI volumes to be directly embedded in the Pod specification
 
 As of Kubernetes v1.21, this is beta feature and enabled by default.
 
-The key design idea is that the parameters for a volume claim are allowed inside a volume source of the Pod. For sample app, refer [here](../../examples/cinder-csi-plugin/ephemeral/generic-ephemeral-volumes.yaml)
+The key design idea is that the parameters for a volume claim are allowed inside a volume source of the Pod. For sample app, refer [here](./examples.md#generic-ephemeral-volumes)
 
 ## Volume Cloning
 
