@@ -83,7 +83,7 @@ func ConfigFromEnv() Config {
 func TestReadConfig(t *testing.T) {
 	_, err := ReadConfig(nil)
 	if err == nil {
-		t.Errorf("Should fail when no config is provided: %s", err)
+		t.Errorf("Should fail when no config is provided: %v", err)
 	}
 
 	cfg, err := ReadConfig(strings.NewReader(`
@@ -104,7 +104,7 @@ func TestReadConfig(t *testing.T) {
  search-order = configDrive, metadataService
  `))
 	if err != nil {
-		t.Fatalf("Should succeed when a valid config is provided: %s", err)
+		t.Fatalf("Should succeed when a valid config is provided: %v", err)
 	}
 	if cfg.Global.AuthURL != "http://auth.url" {
 		t.Errorf("incorrect authurl: %s", cfg.Global.AuthURL)
@@ -198,7 +198,7 @@ clouds:
 `))
 
 	if err != nil {
-		t.Fatalf("Should succeed when a valid config is provided: %s", err)
+		t.Fatalf("Should succeed when a valid config is provided: %v", err)
 	}
 
 	// config has priority
@@ -904,7 +904,7 @@ func TestNewOpenStack(t *testing.T) {
 
 	_, err := NewOpenStack(cfg)
 	if err != nil {
-		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
+		t.Fatalf("Failed to construct/authenticate OpenStack: %v", err)
 	}
 }
 
@@ -920,7 +920,7 @@ func TestLoadBalancer(t *testing.T) {
 
 		os, err := NewOpenStack(cfg)
 		if err != nil {
-			t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
+			t.Fatalf("Failed to construct/authenticate OpenStack: %v", err)
 		}
 
 		lb, ok := os.LoadBalancer()
@@ -930,7 +930,7 @@ func TestLoadBalancer(t *testing.T) {
 
 		_, exists, err := lb.GetLoadBalancer(context.TODO(), testClusterName, &v1.Service{ObjectMeta: metav1.ObjectMeta{Name: "noexist"}})
 		if err != nil {
-			t.Fatalf("GetLoadBalancer(\"noexist\") returned error: %s", err)
+			t.Fatalf("GetLoadBalancer(\"noexist\") returned error: %v", err)
 		}
 		if exists {
 			t.Fatalf("GetLoadBalancer(\"noexist\") returned exists")
@@ -965,7 +965,7 @@ func TestZones(t *testing.T) {
 
 	zone, err := z.GetZone(context.TODO())
 	if err != nil {
-		t.Fatalf("GetZone() returned error: %s", err)
+		t.Fatalf("GetZone() returned error: %v", err)
 	}
 
 	if zone.Region != "myRegion" {

@@ -60,7 +60,7 @@ func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools
 		if err != nil {
 			if err == cpoerrors.ErrNotFound {
 				// Node failure, do not create member
-				klog.Warning("Failed to create LB pool member for node %s: %v", node.Name, err)
+				klog.Warningf("Failed to create LB pool member for node %s: %v", node.Name, err)
 				continue
 			} else {
 				return fmt.Errorf("error getting address for node %s: %v", node.Name, err)

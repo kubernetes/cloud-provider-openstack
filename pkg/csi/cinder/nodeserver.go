@@ -501,14 +501,14 @@ func (ns *nodeServer) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolu
 
 	exists, err := utilpath.Exists(utilpath.CheckFollowSymlink, req.VolumePath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to check whether volumePath exists: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to check whether volumePath exists: %v", err)
 	}
 	if !exists {
 		return nil, status.Errorf(codes.NotFound, "target: %s not found", volumePath)
 	}
 	stats, err := ns.Mount.GetDeviceStats(volumePath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get stats by path: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to get stats by path: %v", err)
 	}
 
 	if stats.Block {

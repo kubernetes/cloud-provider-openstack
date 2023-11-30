@@ -628,7 +628,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 
 	err = openstackutil.DeleteLoadbalancer(c.osClient.Octavia, loadbalancer.ID, true)
 	if err != nil {
-		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Infof("loadbalancer delete failed: %s", err)
+		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Infof("loadbalancer delete failed: %v", err)
 	} else {
 		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("loadbalancer deleted")
 	}

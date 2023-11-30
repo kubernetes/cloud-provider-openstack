@@ -210,12 +210,12 @@ func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeou
 		for _, attachment := range attachments {
 			volume, err := volumes.Get(provider.Cinder, attachment.VolumeID).Extract()
 			if err != nil {
-				return false, fmt.Errorf("failed to get volume %s, error: %s", attachment.VolumeID, err)
+				return false, fmt.Errorf("failed to get volume %s, error: %v", attachment.VolumeID, err)
 			}
 
 			bootable, err := strconv.ParseBool(volume.Bootable)
 			if err != nil {
-				log.Warningf("Unexpected value for bootable volume %s in volume %s, error %s", volume.Bootable, volume, err)
+				log.Warningf("Unexpected value for bootable volume %s in volume %v, error %v", volume.Bootable, *volume, err)
 			}
 
 			log.Infof("volume %s is bootable %t", attachment.VolumeID, bootable)
@@ -224,7 +224,7 @@ func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeou
 				log.Infof("detaching volume %s for instance %s", attachment.VolumeID, serverID)
 				err := volumeattach.Delete(provider.Nova, serverID, attachment.ID).ExtractErr()
 				if err != nil {
-					return false, fmt.Errorf("failed to detach volume %s from instance %s, error: %s", attachment.VolumeID, serverID, err)
+					return false, fmt.Errorf("failed to detach volume %s from instance %s, error: %v", attachment.VolumeID, serverID, err)
 				}
 			} else {
 				rootVolumeID = attachment.VolumeID

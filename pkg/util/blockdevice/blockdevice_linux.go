@@ -49,7 +49,7 @@ func IsBlockDevice(path string) (bool, error) {
 	var stat unix.Stat_t
 	err := unix.Stat(path, &stat)
 	if err != nil {
-		return false, fmt.Errorf("failed to stat() %q: %s", path, err)
+		return false, fmt.Errorf("failed to stat() %q: %v", path, err)
 	}
 
 	return (stat.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
@@ -64,7 +64,7 @@ func GetBlockDeviceSize(path string) (int64, error) {
 	defer fd.Close()
 	pos, err := fd.Seek(0, io.SeekEnd)
 	if err != nil {
-		return 0, fmt.Errorf("error seeking to end of %s: %s", path, err)
+		return 0, fmt.Errorf("error seeking to end of %s: %v", path, err)
 	}
 	return pos, nil
 }

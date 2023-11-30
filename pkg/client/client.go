@@ -156,7 +156,7 @@ func (authOpts AuthOpts) ToAuthOptions() gophercloud.AuthOptions {
 
 	ao, err := clientconfig.AuthOptions(&opts)
 	if err != nil {
-		klog.V(1).Infof("Error parsing auth: %s", err)
+		klog.V(1).Infof("Error parsing auth: %v", err)
 		return gophercloud.AuthOptions{}
 	}
 
@@ -256,7 +256,7 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		// read and parse CA certificate from file
 		caPool, err = cert.NewPool(cfg.CAFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read and parse %s certificate: %s", cfg.CAFile, err)
+			return nil, fmt.Errorf("failed to read and parse %s certificate: %v", cfg.CAFile, err)
 		}
 	} else if cfg.CAFileContents != "" {
 		// parse CA certificate from the contents
@@ -277,7 +277,7 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 	if cfg.CertFile != "" && cfg.KeyFile != "" {
 		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("error loading TLS key pair: %s", err)
+			return nil, fmt.Errorf("error loading TLS key pair: %v", err)
 		}
 		config.Certificates = []tls.Certificate{cert}
 	}

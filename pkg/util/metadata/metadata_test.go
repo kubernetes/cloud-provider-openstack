@@ -34,7 +34,7 @@ var FakeMetadata = Metadata{
 func TestParseMetadata(t *testing.T) {
 	_, err := parseMetadata(strings.NewReader("bogus"))
 	if err == nil {
-		t.Errorf("Should fail when bad data is provided: %s", err)
+		t.Errorf("Should fail when bad data is provided: %v", err)
 	}
 
 	data := strings.NewReader(`
@@ -74,7 +74,7 @@ func TestParseMetadata(t *testing.T) {
 `)
 	md, err := parseMetadata(data)
 	if err != nil {
-		t.Fatalf("Should succeed when provided with valid data: %s", err)
+		t.Fatalf("Should succeed when provided with valid data: %v", err)
 	}
 
 	if md.Name != "test" {
