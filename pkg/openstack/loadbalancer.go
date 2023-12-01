@@ -172,7 +172,7 @@ func subnetNameMatcher(pat string) (matcher, error) {
 	if strings.HasPrefix(pat, "~") {
 		rexp, err := regexp.Compile(pat[1:])
 		if err != nil {
-			return nil, fmt.Errorf("invalid subnet regexp pattern %q: %s", pat[1:], err)
+			return nil, fmt.Errorf("invalid subnet regexp pattern %q: %v", pat[1:], err)
 		}
 		match = regexpNameMatcher(rexp)
 	} else {
@@ -902,7 +902,7 @@ func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.Creat
 	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
 	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
-		return floatIP, fmt.Errorf("error creating LB floatingip: %s", err)
+		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
 	}
 	return floatIP, err
 }
@@ -912,7 +912,7 @@ func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portI
 		PortID: portID,
 	}
 	if portID != nil {
-		klog.V(4).Infof("Attaching floating ip %q to loadbalancer port %q", floatingip.FloatingIP, portID)
+		klog.V(4).Infof("Attaching floating ip %q to loadbalancer port %q", floatingip.FloatingIP, *portID)
 	} else {
 		klog.V(4).Infof("Detaching floating ip %q from port %q", floatingip.FloatingIP, floatingip.PortID)
 	}
@@ -1042,10 +1042,10 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 						foundSubnet = subnet
 						break
 					}
-					klog.V(2).Infof("cannot use subnet %s: %s", subnet.Name, err)
+					klog.V(2).Infof("cannot use subnet %s: %v", subnet.Name, err)
 				}
 				if err != nil {
-					return "", fmt.Errorf("no free subnet matching %q found for network %s (last error %s)",
+					return "", fmt.Errorf("no free subnet matching %q found for network %s (last error %v)",
 						svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID, err)
 				}
 				klog.V(2).Infof("Successfully created floating IP %s for loadbalancer %s on subnet %s(%s)", floatIP.FloatingIP, lb.ID, foundSubnet.Name, foundSubnet.ID)

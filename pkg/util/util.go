@@ -94,24 +94,24 @@ func RoundUpSize(volumeSizeBytes int64, allocationUnitBytes int64) int64 {
 func PatchService(ctx context.Context, client clientset.Interface, cur, mod *v1.Service) error {
 	curJSON, err := json.Marshal(cur)
 	if err != nil {
-		return fmt.Errorf("failed to serialize current service object: %s", err)
+		return fmt.Errorf("failed to serialize current service object: %v", err)
 	}
 
 	modJSON, err := json.Marshal(mod)
 	if err != nil {
-		return fmt.Errorf("failed to serialize modified service object: %s", err)
+		return fmt.Errorf("failed to serialize modified service object: %v", err)
 	}
 
 	patch, err := strategicpatch.CreateTwoWayMergePatch(curJSON, modJSON, v1.Service{})
 	if err != nil {
-		return fmt.Errorf("failed to create 2-way merge patch: %s", err)
+		return fmt.Errorf("failed to create 2-way merge patch: %v", err)
 	}
 	if len(patch) == 0 || string(patch) == "{}" {
 		return nil
 	}
 	_, err = client.CoreV1().Services(cur.Namespace).Patch(ctx, cur.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to patch service object %s/%s: %s", cur.Namespace, cur.Name, err)
+		return fmt.Errorf("failed to patch service object %s/%s: %v", cur.Namespace, cur.Name, err)
 	}
 
 	return nil

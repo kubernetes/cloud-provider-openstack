@@ -38,7 +38,7 @@ func TestRoutes(t *testing.T) {
 
 	os, err := NewOpenStack(cfg)
 	if err != nil {
-		t.Fatalf("Failed to construct/authenticate OpenStack: %s", err)
+		t.Fatalf("Failed to construct/authenticate OpenStack: %v", err)
 	}
 
 	vms := getServers(os)
