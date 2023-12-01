@@ -69,6 +69,7 @@ csi:
         mountPath: /etc/kubernetes
         readOnly: true
     nodePlugin:
+      dnsPolicy: ClusterFirstWithHostNet
       podSecurityContext: {}
       securityContext: {}
         # capabilities:
