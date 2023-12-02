@@ -9,7 +9,7 @@ import (
 var key []byte
 
 func init() {
-	// genereate key for encrypt decrypt operation
+	// generate key for encrypt decrypt operation
 	genKey()
 }
 

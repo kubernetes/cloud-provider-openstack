@@ -679,7 +679,7 @@ Next you have several ways to specify additional auth parameters:
 
 2. Specify auth parameters in the `~/.kube/config` file. For more information
    read
-   [client keystone auth configuaration doc](./using-client-keystone-auth.md)
+   [client keystone auth configuration doc](./using-client-keystone-auth.md)
    and
    [credential plugins documentation](https://kubernetes.io/docs/admin/authentication/#client-go-credential-plugins)
 3. Use the interactive mode. If auth parameters are not specified initially,

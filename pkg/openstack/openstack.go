@@ -122,7 +122,7 @@ type LoadBalancerOpts struct {
 	IngressHostnameSuffix          string              `gcfg:"ingress-hostname-suffix"`            // Used with proxy protocol by adding a dns suffix to the load balancer IP address. Default nip.io.
 	MaxSharedLB                    int                 `gcfg:"max-shared-lb"`                      //  Number of Services in maximum can share a single load balancer. Default 2
 	ContainerStore                 string              `gcfg:"container-store"`                    // Used to specify the store of the tls-container-ref
-	ProviderRequiresSerialAPICalls bool                `gcfg:"provider-requires-serial-api-calls"` // default false, the provider supportes the "bulk update" API call
+	ProviderRequiresSerialAPICalls bool                `gcfg:"provider-requires-serial-api-calls"` // default false, the provider supports the "bulk update" API call
 	// revive:disable:var-naming
 	TlsContainerRef string `gcfg:"default-tls-container-ref"` //  reference to a tls container
 	// revive:enable:var-naming

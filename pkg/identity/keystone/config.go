@@ -88,7 +88,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.KeystoneCA, "keystone-ca-file", c.KeystoneCA, "File containing the certificate authority for Keystone Service.")
 	fs.StringVar(&c.PolicyFile, "keystone-policy-file", c.PolicyFile, "File containing the policy, if provided, it takes precedence over the policy configmap.")
 	fs.StringVar(&c.PolicyConfigMapName, "policy-configmap-name", c.PolicyConfigMapName, "ConfigMap in kube-system namespace containing the policy configuration, the ConfigMap data must contain the key 'policies'")
-	fs.StringVar(&c.SyncConfigFile, "sync-config-file", c.SyncConfigFile, "File containing config values for data synchronization beetween Keystone and Kubernetes.")
-	fs.StringVar(&c.SyncConfigMapName, "sync-configmap-name", "", "ConfigMap in kube-system namespace containing config values for data synchronization beetween Keystone and Kubernetes.")
+	fs.StringVar(&c.SyncConfigFile, "sync-config-file", c.SyncConfigFile, "File containing config values for data synchronization between Keystone and Kubernetes.")
+	fs.StringVar(&c.SyncConfigMapName, "sync-configmap-name", "", "ConfigMap in kube-system namespace containing config values for data synchronization between Keystone and Kubernetes.")
 	fs.StringVar(&c.Kubeconfig, "kubeconfig", c.Kubeconfig, "Kubeconfig file used to connect to Kubernetes API to get policy configmap. If the service is running inside the pod, this option is not necessary, will use in-cluster config instead.")
 }

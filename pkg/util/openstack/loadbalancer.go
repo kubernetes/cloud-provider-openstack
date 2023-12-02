@@ -504,7 +504,7 @@ func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID strin
 	return &listenerPools[0], nil
 }
 
-// GetPools retrives the pools belong to the loadbalancer.
+// GetPools retrieves the pools belong to the loadbalancer.
 func GetPools(client *gophercloud.ServiceClient, lbID string) ([]pools.Pool, error) {
 	var lbPools []pools.Pool
 

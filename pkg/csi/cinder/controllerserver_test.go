@@ -655,18 +655,18 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 	}
 
-	expectedRes2 := &csi.ValidateVolumeCapabilitiesResponse{Message: "Requested Volume Capabilty not supported"}
+	expectedRes2 := &csi.ValidateVolumeCapabilitiesResponse{Message: "Requested Volume Capability not supported"}
 
-	// Invoke ValidateVolumeCapabilties
+	// Invoke ValidateVolumeCapabilities
 	actualRes, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq)
 	if err != nil {
-		t.Errorf("failed to ValidateVolumeCapabilties: %v", err)
+		t.Errorf("failed to ValidateVolumeCapabilities: %v", err)
 	}
 
 	actualRes2, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq2)
 
 	if err != nil {
-		t.Errorf("failed to ValidateVolumeCapabilties: %v", err)
+		t.Errorf("failed to ValidateVolumeCapabilities: %v", err)
 	}
 
 	// assert

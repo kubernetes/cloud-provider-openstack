@@ -324,7 +324,7 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 		}
 	}
 
-	// When the user.Extra does not exist, it means that the keytone user authentication has failed, and the authorization verification should not pass.
+	// When the user.Extra does not exist, it means that the keystone user authentication has failed, and the authorization verification should not pass.
 	if user.GetExtra() == nil {
 		return authorizer.DecisionDeny, "No auth info found.", nil
 	}

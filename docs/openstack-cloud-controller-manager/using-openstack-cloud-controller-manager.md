@@ -59,7 +59,7 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
     kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
     ```
 
-- Create RBAC resources and openstack-cloud-controller-manager deamonset.
+- Create RBAC resources and openstack-cloud-controller-manager daemonset.
 
     ```shell
     kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-controller-manager-roles.yaml

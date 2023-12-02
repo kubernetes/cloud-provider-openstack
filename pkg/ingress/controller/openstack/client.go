@@ -73,7 +73,7 @@ func NewOpenStack(cfg config.Config) (*OpenStack, error) {
 	var barbican *gophercloud.ServiceClient
 	barbican, err = openstack.NewKeyManagerV1(provider, epOpts)
 	if err != nil {
-		log.Warn("Barbican not suppported.")
+		log.Warn("Barbican not supported.")
 		barbican = nil
 	}
 

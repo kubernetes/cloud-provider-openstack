@@ -29,7 +29,7 @@ func runCmd(name string, args ...string) ([]byte, error) {
 	return stdout.Bytes(), err
 }
 
-// It is assummed that the `openstack` and other related programs
+// It is assumed that the `openstack` and other related programs
 // are accessible from $PATH on the node.
 
 type manilaVolume struct {

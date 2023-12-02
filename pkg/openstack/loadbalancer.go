@@ -154,7 +154,7 @@ func andMatcher(a, b matcher) matcher {
 	}
 }
 
-// reexpNameMatcher creates a subnet matcher matching a subnet by name for a given regexp.
+// regexpNameMatcher creates a subnet matcher matching a subnet by name for a given regexp.
 func regexpNameMatcher(r *regexp.Regexp) matcher {
 	return func(s *subnets.Subnet) bool { return r.FindString(s.Name) == s.Name }
 }
@@ -800,7 +800,7 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 		return err
 	}
 
-	// Disassocate security group and remove the tag.
+	// Disassociate security group and remove the tag.
 	for _, port := range allPorts {
 		existingSGs := sets.NewString()
 		for _, sgID := range port.SecurityGroups {

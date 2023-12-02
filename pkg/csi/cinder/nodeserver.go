@@ -317,7 +317,7 @@ func nodeUnpublishEphemeral(req *csi.NodeUnpublishVolumeRequest, ns *nodeServer,
 	if len(vol.Attachments) > 0 {
 		instanceID = vol.Attachments[0].ServerID
 	} else {
-		return nil, status.Error(codes.FailedPrecondition, "Volume attachement not found in request")
+		return nil, status.Error(codes.FailedPrecondition, "Volume attachment not found in request")
 	}
 
 	err := ns.Cloud.DetachVolume(instanceID, volumeID)
