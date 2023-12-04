@@ -111,7 +111,7 @@ CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-co
 # all magic heppens in tools/csi-deps.sh
 FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin-utils
 
-RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs
+RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs util-linux
 COPY tools/csi-deps.sh /tools/csi-deps.sh
 RUN /tools/csi-deps.sh
 

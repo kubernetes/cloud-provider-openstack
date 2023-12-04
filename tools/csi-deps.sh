@@ -62,6 +62,9 @@ else
   mkdir -p ${DEST}/lib64 && cp -Lv /lib64/ld-linux-*.so.* ${DEST}/lib64/
 fi
 
+# To collect dmesg logs
+copy_deps /usr/bin/dmesg || copy_deps /bin/dmesg
+
 # This utils are using by
 # go mod k8s.io/mount-utils
 copy_deps /etc/mke2fs.conf

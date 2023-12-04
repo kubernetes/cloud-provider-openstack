@@ -190,6 +190,15 @@
 
       kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
       kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
+      kubectl -n kube-system exec $(kubectl -n kube-system get pod -l app=csi-cinder-nodeplugin -o name) -c cinder-csi-plugin -- dmesg -T > /var/log/csi-pod/dmesg.log
+  ignore_errors: true
+
+- name: Show dmesg logs
+  become: true
+  shell:
+    executable: /bin/bash
+    cmd: |
+      sudo dmesg -T > /var/log/csi-pod/dmesg_local.log
   ignore_errors: true
 
 - fail: msg="The execution has failed because of errors."
