@@ -447,7 +447,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	}
 
 	if !r.allowedAddressPairs {
-		klog.V(4).Infof("Route created (skipping the allowed_address_pairs update): %v", route)
+		klog.V(4).Infof("Route deleted (skipping the allowed_address_pairs update): %v", route)
 		onFailure.disarm()
 		return nil
 	}
