@@ -43,6 +43,8 @@ type Routes struct {
 	networkIDs []string
 	// whether Neutron supports "extraroute-atomic" extension
 	atomicRoutes bool
+	// whether cloud provider supports allowed_address_pairs
+	allowedAddressPairs bool
 	// Neutron with no "extraroute-atomic" extension can modify only one route at
 	// once
 	sync.Mutex
@@ -51,15 +53,16 @@ type Routes struct {
 var _ cloudprovider.Routes = &Routes{}
 
 // NewRoutes creates a new instance of Routes
-func NewRoutes(os *OpenStack, network *gophercloud.ServiceClient, atomicRoutes bool) (cloudprovider.Routes, error) {
+func NewRoutes(os *OpenStack, network *gophercloud.ServiceClient, atomicRoutes bool, allowedAddressPairs bool) (cloudprovider.Routes, error) {
 	if os.routeOpts.RouterID == "" {
 		return nil, errors.ErrNoRouterID
 	}
 
 	return &Routes{
-		network:      network,
-		os:           os,
-		atomicRoutes: atomicRoutes,
+		network:             network,
+		os:                  os,
+		atomicRoutes:        atomicRoutes,
+		allowedAddressPairs: allowedAddressPairs,
 	}, nil
 }
 
@@ -329,6 +332,12 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		defer onFailure.call(unwind)
 	}
 
+	if !r.allowedAddressPairs {
+		klog.V(4).Infof("Route created (skipping the allowed_address_pairs update): %v", route)
+		onFailure.disarm()
+		return nil
+	}
+
 	// get the port of addr on target node.
 	port, err := getPortByIP(r.network, addr, r.networkIDs)
 	if err != nil {
@@ -435,6 +444,12 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		}
 
 		defer onFailure.call(unwind)
+	}
+
+	if !r.allowedAddressPairs {
+		klog.V(4).Infof("Route created (skipping the allowed_address_pairs update): %v", route)
+		onFailure.disarm()
+		return nil
 	}
 
 	// get the port of addr on target node.
