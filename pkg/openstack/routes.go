@@ -43,7 +43,7 @@ type Routes struct {
 	networkIDs []string
 	// whether Neutron supports "extraroute-atomic" extension
 	atomicRoutes bool
-	// whether cloud provider supports allowed_address_pairs
+	// whether Neutron supports "allowed-address-pairs" extension
 	allowedAddressPairs bool
 	// Neutron with no "extraroute-atomic" extension can modify only one route at
 	// once
