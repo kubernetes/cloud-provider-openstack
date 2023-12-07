@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"context"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 	"net"
 	"sync"
 
@@ -242,7 +243,7 @@ func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute [
 	return unwinder, nil
 }
 
-func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *ports.Port, newPairs []ports.AddressPair) (func(), error) {
+func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *PortWithPortSecurity, newPairs []ports.AddressPair) (func(), error) {
 	origPairs := port.AllowedAddressPairs // shallow copy
 
 	mc := metrics.NewMetricContext("port", "update")
@@ -342,6 +343,11 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 	port, err := getPortByIP(r.network, addr, r.networkIDs)
 	if err != nil {
 		return err
+	}
+	if !port.PortSecurityEnabled {
+		klog.Warningf("Skipping allowed_address_pair for port: %s", port.ID)
+		onFailure.disarm()
+		return nil
 	}
 
 	found := false
@@ -457,6 +463,11 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	if err != nil {
 		return err
 	}
+	if !port.PortSecurityEnabled {
+		klog.Warningf("Skipping allowed_address_pair for port: %s", port.ID)
+		onFailure.disarm()
+		return nil
+	}
 
 	addrPairs := port.AllowedAddressPairs
 	index := -1
@@ -484,7 +495,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	return nil
 }
 
-func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []string) (*ports.Port, error) {
+func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []string) (*PortWithPortSecurity, error) {
 	for _, networkID := range networkIDs {
 		opts := ports.ListOpts{
 			FixedIPs: []ports.FixedIPOpts{
@@ -494,12 +505,7 @@ func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []s
 			},
 			NetworkID: networkID,
 		}
-		mc := metrics.NewMetricContext("port", "list")
-		pages, err := ports.List(network, opts).AllPages()
-		if mc.ObserveRequest(err) != nil {
-			return nil, err
-		}
-		ports, err := ports.ExtractPorts(pages)
+		ports, err := openstackutil.GetPorts[PortWithPortSecurity](network, opts)
 		if err != nil {
 			return nil, err
 		}
