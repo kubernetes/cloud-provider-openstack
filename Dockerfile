@@ -14,7 +14,7 @@
 ##                               BUILD ARGS                                   ##
 ################################################################################
 # This build arg allows the specification of a custom Golang image.
-ARG GOLANG_IMAGE=golang:1.20.7
+ARG GOLANG_IMAGE=golang:1.21.5
 
 # The distroless image on which the CPI manager image is built.
 #
@@ -22,7 +22,7 @@ ARG GOLANG_IMAGE=golang:1.20.7
 # deterministic builds. Follow what kubernetes uses to build
 # kube-controller-manager, for example for 1.27.x:
 # https://github.com/kubernetes/kubernetes/blob/release-1.27/build/common.sh#L99
-ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.3.1-go1.20.7-bullseye.0
+ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.3.1-go1.21.5-bookworm.0
 
 # We use Alpine as the source for default CA certificates and some output
 # images
@@ -111,7 +111,7 @@ CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-co
 # all magic heppens in tools/csi-deps.sh
 FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin-utils
 
-RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs
+RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs util-linux
 COPY tools/csi-deps.sh /tools/csi-deps.sh
 RUN /tools/csi-deps.sh
 

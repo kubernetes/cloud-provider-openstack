@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	// revive:disable:dot-imports
 
 	// revive:enable:dot-imports
@@ -32,7 +33,7 @@ var _ = utils.SIGDescribe("[manila-csi-e2e] CSI Volumes", func() {
 
 	testDriver := newManilaTestDriver()
 
-	ginkgo.Context(storageframework.GetDriverNameWithFeatureTags(testDriver), func() {
+	ginkgo.Context(fmt.Sprintf("%s", storageframework.GetDriverNameWithFeatureTags(testDriver)), func() {
 		storageframework.DefineTestSuites(testDriver, CSITestSuites)
 	})
 })
