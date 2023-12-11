@@ -42,6 +42,19 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.2.0
 )
 
+// the below fixes the "go list -m all" execution
+replace (
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.29.0-rc.2
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.29.0-rc.2
+	k8s.io/endpointslice => k8s.io/endpointslice v0.29.0-rc.2
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.29.0-rc.2
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.29.0-rc.2
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.29.0-rc.2
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.29.0-rc.2
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.29.0-rc.2
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.29.0-rc.2
+)
+
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/MichaelTJones/walk v0.0.0-20161122175330-4748e29d5718 // indirect
