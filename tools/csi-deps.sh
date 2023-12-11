@@ -63,7 +63,8 @@ else
 fi
 
 # To collect dmesg logs
-copy_deps /usr/bin/dmesg || copy_deps /bin/dmesg
+copy_deps /usr/bin/dmesg || true
+copy_deps /bin/dmesg || true
 
 # This utils are using by
 # go mod k8s.io/mount-utils
