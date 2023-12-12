@@ -143,7 +143,7 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 	return nil
 }
 
-// group, if it not present.
+// Ensure security group, if it doesn't present.
 func (lbaas *LbaasV2) ensureSecurityRule(sgRuleCreateOpts rules.CreateOpts) error {
 	mc := metrics.NewMetricContext("security_group_rule", "create")
 	_, err := rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
