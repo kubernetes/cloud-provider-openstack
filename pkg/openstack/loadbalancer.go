@@ -43,9 +43,7 @@ import (
 	"gopkg.in/godo.v2/glob"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
@@ -131,12 +129,6 @@ type TweakSubNetListOpsFunction func(*subnets.ListOpts)
 
 // matcher matches a subnet
 type matcher func(subnet *subnets.Subnet) bool
-
-type servicePatcher struct {
-	kclient kubernetes.Interface
-	base    *corev1.Service
-	updated *corev1.Service
-}
 
 var _ cloudprovider.LoadBalancer = &LbaasV2{}
 
@@ -1866,25 +1858,6 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 	}
 
 	return nil
-}
-
-func newServicePatcher(kclient kubernetes.Interface, base *corev1.Service) servicePatcher {
-	return servicePatcher{
-		kclient: kclient,
-		base:    base.DeepCopy(),
-		updated: base,
-	}
-}
-
-// Patch will submit a patch request for the Service unless the updated service
-// reference contains the same set of annotations as the base copied during
-// servicePatcher initialization.
-func (sp *servicePatcher) Patch(ctx context.Context, err error) error {
-	if reflect.DeepEqual(sp.base.Annotations, sp.updated.Annotations) {
-		return err
-	}
-	perr := cpoutil.PatchService(ctx, sp.kclient, sp.base, sp.updated)
-	return utilerrors.NewAggregate([]error{err, perr})
 }
 
 func (lbaas *LbaasV2) updateServiceAnnotations(service *corev1.Service, annotations map[string]string) {
