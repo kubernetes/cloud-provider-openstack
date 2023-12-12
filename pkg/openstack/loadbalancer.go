@@ -1580,6 +1580,15 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 	return nil
 }
 
+func (lbaas *LbaasV2) updateServiceAnnotations(service *corev1.Service, annotations map[string]string) {
+	if service.ObjectMeta.Annotations == nil {
+		service.ObjectMeta.Annotations = map[string]string{}
+	}
+	for key, value := range annotations {
+		service.ObjectMeta.Annotations[key] = value
+	}
+}
+
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
 func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf *serviceConfig, addr string) *corev1.LoadBalancerStatus {
 	status := &corev1.LoadBalancerStatus{}
@@ -1737,12 +1746,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	// Add annotation to Service and add LB ID to load balancer tags.
-	if service.ObjectMeta.Annotations == nil {
-		service.ObjectMeta.Annotations = make(map[string]string)
+	annotationUpdate := map[string]string{
+		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
+		ServiceAnnotationLoadBalancerAddress: addr,
 	}
-	service.ObjectMeta.Annotations[ServiceAnnotationLoadBalancerID] = loadbalancer.ID
-	service.ObjectMeta.Annotations[ServiceAnnotationLoadBalancerAddress] = addr
-
+	lbaas.updateServiceAnnotations(service, annotationUpdate)
 	if svcConf.supportLBTags {
 		lbTags := loadbalancer.Tags
 		if !cpoutil.Contains(lbTags, lbName) {
