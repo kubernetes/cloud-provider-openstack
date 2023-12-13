@@ -90,7 +90,7 @@ const (
 	// https://github.com/kubernetes/cloud-provider/blob/25867882d509131a6fdeaf812ceebfd0f19015dd/controllers/service/controller.go#L673
 	LabelNodeExcludeLB = "node.kubernetes.io/exclude-from-external-load-balancers"
 
-	// DepcreatedLabelNodeRoleMaster specifies that a node is a master
+	// DeprecatedLabelNodeRoleMaster specifies that a node is a master
 	// It's copied over to kubeadm until it's merged in core: https://github.com/kubernetes/kubernetes/pull/39112
 	// Deprecated in favor of LabelNodeExcludeLB
 	DeprecatedLabelNodeRoleMaster = "node-role.kubernetes.io/master"
@@ -902,7 +902,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 		}
 	}
 
-	// Reconsile octavia resources.
+	// Reconcile octavia resources.
 	rt := openstack.NewResourceTracker(ingfullName, c.osClient.Octavia, lb.ID, listener.ID, newPools, newPolicies, existingPools, oldPolicies)
 	if err := rt.CreateResources(); err != nil {
 		return err

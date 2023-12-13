@@ -49,7 +49,7 @@ copy_deps() {
     fi
 }
 
-# Commmon lib /lib64/ld-linux-*.so.2
+# Common lib /lib64/ld-linux-*.so.2
 # needs for all utils
 ARCH=$(uname -m)
 if [ $ARCH = "aarch64" ] || [ $ARCH = "armv7l" ]; then

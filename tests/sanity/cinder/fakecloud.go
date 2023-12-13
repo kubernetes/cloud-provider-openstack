@@ -57,7 +57,7 @@ func (cloud *cloud) DeleteVolume(volumeID string) error {
 }
 
 func (cloud *cloud) AttachVolume(instanceID, volumeID string) (string, error) {
-	// update the volume with attachement
+	// update the volume with attachment
 
 	vol, ok := cloud.volumes[volumeID]
 

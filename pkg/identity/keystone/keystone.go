@@ -312,7 +312,7 @@ func (k *Auth) authenticateToken(w http.ResponseWriter, r *http.Request, token s
 	var response status
 	response.Authenticated = true
 
-	// Modify user info accoding to the sync configuration.
+	// Modify user info according to the sync configuration.
 	response.User = *k.syncer.syncRoles(&info)
 
 	data["status"] = response
@@ -421,7 +421,7 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 
 	// Get policy definition either from a policy file or the policy configmap. Policy file takes precedence
 	// over the configmap, but the policy definition will be refreshed based on the configmap change on-the-fly. It
-	// is possible that both are not provided, in this case, the keytone webhook authorization will always return deny.
+	// is possible that both are not provided, in this case, the keystone webhook authorization will always return deny.
 	var policy policyList
 	if c.PolicyConfigMapName != "" {
 		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(context.TODO(), c.PolicyConfigMapName, metav1.GetOptions{})
@@ -451,7 +451,7 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 
 	// Get sync config either from a sync config file or the sync configmap. Sync config file takes precedence
 	// over the configmap, but the sync config definition will be refreshed based on the configmap change on-the-fly. It
-	// is possible that both are not provided, in this case, the keytone webhook authenticator will not synchronize data.
+	// is possible that both are not provided, in this case, the keystone webhook authenticator will not synchronize data.
 	var sc *syncConfig
 	if c.SyncConfigMapName != "" {
 		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(context.TODO(), c.SyncConfigMapName, metav1.GetOptions{})
@@ -544,7 +544,7 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 	}
 	chosen, _, err := utils.ChooseVersion(client, versions)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to find identity API v3 version : %v", err)
+		return nil, fmt.Errorf("unable to find identity API v3 version : %v", err)
 	}
 
 	switch chosen.ID {
@@ -552,7 +552,7 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 		return client, nil
 	default:
 		// The switch statement must be out of date from the versions list.
-		return nil, fmt.Errorf("Unsupported identity API version: %s", chosen.ID)
+		return nil, fmt.Errorf("unsupported identity API version: %s", chosen.ID)
 	}
 }
 

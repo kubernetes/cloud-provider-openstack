@@ -156,7 +156,7 @@ systemctl restart kubelet
 Verify the CSI settings for that particular node:
 
 ```
-root@small-k8s-1:~# kubectl get csinode small-k8s-2 -oyaml
+root@small-k8s-1:~# kubectl get csinode small-k8s-2 -o yaml
 apiVersion: storage.k8s.io/v1
 kind: CSINode
 metadata:

@@ -530,14 +530,14 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 	_, err := cs.Cloud.GetVolume(volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "ValidateVolumeCapabiltites Volume %s not found", volumeID)
+			return nil, status.Errorf(codes.NotFound, "ValidateVolumeCapabilities Volume %s not found", volumeID)
 		}
-		return nil, status.Errorf(codes.Internal, "ValidateVolumeCapabiltites %v", err)
+		return nil, status.Errorf(codes.Internal, "ValidateVolumeCapabilities %v", err)
 	}
 
 	for _, cap := range reqVolCap {
 		if cap.GetAccessMode().GetMode() != cs.Driver.vcap[0].Mode {
-			return &csi.ValidateVolumeCapabilitiesResponse{Message: "Requested Volume Capabilty not supported"}, nil
+			return &csi.ValidateVolumeCapabilitiesResponse{Message: "Requested Volume Capability not supported"}, nil
 		}
 	}
 

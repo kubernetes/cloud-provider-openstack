@@ -555,7 +555,7 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "error is not thrown if loadblanacer matches & if port is already in use by a lb",
+			name: "error is not thrown if loadbalancer matches & if port is already in use by a lb",
 			args: args{
 				service: &corev1.Service{
 					Spec: corev1.ServiceSpec{

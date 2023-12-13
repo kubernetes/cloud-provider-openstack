@@ -15,11 +15,11 @@
 
 # Cinder CSI Driver Usage Examples
 
-All following examples need to be used inside instance(s) provisoned by openstack, otherwise the attach action will fail due to fail to find instance ID from given openstack cloud.
+All following examples need to be used inside instance(s) provisioned by openstack, otherwise the attach action will fail due to fail to find instance ID from given openstack cloud.
 
 ## Dynamic Volume Provisioning
 
-For dynamic provisoning , create StorageClass, PersistentVolumeClaim and pod to consume it. 
+For dynamic provisioning , create StorageClass, PersistentVolumeClaim and pod to consume it. 
 Checkout [sample app](../../examples/cinder-csi-plugin/nginx.yaml) definition fore reference.
 
 ```kubectl -f examples/cinder-csi-plugin/nginx.yaml create```
@@ -349,7 +349,7 @@ NAME   READY   STATUS    RESTARTS   AGE
 app    1/1     Running   0          5m11s
 ```
 
-Of course, A new availability zone `nova1` can be created in openstack side to satisify the requirement as well.
+Of course, A new availability zone `nova1` can be created in openstack side to satisfy the requirement as well.
 
 ## Disaster recovery of PV and PVC
 

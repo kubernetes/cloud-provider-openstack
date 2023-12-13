@@ -185,7 +185,7 @@ func main() {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		// If all requiered arguments are set use them
+		// If all required arguments are set use them
 		if argumentsAreSet(url, user, project, password, domain, applicationCredentialID, applicationCredentialName, applicationCredentialSecret) {
 			options.AuthOptions = gophercloud.AuthOptions{
 				IdentityEndpoint:            url,

@@ -22,7 +22,7 @@
 
 ## Dynamic Provisioning
 
-Dynamic Provisoning uses persistence volume claim (PVC) to request the Kuberenetes to create the Cinder volume on behalf of user and consumes the volume from inside container.
+Dynamic Provisioning uses persistence volume claim (PVC) to request the Kubernetes to create the Cinder volume on behalf of user and consumes the volume from inside container.
 
 For usage, refer [sample app](./examples.md#dynamic-volume-provisioning)  
 

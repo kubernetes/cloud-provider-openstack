@@ -370,7 +370,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 
 	err := provider.UpdateHealthStatus(masters, workers)
 	if err != nil {
-		return fmt.Errorf("failed to update the helath status of cluster %s, error: %v", clusterName, err)
+		return fmt.Errorf("failed to update the health status of cluster %s, error: %v", clusterName, err)
 	}
 
 	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
@@ -627,7 +627,7 @@ func (provider CloudProvider) Enabled() bool {
 	}
 
 	if _, isPresent := cluster.Labels[ClusterAutoHealingLabel]; !isPresent {
-		log.Infof("Autohealing is disalbed for cluster %s", clusterName)
+		log.Infof("Autohealing is disabled for cluster %s", clusterName)
 		return false
 	}
 	autoHealingEnabled, err := strconv.ParseBool(cluster.Labels[ClusterAutoHealingLabel])
@@ -636,7 +636,7 @@ func (provider CloudProvider) Enabled() bool {
 		return false
 	}
 	if !autoHealingEnabled {
-		log.Infof("Autohealing is disalbed for cluster %s", clusterName)
+		log.Infof("Autohealing is disabled for cluster %s", clusterName)
 		return false
 	}
 
@@ -659,7 +659,7 @@ func (provider CloudProvider) Enabled() bool {
 	return true
 }
 
-// CheckNodeCondition check if a node's conditon list contains the given condition type and status
+// CheckNodeCondition check if a node's condition list contains the given condition type and status
 func CheckNodeCondition(node *apiv1.Node, conditionType apiv1.NodeConditionType, conditionStatus apiv1.ConditionStatus) bool {
 	if len(node.Status.Conditions) == 0 {
 		return false

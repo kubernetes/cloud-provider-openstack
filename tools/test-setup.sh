@@ -14,7 +14,7 @@ case $(uname -s) in
         if LSB_RELEASE=$(which lsb_release); then
             OS=$($LSB_RELEASE -s -c)
         else
-            # No lsb-release, trya hack or two
+            # No lsb-release, try a hack or two
             if which dpkg 1>/dev/null; then
                 OS=debian
             elif which yum 1>/dev/null || which dnf 1>/dev/null; then

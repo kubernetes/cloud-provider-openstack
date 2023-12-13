@@ -108,7 +108,7 @@ CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-co
 ##
 
 # step 1: copy all necessary files from Debian distro to /dest folder
-# all magic heppens in tools/csi-deps.sh
+# all magic happens in tools/csi-deps.sh
 FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin-utils
 
 RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs util-linux

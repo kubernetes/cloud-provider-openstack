@@ -173,7 +173,7 @@ func (os *OpenStack) WaitSnapshotReady(snapshotID string) error {
 	})
 
 	if wait.Interrupted(err) {
-		err = fmt.Errorf("Timeout, Snapshot  %s is still not Ready %v", snapshotID, err)
+		err = fmt.Errorf("timeout, Snapshot  %s is still not Ready %v", snapshotID, err)
 	}
 
 	return err
