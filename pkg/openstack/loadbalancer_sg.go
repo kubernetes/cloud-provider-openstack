@@ -48,15 +48,6 @@ func getSecurityGroupName(service *corev1.Service) string {
 	return securityGroupName
 }
 
-func getSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
-	mc := metrics.NewMetricContext("security_group_rule", "list")
-	page, err := rules.List(client, opts).AllPages()
-	if mc.ObserveRequest(err) != nil {
-		return nil, err
-	}
-	return rules.ExtractRules(page)
-}
-
 // applyNodeSecurityGroupIDForLB associates the security group with the ports being members of the LB on the nodes.
 func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *serviceConfig, nodes []*corev1.Node, sg string) error {
 	for _, node := range nodes {
@@ -264,7 +255,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		cidrs = svcConf.allowedCIDR
 	}
 
-	existingRules, err := getSecurityGroupRules(lbaas.network, rules.ListOpts{SecGroupID: lbSecGroupID})
+	existingRules, err := openstackutil.GetSecurityGroupRules(lbaas.network, rules.ListOpts{SecGroupID: lbSecGroupID})
 	if err != nil {
 		return fmt.Errorf(
 			"failed to find security group rules in %s: %v", lbSecGroupID, err)
