@@ -28,7 +28,6 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
-	"github.com/gophercloud/gophercloud/pagination"
 	secgroups "github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,28 +48,6 @@ func getSecurityGroupName(service *corev1.Service) string {
 	}
 
 	return securityGroupName
-}
-
-func getSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
-	var securityRules []rules.SecGroupRule
-
-	mc := metrics.NewMetricContext("security_group_rule", "list")
-	pager := rules.List(client, opts)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		ruleList, err := rules.ExtractRules(page)
-		if err != nil {
-			return false, err
-		}
-		securityRules = append(securityRules, ruleList...)
-		return true, nil
-	})
-
-	if mc.ObserveRequest(err) != nil {
-		return nil, err
-	}
-
-	return securityRules, nil
 }
 
 // applyNodeSecurityGroupIDForLB associates the security group with all the ports on the nodes.
@@ -189,7 +166,7 @@ func (lbaas *LbaasV2) ensureSecurityRule(
 		RemoteIPPrefix: remoteIPPrefix,
 		SecGroupID:     secGroupID,
 	}
-	sgRules, err := getSecurityGroupRules(lbaas.network, sgListopts)
+	sgRules, err := openstackutil.GetSecurityGroupRules(lbaas.network, sgListopts)
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf(
 			"failed to find security group rules in %s: %v", secGroupID, err)
@@ -359,7 +336,7 @@ func (lbaas *LbaasV2) EnsureSecurityGroupDeleted(_ string, service *corev1.Servi
 				SecGroupID:    nodeSecurityGroupID,
 				RemoteGroupID: lbSecGroupID,
 			}
-			secGroupRules, err := getSecurityGroupRules(lbaas.network, opts)
+			secGroupRules, err := openstackutil.GetSecurityGroupRules(lbaas.network, opts)
 
 			if err != nil && !cpoerrors.IsNotFound(err) {
 				msg := fmt.Sprintf("error finding rules for remote group id %s in security group id %s: %v", lbSecGroupID, nodeSecurityGroupID, err)
