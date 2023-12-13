@@ -42,6 +42,65 @@ Choose the one you are familiar with and easy to customize. Config the cluster w
 
 Using kubeadm, openstack-cloud-controller-manager can be deployed easily with predefined manifests, see the [deployment guide with kubeadm](openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#deploy-a-kubernetes-cluster-with-openstack-cloud-controller-manager-using-kubeadm).
 
+### DevStack-based testing environment
+You can also use our CI scripts to setup a simple development environment based on DevStack and k3s. To do so you need a fresh VM with Ubuntu 22.04. We've tested this with 4 vCPUs and 16 GB of RAM and that's recommended, but we never tested the lower bound, so feel free to try with less resources.
+
+Once the VM is up make sure your SSH keys allow logging in as `ubuntu` user and from your PC and cloud-provider-openstack directory run:
+
+```
+ansible-playbook -v \
+  --user ubuntu \
+  --inventory <PUBLIC_IP_OF_YOUR_VM>, \
+  --ssh-common-args "-o StrictHostKeyChecking=no" \
+  tests/playbooks/test-occm-e2e.yaml \
+  -e octavia_provider=amphora \
+  -e run_e2e=false
+```
+
+After it finishes you should be able to access both DevStack and Kubernetes:
+
+```
+# SSH to the VM
+$ ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM>
+
+# Apparently we install K8s in root
+$ sudo su
+
+# Load OpenStack credentials
+$ source /home/stack/devstack/openrc admin admin
+
+# List all pods in K8s
+$ kubectl get pods -A
+NAMESPACE     NAME                                       READY   STATUS    RESTARTS   AGE
+kube-system   openstack-cloud-controller-manager-55h4w   1/1     Running   0          56m
+kube-system   local-path-provisioner-5d56847996-5fqmn    1/1     Running   0          60m
+kube-system   coredns-5c6b6c5476-l5dz4                   1/1     Running   0          60m
+
+# Deploy a simple pod
+$ kubectl create deploy test --image quay.io/kuryr/demo:latest
+deployment.apps/test created
+
+# Expose it as a LoadBalancer Service
+$ kubectl expose deploy test --type LoadBalancer --target-port 8080 --port 80
+service/test exposed
+
+# Check if LB got created
+$ openstack loadbalancer list
++--------------------------------------+--------------------------------------+----------------------------------+-------------+---------------------+------------------+----------+
+| id                                   | name                                 | project_id                       | vip_address | provisioning_status | operating_status | provider |
++--------------------------------------+--------------------------------------+----------------------------------+-------------+---------------------+------------------+----------+
+| 9873d6d7-8ff1-4b5e-a8f0-6bb61f4dd58f | kube_service_kubernetes_default_test | deca4a226df049a689992105a65fbb66 | 10.1.0.36   | ACTIVE              | ONLINE           | amphora  |
++--------------------------------------+--------------------------------------+----------------------------------+-------------+---------------------+------------------+----------+
+
+# Get the external IP of the service
+$ kubectl get svc test
+NAME   TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)        AGE
+test   LoadBalancer   10.43.71.235   172.24.5.121   80:30427/TCP   41m
+
+# Call the LB
+$ curl 172.24.5.121
+test-846c6ffb69-w52vq: HELLO! I AM ALIVE!!!
+```
 
 ## Contribution
 Now you should have a kubernetes cluster running in openstack and openstack-cloud-controller-manager is deployed in the cluster. Over time, you may find a bug or have some feature requirements, it's time for contribution!

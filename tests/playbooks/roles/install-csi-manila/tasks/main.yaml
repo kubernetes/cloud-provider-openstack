@@ -7,19 +7,25 @@
       mkdir -p {{ ansible_user_dir }}/src/k8s.io; cd $_
       git clone https://github.com/kubernetes/cloud-provider-openstack
       cd cloud-provider-openstack
-      git fetch origin +refs/pull/{{ github_pr }}/merge
-      git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      if [[ {{ github_pr }} != "" ]]; then
+        git fetch origin +refs/pull/{{ github_pr }}/merge
+        git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      fi
 
 - name: Build and upload manila-csi-plugin image
   shell:
     executable: /bin/bash
     cmd: |
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+      VERSION="latest"
+      if [[ {{ github_pr }} != "" ]]; then
+        VERSION=v0.0.{{ github_pr }}
+      fi
 
       make push-multiarch-image-manila-csi-plugin \
         ARCHS='amd64' \
-        REGISTRY={{ image_registry_host }} \
-        VERSION=v0.0.{{ github_pr }}
+        VERSION=${VERSION} \
+        REGISTRY={{ image_registry_host }}
 
 - name: Prepare cloud config
   shell:
@@ -118,12 +124,16 @@
   shell:
     executable: /bin/bash
     cmd: |
+      VERSION="latest"
+      if [[ {{ github_pr }} != "" ]]; then
+        VERSION=v0.0.{{ github_pr }}
+      fi
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack/charts/manila-csi-plugin
       cat <<EOF >> override-helm-values.yaml
       csimanila:
         image:
           repository: {{ remote_registry_host }}/manila-csi-plugin
-          tag: v0.0.{{ github_pr }}
+          tag: ${VERSION}
       shareProtocols:
         - protocolSelector: NFS
           fsGroupPolicy: None

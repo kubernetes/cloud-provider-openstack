@@ -7,18 +7,24 @@
       mkdir -p $GOPATH/src/k8s.io; cd $_
       git clone https://github.com/kubernetes/cloud-provider-openstack
       cd cloud-provider-openstack
-      git fetch origin +refs/pull/{{ github_pr }}/merge
-      git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      if [[ {{ github_pr }} != "" ]]; then
+        git fetch origin +refs/pull/{{ github_pr }}/merge
+        git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      fi
 
 - name: Build and upload cinder-csi-plugin image
   shell:
     executable: /bin/bash
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      VERSION="latest"
+      if [[ {{ github_pr }} != "" ]]; then
+        VERSION=v0.0.{{ github_pr }}
+      fi
 
       make push-multiarch-image-cinder-csi-plugin \
         ARCHS='amd64' \
-        VERSION=v0.0.{{ github_pr }} \
+        VERSION=${VERSION} \
         REGISTRY={{ image_registry_host }}
 
 - name: Prepare cloud config
@@ -59,9 +65,13 @@
 
       sed -i "/cloud\.conf/c\  cloud.conf: $b64data" manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml
 
+      VERSION="latest"
+      if [[ {{ github_pr }} != "" ]]; then
+        VERSION=v0.0.{{ github_pr }}
+      fi
       # replace image with built image
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml

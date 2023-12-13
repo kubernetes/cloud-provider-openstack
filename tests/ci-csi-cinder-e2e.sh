@@ -32,7 +32,6 @@ cd "${REPO_ROOT}" || exit 1
 # PULL_NUMBER and PULL_BASE_REF are Prow job environment variables
 PR_NUMBER="${PULL_NUMBER:-}"
 [[ -z $PR_NUMBER ]] && echo "PR_NUMBER is required" && exit 1
-PR_BRANCH="${PULL_BASE_REF:-master}"
 CONFIG_ANSIBLE="${CONFIG_ANSIBLE:-"true"}"
 RESOURCE_TYPE="${RESOURCE_TYPE:-"gce-project"}"
 ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
@@ -106,8 +105,7 @@ ansible-playbook -v \
   --inventory ${PUBLIC_IP}, \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
   tests/playbooks/test-csi-cinder-e2e.yaml \
-  -e github_pr=${PR_NUMBER} \
-  -e github_pr_branch=${PR_BRANCH}
+  -e github_pr=${PR_NUMBER}
 exit_code=$?
 
 # Fetch cinder-csi tests logs for debugging purpose

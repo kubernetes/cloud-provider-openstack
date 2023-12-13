@@ -1,5 +1,5 @@
 ---
-github_pr: 123
+github_pr: ""
 devstack_workdir: "{{ ansible_user_dir }}/devstack"
 
 # Used for uploading image to local registry.
