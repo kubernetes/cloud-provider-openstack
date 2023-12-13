@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"context"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 	"net"
 	"sync"
 
@@ -43,6 +44,8 @@ type Routes struct {
 	networkIDs []string
 	// whether Neutron supports "extraroute-atomic" extension
 	atomicRoutes bool
+	// whether Neutron supports "allowed-address-pairs" extension
+	allowedAddressPairs bool
 	// Neutron with no "extraroute-atomic" extension can modify only one route at
 	// once
 	sync.Mutex
@@ -51,15 +54,16 @@ type Routes struct {
 var _ cloudprovider.Routes = &Routes{}
 
 // NewRoutes creates a new instance of Routes
-func NewRoutes(os *OpenStack, network *gophercloud.ServiceClient, atomicRoutes bool) (cloudprovider.Routes, error) {
+func NewRoutes(os *OpenStack, network *gophercloud.ServiceClient, atomicRoutes bool, allowedAddressPairs bool) (cloudprovider.Routes, error) {
 	if os.routeOpts.RouterID == "" {
 		return nil, errors.ErrNoRouterID
 	}
 
 	return &Routes{
-		network:      network,
-		os:           os,
-		atomicRoutes: atomicRoutes,
+		network:             network,
+		os:                  os,
+		atomicRoutes:        atomicRoutes,
+		allowedAddressPairs: allowedAddressPairs,
 	}, nil
 }
 
@@ -239,7 +243,7 @@ func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute [
 	return unwinder, nil
 }
 
-func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *ports.Port, newPairs []ports.AddressPair) (func(), error) {
+func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *PortWithPortSecurity, newPairs []ports.AddressPair) (func(), error) {
 	origPairs := port.AllowedAddressPairs // shallow copy
 
 	mc := metrics.NewMetricContext("port", "update")
@@ -329,10 +333,21 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		defer onFailure.call(unwind)
 	}
 
+	if !r.allowedAddressPairs {
+		klog.V(4).Infof("Route created (skipping the allowed_address_pairs update): %v", route)
+		onFailure.disarm()
+		return nil
+	}
+
 	// get the port of addr on target node.
 	port, err := getPortByIP(r.network, addr, r.networkIDs)
 	if err != nil {
 		return err
+	}
+	if !port.PortSecurityEnabled {
+		klog.Warningf("Skipping allowed_address_pair for port: %s", port.ID)
+		onFailure.disarm()
+		return nil
 	}
 
 	found := false
@@ -437,10 +452,21 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		defer onFailure.call(unwind)
 	}
 
+	if !r.allowedAddressPairs {
+		klog.V(4).Infof("Route deleted (skipping the allowed_address_pairs update): %v", route)
+		onFailure.disarm()
+		return nil
+	}
+
 	// get the port of addr on target node.
 	port, err := getPortByIP(r.network, addr, r.networkIDs)
 	if err != nil {
 		return err
+	}
+	if !port.PortSecurityEnabled {
+		klog.Warningf("Skipping allowed_address_pair for port: %s", port.ID)
+		onFailure.disarm()
+		return nil
 	}
 
 	addrPairs := port.AllowedAddressPairs
@@ -469,7 +495,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	return nil
 }
 
-func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []string) (*ports.Port, error) {
+func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []string) (*PortWithPortSecurity, error) {
 	for _, networkID := range networkIDs {
 		opts := ports.ListOpts{
 			FixedIPs: []ports.FixedIPOpts{
@@ -479,12 +505,7 @@ func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []s
 			},
 			NetworkID: networkID,
 		}
-		mc := metrics.NewMetricContext("port", "list")
-		pages, err := ports.List(network, opts).AllPages()
-		if mc.ObserveRequest(err) != nil {
-			return nil, err
-		}
-		ports, err := ports.ExtractPorts(pages)
+		ports, err := openstackutil.GetPorts[PortWithPortSecurity](network, opts)
 		if err != nil {
 			return nil, err
 		}
