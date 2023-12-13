@@ -12,8 +12,8 @@ require (
 	github.com/kubernetes-csi/csi-test/v5 v5.0.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/onsi/ginkgo/v2 v2.9.2
-	github.com/onsi/gomega v1.27.6
+	github.com/onsi/ginkgo/v2 v2.9.7
+	github.com/onsi/gomega v1.27.8
 	github.com/pborman/uuid v1.2.1
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.7.0
@@ -23,23 +23,37 @@ require (
 	golang.org/x/net v0.17.0
 	golang.org/x/sys v0.13.0
 	golang.org/x/term v0.13.0
-	google.golang.org/grpc v1.54.0
-	google.golang.org/protobuf v1.30.0
+	google.golang.org/grpc v1.56.3
+	google.golang.org/protobuf v1.31.0
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.27.6
-	k8s.io/apimachinery v0.27.6
-	k8s.io/apiserver v0.27.6
-	k8s.io/client-go v0.27.6
-	k8s.io/cloud-provider v0.27.6
-	k8s.io/component-base v0.27.6
+	k8s.io/api v0.27.8
+	k8s.io/apimachinery v0.27.8
+	k8s.io/apiserver v0.27.8
+	k8s.io/client-go v0.27.8
+	k8s.io/cloud-provider v0.27.8
+	k8s.io/component-base v0.27.8
 	k8s.io/klog/v2 v2.90.1
-	k8s.io/kms v0.27.6
-	k8s.io/kubernetes v1.27.6
-	k8s.io/mount-utils v0.27.6
+	k8s.io/kms v0.27.8
+	k8s.io/kubernetes v1.27.8
+	k8s.io/mount-utils v0.27.8
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
 	software.sslmate.com/src/go-pkcs12 v0.2.0
+)
+
+// the below fixes the "go list -m all" execution
+replace (
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.27.8
+	k8s.io/cri-api => k8s.io/cri-api v0.27.8
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.27.8
+	k8s.io/endpointslice => k8s.io/endpointslice v0.27.8
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.27.8
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.27.8
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.27.8
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.27.8
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.27.8
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.27.8
 )
 
 require (
@@ -126,25 +140,27 @@ require (
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
-	golang.org/x/sync v0.1.0 // indirect
+	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.7.0 // indirect
+	golang.org/x/tools v0.12.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
+	google.golang.org/genproto v0.0.0-20230525234025-438c736192d0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230525234020-1aefcd67740a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.27.6 // indirect
-	k8s.io/component-helpers v0.27.6 // indirect
-	k8s.io/controller-manager v0.27.6 // indirect
-	k8s.io/csi-translation-lib v0.27.6 // indirect
+	k8s.io/apiextensions-apiserver v0.27.8 // indirect
+	k8s.io/component-helpers v0.27.8 // indirect
+	k8s.io/controller-manager v0.27.8 // indirect
+	k8s.io/csi-translation-lib v0.27.8 // indirect
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
-	k8s.io/kubectl v0.27.6 // indirect
-	k8s.io/kubelet v0.27.6 // indirect
-	k8s.io/pod-security-admission v0.27.6 // indirect
+	k8s.io/kubectl v0.27.8 // indirect
+	k8s.io/kubelet v0.27.8 // indirect
+	k8s.io/pod-security-admission v0.27.8 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
