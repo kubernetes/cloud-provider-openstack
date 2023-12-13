@@ -16,8 +16,17 @@
 
       set +x; source openrc admin admin > /dev/null; set -x
       openstack image show {{ image_name }} > /dev/null 2>&1
+
       if [[ "$?" != "0" ]]; then
-        curl -sSL {{ image_url }} -o {{ image_name }}.img
+        # retry ubuntu image download on failure,
+        # e.g. "curl: (35) OpenSSL SSL_connect: Connection reset by peer in connection to cloud-images.ubuntu.com:443"
+        tries=0
+        until [ "$tries" -ge 5 ]; do
+          curl -sSL {{ image_url }} -o {{ image_name }}.img && break
+          echo "Error downloading an image"
+          ((tries++))
+          sleep 10
+        done
         openstack image create {{ image_name }} --container-format bare --disk-format qcow2 --public --file {{ image_name }}.img
       fi
 
