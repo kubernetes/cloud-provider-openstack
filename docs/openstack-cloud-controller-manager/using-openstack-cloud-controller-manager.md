@@ -231,6 +231,8 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `create-monitor`
   Indicates whether or not to create a health monitor for the service load balancer. A health monitor required for services that declare `externalTrafficPolicy: Local`. Default: false
 
+  NOTE: Health monitors for the `ovn` provider are only supported on OpenStack Wallaby and later.
+
 * `monitor-delay`
   The time, in seconds, between sending probes to members of the load balancer. Default: 5
 

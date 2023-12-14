@@ -180,6 +180,8 @@ Request Body:
 
   Defines whether to create health monitor for the load balancer pool, if not specified, use `create-monitor` config. The health monitor can be created or deleted dynamically. A health monitor is required for services with `externalTrafficPolicy: Local`.
 
+  NOTE: Health monitors for the `ovn` provider are only supported on OpenStack Wallaby and later.
+
 - `loadbalancer.openstack.org/health-monitor-delay`
 
   Defines the health monitor delay in seconds for the loadbalancer pools.
