@@ -17,6 +17,10 @@
     line: "{{ user }} ALL=(ALL) NOPASSWD: ALL"
     validate: 'visudo -cf %s'
 
+- name: Update repositories cache
+  ansible.builtin.apt:
+    update_cache: yes
+
 - name: Check if devstack is already installed
   shell:
     executable: /bin/bash
