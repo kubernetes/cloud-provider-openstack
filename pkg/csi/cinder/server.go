@@ -69,6 +69,7 @@ func (s *nonBlockingGRPCServer) ForceStop() {
 }
 
 func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
+	defer s.wg.Done()
 
 	proto, addr, err := ParseEndpoint(endpoint)
 	if err != nil {
