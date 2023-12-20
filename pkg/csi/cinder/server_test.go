@@ -25,7 +25,7 @@ func TestServerReleaseWaitAfterStopCalling(t *testing.T) {
 	_, address, err := ParseEndpoint(FakeEndpoint)
 	require.NoError(t, err)
 
-	// this loop need to wait insider goroutine with start up grpc server
+	// this loop is needed to wait for the server start up
 	timer := time.NewTimer(2 * time.Second)
 	defer timer.Stop()
 	for {
