@@ -82,7 +82,7 @@
       fi
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
       # replace image with built image
-      sed -i "s#registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.28.0#{{ remote_registry_host }}/openstack-cloud-controller-manager:${VERSION}#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
+      sed -i "s#registry.k8s.io/provider-os/openstack-cloud-controller-manager:[^'\"]\+#{{ remote_registry_host }}/openstack-cloud-controller-manager:${VERSION}#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
       sed -i "s#node-role.kubernetes.io/control-plane: \"\"#node-role.kubernetes.io/control-plane: \"true\"#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
       sed -i "s#--v=1#--v=5#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
       cat manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml

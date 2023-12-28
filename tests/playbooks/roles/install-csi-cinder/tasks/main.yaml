@@ -70,8 +70,8 @@
         VERSION=v0.0.{{ github_pr }}
       fi
       # replace image with built image
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:[^'\"]\+#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:[^'\"]\+#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
