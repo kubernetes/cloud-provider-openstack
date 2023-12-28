@@ -201,10 +201,17 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Optional. Tags for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-tags`. If multiple subnets match the first one with still available IPs is used.
 
 * `lb-method`
-  The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
+  The load balancing algorithm used to create the load balancer pool.
+
+  If `lb-provider` is set to "amphora" or "octavia" the value can be one of:
+    * `ROUND_ROBIN` (default)
+    * `LEAST_CONNECTIONS`
+    * `SOURCE_IP`
+    
+  If `lb-provider` is set to "ovn" the value must be set to `SOURCE_IP_PORT`.
 
 * `lb-provider`
-  Optional. Used to specify the provider of the load balancer, e.g. "amphora" or "octavia". Only "amphora" or "octavia" provider are officially tested, other provider will cause a warning log.
+  Optional. Used to specify the provider of the load balancer, e.g. "amphora" (default), "octavia" (deprecated alias for "amphora"), or "ovn". Only the "amphora", "octavia", and "ovn" providers are officially tested, other providers will cause a warning log.
 
 * `lb-version`
   Optional. If specified, only "v2" is supported.
@@ -223,6 +230,8 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `create-monitor`
   Indicates whether or not to create a health monitor for the service load balancer. A health monitor required for services that declare `externalTrafficPolicy: Local`. Default: false
+
+  NOTE: Health monitors for the `ovn` provider are only supported on OpenStack Wallaby and later.
 
 * `monitor-delay`
   The time, in seconds, between sending probes to members of the load balancer. Default: 5
@@ -294,8 +303,6 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   increased load on the OpenStack API. Default: false 
 
 NOTE:
-
-* When using `ovn` provider service has limited scope - `create_monitor` is not supported and only supported `lb-method` is `SOURCE_IP`.
 
 * environment variable `OCCM_WAIT_LB_ACTIVE_STEPS` is used to provide steps of waiting loadbalancer to be ready. Current default wait steps is 23 and setup the environment variable overrides default value. Refer to [Backoff.Steps](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/wait#Backoff) for further information.
 
