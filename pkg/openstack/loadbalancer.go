@@ -34,6 +34,8 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
@@ -1756,8 +1758,65 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
 	mc := metrics.NewMetricContext("loadbalancer", "ensure")
 	klog.InfoS("EnsureLoadBalancer", "cluster", clusterName, "service", klog.KObj(apiService))
+
+	// Before filtering nodes, determine if we need to filter based on ExternalTrafficPolicy
+	if apiService.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal {
+		// Retrieve the list of Pods matching the service
+		pods, err := lbaas.getPodsForService(ctx, apiService)
+		if err != nil {
+			return nil, err
+		}
+
+		// Filter the nodes
+		nodes = lbaas.filterNodesForService(nodes, pods)
+	}
+
+	// Create or update the load balancer with the filtered list of nodes
 	status, err := lbaas.ensureOctaviaLoadBalancer(ctx, clusterName, apiService, nodes)
 	return status, mc.ObserveReconcile(err)
+}
+
+// filterNodesForService filters nodes based on the list of Pods for the service
+func (lbaas *LbaasV2) filterNodesForService(nodes []*corev1.Node, pods []*corev1.Pod) []*corev1.Node {
+	var filteredNodes []*corev1.Node
+
+	for _, node := range nodes {
+		// Assume we have a function nodeRunsPod that checks if a given node runs at least one Pod
+		if lbaas.nodeRunsPod(node, pods) {
+			filteredNodes = append(filteredNodes, node)
+		}
+	}
+
+	return filteredNodes
+}
+
+// getPodsForService retrieves the list of Pods matching the service selector
+func (lbaas *LbaasV2) getPodsForService(ctx context.Context, apiService *corev1.Service) ([]*corev1.Pod, error) {
+	// Use the Kubernetes client to get the list of Pods for the service
+	pods, err := lbaas.kclient.CoreV1().Pods(apiService.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labels.Set(apiService.Spec.Selector).String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert PodList to []*corev1.Pod
+	var podItems []*corev1.Pod
+	for i := range pods.Items {
+		podItems = append(podItems, &pods.Items[i])
+	}
+
+	return podItems, nil
+}
+
+// nodeRunsPod checks if the node runs at least one Pod
+func (lbaas *LbaasV2) nodeRunsPod(node *corev1.Node, pods []*corev1.Pod) bool {
+	for _, pod := range pods {
+		if pod.Spec.NodeName == node.Name {
+			return true
+		}
+	}
+	return false
 }
 
 func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubNetListOpsFunction) ([]subnets.Subnet, error) {
