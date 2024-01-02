@@ -285,6 +285,8 @@ func (s *nonBlockingGRPCServer) wait() {
 }
 
 func (s *nonBlockingGRPCServer) serve(endpoint string, ids *identityServer, cs *controllerServer, ns *nodeServer) {
+	defer s.wg.Done()
+
 	proto, addr, err := parseGRPCEndpoint(endpoint)
 	if err != nil {
 		klog.Fatalf("couldn't parse GRPC server endpoint address %s: %v", endpoint, err)
