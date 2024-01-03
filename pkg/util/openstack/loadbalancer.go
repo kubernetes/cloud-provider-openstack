@@ -177,7 +177,8 @@ func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalance
 		var err error
 		loadbalancer, err = loadbalancers.Get(client, loadbalancerID).Extract()
 		if mc.ObserveRequest(err) != nil {
-			return false, err
+			klog.Warningf("Failed to fetch loadbalancer status from OpenStack (lbID %q): %s", loadbalancerID, err)
+			return false, nil
 		}
 		if loadbalancer.ProvisioningStatus == activeStatus {
 			klog.InfoS("Load balancer ACTIVE", "lbID", loadbalancerID)
