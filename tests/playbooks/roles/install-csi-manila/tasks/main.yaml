@@ -3,24 +3,17 @@
   shell:
     executable: /bin/bash
     cmd: |
-      rm -rf {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
-      mkdir -p {{ ansible_user_dir }}/src/k8s.io; cd $_
-      git clone https://github.com/kubernetes/cloud-provider-openstack
-      cd cloud-provider-openstack
-      if [[ {{ github_pr }} != "" ]]; then
-        git fetch origin +refs/pull/{{ github_pr }}/merge
-        git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      if [ ! -d $GOPATH/src/k8s.io/cloud-provider-openstack ]; then
+        mkdir -p $GOPATH/src/k8s.io; cd $_
+        git clone https://github.com/kubernetes/cloud-provider-openstack
       fi
 
 - name: Build and upload manila-csi-plugin image
   shell:
     executable: /bin/bash
     cmd: |
-      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
-      VERSION="latest"
-      if [[ {{ github_pr }} != "" ]]; then
-        VERSION=v0.0.{{ github_pr }}
-      fi
+      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      VERSION="v0.0.99" # Fake version, but in proper format.
 
       make push-multiarch-image-manila-csi-plugin \
         ARCHS='amd64' \
@@ -124,10 +117,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      VERSION="latest"
-      if [[ {{ github_pr }} != "" ]]; then
-        VERSION=v0.0.{{ github_pr }}
-      fi
+      VERSION="v0.0.99" # Fake version, but in proper format.
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack/charts/manila-csi-plugin
       cat <<EOF >> override-helm-values.yaml
       csimanila:

@@ -6,7 +6,6 @@
   vars:
     e2e_test_version: v1.29.0
     user: stack
-    github_pr: 123
     global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
 

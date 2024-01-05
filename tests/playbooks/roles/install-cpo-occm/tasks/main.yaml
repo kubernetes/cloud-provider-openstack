@@ -3,13 +3,9 @@
   shell:
     executable: /bin/bash
     cmd: |
-      rm -rf $GOPATH/src/k8s.io/cloud-provider-openstack
-      mkdir -p $GOPATH/src/k8s.io; cd $_
-      git clone https://github.com/kubernetes/cloud-provider-openstack
-      cd cloud-provider-openstack
-      if [[ {{ github_pr }} != "" ]]; then
-        git fetch origin +refs/pull/{{ github_pr }}/merge
-        git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      if [ ! -d $GOPATH/src/k8s.io/cloud-provider-openstack ]; then
+        mkdir -p $GOPATH/src/k8s.io; cd $_
+        git clone https://github.com/kubernetes/cloud-provider-openstack
       fi
 
 - name: Build and upload openstack-cloud-controller-manager image
@@ -17,10 +13,7 @@
     executable: /bin/bash
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
-      VERSION="latest"
-      if [[ {{ github_pr }} != "" ]]; then
-        VERSION=v0.0.{{ github_pr }}
-      fi
+      VERSION="v0.0.99" # Fake version, but in proper format.
 
       make push-multiarch-image-openstack-cloud-controller-manager \
         ARCHS='amd64' \
@@ -76,10 +69,8 @@
   shell:
     executable: /bin/bash
     cmd: |
-      VERSION="latest"
-      if [[ {{ github_pr }} != "" ]]; then
-        VERSION=v0.0.{{ github_pr }}
-      fi
+      VERSION="v0.0.99" # Fake version, but in proper format.
+
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
       # replace image with built image
       sed -i "s#registry.k8s.io/provider-os/openstack-cloud-controller-manager:[^'\"]\+#{{ remote_registry_host }}/openstack-cloud-controller-manager:${VERSION}#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
