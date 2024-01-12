@@ -29,9 +29,7 @@ set -o pipefail
 
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 cd "${REPO_ROOT}" || exit 1
-# PULL_NUMBER and PULL_BASE_REF are Prow job environment variables
-PR_NUMBER="${PULL_NUMBER:-}"
-[[ -z $PR_NUMBER ]] && echo "PR_NUMBER is required" && exit 1
+GOPATH=${PWD%/*/*/*}  # /home/prow/go will be 3 directories up from where code is
 CONFIG_ANSIBLE="${CONFIG_ANSIBLE:-"true"}"
 RESOURCE_TYPE="${RESOURCE_TYPE:-"gce-project"}"
 ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
@@ -98,6 +96,11 @@ stdout_callback = debug
 EOF
 fi
 
+# Upload CPO code
+scp -i ~/.ssh/google_compute_engine \
+  -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+  -r ${GOPATH}/* ${USERNAME}@${PUBLIC_IP}:/root/
+
 # Run ansible playbook on the CI host, e.g. a VM in GCP
 # USERNAME and PUBLIC_IP are global env variables set after creating the CI host.
 ansible-playbook -v \
@@ -106,15 +109,14 @@ ansible-playbook -v \
   --inventory ${PUBLIC_IP}, \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
   tests/playbooks/test-occm-e2e.yaml \
-  -e github_pr=${PR_NUMBER} \
   -e octavia_provider=${OCTAVIA_PROVIDER} \
   -e run_e2e=true
 exit_code=$?
 
 # Fetch devstack logs for debugging purpose
-#scp -i ~/.ssh/google_compute_engine \
-#  -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-#  -r ${USERNAME}@${PUBLIC_IP}:/opt/stack/logs $ARTIFACTS/logs/devstack || true
+# scp -i ~/.ssh/google_compute_engine \
+#   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+#   -r ${USERNAME}@${PUBLIC_IP}:/opt/stack/logs $ARTIFACTS/logs/devstack || true
 
 # Fetch octavia amphora image build logs for debugging purpose
 scp -i ~/.ssh/google_compute_engine \

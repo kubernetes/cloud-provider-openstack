@@ -5,7 +5,6 @@
 
   vars:
     user: stack
-    github_pr: 123
     global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
 
