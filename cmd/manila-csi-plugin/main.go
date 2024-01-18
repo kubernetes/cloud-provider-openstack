@@ -123,7 +123,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
 
-	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
+	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID. This value is required if the node service is provided by this CSI driver instance.")
 
 	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
 
