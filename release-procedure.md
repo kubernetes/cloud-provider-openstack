@@ -19,7 +19,7 @@ Make changes in the `docs/manifests/tests/examples` directories using the
 `hack/bump_release.sh` script by running the following command:
 
 ```bash
-$ hack/bump_release.sh 28 29 0
+$ hack/bump-release.sh 28 29 0
 ```
 
 This will replace `1.28.x`/`2.28.x` with `1.29.0`/`2.29.0` strings in the
