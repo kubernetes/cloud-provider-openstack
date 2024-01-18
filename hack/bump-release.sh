@@ -18,7 +18,7 @@ FROM_MAJOR="${1:?FROM_MAJOR (1st arg) not set or empty}"
 TO_MAJOR="${2:?TO_MAJOR (2nd arg) not set or empty}"
 TO_MINOR="${3:?TO_MINOR (3rd arg) not set or empty}"
 
-# example usage: hack/bump_release.sh 28 28 1
+# example usage: hack/bump-release.sh 28 28 1
 # should replace 1.28.x with 1.28.1 / 2.28.x with 2.28.1
 
 find charts docs manifests tests examples -type f -exec sed -i -re 's/((ersion)?: ?v?)?([1-2]\.)'${FROM_MAJOR}'\.([0-9][0-9a-zA-Z.-]*)/\1\3'${TO_MAJOR}'.'${TO_MINOR}'/g' "{}" \;
