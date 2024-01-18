@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
@@ -19,6 +20,7 @@ type cloud struct {
 	volumes   map[string]*volumes.Volume
 	snapshots map[string]*snapshots.Snapshot
 	instances map[string]*servers.Server
+	backups   map[string]*backups.Backup
 }
 
 func getfakecloud() *cloud {
@@ -32,7 +34,7 @@ func getfakecloud() *cloud {
 var _ openstack.IOpenStack = &cloud{}
 
 // Fake Cloud
-func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
+func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
 
 	vol := &volumes.Volume{
 		ID:               randString(10),
@@ -43,6 +45,7 @@ func (cloud *cloud) CreateVolume(name string, size int, vtype, availability stri
 		AvailabilityZone: availability,
 		SnapshotID:       snapshotID,
 		SourceVolID:      sourceVolID,
+		BackupID:         &sourceBackupID,
 	}
 
 	cloud.volumes[vol.ID] = vol
@@ -149,7 +152,7 @@ func invalidError() error {
 	return gophercloud.ErrDefault400{}
 }
 
-func (cloud *cloud) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (cloud *cloud) CreateSnapshot(name, volID string, tags map[string]string) (*snapshots.Snapshot, error) {
 
 	snap := &snapshots.Snapshot{
 		ID:        randString(10),
@@ -220,8 +223,82 @@ func (cloud *cloud) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, err
 	return snap, nil
 }
 
-func (cloud *cloud) WaitSnapshotReady(snapshotID string) error {
+func (cloud *cloud) WaitSnapshotReady(snapshotID string) (string, error) {
+	return "available", nil
+}
+
+func (cloud *cloud) CreateBackup(name, volID string, snapshotID string, tags map[string]string) (*backups.Backup, error) {
+
+	backup := &backups.Backup{
+		ID:         randString(10),
+		Name:       name,
+		Status:     "available",
+		VolumeID:   volID,
+		SnapshotID: snapshotID,
+		CreatedAt:  time.Now(),
+	}
+
+	cloud.backups[backup.ID] = backup
+	return backup, nil
+}
+
+func (cloud *cloud) ListBackups(filters map[string]string) ([]backups.Backup, error) {
+	var backuplist []backups.Backup
+	startingToken := filters["Marker"]
+	limitfilter := filters["Limit"]
+	limit, _ := strconv.Atoi(limitfilter)
+	name := filters["Name"]
+	volumeID := filters["VolumeID"]
+
+	for _, value := range cloud.backups {
+		if volumeID != "" {
+			if value.VolumeID == volumeID {
+				backuplist = append(backuplist, *value)
+				break
+			}
+		} else if name != "" {
+			if value.Name == name {
+				backuplist = append(backuplist, *value)
+				break
+			}
+		} else {
+			backuplist = append(backuplist, *value)
+		}
+	}
+
+	if startingToken != "" {
+		t, _ := strconv.Atoi(startingToken)
+		backuplist = backuplist[t:]
+	}
+	if limit != 0 {
+		backuplist = backuplist[:limit]
+	}
+
+	return backuplist, nil
+}
+
+func (cloud *cloud) DeleteBackup(backupID string) error {
+	delete(cloud.backups, backupID)
+
 	return nil
+}
+
+func (cloud *cloud) GetBackupByID(backupID string) (*backups.Backup, error) {
+	backup, ok := cloud.backups[backupID]
+
+	if !ok {
+		return nil, notFoundError()
+	}
+
+	return backup, nil
+}
+
+func (cloud *cloud) BackupsAreEnabled() (bool, error) {
+	return true, nil
+}
+
+func (cloud *cloud) WaitBackupReady(backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error) {
+	return "", nil
 }
 
 func randString(n int) string {

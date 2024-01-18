@@ -17,9 +17,11 @@ limitations under the License.
 package cinder
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
@@ -110,36 +112,71 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	content := req.GetVolumeContentSource()
 	var snapshotID string
-	var sourcevolID string
+	var sourceVolID string
+	var sourceBackupID string
+	var backupsAreEnabled bool
+	backupsAreEnabled, err = cloud.BackupsAreEnabled()
+	klog.V(4).Infof("Backups enabled: %v", backupsAreEnabled)
+	if err != nil {
+		klog.Errorf("Failed to check if backups are enabled: %v", err)
+	}
 
 	if content != nil && content.GetSnapshot() != nil {
 		snapshotID = content.GetSnapshot().GetSnapshotId()
-		_, err := cloud.GetSnapshotByID(snapshotID)
-		if err != nil {
-			if cpoerrors.IsNotFound(err) {
-				return nil, status.Errorf(codes.NotFound, "VolumeContentSource Snapshot %s not found", snapshotID)
-			}
-			return nil, status.Errorf(codes.Internal, "Failed to retrieve the snapshot %s: %v", snapshotID, err)
+
+		snap, err := cloud.GetSnapshotByID(snapshotID)
+		if err != nil && !cpoerrors.IsNotFound(err) {
+			return nil, err
 		}
+		// If the snapshot exists but is not yet available, fail.
+		if err == nil && snap.Status != "available" {
+			return nil, status.Errorf(codes.Unavailable, "VolumeContentSource Snapshot %s is not yet available. status: %s", snapshotID, snap.Status)
+		}
+
+		// In case a snapshot is not found
+		// check if a Backup with the same ID exists
+		if backupsAreEnabled && cpoerrors.IsNotFound(err) {
+			back, err := cloud.GetBackupByID(snapshotID)
+			if err != nil {
+				//If there is an error getting the backup as well, fail.
+				return nil, status.Errorf(codes.NotFound, "VolumeContentSource Snapshot or Backup with ID %s not found", snapshotID)
+			}
+			if back.Status != "available" {
+				// If the backup exists but is not yet available, fail.
+				return nil, status.Errorf(codes.Unavailable, "VolumeContentSource Backup %s is not yet available. status: %s", snapshotID, back.Status)
+			}
+			// If an available backup is found, create the volume from the backup
+			sourceBackupID = snapshotID
+			snapshotID = ""
+		}
+		// In case GetSnapshotByID has error IsNotFound and backups are not enabled
+		// TODO: Change 'snapshotID == ""' to '!backupsAreEnabled' when cloud.BackupsAreEnabled() is correctly implemented
+		if cpoerrors.IsNotFound(err) && snapshotID == "" {
+			return nil, err
+		}
+
 	}
 
 	if content != nil && content.GetVolume() != nil {
-		sourcevolID = content.GetVolume().GetVolumeId()
-		_, err := cloud.GetVolume(sourcevolID)
+		sourceVolID = content.GetVolume().GetVolumeId()
+		_, err := cloud.GetVolume(sourceVolID)
 		if err != nil {
 			if cpoerrors.IsNotFound(err) {
-				return nil, status.Errorf(codes.NotFound, "Source Volume %s not found", sourcevolID)
+				return nil, status.Errorf(codes.NotFound, "Source Volume %s not found", sourceVolID)
 			}
-			return nil, status.Errorf(codes.Internal, "Failed to retrieve the source volume %s: %v", sourcevolID, err)
+			return nil, status.Errorf(codes.Internal, "Failed to retrieve the source volume %s: %v", sourceVolID, err)
 		}
 	}
 
-	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
+	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourceVolID, sourceBackupID, properties)
+	// When creating a volume from a backup, the response does not include the backupID.
+	if sourceBackupID != "" {
+		vol.BackupID = &sourceBackupID
+	}
 
 	if err != nil {
 		klog.Errorf("Failed to CreateVolume: %v", err)
 		return nil, status.Errorf(codes.Internal, "CreateVolume failed with error %v", err)
-
 	}
 
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
@@ -326,6 +363,25 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	name := req.Name
 	volumeID := req.GetSourceVolumeId()
+	snapshotType := req.Parameters[openstack.SnapshotType]
+	filters := map[string]string{"Name": name}
+	backupMaxDurationSecondsPerGB := openstack.BackupMaxDurationSecondsPerGBDefault
+
+	// Current time, used for CreatedAt
+	var ctime *timestamppb.Timestamp
+	// Size of the created snapshot, used to calculate the amount of time to wait for the backup to finish
+	var snapSize int
+	// If true, skips creating a snapshot because a backup already exists
+	var backupAlreadyExists bool
+	var snap *snapshots.Snapshot
+	var backup *backups.Backup
+	var backups []backups.Backup
+	var err error
+
+	// Set snapshot type to 'snapshot' by default
+	if snapshotType == "" {
+		snapshotType = "snapshot"
+	}
 
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot name must be provided in CreateSnapshot request")
@@ -335,73 +391,216 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Error(codes.InvalidArgument, "VolumeID must be provided in CreateSnapshot request")
 	}
 
-	// Verify a snapshot with the provided name doesn't already exist for this tenant
-	var snap *snapshots.Snapshot
+	// Verify snapshot type has a valid value
+	if snapshotType != "snapshot" && snapshotType != "backup" {
+		return nil, status.Error(codes.InvalidArgument, "Snapshot type must be 'backup', 'snapshot' or not defined")
+	}
+	var backupsAreEnabled bool
+	backupsAreEnabled, err = cs.Cloud.BackupsAreEnabled()
+	klog.V(4).Infof("Backups enabled: %v", backupsAreEnabled)
+	if err != nil {
+		klog.Errorf("Failed to check if backups are enabled: %v", err)
+	}
+
+	// Prechecks in case of a backup
+	if snapshotType == "backup" {
+		if !backupsAreEnabled {
+			return nil, status.Error(codes.FailedPrecondition, "Backups are not enabled in Cinder")
+		}
+		// Get a list of backups with the provided name
+		backups, err = cs.Cloud.ListBackups(filters)
+		if err != nil {
+			klog.Errorf("Failed to query for existing Backup during CreateSnapshot: %v", err)
+			return nil, status.Error(codes.Internal, "Failed to get backups")
+		}
+		// If more than one backup with the provided name exists, fail
+		if len(backups) > 1 {
+			klog.Errorf("found multiple existing backups with selected name (%s) during create", name)
+			return nil, status.Error(codes.Internal, "Multiple backups reported by Cinder with same name")
+		}
+
+		if len(backups) == 1 {
+			backup = &backups[0]
+
+			// Verify the existing backup has the same VolumeID, otherwise it belongs to another volume
+			if backup.VolumeID != volumeID {
+				return nil, status.Error(codes.AlreadyExists, "Backup with given name already exists, with different source volume ID")
+			}
+
+			// If a backup of the volume already exists, skip creating the snapshot
+			backupAlreadyExists = true
+			klog.V(3).Infof("Found existing backup %s from volume with ID: %s", name, volumeID)
+		}
+
+		// Get the max duration to wait in seconds per GB of snapshot and fail if parsing fails
+		if item, ok := (req.Parameters)[openstack.BackupMaxDurationPerGB]; ok {
+			backupMaxDurationSecondsPerGB, err = strconv.Atoi(item)
+			if err != nil {
+				klog.Errorf("Setting backup-max-duration-seconds-per-gb failed due to a parsing error: %v", err)
+				return nil, status.Error(codes.Internal, "Failed to parse backup-max-duration-seconds-per-gb")
+			}
+		}
+	}
+
+	// Create the snapshot if the backup does not already exist and wait for it to be ready
+	if !backupAlreadyExists {
+		snap, err = cs.createSnapshot(name, volumeID, req.Parameters)
+		if err != nil {
+			return nil, err
+		}
+
+		ctime = timestamppb.New(snap.CreatedAt)
+		if err = ctime.CheckValid(); err != nil {
+			klog.Errorf("Error to convert time to timestamp: %v", err)
+		}
+
+		snap.Status, err = cs.Cloud.WaitSnapshotReady(snap.ID)
+		if err != nil {
+			klog.Errorf("Failed to WaitSnapshotReady: %v", err)
+			return nil, status.Errorf(codes.Internal, "CreateSnapshot failed with error: %v. Current snapshot status: %v", err, snap.Status)
+		}
+
+		snapSize = snap.Size
+	}
+
+	if snapshotType == "snapshot" {
+		return &csi.CreateSnapshotResponse{
+			Snapshot: &csi.Snapshot{
+				SnapshotId:     snap.ID,
+				SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
+				SourceVolumeId: snap.VolumeID,
+				CreationTime:   ctime,
+				ReadyToUse:     true,
+			},
+		}, nil
+	}
+
+	// If snapshotType is 'backup', create a backup from the snapshot and delete the snapshot.
+	if snapshotType == "backup" {
+
+		if !backupAlreadyExists {
+			backup, err = cs.createBackup(name, volumeID, snap, req.Parameters)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		ctime = timestamppb.New(backup.CreatedAt)
+		if err := ctime.CheckValid(); err != nil {
+			klog.Errorf("Error to convert time to timestamp: %v", err)
+		}
+
+		backup.Status, err = cs.Cloud.WaitBackupReady(backup.ID, snapSize, backupMaxDurationSecondsPerGB)
+		if err != nil {
+			klog.Errorf("Failed to WaitBackupReady: %v", err)
+			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateBackup failed with error %v. Current backups status: %s", err, backup.Status))
+		}
+
+		// Necessary to get all the backup information, including size.
+		backup, err = cs.Cloud.GetBackupByID(backup.ID)
+		if err != nil {
+			klog.Errorf("Failed to GetBackupByID after backup creation: %v", err)
+			return nil, status.Error(codes.Internal, fmt.Sprintf("GetBackupByID failed with error %v", err))
+		}
+
+		err = cs.Cloud.DeleteSnapshot(snap.ID)
+		if err != nil && !cpoerrors.IsNotFound(err) {
+			klog.Errorf("Failed to DeleteSnapshot: %v", err)
+			return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot failed with error %v", err))
+		}
+	}
+
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			SnapshotId:     backup.ID,
+			SizeBytes:      int64(backup.Size * 1024 * 1024 * 1024),
+			SourceVolumeId: backup.VolumeID,
+			CreationTime:   ctime,
+			ReadyToUse:     true,
+		},
+	}, nil
+
+}
+
+func (cs *controllerServer) createSnapshot(name string, volumeID string, parameters map[string]string) (snap *snapshots.Snapshot, err error) {
+
 	filters := map[string]string{}
 	filters["Name"] = name
+
+	// List existing snapshots with the same name
 	snapshots, _, err := cs.Cloud.ListSnapshots(filters)
 	if err != nil {
 		klog.Errorf("Failed to query for existing Snapshot during CreateSnapshot: %v", err)
 		return nil, status.Error(codes.Internal, "Failed to get snapshots")
 	}
 
+	// If more than one snapshot with the provided name exists, fail
+	if len(snapshots) > 1 {
+		klog.Errorf("found multiple existing snapshots with selected name (%s) during create", name)
+
+		return nil, status.Error(codes.Internal, "Multiple snapshots reported by Cinder with same name")
+	}
+
+	// Verify a snapshot with the provided name doesn't already exist for this tenant
 	if len(snapshots) == 1 {
 		snap = &snapshots[0]
-
 		if snap.VolumeID != volumeID {
 			return nil, status.Error(codes.AlreadyExists, "Snapshot with given name already exists, with different source volume ID")
 		}
 
+		// If the snapshot for the correct volume already exists, return it
 		klog.V(3).Infof("Found existing snapshot %s from volume with ID: %s", name, volumeID)
-
-	} else if len(snapshots) > 1 {
-		klog.Errorf("found multiple existing snapshots with selected name (%s) during create", name)
-		return nil, status.Error(codes.Internal, "Multiple snapshots reported by Cinder with same name")
-
-	} else {
-		// Add cluster ID to the snapshot metadata
-		properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
-
-		// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
-		// Also, we don't want to tag every param but we still want to send the
-		// 'force-create' flag to openstack layer so that we will honor the
-		// force create functions
-		for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name", openstack.SnapshotForceCreate} {
-			if v, ok := req.Parameters[mKey]; ok {
-				properties[mKey] = v
-			}
-		}
-
-		// TODO: Delegate the check to openstack itself and ignore the conflict
-		snap, err = cs.Cloud.CreateSnapshot(name, volumeID, &properties)
-		if err != nil {
-			klog.Errorf("Failed to Create snapshot: %v", err)
-			return nil, status.Errorf(codes.Internal, "CreateSnapshot failed with error %v", err)
-		}
-
-		klog.V(3).Infof("CreateSnapshot %s from volume with ID: %s", name, volumeID)
+		return snap, nil
 	}
 
-	ctime := timestamppb.New(snap.CreatedAt)
-	if err := ctime.CheckValid(); err != nil {
-		klog.Errorf("Error to convert time to timestamp: %v", err)
+	// Add cluster ID to the snapshot metadata
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+
+	// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
+	// Also, we don't want to tag every param but we still want to send the
+	// 'force-create' flag to openstack layer so that we will honor the
+	// force create functions
+	for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name", openstack.SnapshotForceCreate} {
+		if v, ok := parameters[mKey]; ok {
+			properties[mKey] = v
+		}
 	}
 
-	err = cs.Cloud.WaitSnapshotReady(snap.ID)
+	// TODO: Delegate the check to openstack itself and ignore the conflict
+	snap, err = cs.Cloud.CreateSnapshot(name, volumeID, properties)
 	if err != nil {
-		klog.Errorf("Failed to WaitSnapshotReady: %v", err)
+		klog.Errorf("Failed to Create snapshot: %v", err)
 		return nil, status.Errorf(codes.Internal, "CreateSnapshot failed with error %v", err)
 	}
 
-	return &csi.CreateSnapshotResponse{
-		Snapshot: &csi.Snapshot{
-			SnapshotId:     snap.ID,
-			SizeBytes:      int64(snap.Size * 1024 * 1024 * 1024),
-			SourceVolumeId: snap.VolumeID,
-			CreationTime:   ctime,
-			ReadyToUse:     true,
-		},
-	}, nil
+	klog.V(3).Infof("CreateSnapshot %s from volume with ID: %s", name, volumeID)
+
+	return snap, nil
+}
+
+func (cs *controllerServer) createBackup(name string, volumeID string, snap *snapshots.Snapshot, parameters map[string]string) (*backups.Backup, error) {
+
+	// Add cluster ID to the snapshot metadata
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+
+	// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
+	// Also, we don't want to tag every param but we still want to send the
+	// 'force-create' flag to openstack layer so that we will honor the
+	// force create functions
+	for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name", openstack.SnapshotForceCreate, openstack.SnapshotType} {
+		if v, ok := parameters[mKey]; ok {
+			properties[mKey] = v
+		}
+	}
+
+	backup, err := cs.Cloud.CreateBackup(name, volumeID, snap.ID, properties)
+	if err != nil {
+		klog.Errorf("Failed to Create backup: %v", err)
+		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateBackup failed with error %v", err))
+	}
+	klog.V(4).Infof("Backup created: %+v", backup)
+
+	return backup, nil
 }
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
@@ -413,8 +612,18 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return nil, status.Error(codes.InvalidArgument, "Snapshot ID must be provided in DeleteSnapshot request")
 	}
 
+	// If volumeSnapshot object was linked to a cinder backup, delete the backup.
+	back, err := cs.Cloud.GetBackupByID(id)
+	if err == nil && back != nil {
+		err = cs.Cloud.DeleteBackup(id)
+		if err != nil {
+			klog.Errorf("Failed to Delete backup: %v", err)
+			return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteBackup failed with error %v", err))
+		}
+	}
+
 	// Delegate the check to openstack itself
-	err := cs.Cloud.DeleteSnapshot(id)
+	err = cs.Cloud.DeleteSnapshot(id)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			klog.V(3).Infof("Snapshot %s is already deleted.", id)
@@ -670,6 +879,16 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 			Type: &csi.VolumeContentSource_Volume{
 				Volume: &csi.VolumeContentSource_VolumeSource{
 					VolumeId: vol.SourceVolID,
+				},
+			},
+		}
+	}
+
+	if vol.BackupID != nil && *vol.BackupID != "" {
+		volsrc = &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Snapshot{
+				Snapshot: &csi.VolumeContentSource_SnapshotSource{
+					SnapshotId: *vol.BackupID,
 				},
 			},
 		}

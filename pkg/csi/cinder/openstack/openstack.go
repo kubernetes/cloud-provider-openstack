@@ -23,6 +23,7 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
@@ -44,7 +45,7 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 }
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error)
+	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
 	ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error)
@@ -55,11 +56,17 @@ type IOpenStack interface {
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
 	GetVolume(volumeID string) (*volumes.Volume, error)
 	GetVolumesByName(name string) ([]volumes.Volume, error)
-	CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error)
+	CreateSnapshot(name, volID string, tags map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error)
 	DeleteSnapshot(snapID string) error
 	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
-	WaitSnapshotReady(snapshotID string) error
+	WaitSnapshotReady(snapshotID string) (string, error)
+	CreateBackup(name, volID string, snapshotID string, tags map[string]string) (*backups.Backup, error)
+	ListBackups(filters map[string]string) ([]backups.Backup, error)
+	DeleteBackup(backupID string) error
+	GetBackupByID(backupID string) (*backups.Backup, error)
+	BackupsAreEnabled() (bool, error)
+	WaitBackupReady(backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error)
 	GetInstanceByID(instanceID string) (*servers.Server, error)
 	ExpandVolume(volumeID string, status string, size int) error
 	GetMaxVolLimit() int64

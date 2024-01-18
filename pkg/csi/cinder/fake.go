@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"golang.org/x/net/context"
@@ -94,6 +95,7 @@ var FakeSnapshotRes = snapshots.Snapshot{
 	Name:     "fake-snapshot",
 	VolumeID: FakeVolID,
 	Size:     1,
+	Status:   "available",
 }
 
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
@@ -102,6 +104,7 @@ var FakeVolListMultiple = []volumes.Volume{FakeVol1, FakeVol3}
 var FakeVolList = []volumes.Volume{FakeVol1}
 var FakeVolListEmpty = []volumes.Volume{}
 var FakeSnapshotListEmpty = []snapshots.Snapshot{}
+var FakeBackupListEmpty = []backups.Backup{}
 
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
 

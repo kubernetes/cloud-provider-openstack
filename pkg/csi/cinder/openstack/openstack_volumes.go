@@ -51,7 +51,7 @@ const (
 var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
+func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
 
 	opts := &volumes.CreateOpts{
 		Name:             name,
@@ -60,14 +60,26 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		AvailabilityZone: availability,
 		Description:      volumeDescription,
 		SnapshotID:       snapshotID,
-		SourceVolID:      sourcevolID,
+		SourceVolID:      sourceVolID,
+		BackupID:         sourceBackupID,
 	}
 	if tags != nil {
-		opts.Metadata = *tags
+		opts.Metadata = tags
+	}
+
+	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// creating volumes from backups is available since 3.47 microversion
+	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id47
+	if !os.bsOpts.IgnoreVolumeMicroversion && sourceBackupID != "" {
+		blockstorageClient.Microversion = "3.47"
 	}
 
 	mc := metrics.NewMetricContext("volume", "create")
-	vol, err := volumes.Create(os.blockstorage, opts).Extract()
+	vol, err := volumes.Create(blockstorageClient, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
