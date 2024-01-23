@@ -147,8 +147,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "The identifier of the cluster that the plugin is running in.")
 
-	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to false then the CSI driver does provide the controller service (default: true)")
-	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to false then the CSI driver does provide the node service (default: true)")
+	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
+	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
 
 	code := cli.Run(cmd)
 	os.Exit(code)
