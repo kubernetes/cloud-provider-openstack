@@ -32,7 +32,7 @@ func getfakecloud() *cloud {
 var _ openstack.IOpenStack = &cloud{}
 
 // Fake Cloud
-func (cloud *cloud) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
+func (cloud *cloud) CreateVolume(name string, size int, vtype string, encrypted bool, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
 
 	vol := &volumes.Volume{
 		ID:               randString(10),
@@ -43,6 +43,7 @@ func (cloud *cloud) CreateVolume(name string, size int, vtype, availability stri
 		AvailabilityZone: availability,
 		SnapshotID:       snapshotID,
 		SourceVolID:      sourceVolID,
+		Encrypted:        encrypted,
 	}
 
 	cloud.volumes[vol.ID] = vol
