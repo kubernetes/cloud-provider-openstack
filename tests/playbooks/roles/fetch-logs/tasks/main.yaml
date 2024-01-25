@@ -1,0 +1,34 @@
+- name: Get k3s master floating IP
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null
+      openstack floating ip list --port {{ master_port_name }} -c "Floating IP Address" -f value
+  register: fip
+
+- name: Set fact for k3s master floating IP
+  set_fact:
+    k3s_fip: "{{ fip.stdout }}"
+
+- name: Creates directory
+  ansible.builtin.file:
+    path: "/root/logs"
+    state: directory
+
+- name: Fetch k3s logs
+  shell:
+    executable: /bin/bash
+    cmd: |
+      ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo journalctl -u k3s.service --no-pager > /root/logs/k3s.log
+
+- name: Fetch DevStack logs
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set +x;
+      units=`systemctl list-units --type service | awk '{ print $1 }' | grep devstack\@`
+      for unit in $units; do
+        filename=${unit#"devstack@"}
+        filename=${filename%".service"}
+        sudo journalctl -u $unit --no-pager > /root/logs/${filename}.log
+      done;
