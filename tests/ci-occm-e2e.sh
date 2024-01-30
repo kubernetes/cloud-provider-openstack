@@ -113,10 +113,17 @@ ansible-playbook -v \
   -e run_e2e=true
 exit_code=$?
 
-# Fetch devstack logs for debugging purpose
-# scp -i ~/.ssh/google_compute_engine \
-#   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-#   -r ${USERNAME}@${PUBLIC_IP}:/opt/stack/logs $ARTIFACTS/logs/devstack || true
+# Fetch logs for debugging purpose
+ansible-playbook -v \
+  --user ${USERNAME} \
+  --private-key ~/.ssh/google_compute_engine \
+  --inventory ${PUBLIC_IP}, \
+  --ssh-common-args "-o StrictHostKeyChecking=no" \
+  tests/playbooks/fetch-logs.yaml
+
+ scp -i ~/.ssh/google_compute_engine \
+   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+   -r ${USERNAME}@${PUBLIC_IP}:~/logs $ARTIFACTS/logs/devstack || true
 
 # Fetch octavia amphora image build logs for debugging purpose
 scp -i ~/.ssh/google_compute_engine \

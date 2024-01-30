@@ -110,6 +110,18 @@ ansible-playbook -v \
   tests/playbooks/test-csi-manila-e2e.yaml
 exit_code=$?
 
+# Fetch logs for debugging purpose
+ansible-playbook -v \
+  --user ${USERNAME} \
+  --private-key ~/.ssh/google_compute_engine \
+  --inventory ${PUBLIC_IP}, \
+  --ssh-common-args "-o StrictHostKeyChecking=no" \
+  tests/playbooks/fetch-logs.yaml
+
+ scp -i ~/.ssh/google_compute_engine \
+   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+   -r ${USERNAME}@${PUBLIC_IP}:~/logs $ARTIFACTS/logs/devstack || true
+
 # Fetch manila-csi tests results
 scp -i ~/.ssh/google_compute_engine \
   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
