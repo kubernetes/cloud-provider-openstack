@@ -33,6 +33,14 @@
     cmd: |
       cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
 
+- name: Create server certificate
+  shell:
+    executable: /bin/bash
+    chdir: "{{ ansible_user_dir }}/certs"
+    creates: "{{ ansible_user_dir }}/certs/server.pem"
+    cmd: |
+      cfssl gencert -config ca-config.json -profile server -ca ./ca.pem -ca-key ./ca-key.pem ca-csr.json | cfssljson -bare server
+
 - name: Run docker registry container
   shell:
     executable: /bin/bash
@@ -44,8 +52,8 @@
           --name registry \
           -v "{{ ansible_user_dir }}/certs":/certs \
           -e REGISTRY_HTTP_ADDR=0.0.0.0:443 \
-          -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/ca.pem \
-          -e REGISTRY_HTTP_TLS_KEY=/certs/ca-key.pem \
+          -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/server.pem \
+          -e REGISTRY_HTTP_TLS_KEY=/certs/server-key.pem \
           -p 443:443 \
           registry:2
       fi

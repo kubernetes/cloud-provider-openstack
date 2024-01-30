@@ -88,19 +88,17 @@
         manage_etc_hosts: "localhost"
         package_update: true
         runcmd:
-          - curl -sSL https://get.docker.com/ | sh
+          - update-ca-certificates
           - mkdir -p /var/lib/rancher/k3s/agent/images/
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s -o /usr/local/bin/k3s
           - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
-          - INSTALL_K3S_SKIP_DOWNLOAD=true /var/lib/rancher/k3s/install.sh --docker --disable traefik --disable metrics-server --disable servicelb --disable-cloud-controller --kubelet-arg="cloud-provider=external" --tls-san {{ k3s_fip }} --token {{ cluster_token }}
+          - INSTALL_K3S_SKIP_DOWNLOAD=true /var/lib/rancher/k3s/install.sh --disable traefik --disable metrics-server --disable servicelb --disable-cloud-controller --kubelet-arg="cloud-provider=external" --tls-san {{ k3s_fip }} --token {{ cluster_token }}
         write_files:
-          - path: /etc/docker/daemon.json
+          - path: /usr/local/share/ca-certificates/registry-ca.crt
             content: |
-              {
-                "insecure-registries" : ["{{ ansible_default_ipv4.address }}"]
-              }
+      $(awk '{printf "        %s\n", $0}' < /root/certs/ca.pem)
       EOF
 
         # Create k3s master
@@ -126,7 +124,7 @@
         manage_etc_hosts: "localhost"
         package_update: true
         runcmd:
-          - curl -sSL https://get.docker.com/ | sh
+          - update-ca-certificates
           - mkdir -p /var/lib/rancher/k3s/agent/images/
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
           - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
@@ -134,11 +132,9 @@
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
           - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
         write_files:
-          - path: /etc/docker/daemon.json
+          - path: /usr/local/share/ca-certificates/registry-ca.crt
             content: |
-              {
-                "insecure-registries" : ["{{ ansible_default_ipv4.address }}"]
-              }
+      $(awk '{printf "        %s\n", $0}' < /root/certs/ca.pem)
       EOF
 
         # Create k3s worker

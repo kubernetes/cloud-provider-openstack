@@ -16,11 +16,11 @@
         - neutron
         - glance
         - manila
-    - role: install-k3s
-      worker_node_count: 0
     - role: install-docker
     - role: install-docker-registry
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
+    - role: install-k3s
+      worker_node_count: 0
     - role: install-cpo-occm
       run_e2e: false
     - role: install-helm
