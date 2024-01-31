@@ -365,19 +365,28 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 
 		log.WithFields(log.Fields{"lbID": lbID, "listenerName": name}).Info("listener created")
 	} else {
+		updateOpts := listeners.UpdateOpts{}
 		if len(listenerAllowedCIDRs) > 0 && !reflect.DeepEqual(listener.AllowedCIDRs, listenerAllowedCIDRs) {
-			_, err := listeners.Update(os.Octavia, listener.ID, listeners.UpdateOpts{
-				AllowedCIDRs:         &listenerAllowedCIDRs,
-				TimeoutClientData:    timeoutClientData,
-				TimeoutMemberData:    timeoutMemberData,
-				TimeoutMemberConnect: timeoutMemberConnect,
-				TimeoutTCPInspect:    timeoutTCPInspect,
-			}).Extract()
+			updateOpts.AllowedCIDRs = &listenerAllowedCIDRs
+		}
+
+		if timeoutClientData == nil && listener.TimeoutClientData != 0 || timeoutClientData != nil && *timeoutClientData != listener.TimeoutClientData ||
+			timeoutMemberData == nil && listener.TimeoutMemberData != 0 || timeoutMemberData != nil && *timeoutMemberData != listener.TimeoutMemberData ||
+			timeoutMemberConnect == nil && listener.TimeoutMemberConnect != 0 || timeoutMemberData != nil && *timeoutMemberConnect != listener.TimeoutMemberConnect ||
+			timeoutTCPInspect == nil && listener.TimeoutTCPInspect != 0 || timeoutTCPInspect != nil && *timeoutTCPInspect != listener.TimeoutTCPInspect {
+			updateOpts.TimeoutClientData = timeoutClientData
+			updateOpts.TimeoutMemberData = timeoutMemberData
+			updateOpts.TimeoutMemberConnect = timeoutMemberConnect
+			updateOpts.TimeoutTCPInspect = timeoutTCPInspect
+		}
+
+		if updateOpts != (listeners.UpdateOpts{}) {
+			_, err := listeners.Update(os.Octavia, listener.ID, updateOpts).Extract()
 			if err != nil {
-				return nil, fmt.Errorf("failed to update listener allowed CIDRs: %v", err)
+				return nil, fmt.Errorf("failed to update listener options: %v", err)
 			}
 
-			log.WithFields(log.Fields{"listenerID": listener.ID}).Debug("listener allowed CIDRs updated")
+			log.WithFields(log.Fields{"listenerID": listener.ID}).Debug("listener options updated")
 		}
 	}
 
