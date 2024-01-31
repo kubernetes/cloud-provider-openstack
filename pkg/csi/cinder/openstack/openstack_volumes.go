@@ -144,12 +144,15 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 
 // DeleteVolume delete a volume
 func (os *OpenStack) DeleteVolume(volumeID string) error {
-	used, err := os.diskIsUsed(volumeID)
+	instanceID, err := os.diskIsUsed(volumeID)
 	if err != nil {
 		return err
 	}
-	if used {
-		return fmt.Errorf("Cannot delete the volume %q, it's still attached to a node", volumeID)
+	if instanceID != "" {
+		err := os.DetachVolume(instanceID, volumeID)
+		if err != nil {
+			return fmt.Errorf("cannot detach the volume %q: %v", volumeID, err)
+		}
 	}
 
 	mc := metrics.NewMetricContext("volume", "delete")
@@ -398,18 +401,18 @@ func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
 	return false, nil
 }
 
-// diskIsUsed returns true a disk is attached to any node.
-func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
+// diskIsUsed returns server name if a disk is attached to any node.
+func (os *OpenStack) diskIsUsed(volumeID string) (string, error) {
 	volume, err := os.GetVolume(volumeID)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	if len(volume.Attachments) > 0 {
-		return volume.Attachments[0].ServerID != "", nil
+		return volume.Attachments[0].ServerID, nil
 	}
 
-	return false, nil
+	return "", nil
 }
 
 // GetBlockStorageOpts returns OpenStack block storage options
