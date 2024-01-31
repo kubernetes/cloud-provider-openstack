@@ -151,7 +151,7 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 	if instanceID != "" {
 		err := os.DetachVolume(instanceID, volumeID)
 		if err != nil {
-			return fmt.Errorf("cannot detach the volume %q: %v", volumeID, err)
+			return fmt.Errorf("cannot detach the volume %q from instance %s %v", volumeID, instanceID, err)
 		}
 	}
 
