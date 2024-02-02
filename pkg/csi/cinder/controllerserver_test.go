@@ -34,7 +34,7 @@ func init() {
 		osmock = new(openstack.OpenStackMock)
 		openstack.OsInstance = osmock
 
-		d := NewDriver(FakeEndpoint, FakeCluster)
+		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
 
 		fakeCs = NewControllerServer(d, openstack.OsInstance)
 	}
@@ -42,7 +42,6 @@ func init() {
 
 // Test CreateVolume
 func TestCreateVolume(t *testing.T) {
-
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
@@ -89,7 +88,6 @@ func TestCreateVolume(t *testing.T) {
 
 // Test CreateVolume with additional param
 func TestCreateVolumeWithParam(t *testing.T) {
-
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
@@ -141,7 +139,6 @@ func TestCreateVolumeWithParam(t *testing.T) {
 }
 
 func TestCreateVolumeWithExtraMetadata(t *testing.T) {
-
 	// mock OpenStack
 	properties := map[string]string{
 		"cinder.csi.openstack.org/cluster": FakeCluster,
@@ -188,7 +185,6 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 }
 
 func TestCreateVolumeFromSnapshot(t *testing.T) {
-
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, "", &properties).Return(&FakeVolFromSnapshot, nil)
@@ -236,7 +232,6 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 }
 
 func TestCreateVolumeFromSourceVolume(t *testing.T) {
-
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, &properties).Return(&FakeVolFromSourceVolume, nil)
@@ -285,7 +280,6 @@ func TestCreateVolumeFromSourceVolume(t *testing.T) {
 
 // Test CreateVolumeDuplicate
 func TestCreateVolumeDuplicate(t *testing.T) {
-
 	// Init assert
 	assert := assert.New(t)
 
@@ -318,7 +312,6 @@ func TestCreateVolumeDuplicate(t *testing.T) {
 
 // Test DeleteVolume
 func TestDeleteVolume(t *testing.T) {
-
 	// DeleteVolume(volumeID string) error
 	osmock.On("DeleteVolume", FakeVolID).Return(nil)
 
@@ -345,7 +338,6 @@ func TestDeleteVolume(t *testing.T) {
 
 // Test ControllerPublishVolume
 func TestControllerPublishVolume(t *testing.T) {
-
 	// AttachVolume(instanceID, volumeID string) (string, error)
 	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	// WaitDiskAttached(instanceID string, volumeID string) error
@@ -387,7 +379,6 @@ func TestControllerPublishVolume(t *testing.T) {
 
 // Test ControllerUnpublishVolume
 func TestControllerUnpublishVolume(t *testing.T) {
-
 	// DetachVolume(instanceID, volumeID string) error
 	osmock.On("DetachVolume", FakeNodeID, FakeVolID).Return(nil)
 	// WaitDiskDetached(instanceID string, volumeID string) error
@@ -416,7 +407,6 @@ func TestControllerUnpublishVolume(t *testing.T) {
 }
 
 func TestListVolumes(t *testing.T) {
-
 	osmock.On("ListVolumes", 2, FakeVolID).Return(FakeVolListMultiple, "", nil)
 
 	// Init assert
@@ -461,7 +451,6 @@ func TestListVolumes(t *testing.T) {
 
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
-
 	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{cinderCSIClusterIDKey: "cluster"}).Return(&FakeSnapshotRes, nil)
 	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
@@ -490,7 +479,6 @@ func TestCreateSnapshot(t *testing.T) {
 
 // Test CreateSnapshot with extra metadata
 func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
-
 	properties := map[string]string{
 		"cinder.csi.openstack.org/cluster":              FakeCluster,
 		"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
@@ -532,7 +520,6 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 
 // Test DeleteSnapshot
 func TestDeleteSnapshot(t *testing.T) {
-
 	// DeleteSnapshot(volumeID string) error
 	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
 
@@ -558,7 +545,6 @@ func TestDeleteSnapshot(t *testing.T) {
 }
 
 func TestListSnapshots(t *testing.T) {
-
 	osmock.On("ListSnapshots", map[string]string{"Limit": "1", "Marker": FakeVolID, "Status": "available"}).Return(FakeSnapshotsRes, "", nil)
 	assert := assert.New(t)
 
@@ -574,7 +560,6 @@ func TestListSnapshots(t *testing.T) {
 }
 
 func TestControllerExpandVolume(t *testing.T) {
-
 	tState := []string{"available", "in-use"}
 	// ExpandVolume(volumeID string, status string, size int)
 	osmock.On("ExpandVolume", FakeVolID, openstack.VolumeAvailableStatus, 5).Return(nil)
@@ -611,7 +596,6 @@ func TestControllerExpandVolume(t *testing.T) {
 }
 
 func TestValidateVolumeCapabilities(t *testing.T) {
-
 	// GetVolume(volumeID string)
 	osmock.On("GetVolume", FakeVolID).Return(FakeVol1)
 

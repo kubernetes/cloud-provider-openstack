@@ -45,9 +45,11 @@ var (
 	clusterID string
 
 	// Runtime options
-	endpoint          string
-	runtimeConfigFile string
-	userAgentData     []string
+	endpoint                 string
+	runtimeConfigFile        string
+	userAgentData            []string
+	provideControllerService bool
+	provideNodeService       bool
 )
 
 func validateShareProtocolSelector(v string) error {
@@ -75,23 +77,39 @@ func main() {
 			manilaClientBuilder := &manilaclient.ClientBuilder{UserAgent: "manila-csi-plugin", ExtraUserAgentData: userAgentData}
 			csiClientBuilder := &csiclient.ClientBuilder{}
 
-			d, err := manila.NewDriver(
-				&manila.DriverOpts{
-					DriverName:          driverName,
-					NodeID:              nodeID,
-					NodeAZ:              nodeAZ,
-					WithTopology:        withTopology,
-					ShareProto:          protoSelector,
-					ServerCSIEndpoint:   endpoint,
-					FwdCSIEndpoint:      fwdEndpoint,
-					ManilaClientBuilder: manilaClientBuilder,
-					CSIClientBuilder:    csiClientBuilder,
-					ClusterID:           clusterID,
-				},
-			)
+			opts := &manila.DriverOpts{
+				DriverName:          driverName,
+				WithTopology:        withTopology,
+				ShareProto:          protoSelector,
+				ServerCSIEndpoint:   endpoint,
+				FwdCSIEndpoint:      fwdEndpoint,
+				ManilaClientBuilder: manilaClientBuilder,
+				CSIClientBuilder:    csiClientBuilder,
+				ClusterID:           clusterID,
+			}
 
+			if provideNodeService {
+				opts.NodeID = nodeID
+				opts.NodeAZ = nodeAZ
+			}
+
+			d, err := manila.NewDriver(opts)
 			if err != nil {
-				klog.Fatalf("driver initialization failed: %v", err)
+				klog.Fatalf("Driver initialization failed: %v", err)
+			}
+
+			if provideControllerService {
+				err = d.SetupControllerService()
+				if err != nil {
+					klog.Fatalf("Driver controller service initialization failed: %v", err)
+				}
+			}
+
+			if provideNodeService {
+				err = d.SetupNodeService()
+				if err != nil {
+					klog.Fatalf("Driver node service initialization failed: %v", err)
+				}
 			}
 
 			runtimeconfig.RuntimeConfigFilename = runtimeConfigFile
@@ -105,10 +123,7 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
 
-	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
-	if err := cmd.MarkPersistentFlagRequired("nodeid"); err != nil {
-		klog.Fatalf("Unable to mark flag nodeid to be required: %v", err)
-	}
+	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID. This value is required if the node service is provided by this CSI driver instance.")
 
 	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
 
@@ -131,6 +146,9 @@ func main() {
 	cmd.PersistentFlags().StringArrayVar(&userAgentData, "user-agent", nil, "extra data to add to gophercloud user-agent. Use multiple times to add more than one component.")
 
 	cmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "The identifier of the cluster that the plugin is running in.")
+
+	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
+	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
 
 	code := cli.Run(cmd)
 	os.Exit(code)

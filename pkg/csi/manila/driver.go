@@ -99,7 +99,6 @@ func argNotEmpty(val, name string) error {
 
 func NewDriver(o *DriverOpts) (*Driver, error) {
 	m := map[string]string{
-		"node ID":                 o.NodeID,
 		"driver name":             o.DriverName,
 		"driver endpoint":         o.ServerCSIEndpoint,
 		"FWD endpoint":            o.FwdCSIEndpoint,
@@ -151,6 +150,14 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	d.serverEndpoint = endpointAddress(serverProto, serverAddr)
 	d.fwdEndpoint = endpointAddress(fwdProto, fwdAddr)
 
+	d.ids = &identityServer{d: d}
+
+	return d, nil
+}
+
+func (d *Driver) SetupControllerService() error {
+	klog.Info("Providing controller service")
+
 	d.addControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
@@ -165,11 +172,22 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		csi.VolumeCapability_AccessMode_SINGLE_NODE_READER_ONLY,
 	})
 
+	d.cs = &controllerServer{d: d}
+	return nil
+}
+
+func (d *Driver) SetupNodeService() error {
+	if err := argNotEmpty(d.nodeID, "node ID"); err != nil {
+		return err
+	}
+
+	klog.Info("Providing node service")
+
 	var supportsNodeStage bool
 
 	nodeCapsMap, err := d.initProxiedDriver()
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
+		return fmt.Errorf("failed to initialize proxied CSI driver: %v", err)
 	}
 	nscaps := make([]csi.NodeServiceCapability_RPC_Type, 0, len(nodeCapsMap))
 	for c := range nodeCapsMap {
@@ -182,14 +200,15 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 
 	d.addNodeServiceCapabilities(nscaps)
 
-	d.ids = &identityServer{d: d}
-	d.cs = &controllerServer{d: d}
 	d.ns = &nodeServer{d: d, supportsNodeStage: supportsNodeStage, nodeStageCache: make(map[volumeID]stageCacheEntry)}
-
-	return d, nil
+	return nil
 }
 
 func (d *Driver) Run() {
+	if nil == d.cs && nil == d.ns {
+		klog.Fatal("No CSI services initialized")
+	}
+
 	s := nonBlockingGRPCServer{}
 	s.start(d.serverEndpoint, d.ids, d.cs, d.ns)
 	s.wait()
@@ -319,9 +338,15 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids *identityServer, cs *
 
 	s.server = server
 
-	csi.RegisterIdentityServer(server, ids)
-	csi.RegisterControllerServer(server, cs)
-	csi.RegisterNodeServer(server, ns)
+	if ids != nil {
+		csi.RegisterIdentityServer(server, ids)
+	}
+	if cs != nil {
+		csi.RegisterControllerServer(server, cs)
+	}
+	if ns != nil {
+		csi.RegisterNodeServer(server, ns)
+	}
 
 	klog.Infof("listening for connections on %#v", listener.Addr())
 

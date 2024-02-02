@@ -29,10 +29,11 @@ var (
 
 func NewFakeDriver() *Driver {
 
-	driver := NewDriver(FakeEndpoint, FakeCluster)
+	driver := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
 
 	return driver
 }
+
 func TestValidateControllerServiceRequest(t *testing.T) {
 	d := NewFakeDriver()
 
