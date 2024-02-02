@@ -70,13 +70,17 @@ type Driver struct {
 	nscap []*csi.NodeServiceCapability
 }
 
-func NewDriver(endpoint, cluster string) *Driver {
+type DriverOpts struct {
+	ClusterID string
+	Endpoint  string
+}
 
+func NewDriver(o *DriverOpts) *Driver {
 	d := &Driver{}
 	d.name = driverName
 	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
-	d.endpoint = endpoint
-	d.cluster = cluster
+	d.endpoint = o.Endpoint
+	d.cluster = o.ClusterID
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
@@ -107,6 +111,8 @@ func NewDriver(endpoint, cluster string) *Driver {
 			csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 			csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
 		})
+
+	d.ids = NewIdentityServer(d)
 
 	return d
 }
@@ -166,15 +172,20 @@ func (d *Driver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_Access
 	return d.vcap
 }
 
-func (d *Driver) SetupDriver(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {
-
-	d.ids = NewIdentityServer(d)
+func (d *Driver) SetupControllerService(cloud openstack.IOpenStack) {
+	klog.Info("Providing controller service")
 	d.cs = NewControllerServer(d, cloud)
-	d.ns = NewNodeServer(d, mount, metadata, cloud)
+}
 
+func (d *Driver) SetupNodeService(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {
+	klog.Info("Providing node service")
+	d.ns = NewNodeServer(d, mount, metadata, cloud)
 }
 
 func (d *Driver) Run() {
+	if nil == d.cs && nil == d.ns {
+		klog.Fatal("No CSI services initialized")
+	}
 
-	RunControllerandNodePublishServer(d.endpoint, d.ids, d.cs, d.ns)
+	RunServicesInitialized(d.endpoint, d.ids, d.cs, d.ns)
 }

@@ -88,6 +88,29 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   This will be added as metadata to every Cinder volume created by this plugin.
   </dd>
+
+  <dt>--http-endpoint &lt;HTTP server&gt;</dt>
+  <dd>
+  This argument is optional.
+
+  The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`).
+
+  The default is empty string, which means the server is disabled.
+  </dd>
+
+  <dt>--provide-controller-service &lt;enabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver does provide the controller service.
+
+  The default is to provide the controller service.
+  </dd>
+
+  <dt>--provide-node-service &lt;enabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver does provide the node service.
+
+  The default is to provide the node service.
+  </dd>
 </dl>
 
 ## Driver Config
@@ -262,7 +285,7 @@ To build cinder-csi-plugin image
 
 ```
 $ export ARCH=amd64 # Defaults to amd64
-$ make image-cinder-csi-plugin
+$ make build-local-image-cinder-csi-plugin
 ``` 
 
 ### Testing
