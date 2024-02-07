@@ -193,7 +193,7 @@ func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalance
 			klog.InfoS("Load balancer ACTIVE", "lbID", loadbalancerID)
 			return true, nil
 		} else if loadbalancer.ProvisioningStatus == errorStatus {
-			return true, fmt.Errorf("loadbalancer has gone into ERROR state")
+			return true, fmt.Errorf("loadbalancer %s has gone into ERROR state", loadbalancerID)
 		} else {
 			return false, nil
 		}
