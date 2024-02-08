@@ -24,6 +24,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumetypes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -51,7 +52,22 @@ const (
 var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
+func (os *OpenStack) CreateVolume(name string, size int, vtype string, encrypted bool, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
+	if encrypted {
+		volType, err := os.getVolumeTypeByName(vtype)
+		if err != nil {
+			return nil, err
+		} else if nil == volType {
+			return nil, fmt.Errorf("Failed to find the VolumeType %q given", vtype)
+		}
+
+		volTypeEncryption, err := volumetypes.GetEncryption(os.blockstorage, volType.ID).Extract()
+		if err != nil {
+			return nil, err
+		} else if nil == volTypeEncryption {
+			return nil, fmt.Errorf("VolumeType %q is not configured to encrypt data", vtype)
+		}
+	}
 
 	opts := &volumes.CreateOpts{
 		Name:             name,
@@ -410,6 +426,36 @@ func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// getVolumeTypeByName is a wrapper around ListVolumeTypes that creates a Name filter to act as a GetByUniqueName
+// Returns the Volume Type referenced with the specified name
+func (os *OpenStack) getVolumeTypeByName(n string) (*volumetypes.VolumeType, error) {
+	var matchingVolType *volumetypes.VolumeType
+
+	opts := volumetypes.ListOpts{}
+	err := volumetypes.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
+		var err error
+
+		volTypes, err := volumetypes.ExtractVolumeTypes(page)
+		if err != nil {
+			return false, err
+		}
+
+		for _, volType := range volTypes {
+			if n == volType.Name {
+				matchingVolType = &volType
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return matchingVolType, err
+	}
+
+	return matchingVolType, nil
 }
 
 // GetBlockStorageOpts returns OpenStack block storage options

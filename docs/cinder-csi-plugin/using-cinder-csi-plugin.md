@@ -266,6 +266,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 |-------------------------   |-----------------------|-----------------|-----------------|
 | StorageClass `parameters`  | `availability`          | `nova`          | String. Volume Availability Zone |
 | StorageClass `parameters`  | `type`                  | Empty String    | String. Name/ID of Volume type. Corresponding volume type should exist in cinder     |
+| StorageClass `parameters`  | `encrypted`          | Empty String    | String. True if Volume Encryption is requested |
 | VolumeSnapshotClass `parameters` | `force-create`    | `false`         | Enable to support creating snapshot for a volume in in-use status |
 | Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes|
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |

@@ -134,12 +134,14 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 	}
 
-	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourcevolID, &properties)
+	// Volume Encryption
+	encrypted := (req.GetParameters()["encrypted"] == "true")
+
+	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, encrypted, volAvailability, snapshotID, sourcevolID, &properties)
 
 	if err != nil {
 		klog.Errorf("Failed to CreateVolume: %v", err)
 		return nil, status.Errorf(codes.Internal, "CreateVolume failed with error %v", err)
-
 	}
 
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
