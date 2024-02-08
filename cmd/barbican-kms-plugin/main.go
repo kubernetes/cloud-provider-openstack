@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"os"
 	"os/signal"
 
@@ -35,12 +34,6 @@ var (
 )
 
 func main() {
-	flag.Parse()
-
-	// This is a temporary hack to enable proper logging until upstream dependencies
-	// are migrated to fully utilize klog instead of glog.
-	klog.InitFlags(nil)
-
 	cmd := &cobra.Command{
 		Use:   "barbican-kms-plugin",
 		Short: "Barbican KMS plugin for Kubernetes",
