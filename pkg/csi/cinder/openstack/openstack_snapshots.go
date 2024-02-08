@@ -39,23 +39,24 @@ const (
 
 	snapshotDescription = "Created by OpenStack Cinder CSI driver"
 	SnapshotForceCreate = "force-create"
+	SnapshotType        = "type"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and
 // returns the resultant gophercloud Snapshot Item upon success
-func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (os *OpenStack) CreateSnapshot(name, volID string, tags map[string]string) (*snapshots.Snapshot, error) {
 
 	force := false
 	// if no flag given, then force will be false by default
 	// if flag it given , check it
-	if item, ok := (*tags)[SnapshotForceCreate]; ok {
+	if item, ok := (tags)[SnapshotForceCreate]; ok {
 		var err error
 		force, err = strconv.ParseBool(item)
 		if err != nil {
 			klog.V(5).Infof("Make force create flag to false due to: %v", err)
 		}
 
-		delete(*tags, SnapshotForceCreate)
+		delete(tags, SnapshotForceCreate)
 	}
 	// Force the creation of snapshot even the Volume is in in-use state
 	opts := &snapshots.CreateOpts{
@@ -65,7 +66,7 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags *map[string]string)
 		Force:       force,
 	}
 	if tags != nil {
-		opts.Metadata = *tags
+		opts.Metadata = tags
 	}
 	// TODO: Do some check before really call openstack API on the input
 	mc := metrics.NewMetricContext("snapshot", "create")
@@ -157,7 +158,7 @@ func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, er
 }
 
 // WaitSnapshotReady waits till snapshot is ready
-func (os *OpenStack) WaitSnapshotReady(snapshotID string) error {
+func (os *OpenStack) WaitSnapshotReady(snapshotID string) (string, error) {
 	backoff := wait.Backoff{
 		Duration: snapReadyDuration,
 		Factor:   snapReadyFactor,
@@ -173,10 +174,16 @@ func (os *OpenStack) WaitSnapshotReady(snapshotID string) error {
 	})
 
 	if wait.Interrupted(err) {
-		err = fmt.Errorf("timeout, Snapshot  %s is still not Ready %v", snapshotID, err)
+		err = fmt.Errorf("timeout, Snapshot %s is still not Ready %v", snapshotID, err)
 	}
 
-	return err
+	snap, _ := os.GetSnapshotByID(snapshotID)
+
+	if snap != nil {
+		return snap.Status, err
+	} else {
+		return "Failed to get snapshot status", err
+	}
 }
 
 func (os *OpenStack) snapshotIsReady(snapshotID string) (bool, error) {

@@ -150,7 +150,7 @@ func nodePublishEphemeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*c
 		volumeType = ""
 	}
 
-	evol, err := ns.Cloud.CreateVolume(volName, size, volumeType, volAvailability, "", "", &properties)
+	evol, err := ns.Cloud.CreateVolume(volName, size, volumeType, volAvailability, "", "", "", properties)
 
 	if err != nil {
 		klog.V(3).Infof("Failed to Create Ephemeral Volume: %v", err)

@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
@@ -39,6 +40,18 @@ var fakeSnapshot = snapshots.Snapshot{
 	Size:     1,
 	VolumeID: "CSIVolumeID",
 	Metadata: make(map[string]string),
+}
+
+var fakemap = make(map[string]string)
+
+var fakeBackup = backups.Backup{
+	ID:         "eb5e4e9a-a4e5-4728-a748-04f9e2868573",
+	Name:       "fake-snapshot",
+	Status:     "available",
+	Size:       1,
+	VolumeID:   "CSIVolumeID",
+	SnapshotID: "261a8b81-3660-43e5-bab8-6470b65ee4e8",
+	Metadata:   &fakemap,
 }
 
 // revive:disable:exported
@@ -72,19 +85,19 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, tags *map[string]string) (*volumes.Volume, error) {
-	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, tags)
+func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
+	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, sourceBackupID, tags)
 
 	var r0 *volumes.Volume
-	if rf, ok := ret.Get(0).(func(string, int, string, string, string, string, *map[string]string) *volumes.Volume); ok {
-		r0 = rf(name, size, vtype, availability, snapshotID, sourceVolID, tags)
+	if rf, ok := ret.Get(0).(func(string, int, string, string, string, string, string, map[string]string) *volumes.Volume); ok {
+		r0 = rf(name, size, vtype, availability, snapshotID, sourceVolID, sourceBackupID, tags)
 	} else {
 		r0 = ret.Get(0).(*volumes.Volume)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, int, string, string, string, string, *map[string]string) error); ok {
-		r1 = rf(name, size, vtype, availability, snapshotID, sourceVolID, tags)
+	if rf, ok := ret.Get(1).(func(string, int, string, string, string, string, string, map[string]string) error); ok {
+		r1 = rf(name, size, vtype, availability, snapshotID, sourceVolID, sourceBackupID, tags)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -245,11 +258,11 @@ func (_m *OpenStackMock) ListSnapshots(filters map[string]string) ([]snapshots.S
 }
 
 // CreateSnapshot provides a mock function with given fields: name, volID, tags
-func (_m *OpenStackMock) CreateSnapshot(name string, volID string, tags *map[string]string) (*snapshots.Snapshot, error) {
+func (_m *OpenStackMock) CreateSnapshot(name string, volID string, tags map[string]string) (*snapshots.Snapshot, error) {
 	ret := _m.Called(name, volID, tags)
 
 	var r0 *snapshots.Snapshot
-	if rf, ok := ret.Get(0).(func(string, string, *map[string]string) *snapshots.Snapshot); ok {
+	if rf, ok := ret.Get(0).(func(string, string, map[string]string) *snapshots.Snapshot); ok {
 		r0 = rf(name, volID, tags)
 	} else {
 		if ret.Get(0) != nil {
@@ -258,7 +271,7 @@ func (_m *OpenStackMock) CreateSnapshot(name string, volID string, tags *map[str
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, string, *map[string]string) error); ok {
+	if rf, ok := ret.Get(1).(func(string, string, map[string]string) error); ok {
 		r1 = rf(name, volID, tags)
 	} else {
 		r1 = ret.Error(1)
@@ -274,6 +287,62 @@ func (_m *OpenStackMock) DeleteSnapshot(snapID string) error {
 	var r0 error
 	if rf, ok := ret.Get(0).(func(string) error); ok {
 		r0 = rf(snapID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+func (_m *OpenStackMock) ListBackups(filters map[string]string) ([]backups.Backup, error) {
+	ret := _m.Called(filters)
+
+	var r0 []backups.Backup
+	if rf, ok := ret.Get(0).(func(map[string]string) []backups.Backup); ok {
+		r0 = rf(filters)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]backups.Backup)
+		}
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(map[string]string) error); ok {
+		r1 = rf(filters)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+func (_m *OpenStackMock) CreateBackup(name, volID string, snapshotID string, tags map[string]string) (*backups.Backup, error) {
+	ret := _m.Called(name, volID, snapshotID, tags)
+
+	var r0 *backups.Backup
+	if rf, ok := ret.Get(0).(func(string, string, string, map[string]string) *backups.Backup); ok {
+		r0 = rf(name, volID, snapshotID, tags)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*backups.Backup)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string, string, string, map[string]string) error); ok {
+		r1 = rf(name, volID, snapshotID, tags)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+func (_m *OpenStackMock) DeleteBackup(backupID string) error {
+	ret := _m.Called(backupID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(backupID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -342,21 +411,57 @@ func (_m *OpenStackMock) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot
 	return &fakeSnapshot, nil
 }
 
-func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) error {
+func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) (string, error) {
 	ret := _m.Called(snapshotID)
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string) error); ok {
+	var r0 string
+	if rf, ok := ret.Get(0).(func(string) string); ok {
 		r0 = rf(snapshotID)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.String(0)
 	}
 
-	return r0
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(snapshotID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+func (_m *OpenStackMock) GetBackupByID(backupID string) (*backups.Backup, error) {
+
+	return &fakeBackup, nil
+}
+
+func (_m *OpenStackMock) WaitBackupReady(backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error) {
+	ret := _m.Called(backupID)
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func(string) string); ok {
+		r0 = rf(backupID)
+	} else {
+		r0 = ret.String(0)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(backupID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 func (_m *OpenStackMock) GetMaxVolLimit() int64 {
 	return 256
+}
+
+func (_m *OpenStackMock) BackupsAreEnabled() (bool, error) {
+	return true, nil
 }
 
 func (_m *OpenStackMock) GetInstanceByID(instanceID string) (*servers.Server, error) {

@@ -44,8 +44,8 @@ func init() {
 func TestCreateVolume(t *testing.T) {
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
-	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", &properties).Return(&FakeVol, nil)
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", "", properties).Return(&FakeVol, nil)
 
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 	// Init assert
@@ -90,9 +90,9 @@ func TestCreateVolume(t *testing.T) {
 func TestCreateVolumeWithParam(t *testing.T) {
 	// mock OpenStack
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
-	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
 	// Vol type and availability comes from CreateVolumeRequest.Parameters
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), "dummyVolType", "cinder", "", "", &properties).Return(&FakeVol, nil)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), "dummyVolType", "cinder", "", "", "", properties).Return(&FakeVol, nil)
 
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 	// Init assert
@@ -146,8 +146,8 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 		"csi.storage.k8s.io/pvc/name":      FakePVCName,
 		"csi.storage.k8s.io/pvc/namespace": FakePVCNamespace,
 	}
-	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", &properties).Return(&FakeVol, nil)
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", "", properties).Return(&FakeVol, nil)
 
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 
@@ -186,8 +186,8 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 
 func TestCreateVolumeFromSnapshot(t *testing.T) {
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
-	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, "", &properties).Return(&FakeVolFromSnapshot, nil)
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, "", "", properties).Return(&FakeVolFromSnapshot, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 
 	// Init assert
@@ -233,8 +233,8 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 func TestCreateVolumeFromSourceVolume(t *testing.T) {
 	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
-	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, tags *map[string]string) (string, string, int, error)
-	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, &properties).Return(&FakeVolFromSourceVolume, nil)
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, "", properties).Return(&FakeVolFromSourceVolume, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 
 	// Init assert
@@ -451,10 +451,12 @@ func TestListVolumes(t *testing.T) {
 
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
-	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &map[string]string{cinderCSIClusterIDKey: "cluster"}).Return(&FakeSnapshotRes, nil)
-	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
-	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, map[string]string{cinderCSIClusterIDKey: "cluster"}).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
+	osmock.On("ListBackups", map[string]string{"Name": FakeSnapshotName}).Return(FakeBackupListEmpty, nil)
+	osmock.On("GetSnapshotByID", FakeVolID).Return(&FakeSnapshotRes, nil)
 	// Init assert
 	assert := assert.New(t)
 
@@ -487,7 +489,7 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 		openstack.SnapshotForceCreate:                   "true",
 	}
 
-	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, &properties).Return(&FakeSnapshotRes, nil)
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, properties).Return(&FakeSnapshotRes, nil)
 	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(nil)
 
@@ -522,6 +524,7 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 func TestDeleteSnapshot(t *testing.T) {
 	// DeleteSnapshot(volumeID string) error
 	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
+	osmock.On("DeleteBackup", FakeSnapshotID).Return(nil)
 
 	// Init assert
 	assert := assert.New(t)
