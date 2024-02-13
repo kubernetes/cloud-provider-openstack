@@ -44,10 +44,10 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 }
 
 //revive:disable:unexported-return
-func NewControllerServer(d *Driver, cloud openstack.IOpenStack) *controllerServer {
+func NewControllerServer(d *Driver, clouds map[string]openstack.IOpenStack) *controllerServer {
 	return &controllerServer{
 		Driver: d,
-		Cloud:  cloud,
+		Clouds: clouds,
 	}
 }
 

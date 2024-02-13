@@ -34,6 +34,7 @@ var (
 	endpoint                 string
 	nodeID                   string
 	cloudConfig              []string
+	cloudNames               []string
 	cluster                  string
 	httpEndpoint             string
 	provideControllerService bool
@@ -65,6 +66,8 @@ func main() {
 		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
 	}
 
+	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "CSI driver cloud name in config files. This option can be given multiple times to manage multiple openstack clouds")
+
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
 
@@ -82,14 +85,18 @@ func handle() {
 	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
-		return
+	var err error
+	clouds := make(map[string]openstack.IOpenStack)
+	for _, cloudName := range cloudNames {
+		clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
+		if err != nil {
+			klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
+			return
+		}
 	}
 
 	if provideControllerService {
-		d.SetupControllerService(cloud)
+		d.SetupControllerService(clouds)
 	}
 
 	if provideNodeService {
@@ -97,9 +104,9 @@ func handle() {
 		mount := mount.GetMountProvider()
 
 		//Initialize Metadata
-		metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+		metadata := metadata.GetMetadataProvider(clouds[cloudNames[0]].GetMetadataOpts().SearchOrder)
 
-		d.SetupNodeService(cloud, mount, metadata)
+		d.SetupNodeService(clouds[cloudNames[0]], mount, metadata)
 	}
 
 	d.Run()

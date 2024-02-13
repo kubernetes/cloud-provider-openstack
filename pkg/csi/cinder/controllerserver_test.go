@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -32,11 +33,13 @@ var osmock *openstack.OpenStackMock
 func init() {
 	if fakeCs == nil {
 		osmock = new(openstack.OpenStackMock)
-		openstack.OsInstance = osmock
+		openstack.OsInstances = map[string]openstack.IOpenStack{
+			"": osmock,
+		}
 
 		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
 
-		fakeCs = NewControllerServer(d, openstack.OsInstance)
+		fakeCs = NewControllerServer(d, openstack.OsInstances)
 	}
 }
 
@@ -411,8 +414,12 @@ func TestListVolumes(t *testing.T) {
 
 	// Init assert
 	assert := assert.New(t)
-
-	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: FakeVolID}
+	token := CloudsStartingToken{
+		CloudName: "",
+		Token:     FakeVolID,
+	}
+	data, _ := json.Marshal(token)
+	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: string(data)}
 
 	// Expected Result
 	expectedRes := &csi.ListVolumesResponse{
