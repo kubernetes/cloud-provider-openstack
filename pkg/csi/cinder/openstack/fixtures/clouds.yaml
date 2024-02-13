@@ -10,3 +10,25 @@ clouds:
       cacert: "fake-ca.crt"
       interface: "public"
       identity_api_version: 3
+    openstack_cloud2:
+      auth:
+        auth_url: "https://169.254.169.254/identity/v3"
+        username: "user"
+        password: "pass"
+        project_id: "c869168a828847f39f7f06edd7305637"
+        domain_id: "2a73b8f597c04551a0fdc8e95544be8a"
+      region_name: "RegionTwo"
+      cacert: "fake-ca.crt"
+      interface: "public"
+      identity_api_version: 3
+    openstack_cloud3:
+      auth:
+        auth_url: "https://961.452.961.452/identity/v3"
+        username: "user_cloud3"
+        password: "pass_cloud3"
+        project_id: "66c684738f74161ad8b41cb56224b311"
+        domain_id: "032da590a2714eda744bd321b5356c7e"
+      region_name: "AnotherRegion"
+      cacert: "fake-ca_cloud3.crt"
+      interface: "public"
+      identity_api_version: 3

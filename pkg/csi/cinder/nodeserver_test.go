@@ -48,9 +48,11 @@ func init() {
 		metadata.MetadataService = metamock
 
 		omock = new(openstack.OpenStackMock)
-		openstack.OsInstance = omock
+		openstack.OsInstances = map[string]openstack.IOpenStack{
+			"": omock,
+		}
 
-		fakeNs = NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
+		fakeNs = NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""])
 	}
 }
 
@@ -140,10 +142,12 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 
 	mount.MInstance = mmock
 	metadata.MetadataService = metamock
-	openstack.OsInstance = omock
+	openstack.OsInstances = map[string]openstack.IOpenStack{
+		"": omock,
+	}
 
 	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
-	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
+	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""])
 
 	// Init assert
 	assert := assert.New(t)
@@ -283,7 +287,9 @@ func TestNodeUnpublishVolume(t *testing.T) {
 func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	mount.MInstance = mmock
 	metadata.MetadataService = metamock
-	openstack.OsInstance = omock
+	osmock := map[string]openstack.IOpenStack{
+		"": new(openstack.OpenStackMock),
+	}
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
 	mmock.On("UnmountPath", FakeTargetPath).Return(nil)
@@ -293,7 +299,7 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	omock.On("DeleteVolume", FakeVolID).Return(nil)
 
 	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
-	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstance)
+	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, osmock[""])
 
 	// Init assert
 	assert := assert.New(t)

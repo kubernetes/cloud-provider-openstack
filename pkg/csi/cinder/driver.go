@@ -172,9 +172,9 @@ func (d *Driver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_Access
 	return d.vcap
 }
 
-func (d *Driver) SetupControllerService(cloud openstack.IOpenStack) {
+func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack) {
 	klog.Info("Providing controller service")
-	d.cs = NewControllerServer(d, cloud)
+	d.cs = NewControllerServer(d, clouds)
 }
 
 func (d *Driver) SetupNodeService(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {

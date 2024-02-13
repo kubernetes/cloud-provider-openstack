@@ -22,12 +22,14 @@ func TestDriver(t *testing.T) {
 	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
 
 	fakecloudprovider := getfakecloud()
-	openstack.OsInstance = fakecloudprovider
+	openstack.OsInstances = map[string]openstack.IOpenStack{
+		"": fakecloudprovider,
+	}
 
 	fakemnt := GetFakeMountProvider()
 	fakemet := &fakemetadata{}
 
-	d.SetupControllerService(fakecloudprovider)
+	d.SetupControllerService(openstack.OsInstances)
 	d.SetupNodeService(fakecloudprovider, fakemnt, fakemet)
 
 	// TODO: Stop call
