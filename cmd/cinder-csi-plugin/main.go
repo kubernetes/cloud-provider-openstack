@@ -35,6 +35,7 @@ var (
 	nodeID                   string
 	cloudConfig              []string
 	cloudNames               []string
+	additionalTopologies     map[string]string
 	cluster                  string
 	httpEndpoint             string
 	provideControllerService bool
@@ -67,6 +68,7 @@ func main() {
 	}
 
 	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "CSI driver cloud name in config files. This option can be given multiple times to manage multiple openstack clouds")
+	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additionnal-topology", map[string]string{}, "CSI driver topology example topology.kubernetes.io/region=REGION1. This option can be given multiple times to manage multiple topology keys")
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
@@ -106,7 +108,7 @@ func handle() {
 		//Initialize Metadata
 		metadata := metadata.GetMetadataProvider(clouds[cloudNames[0]].GetMetadataOpts().SearchOrder)
 
-		d.SetupNodeService(clouds[cloudNames[0]], mount, metadata)
+		d.SetupNodeService(clouds[cloudNames[0]], mount, metadata, additionalTopologies)
 	}
 
 	d.Run()

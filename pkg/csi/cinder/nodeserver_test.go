@@ -52,7 +52,7 @@ func init() {
 			"": omock,
 		}
 
-		fakeNs = NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""])
+		fakeNs = NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""], map[string]string{})
 	}
 }
 
@@ -147,7 +147,7 @@ func TestNodePublishVolumeEphermeral(t *testing.T) {
 	}
 
 	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
-	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""])
+	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""], map[string]string{})
 
 	// Init assert
 	assert := assert.New(t)
@@ -299,7 +299,7 @@ func TestNodeUnpublishVolumeEphermeral(t *testing.T) {
 	omock.On("DeleteVolume", FakeVolID).Return(nil)
 
 	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
-	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, osmock[""])
+	fakeNse := NewNodeServer(d, mount.MInstance, metadata.MetadataService, osmock[""], map[string]string{})
 
 	// Init assert
 	assert := assert.New(t)
