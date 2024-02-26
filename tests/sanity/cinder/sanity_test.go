@@ -30,7 +30,7 @@ func TestDriver(t *testing.T) {
 	fakemet := &fakemetadata{}
 
 	d.SetupControllerService(openstack.OsInstances)
-	d.SetupNodeService(fakecloudprovider, fakemnt, fakemet)
+	d.SetupNodeService(fakecloudprovider, fakemnt, fakemet, map[string]string{})
 
 	// TODO: Stop call
 

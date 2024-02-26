@@ -177,9 +177,9 @@ func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack) 
 	d.cs = NewControllerServer(d, clouds)
 }
 
-func (d *Driver) SetupNodeService(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata) {
+func (d *Driver) SetupNodeService(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata, topologies map[string]string) {
 	klog.Info("Providing node service")
-	d.ns = NewNodeServer(d, mount, metadata, cloud)
+	d.ns = NewNodeServer(d, mount, metadata, cloud, topologies)
 }
 
 func (d *Driver) Run() {
