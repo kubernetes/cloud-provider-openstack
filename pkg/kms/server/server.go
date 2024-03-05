@@ -148,5 +148,5 @@ func (s *KMSserver) Encrypt(ctx context.Context, req *pb.EncryptRequest) (*pb.En
 		klog.V(4).Infof("Failed to encrypt data %v: ", err)
 		return nil, err
 	}
-	return &pb.EncryptResponse{Ciphertext: cipher}, nil
+	return &pb.EncryptResponse{Ciphertext: cipher, KeyId: s.cfg.KeyManager.KeyID}, nil
 }
