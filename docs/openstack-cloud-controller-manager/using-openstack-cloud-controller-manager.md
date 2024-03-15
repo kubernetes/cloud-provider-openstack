@@ -217,13 +217,13 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Optional. If specified, only "v2" is supported.
 
 * `subnet-id`
-  ID of the Neutron subnet on which to create load balancer VIP. This ID is also used to create pool members, if `member-subnet-id` is not set.
+  ID of the Neutron subnet on which to create load balancer VIP. This ID is also used to create pool members, if `member-subnet-id` is not set. For dual-stack deployments it's recommended to not set this option and let cloud-provider-openstack autodetect which subnet to use for which load balancer.
 
 * `member-subnet-id`
   ID of the Neutron network on which to create the members of the load balancer. The load balancer gets another network port on this subnet. Defaults to `subnet-id` if not set.
 
 * `network-id`
-  ID of the Neutron network on which to create load balancer VIP, not needed if `subnet-id` is set.
+  ID of the Neutron network on which to create load balancer VIP, not needed if `subnet-id` is set. If not set network will be autodetected based on the network used by cluster nodes.
 
 * `manage-security-groups`
   If the Neutron security groups should be managed separately. Default: false
