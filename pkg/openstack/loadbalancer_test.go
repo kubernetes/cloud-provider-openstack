@@ -1231,13 +1231,8 @@ func TestLbaasV2_updateServiceAnnotations(t *testing.T) {
 		},
 	}
 
-	annotations := map[string]string{
-		"key1": "value1",
-		"key2": "value2",
-	}
-
 	lbaas := LbaasV2{}
-	lbaas.updateServiceAnnotations(service, annotations)
+	lbaas.updateServiceAnnotation(service, "key1", "value1")
 
 	serviceAnnotations := make([]map[string]string, 0)
 	for key, value := range service.ObjectMeta.Annotations {
@@ -1246,7 +1241,6 @@ func TestLbaasV2_updateServiceAnnotations(t *testing.T) {
 
 	expectedAnnotations := []map[string]string{
 		{"key1": "value1"},
-		{"key2": "value2"},
 	}
 
 	assert.ElementsMatch(t, expectedAnnotations, serviceAnnotations)

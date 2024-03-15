@@ -255,17 +255,25 @@ func UpdateLoadBalancerTags(client *gophercloud.ServiceClient, lbID string, tags
 		Tags: &tags,
 	}
 
+	_, err := UpdateLoadBalancer(client, lbID, updateOpts)
+
+	return err
+}
+
+// UpdateLoadBalancer updates the load balancer
+func UpdateLoadBalancer(client *gophercloud.ServiceClient, lbID string, updateOpts loadbalancers.UpdateOpts) (*loadbalancers.LoadBalancer, error) {
 	mc := metrics.NewMetricContext("loadbalancer", "update")
 	_, err := loadbalancers.Update(client, lbID, updateOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
-		return err
+		return nil, err
 	}
 
-	if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
-		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating: %v", lbID, err)
+	lb, err := WaitActiveAndGetLoadBalancer(client, lbID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating: %v", lbID, err)
 	}
 
-	return nil
+	return lb, nil
 }
 
 func waitLoadbalancerDeleted(client *gophercloud.ServiceClient, loadbalancerID string) error {
@@ -544,6 +552,21 @@ func GetMembersbyPool(client *gophercloud.ServiceClient, poolID string) ([]pools
 	}
 
 	return members, nil
+}
+
+// UpdatePool updates a pool and wait for the lb active
+func UpdatePool(client *gophercloud.ServiceClient, lbID string, poolID string, opts pools.UpdateOpts) error {
+	mc := metrics.NewMetricContext("loadbalancer_pool", "update")
+	_, err := pools.Update(client, poolID, opts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return err
+	}
+
+	if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating pool: %v", lbID, err)
+	}
+
+	return nil
 }
 
 // DeletePool deletes a pool.
