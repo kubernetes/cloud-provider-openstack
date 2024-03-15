@@ -84,7 +84,7 @@ plane nodes.
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/barbican-kms/ds.yaml
 ```
 *recommendation:* Use the tag corresponding to your Kubernetes release, for
-example `release-1.25` for kubernetes version 1.25.
+example `release-1.29` for kubernetes version 1.29.
 
 
 ### Create encryption configuration
@@ -99,9 +99,9 @@ resources:
     - secrets
     providers:
     - kms:
-        name : barbican
+        apiVersion: v2
+        name: barbican
         endpoint: unix:///var/lib/kms/kms.sock
-        cachesize: 100
     - identity: {}
 ```
 
