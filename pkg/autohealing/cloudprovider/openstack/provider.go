@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
+	gopenstack "github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/startstop"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
@@ -43,8 +44,10 @@ import (
 	"k8s.io/client-go/util/retry"
 	log "k8s.io/klog/v2"
 
+	"k8s.io/cloud-provider-openstack/pkg/autohealing/cloudprovider"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
+	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
 const (
@@ -670,4 +673,56 @@ func CheckNodeCondition(node *apiv1.Node, conditionType apiv1.NodeConditionType,
 		}
 	}
 	return false
+}
+
+func NewOpenStackCloudProvider(cfg config.Config, kubeClient kubernetes.Interface) (cloudprovider.CloudProvider, error) {
+	client, err := client.NewOpenStackClient(&cfg.OpenStack, "magnum-auto-healer")
+	if err != nil {
+		return nil, err
+	}
+
+	eoOpts := gophercloud.EndpointOpts{
+		Region:       cfg.OpenStack.Region,
+		Availability: cfg.OpenStack.EndpointType,
+	}
+
+	// get nova service client
+	var novaClient *gophercloud.ServiceClient
+	novaClient, err = gopenstack.NewComputeV2(client, eoOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Nova service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
+	}
+
+	// get heat service client
+	var heatClient *gophercloud.ServiceClient
+	heatClient, err = gopenstack.NewOrchestrationV1(client, eoOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Heat service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
+	}
+
+	// get magnum service client
+	var magnumClient *gophercloud.ServiceClient
+	magnumClient, err = gopenstack.NewContainerInfraV1(client, eoOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Magnum service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
+	}
+	magnumClient.Microversion = "latest"
+
+	// get cinder service client
+	var cinderClient *gophercloud.ServiceClient
+	cinderClient, err = gopenstack.NewBlockStorageV3(client, eoOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Cinder service endpoint in the region %s: %v", cfg.OpenStack.Region, err)
+	}
+
+	p := CloudProvider{
+		KubeClient: kubeClient,
+		Nova:       novaClient,
+		Heat:       heatClient,
+		Magnum:     magnumClient,
+		Cinder:     cinderClient,
+		Config:     cfg,
+	}
+
+	return p, nil
 }

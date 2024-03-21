@@ -59,7 +59,7 @@ type NodeController interface {
 	UpdateNodeAnnotation(node NodeInfo, annotation string, value string) error
 }
 
-func registerHealthCheck(name string, register registerPlugin) {
+func RegisterHealthCheck(name string, register registerPlugin) {
 	if _, found := checkPlugins[name]; found {
 		log.Fatalf("Health check plugin %s is already registered.", name)
 	}

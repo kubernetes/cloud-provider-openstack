@@ -15,47 +15,45 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/identity/keystone"
 	"k8s.io/cloud-provider-openstack/pkg/version"
-	kflag "k8s.io/component-base/cli/flag"
-	"k8s.io/component-base/logs"
 )
 
-func main() {
-	var showVersion bool
-	pflag.BoolVar(&showVersion, "version", false, "Show current version and exit")
+var config = keystone.NewConfig()
 
-	logs.AddFlags(pflag.CommandLine)
+func main() {
+	cmd := &cobra.Command{
+		Use:   "k8s-keystone-auth",
+		Short: "Keystone authentication webhook plugin for Kubernetes",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := config.ValidateFlags(); err != nil {
+				klog.Errorf("%v", err)
+				os.Exit(1)
+			}
+
+			keystoneAuth, err := keystone.NewKeystoneAuth(config)
+			if err != nil {
+				klog.Errorf("%v", err)
+				os.Exit(1)
+			}
+			keystoneAuth.Run()
+
+		},
+		Version: version.Version,
+	}
+
 	keystone.AddExtraFlags(pflag.CommandLine)
 
-	logs.InitLogs()
-	defer logs.FlushLogs()
-
-	config := keystone.NewConfig()
 	config.AddFlags(pflag.CommandLine)
 
-	kflag.InitFlags()
+	code := cli.Run(cmd)
+	os.Exit(code)
 
-	if showVersion {
-		fmt.Println(version.Version)
-		os.Exit(0)
-	}
-
-	if err := config.ValidateFlags(); err != nil {
-		klog.Errorf("%v", err)
-		os.Exit(1)
-	}
-
-	keystoneAuth, err := keystone.NewKeystoneAuth(config)
-	if err != nil {
-		klog.Errorf("%v", err)
-		os.Exit(1)
-	}
-	keystoneAuth.Run()
 }

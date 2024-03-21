@@ -20,11 +20,9 @@ limitations under the License.
 package main
 
 import (
-	goflag "flag"
 	"fmt"
 	"os"
 
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
@@ -43,26 +41,18 @@ import (
 )
 
 func main() {
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
 	}
 
 	fss := cliflag.NamedFlagSets{}
+	openstack.AddExtraFlags(fss.FlagSet("OpenStack Client"))
+
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, names.CCMControllerAliases(), fss, wait.NeverStop)
-
-	openstack.AddExtraFlags(pflag.CommandLine)
-
-	// TODO: once we switch everything over to Cobra commands, we can go back to calling
-	// utilflag.InitFlags() (by removing its pflag.Parse() call). For now, we have to set the
-	// normalize func and add the go flag set by hand.
-	// Here is an sample
-	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
-	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
-
-	// utilflag.InitFlags()
-	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	klog.V(1).Infof("openstack-cloud-controller-manager version: %s", version.Version)
 
