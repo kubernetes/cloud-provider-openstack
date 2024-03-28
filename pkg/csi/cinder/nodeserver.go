@@ -41,10 +41,11 @@ import (
 )
 
 type nodeServer struct {
-	Driver   *Driver
-	Mount    mount.IMount
-	Metadata metadata.IMetadata
-	Cloud    openstack.IOpenStack
+	Driver     *Driver
+	Mount      mount.IMount
+	Metadata   metadata.IMetadata
+	Cloud      openstack.IOpenStack
+	Topologies map[string]string
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -467,7 +468,12 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] Unable to retrieve availability zone of node %v", err)
 	}
-	topology := &csi.Topology{Segments: map[string]string{topologyKey: zone}}
+	topologyMap := make(map[string]string, len(ns.Topologies)+1)
+	topologyMap[topologyKey] = zone
+	for k, v := range ns.Topologies {
+		topologyMap[k] = v
+	}
+	topology := &csi.Topology{Segments: topologyMap}
 
 	maxVolume := ns.Cloud.GetMaxVolLimit()
 
