@@ -21,4 +21,5 @@ const (
 	eventLBExternalNetworkSearchFailed = "LoadBalancerExternalNetworkSearchFailed"
 	eventLBSourceRangesIgnored         = "LoadBalancerSourceRangesIgnored"
 	eventLBAZIgnored                   = "LoadBalancerAvailabilityZonesIgnored"
+	eventLBFloatingIPSkipped           = "LoadBalancerFloatingIPSkipped"
 )
