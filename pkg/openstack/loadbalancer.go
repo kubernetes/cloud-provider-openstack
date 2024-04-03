@@ -259,8 +259,10 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 
 	// For external load balancer, the LoadBalancerIP is a public IP address.
 	loadBalancerIP := service.Spec.LoadBalancerIP
-	if loadBalancerIP != "" && svcConf.internal {
-		createOpts.VipAddress = loadBalancerIP
+	if loadBalancerIP != "" {
+		if svcConf.internal || (svcConf.preferredIPFamily == corev1.IPv6Protocol) {
+			createOpts.VipAddress = loadBalancerIP
+		}
 	}
 
 	if !lbaas.opts.ProviderRequiresSerialAPICalls {
@@ -1315,9 +1317,6 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			klog.V(3).InfoS("Enforcing internal LB", "annotation", true, "config", false)
 		}
 		svcConf.internal = true
-	} else if svcConf.preferredIPFamily == corev1.IPv6Protocol {
-		// floating IPs are not supported in IPv6 networks
-		svcConf.internal = true
 	} else {
 		svcConf.internal = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
 	}
@@ -1711,11 +1710,18 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	addr, err := lbaas.ensureFloatingIP(clusterName, service, loadbalancer, svcConf, isLBOwner)
-	if err != nil {
-		return nil, err
+	addr := loadbalancer.VipAddress
+	// IPv6 Load Balancers have no support for Floating IP.
+	if netutils.IsIPv6String(addr) {
+		msg := "Floating IP not supported for IPv6 Service %s. Using IPv6 address instead %s."
+		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBFloatingIPSkipped, msg, serviceName, addr)
+		klog.Infof(msg, serviceName, addr)
+	} else {
+		addr, err = lbaas.ensureFloatingIP(clusterName, service, loadbalancer, svcConf, isLBOwner)
+		if err != nil {
+			return nil, err
+		}
 	}
-
 	// Add annotation to Service and add LB name to load balancer tags.
 	annotationUpdate := map[string]string{
 		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
