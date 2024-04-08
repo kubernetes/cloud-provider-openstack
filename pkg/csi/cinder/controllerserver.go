@@ -136,7 +136,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		// In case a snapshot is not found
 		// check if a Backup with the same ID exists
 		if backupsAreEnabled && cpoerrors.IsNotFound(err) {
-			back, err := cloud.GetBackupByID(snapshotID)
+			var back *backups.Backup
+			back, err = cloud.GetBackupByID(snapshotID)
 			if err != nil {
 				//If there is an error getting the backup as well, fail.
 				return nil, status.Errorf(codes.NotFound, "VolumeContentSource Snapshot or Backup with ID %s not found", snapshotID)
@@ -154,7 +155,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		if cpoerrors.IsNotFound(err) && snapshotID == "" {
 			return nil, err
 		}
-
 	}
 
 	if content != nil && content.GetVolume() != nil {
@@ -420,10 +420,17 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		}
 
 		if len(backups) == 1 {
-			backup = &backups[0]
+			// since backup.VolumeID is not part of ListBackups response
+			// we need fetch single backup to get the full object.
+			backup, err = cs.Cloud.GetBackupByID(backups[0].ID)
+			if err != nil {
+				klog.Errorf("Failed to get backup by ID %s: %v", backup.ID, err)
+				return nil, status.Error(codes.Internal, "Failed to get backup by ID")
+			}
 
 			// Verify the existing backup has the same VolumeID, otherwise it belongs to another volume
 			if backup.VolumeID != volumeID {
+				klog.Errorf("found existing backup for volumeID (%s) but different source volume ID (%s)", volumeID, backup.VolumeID)
 				return nil, status.Error(codes.AlreadyExists, "Backup with given name already exists, with different source volume ID")
 			}
 
@@ -503,7 +510,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			return nil, status.Error(codes.Internal, fmt.Sprintf("GetBackupByID failed with error %v", err))
 		}
 
-		err = cs.Cloud.DeleteSnapshot(snap.ID)
+		err = cs.Cloud.DeleteSnapshot(backup.SnapshotID)
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			klog.Errorf("Failed to DeleteSnapshot: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot failed with error %v", err))

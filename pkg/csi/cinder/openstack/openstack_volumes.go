@@ -72,10 +72,10 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 		return nil, err
 	}
 
-	// creating volumes from backups is available since 3.47 microversion
+	// creating volumes from backups and backups cross-az is available since 3.51 microversion
 	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id47
 	if !os.bsOpts.IgnoreVolumeMicroversion && sourceBackupID != "" {
-		blockstorageClient.Microversion = "3.47"
+		blockstorageClient.Microversion = "3.51"
 	}
 
 	mc := metrics.NewMetricContext("volume", "create")

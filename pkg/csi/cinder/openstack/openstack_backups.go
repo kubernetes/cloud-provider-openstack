@@ -63,23 +63,18 @@ func (os *OpenStack) CreateBackup(name, volID, snapshotID, availabilityZone stri
 	}
 
 	opts := &backups.CreateOpts{
-		VolumeID:    volID,
-		SnapshotID:  snapshotID,
-		Name:        name,
-		Force:       force,
-		Description: backupDescription,
+		VolumeID:         volID,
+		SnapshotID:       snapshotID,
+		Name:             name,
+		Force:            force,
+		Description:      backupDescription,
+		AvailabilityZone: availabilityZone,
 	}
 
 	if tags != nil {
-		// Set openstack microversion to 3.43 to send metadata along with the backup
-		blockstorageServiceClient.Microversion = "3.43"
-		opts.Metadata = tags
-	}
-
-	if availabilityZone != "" {
-		// 3.51 is minimum if az is defined for the request
+		// Set openstack microversion to 3.51 to send metadata along with the backup
 		blockstorageServiceClient.Microversion = "3.51"
-		opts.AvailabilityZone = availabilityZone
+		opts.Metadata = tags
 	}
 
 	// TODO: Do some check before really call openstack API on the input
