@@ -227,15 +227,16 @@ func (cloud *cloud) WaitSnapshotReady(snapshotID string) (string, error) {
 	return "available", nil
 }
 
-func (cloud *cloud) CreateBackup(name, volID string, snapshotID string, tags map[string]string) (*backups.Backup, error) {
+func (cloud *cloud) CreateBackup(name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error) {
 
 	backup := &backups.Backup{
-		ID:         randString(10),
-		Name:       name,
-		Status:     "available",
-		VolumeID:   volID,
-		SnapshotID: snapshotID,
-		CreatedAt:  time.Now(),
+		ID:               randString(10),
+		Name:             name,
+		Status:           "available",
+		VolumeID:         volID,
+		SnapshotID:       snapshotID,
+		AvailabilityZone: &availabilityZone,
+		CreatedAt:        time.Now(),
 	}
 
 	cloud.backups[backup.ID] = backup

@@ -593,7 +593,7 @@ func (cs *controllerServer) createBackup(name string, volumeID string, snap *sna
 		}
 	}
 
-	backup, err := cs.Cloud.CreateBackup(name, volumeID, snap.ID, properties)
+	backup, err := cs.Cloud.CreateBackup(name, volumeID, snap.ID, parameters[openstack.SnapshotAvailabilityZone], properties)
 	if err != nil {
 		klog.Errorf("Failed to Create backup: %v", err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateBackup failed with error %v", err))
