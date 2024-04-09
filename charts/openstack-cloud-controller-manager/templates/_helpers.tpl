@@ -60,8 +60,12 @@ Create cloud-config makro.
 {{- range $key, $value := .Values.cloudConfig.metadata }}
 {{ $key }} = {{ $value | quote }}
 {{- end }}
-{{- end }}
 
+[Route]
+{{- range $key, $value := .Values.cloudConfig.route }}
+{{ $key }} = {{ $value | quote }}
+{{- end }}
+{{- end }}
 
 {{/*
 Generate string of enabled controllers. Might have a trailing comma (,) which needs to be trimmed.
