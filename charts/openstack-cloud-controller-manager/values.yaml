@@ -108,6 +108,7 @@ cloudConfig:
   loadBalancer:
   blockStorage:
   metadata:
+  route:
 
 # Allow for specifying internal IP addresses for multiple hostnames
 # hostAliases:
