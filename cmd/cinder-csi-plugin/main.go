@@ -67,8 +67,8 @@ func main() {
 		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
 	}
 
-	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "CSI driver cloud name in config files. This option can be given multiple times to manage multiple openstack clouds")
-	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additionnal-topology", map[string]string{}, "CSI driver topology example topology.kubernetes.io/region=REGION1. This option can be given multiple times to manage multiple topology keys")
+	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
+	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
