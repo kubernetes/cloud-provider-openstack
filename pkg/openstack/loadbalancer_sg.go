@@ -202,7 +202,7 @@ func getRulesToCreateAndDelete(wantedRules []rules.CreateOpts, existingRules []r
 	return toCreate, toDelete
 }
 
-// ensureAndUpdateOctaviaSecurityGroup handles the creation and update of the security group and the securiry rules for the octavia load balancer
+// ensureAndUpdateOctaviaSecurityGroup handles the creation and update of the security group and the security rules for the octavia load balancer
 func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, apiService *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	// get service ports
 	ports := apiService.Spec.Ports
@@ -234,6 +234,17 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 			return fmt.Errorf("failed to create Security Group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
 		lbSecGroupID = lbSecGroup.ID
+
+		tags := getCustomLoadBalancerTags(apiService, svcConf)
+		if len(tags) > 0 {
+			mcTags := metrics.NewMetricContext("security_group_tag", "replace")
+
+			_, err := neutrontags.ReplaceAll(lbaas.network, "security-groups", lbSecGroupID, neutrontags.ReplaceAllOpts{Tags: tags}).Extract()
+
+			if mcTags.ObserveRequest(err) != nil {
+				return fmt.Errorf("failed to add custom tags %s to security group %s (%s)", tags, lbSecGroupID, lbSecGroupName)
+			}
+		}
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")

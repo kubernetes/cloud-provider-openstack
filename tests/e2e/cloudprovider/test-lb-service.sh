@@ -801,6 +801,76 @@ EOF
     fi
 }
 
+########################################################################
+## Name: test_lb_tags
+## Desc: The steps in this test case:
+##   1. Create a load balancer in Octavia with tags 'this_is', 'tag_test' and '54321'
+##   2. Get the load balancer id & listener id(Based on namespace and service name) and retrieve their tags via openstack api(cli)
+##   3. Check if all the tags are presented in both resources
+##   4. Clean up - Delete the k8s service
+########################################################################
+
+function test_lb_tags {
+    local service="test-tags"
+
+    printf "\n>>>>>>> Create Service ${service}\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service}
+  namespace: $NAMESPACE
+  annotations:
+    loadbalancer.openstack.org/custom-tags: "this_is, tag_test, 54321"
+spec:
+  type: LoadBalancer
+  loadBalancerIP: ${FLOATING_IP}
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
+    wait_for_service_address ${service}
+
+    printf "\n>>>>>>> Validating openstack load balancer and listener\n"
+    lbid=$(openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
+    if [[ -z $lbid ]]; then
+      printf "\n>>>>>>> FAIL: Load balancer not found for Service ${service}\n"
+      exit 1
+    fi
+    
+    listenerid=$(openstack loadbalancer listener list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
+    if [[ -z $listenerid ]]; then
+      printf "\n>>>>>>> FAIL: Listener not found for Service ${service}\n"
+      exit 1
+    fi
+    
+    printf "\n>>>>>>> Validating openstack load balancer tags\n"
+    lb_tags=$(openstack loadbalancer show $lbid -f json | jq '.tags' | tr '\n' ' ')
+    if [[ ${lb_tags} != *"this_is"*  || ${lb_tags} != *"tag_test"*  || ${lb_tags} != *"54321"* || ${lb_tags} != *"octavia-lb-test_${service}"* ]]; then
+      printf "\n>>>>>>> FAIL: The load balancer is missing tags!\n"
+      exit 1
+    fi
+
+
+    printf "\n>>>>>>> Validating openstack load balancer listener tags\n"
+    listener_tags=$(openstack loadbalancer listener show $listenerid -f json | jq '.tags' | tr '\n' ' ')
+    if [[ ${listener_tags} != *"this_is"*  || ${listener_tags} != *"tag_test"*  || ${listener_tags} != *"54321"* || ${listener_tags} != *"octavia-lb-test_${service}"* ]]; then
+      printf "\n>>>>>>> FAIL: The listener is missing tags!\n"
+      exit 1
+    fi
+    
+    printf "\n>>>>>>> Expected: Load balancer and listeners must be tagged as the custom-tags annotation specifies\n"
+    
+    printf "\n>>>>>>> Delete Service ${service}\n"
+    kubectl -n $NAMESPACE delete service ${service}
+    
+}
+
 create_namespace
 create_deployment
 set_openstack_credentials
@@ -810,3 +880,4 @@ test_forwarded
 test_update_port
 test_shared_lb
 test_shared_user_lb
+test_lb_tags 

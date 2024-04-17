@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	neutrontags "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/attributestags"
 	"regexp"
 	"strconv"
 	"strings"
@@ -84,6 +85,7 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown = "loadbalancer.openstack.org/health-monitor-max-retries-down"
 	ServiceAnnotationLoadBalancerLoadbalancerHostname        = "loadbalancer.openstack.org/hostname"
 	ServiceAnnotationLoadBalancerAddress                     = "loadbalancer.openstack.org/load-balancer-address"
+	ServiceAnnotationLoadBalancerCustomTags                  = "loadbalancer.openstack.org/custom-tags"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -220,6 +222,22 @@ func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) liste
 	}
 }
 
+func getCustomLoadBalancerTags(service *corev1.Service, svcConf *serviceConfig) []string {
+	if !svcConf.supportLBTags {
+		return nil
+	}
+
+	annotationVal := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerCustomTags, "")
+
+	tags := strings.Split(annotationVal, ",")
+
+	for i := range tags {
+		tags[i] = strings.TrimSpace(tags[i])
+	}
+
+	return tags
+}
+
 func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) (*loadbalancers.LoadBalancer, error) {
 	createOpts := loadbalancers.CreateOpts{
 		Name:        name,
@@ -229,6 +247,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 
 	if svcConf.supportLBTags {
 		createOpts.Tags = []string{svcConf.lbName}
+		createOpts.Tags = append(createOpts.Tags, getCustomLoadBalancerTags(service, svcConf)...)
 	}
 
 	if svcConf.flavorID != "" {
@@ -270,8 +289,8 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 
 	if !lbaas.opts.ProviderRequiresSerialAPICalls {
 		for portIndex, port := range service.Spec.Ports {
-			listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, cpoutil.Sprintf255(listenerFormat, portIndex, name))
-			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+			listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, service, cpoutil.Sprintf255(listenerFormat, portIndex, name))
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf, service)
 			if err != nil {
 				return nil, err
 			}
@@ -563,10 +582,19 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 	return nil
 }
 
-func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
+func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts, tags []string) (*floatingips.FloatingIP, error) {
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
+	mcTags := metrics.NewMetricContext("floating_ip_tag", "replace")
 	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
+
+	if len(tags) > 0 { // replace tags
+		_, errReplacingTags := neutrontags.ReplaceAll(lbaas.network, "floatingips", floatIP.ID, neutrontags.ReplaceAllOpts{Tags: tags}).Extract()
+		if mcTags.ObserveRequest(errReplacingTags) != nil {
+			return nil, fmt.Errorf("failed to add custom tags %s to floatingIPs %s with a projectID (%s)", tags, floatIP.ID, floatIP.ProjectID)
+		}
+	}
+
 	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
 		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
@@ -687,6 +715,8 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 				Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", serviceName, clusterName),
 			}
 
+			floatingIpCustomTags := getCustomLoadBalancerTags(service, svcConf)
+
 			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.MatcherConfigured() {
 				var foundSubnet subnets.Subnet
 				// tweak list options for tags
@@ -704,7 +734,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				for _, subnet := range foundSubnets {
 					floatIPOpts.SubnetID = subnet.ID
-					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
+					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts, floatingIpCustomTags)
 					if err == nil {
 						foundSubnet = subnet
 						break
@@ -721,7 +751,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
 				}
 				floatIPOpts.FloatingIP = loadBalancerIP
-				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts)
+				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts, floatingIpCustomTags)
 				if err != nil {
 					return "", err
 				}
@@ -904,7 +934,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		curMembers.Insert(fmt.Sprintf("%s-%s-%d-%d", m.Name, m.Address, m.ProtocolPort, m.MonitorPort))
 	}
 
-	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+	members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf, service)
 	if err != nil {
 		return nil, err
 	}
@@ -955,9 +985,11 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 }
 
 // buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
-func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.Set[string], error) {
+func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig, service *corev1.Service) ([]v2pools.BatchUpdateMemberOpts, sets.Set[string], error) {
 	var members []v2pools.BatchUpdateMemberOpts
 	newMembers := sets.New[string]()
+
+	customTags := getCustomLoadBalancerTags(service, svcConf)
 
 	for _, node := range nodes {
 		addr, err := nodeAddressForLB(node, svcConf.preferredIPFamily)
@@ -982,6 +1014,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 				ProtocolPort: int(port.NodePort),
 				Name:         &node.Name,
 				SubnetID:     memberSubnetID,
+				Tags:         customTags,
 			}
 			if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(port) {
 				member.MonitorPort = &svcConf.healthCheckNodePort
@@ -994,13 +1027,13 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 }
 
 // Make sure the listener is created for Service
-func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
+func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, service *corev1.Service) (*listeners.Listener, error) {
 	listener, isPresent := curListenerMapping[listenerKey{
 		Protocol: getListenerProtocol(port.Protocol, svcConf),
 		Port:     int(port.Port),
 	}]
 	if !isPresent {
-		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, name)
+		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, service, name)
 		listenerCreateOpt.LoadbalancerID = lbID
 
 		klog.V(2).Infof("Creating listener for port %d using protocol %s", int(port.Port), listenerCreateOpt.Protocol)
@@ -1086,7 +1119,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListene
 }
 
 // buildListenerCreateOpt returns listeners.CreateOpts for a specific Service port and configuration
-func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *serviceConfig, name string) listeners.CreateOpts {
+func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *serviceConfig, service *corev1.Service, name string) listeners.CreateOpts {
 	listenerCreateOpt := listeners.CreateOpts{
 		Name:         name,
 		Protocol:     listeners.Protocol(port.Protocol),
@@ -1096,6 +1129,7 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *s
 
 	if svcConf.supportLBTags {
 		listenerCreateOpt.Tags = []string{svcConf.lbName}
+		listenerCreateOpt.Tags = append(listenerCreateOpt.Tags, getCustomLoadBalancerTags(service, svcConf)...)
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
