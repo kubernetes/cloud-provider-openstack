@@ -224,8 +224,7 @@ func GetOpenStackProvider(cloudName string) (IOpenStack, error) {
 	if OsInstanceDefined {
 		return OsInstance, nil
 	}
-	var err error
-	OsInstance, err = CreateOpenStackProvider(cloudName)
+	OsInstance, err := CreateOpenStackProvider(cloudName)
 	if err != nil {
 		return nil, err
 	}
