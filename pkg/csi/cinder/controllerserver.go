@@ -382,8 +382,8 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	var nextPageToken string
 
 	startIdx := 0
-	for idx := 0; idx < len(cloudsNames); idx++ {
-		if cloudsNames[idx] == currentCloudName {
+	for _, cloudName := range cloudsNames {
+		if cloudName == currentCloudName {
 			break
 		}
 		startIdx++
@@ -436,7 +436,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 						NextToken: "",
 					}, nil
 				} else {
-					// stiil clouds to process
+					// still clouds to process
 					cloudsToken.CloudName = cloudsNames[idx+1]
 				}
 			}
