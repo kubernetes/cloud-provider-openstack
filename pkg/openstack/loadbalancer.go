@@ -31,6 +31,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
 	v2pools "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/attributestags"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
 	corev1 "k8s.io/api/core/v1"
@@ -563,7 +564,7 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 	return nil
 }
 
-func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
+func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts, tag *string) (*floatingips.FloatingIP, error) {
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
 	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
@@ -571,6 +572,16 @@ func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.Creat
 	if mc.ObserveRequest(err) != nil {
 		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
 	}
+
+	if tag != nil {
+		err = attributestags.Add(lbaas.network, "floatingips", floatIP.ID, *tag).ExtractErr()
+		err = PreserveGopherError(err)
+		if mc.ObserveRequest(err) != nil {
+			floatingips.Delete(lbaas.network, floatIP.ID)
+			return floatIP, fmt.Errorf("error update LB floatingip tag: %v", err)
+		}
+	}
+
 	return floatIP, err
 }
 
@@ -704,7 +715,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				for _, subnet := range foundSubnets {
 					floatIPOpts.SubnetID = subnet.ID
-					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
+					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts, &svcConf.lbName)
 					if err == nil {
 						foundSubnet = subnet
 						break
@@ -721,7 +732,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
 				}
 				floatIPOpts.FloatingIP = loadBalancerIP
-				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts)
+				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts, &svcConf.lbName)
 				if err != nil {
 					return "", err
 				}
