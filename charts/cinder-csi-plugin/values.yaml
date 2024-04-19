@@ -160,11 +160,12 @@ secret:
 #      ca-file=/etc/cacert/ca-bundle.crt
 
 storageClass:
-  enabled: true
   delete:
+    enabled: false
     isDefault: false
     allowVolumeExpansion: true
   retain:
+    enabled: false
     isDefault: false
     allowVolumeExpansion: true
 # any kind of custom StorageClasses
