@@ -152,13 +152,13 @@ func (_m *MountMock) Mounter() *mount.SafeFormatAndMount {
 		err    error
 	}{
 		{
-			cmd:    "findmnt",
-			output: []byte("devicepath"),
+			cmd:    "blkid",
+			output: []byte("UUID=\"1b47881a-1563-4896-a178-eec887b759de\" \n TYPE=\"ext4\""),
 			err:    nil,
 		},
 		{
-			cmd:    "blkid",
-			output: []byte("UUID=\"1b47881a-1563-4896-a178-eec887b759de\" \n TYPE=\"ext4\""),
+			cmd:    "findmnt",
+			output: []byte("devicepath"),
 			err:    nil,
 		},
 	}
