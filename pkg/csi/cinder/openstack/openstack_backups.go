@@ -44,7 +44,7 @@ const (
 
 // CreateBackup issues a request to create a Backup from the specified Snapshot with the corresponding ID and
 // returns the resultant gophercloud Backup Item upon success.
-func (os *OpenStack) CreateBackup(name, volID string, snapshotID string, tags map[string]string) (*backups.Backup, error) {
+func (os *OpenStack) CreateBackup(name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error) {
 	blockstorageServiceClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
 	if err != nil {
 		return &backups.Backup{}, err
@@ -63,16 +63,17 @@ func (os *OpenStack) CreateBackup(name, volID string, snapshotID string, tags ma
 	}
 
 	opts := &backups.CreateOpts{
-		VolumeID:    volID,
-		SnapshotID:  snapshotID,
-		Name:        name,
-		Force:       force,
-		Description: backupDescription,
+		VolumeID:         volID,
+		SnapshotID:       snapshotID,
+		Name:             name,
+		Force:            force,
+		Description:      backupDescription,
+		AvailabilityZone: availabilityZone,
 	}
 
 	if tags != nil {
-		// Set openstack microversion to 3.43 to send metadata along with the backup
-		blockstorageServiceClient.Microversion = "3.43"
+		// Set openstack microversion to 3.51 to send metadata along with the backup
+		blockstorageServiceClient.Microversion = "3.51"
 		opts.Metadata = tags
 	}
 

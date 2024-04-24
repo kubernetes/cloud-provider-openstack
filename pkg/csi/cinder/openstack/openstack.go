@@ -61,7 +61,7 @@ type IOpenStack interface {
 	DeleteSnapshot(snapID string) error
 	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
 	WaitSnapshotReady(snapshotID string) (string, error)
-	CreateBackup(name, volID string, snapshotID string, tags map[string]string) (*backups.Backup, error)
+	CreateBackup(name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error)
 	ListBackups(filters map[string]string) ([]backups.Backup, error)
 	DeleteBackup(backupID string) error
 	GetBackupByID(backupID string) (*backups.Backup, error)
