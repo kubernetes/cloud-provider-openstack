@@ -1,4 +1,4 @@
-{{- if .Values.storageClass.delete.enabled }}
+{{- if or .Values.storageClass.enabled .Values.storageClass.delete.enabled }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -12,7 +12,7 @@ provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 allowVolumeExpansion: {{ .Values.storageClass.delete.allowVolumeExpansion }}
 {{- end }}
-{{- if .Values.storageClass.retain.enabled }}
+{{- if or .Values.storageClass.enabled .Values.storageClass.retain.enabled }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
