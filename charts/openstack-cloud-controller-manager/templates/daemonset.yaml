@@ -54,7 +54,7 @@ spec:
             - --cloud-config=$(CLOUD_CONFIG)
             - --cluster-name=$(CLUSTER_NAME)
             - --cloud-provider=openstack
-            - --use-service-account-credentials=true
+            - --use-service-account-credentials=false
             - --controllers={{- trimAll "," (include "occm.enabledControllers" . ) -}}
             {{- if .Values.serviceMonitor.enabled }}
             - --bind-address=0.0.0.0

@@ -45,7 +45,7 @@ spec:
             - --cluster-name=$(CLUSTER_NAME)
             - --cloud-config=$(CLOUD_CONFIG)
             - --cloud-provider=openstack
-            - --use-service-account-credentials=true
+            - --use-service-account-credentials=false
             - --bind-address=127.0.0.1
           volumeMounts:
             - mountPath: /etc/kubernetes/pki
