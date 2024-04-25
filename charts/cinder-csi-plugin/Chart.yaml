@@ -6,5 +6,7 @@ version: 2.29.2
 home: https://github.com/kubernetes/cloud-provider-openstack
 icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
 maintainers:
-  - name: brtknr
-    email: brtknr@bath.edu
+  - name: mnasiadka
+    email: mnasiadka@gmail.com
+  - name: mkjpryor
+    email: matt@stackhpc.com
