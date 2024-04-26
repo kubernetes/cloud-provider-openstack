@@ -564,22 +564,13 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 	return nil
 }
 
-func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts, tag *string) (*floatingips.FloatingIP, error) {
+func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
 	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
 	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
 		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
-	}
-
-	if tag != nil {
-		err = attributestags.Add(lbaas.network, "floatingips", floatIP.ID, *tag).ExtractErr()
-		err = PreserveGopherError(err)
-		if mc.ObserveRequest(err) != nil {
-			floatingips.Delete(lbaas.network, floatIP.ID)
-			return floatIP, fmt.Errorf("error update LB floatingip tag: %v", err)
-		}
 	}
 
 	return floatIP, err
@@ -715,7 +706,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				for _, subnet := range foundSubnets {
 					floatIPOpts.SubnetID = subnet.ID
-					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts, &svcConf.lbName)
+					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
 					if err == nil {
 						foundSubnet = subnet
 						break
@@ -732,7 +723,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
 				}
 				floatIPOpts.FloatingIP = loadBalancerIP
-				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts, &svcConf.lbName)
+				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts)
 				if err != nil {
 					return "", err
 				}
@@ -746,6 +737,20 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 	}
 
 	if floatIP != nil {
+		tags, err := attributestags.List(lbaas.network, "floatingips", floatIP.ID).Extract()
+		found := false
+		for _, tag := range tags {
+			if tag == svcConf.lbName {
+				found = true
+			}
+		}
+		if !found {
+			err = attributestags.Add(lbaas.network, "floatingips", floatIP.ID, svcConf.lbName).ExtractErr()
+			if err != nil {
+				klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", svcConf.lbName, floatIP.ID)
+			}
+		}
+
 		return floatIP.FloatingIP, nil
 	}
 
