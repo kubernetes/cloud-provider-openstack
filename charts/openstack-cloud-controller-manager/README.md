@@ -55,6 +55,15 @@ tolerations:
     effect: NoSchedule
 ```
 
+## NodeSelector
+
+To deploy OCCM to control-plane nodes only, adjust the nodeSelectors in the chart:
+
+```yaml
+nodeSelector:
+  node-role.kubernetes.io/control-plane: "true"
+```
+
 ## Unsupported configurations
 
 - The chart does not support the mounting of custom `clouds.yaml` files. Therefore, the following config values in the `[Global]` section won’t have any effect:
