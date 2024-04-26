@@ -57,7 +57,7 @@ tolerations:
 
 ## NodeSelector
 
-To deploy OCCM to control-plane nodes only, adjust the nodeSelectors in the chart:
+To deploy OCCM to control-plane nodes only, adjust the nodeSelector key in the chart:
 
 ```yaml
 nodeSelector:
