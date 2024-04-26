@@ -2,9 +2,11 @@ apiVersion: v1
 appVersion: v1.29.0
 description: Manila CSI Chart for OpenStack
 name: openstack-manila-csi
-version: 2.29.0
+version: 2.29.1
 home: http://github.com/kubernetes/cloud-provider-openstack
 icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
 maintainers:
-  - name: brtknr
-    email: brtknr@bath.edu
+  - name: mnasiadka
+    email: mnasiadka@gmail.com
+  - name: mkjpryor
+    email: matt@stackhpc.com
