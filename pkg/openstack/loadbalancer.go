@@ -593,6 +593,42 @@ func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portI
 	return floatingip, nil
 }
 
+func (lbaas *LbaasV2) updateFloatingIPTag(floatingip *floatingips.FloatingIP, Tag string, delete bool) error {
+	if Tag == "" {
+		return fmt.Errorf("Error input tag argument ")
+	}
+	tags, err := attributestags.List(lbaas.network, "floatingips", floatingip.ID).Extract()
+	if err != nil {
+		klog.V(3).Infof("Cannot get floatIP tags for floating %s", floatingip.ID)
+		return err
+	}
+	found := false
+	for _, tag := range tags {
+		if tag == Tag {
+			found = true
+		}
+	}
+	if delete {
+		if !found {
+			return nil
+		}
+		err = attributestags.Delete(lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+		if err != nil {
+			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
+		}
+		return err
+	}
+
+	if !found {
+		err = attributestags.Add(lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+		if err != nil {
+			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
+		}
+		return err
+	}
+	return nil
+}
+
 // ensureFloatingIP manages a FIP for a Service and returns the address that should be advertised in the
 // .Status.LoadBalancer. In particular it will:
 //  1. Lookup if any FIP is already attached to the VIP port of the LB.
@@ -638,6 +674,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 				if err != nil {
 					return "", err
 				}
+				_ = lbaas.updateFloatingIPTag(floatIP, svcConf.lbName, true)
 			}
 		}
 		return lb.VipAddress, nil
@@ -737,24 +774,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 	}
 
 	if floatIP != nil {
-		tags, err := attributestags.List(lbaas.network, "floatingips", floatIP.ID).Extract()
-		if err != nil {
-			klog.V(3).Infof("Cannot get floatIP tags for floating %s", floatIP.ID)
-			return floatIP.FloatingIP, nil
-		}
-		found := false
-		for _, tag := range tags {
-			if tag == svcConf.lbName {
-				found = true
-			}
-		}
-		if !found {
-			err = attributestags.Add(lbaas.network, "floatingips", floatIP.ID, svcConf.lbName).ExtractErr()
-			if err != nil {
-				klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", svcConf.lbName, floatIP.ID)
-			}
-		}
-
+		_ = lbaas.updateFloatingIPTag(floatIP, svcConf.lbName, false)
 		return floatIP.FloatingIP, nil
 	}
 
