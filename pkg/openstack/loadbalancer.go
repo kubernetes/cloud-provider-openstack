@@ -738,6 +738,10 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 
 	if floatIP != nil {
 		tags, err := attributestags.List(lbaas.network, "floatingips", floatIP.ID).Extract()
+		if err != nil {
+			klog.V(3).Infof("Cannot get floatIP tags for floating %s", floatIP.ID)
+			return floatIP.FloatingIP, nil
+		}
 		found := false
 		for _, tag := range tags {
 			if tag == svcConf.lbName {
