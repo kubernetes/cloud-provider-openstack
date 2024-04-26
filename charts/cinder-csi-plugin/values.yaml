@@ -162,9 +162,11 @@ secret:
 storageClass:
   enabled: true
   delete:
+    enabled: true
     isDefault: false
     allowVolumeExpansion: true
   retain:
+    enabled: true
     isDefault: false
     allowVolumeExpansion: true
 # any kind of custom StorageClasses
