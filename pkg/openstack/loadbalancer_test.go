@@ -842,7 +842,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
 			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
 			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
-			assert.EqualValues(t, tt.want.IPMode, result.Ingress[0].IPMode)
+			assert.Equal(t, tt.want.IPMode, result.Ingress[0].IPMode)
 		})
 	}
 }
