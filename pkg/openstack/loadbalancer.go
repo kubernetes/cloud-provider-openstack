@@ -1568,18 +1568,26 @@ func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf 
 		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: hostname}}
 		return status
 	}
-	// If the load balancer is using the PROXY protocol, expose its IP address via
-	// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
-	// This is a workaround until
-	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
-	// is implemented (maybe in v1.22).
-	if svcConf.enableProxyProtocol && lbaas.opts.EnableIngressHostname {
-		fakeHostname := fmt.Sprintf("%s.%s", addr, lbaas.opts.IngressHostnameSuffix)
-		status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
-		return status
+
+	ipMode := corev1.LoadBalancerIPModeVIP
+	if svcConf.enableProxyProtocol {
+		// If the load balancer is using the PROXY protocol, expose its IP address via
+		// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
+		// Setting must be removed by the user to allow the use of the LoadBalancerIPModeProxy.
+		if lbaas.opts.EnableIngressHostname {
+			fakeHostname := fmt.Sprintf("%s.%s", addr, lbaas.opts.IngressHostnameSuffix)
+			status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
+			return status
+		}
+		// Set the LoadBalancerIPMode to Proxy to prevent kube-proxy from injecting an iptables bypass.
+		// https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding
+		ipMode = corev1.LoadBalancerIPModeProxy
 	}
 	// Default to IP
-	status.Ingress = []corev1.LoadBalancerIngress{{IP: addr}}
+	status.Ingress = []corev1.LoadBalancerIngress{{
+		IP:     addr,
+		IPMode: &ipMode,
+	}}
 	return status
 }
 
