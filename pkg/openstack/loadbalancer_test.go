@@ -709,12 +709,15 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 	}
 }
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
+	ipmodeProxy := corev1.LoadBalancerIPModeProxy
+	ipmodeVIP := corev1.LoadBalancerIPModeVIP
 	type fields struct {
 		LoadBalancer LoadBalancer
 	}
 	type result struct {
 		HostName  string
 		IPAddress string
+		IPMode    *corev1.LoadBalancerIPMode
 	}
 	type args struct {
 		service *corev1.Service
@@ -800,6 +803,33 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			},
 			want: result{
 				IPAddress: "10.10.0.6",
+				IPMode:    &ipmodeVIP,
+			},
+		},
+		{
+			name: "it should return ipMode proxy if using proxyProtocol and not EnableIngressHostname",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"test": "key"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: true,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				IPAddress: "10.10.0.6",
+				IPMode:    &ipmodeProxy,
 			},
 		},
 	}
@@ -812,6 +842,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
 			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
 			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
+			assert.Equal(t, tt.want.IPMode, result.Ingress[0].IPMode)
 		})
 	}
 }
