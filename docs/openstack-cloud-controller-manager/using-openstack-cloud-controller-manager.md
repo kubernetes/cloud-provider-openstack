@@ -113,7 +113,9 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `password`
   Keystone user password. If you are using [Keystone application credential](https://docs.openstack.org/keystone/latest/user/application_credentials.html), this option is not required.
 * `region`
-  Required. Keystone region name.
+  Required. Keystone region name. The name of region will be set in the `topology.kubernetes.io/region` label of the node.
+* `regions`
+  Optional. Keystone region name, which is used to specify regions for the cloud provider where the instance is running. Can be specified multiple times.The region name may or may not be the same as the region name in the `region` option. They merge together at runtime.
 * `domain-id`
   Keystone user domain ID. If you are using [Keystone application credential](https://docs.openstack.org/keystone/latest/user/application_credentials.html), this option is not required.
 * `domain-name`
@@ -317,7 +319,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   call](https://docs.openstack.org/api-ref/load-balancer/v2/?expanded=create-a-load-balancer-detail#creating-a-fully-populated-load-balancer).
   Setting this option to true will create loadbalancers using serial API calls which first create an unpopulated
   loadbalancer, then populate its listeners, pools and members. This is a compatibility option at the expense of
-  increased load on the OpenStack API. Default: false 
+  increased load on the OpenStack API. Default: false
 
 NOTE:
 

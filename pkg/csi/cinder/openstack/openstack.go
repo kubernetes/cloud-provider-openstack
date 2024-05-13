@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
@@ -126,7 +127,7 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 		}
 	}
 
-	for _, global := range cfg.Global {
+	for idx, global := range cfg.Global {
 		// Update the config with data from clouds.yaml if UseClouds is enabled
 		if global.UseClouds {
 			if global.CloudsFile != "" {
@@ -138,6 +139,15 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 			}
 			klog.V(5).Infof("Credentials are loaded from %s:", global.CloudsFile)
 		}
+
+		regions := []string{global.Region}
+		for _, region := range cfg.Global[idx].Regions {
+			if !slices.Contains(regions, region) {
+				regions = append(regions, region)
+			}
+		}
+
+		cfg.Global[idx].Regions = regions
 	}
 
 	return cfg, nil

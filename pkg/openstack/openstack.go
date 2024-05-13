@@ -111,7 +111,7 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetriesDown          uint                `gcfg:"monitor-max-retries-down"`
 	ManageSecurityGroups           bool                `gcfg:"manage-security-groups"`
 	InternalLB                     bool                `gcfg:"internal-lb"`   // default false
-	NodeSelector                   string              `gcfg:"node-selector"` // If specified, the loadbalancer members will be assined only from nodes list filtered by node-selector labels
+	NodeSelector                   string              `gcfg:"node-selector"` // If specified, the loadbalancer members will be assigned only from nodes list filtered by node-selector labels
 	CascadeDelete                  bool                `gcfg:"cascade-delete"`
 	FlavorID                       string              `gcfg:"flavor-id"`
 	AvailabilityZone               string              `gcfg:"availability-zone"`
@@ -151,6 +151,7 @@ type RouterOpts struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
+	regions               []string
 	provider              *gophercloud.ProviderClient
 	epOpts                *gophercloud.EndpointOpts
 	lbOpts                LoadBalancerOpts
@@ -247,6 +248,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 		klog.V(5).Infof("Config, loaded from the %s:", cfg.Global.CloudsFile)
 		client.LogCfg(cfg.Global)
 	}
+
+	if len(cfg.Global.Regions) == 0 {
+		cfg.Global.Regions = []string{cfg.Global.Region}
+	}
+
 	// Set the default values for search order if not set
 	if cfg.Metadata.SearchOrder == "" {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
@@ -293,6 +299,7 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
 	os := OpenStack{
+		regions:  cfg.Global.Regions,
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
 			Region:       cfg.Global.Region,

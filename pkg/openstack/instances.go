@@ -21,6 +21,7 @@ import (
 	"fmt"
 	sysos "os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -46,9 +47,9 @@ const (
 
 // InstancesV2 encapsulates an implementation of InstancesV2 for OpenStack.
 type InstancesV2 struct {
-	compute          *gophercloud.ServiceClient
-	network          *gophercloud.ServiceClient
-	region           string
+	compute          map[string]*gophercloud.ServiceClient
+	network          map[string]*gophercloud.ServiceClient
+	regions          []string
 	regionProviderID bool
 	networkingOpts   NetworkingOpts
 }
@@ -57,16 +58,25 @@ type InstancesV2 struct {
 func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
 	klog.V(4).Info("openstack.Instancesv2() called")
 
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		klog.Errorf("unable to access compute v2 API : %v", err)
-		return nil, false
-	}
+	var err error
+	compute := make(map[string]*gophercloud.ServiceClient, len(os.regions))
+	network := make(map[string]*gophercloud.ServiceClient, len(os.regions))
 
-	network, err := client.NewNetworkV2(os.provider, os.epOpts)
-	if err != nil {
-		klog.Errorf("unable to access network v2 API : %v", err)
-		return nil, false
+	for _, region := range os.regions {
+		opt := os.epOpts
+		opt.Region = region
+
+		compute[region], err = client.NewComputeV2(os.provider, opt)
+		if err != nil {
+			klog.Errorf("unable to access compute v2 API : %v", err)
+			return nil, false
+		}
+
+		network[region], err = client.NewNetworkV2(os.provider, opt)
+		if err != nil {
+			klog.Errorf("unable to access network v2 API : %v", err)
+			return nil, false
+		}
 	}
 
 	regionalProviderID := false
@@ -77,7 +87,7 @@ func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
 	return &InstancesV2{
 		compute:          compute,
 		network:          network,
-		region:           os.epOpts.Region,
+		regions:          os.regions,
 		regionProviderID: regionalProviderID,
 		networkingOpts:   os.networkingOpts,
 	}, true
@@ -85,9 +95,15 @@ func (os *OpenStack) InstancesV2() (cloudprovider.InstancesV2, bool) {
 
 // InstanceExists indicates whether a given node exists according to the cloud provider
 func (i *InstancesV2) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
-	_, err := i.getInstance(ctx, node)
+	klog.V(4).InfoS("openstack.InstanceExists() called", "node", klog.KObj(node),
+		"providerID", node.Spec.ProviderID,
+		"region", node.Labels[v1.LabelTopologyRegion])
+
+	_, _, err := i.getInstance(ctx, node)
 	if err == cloudprovider.InstanceNotFound {
-		klog.V(6).Infof("instance not found for node: %s", node.Name)
+		klog.V(6).InfoS("Node is not found in cloud provider", "node", klog.KObj(node),
+			"providerID", node.Spec.ProviderID,
+			"region", node.Labels[v1.LabelTopologyRegion])
 		return false, nil
 	}
 
@@ -100,7 +116,11 @@ func (i *InstancesV2) InstanceExists(ctx context.Context, node *v1.Node) (bool, 
 
 // InstanceShutdown returns true if the instance is shutdown according to the cloud provider.
 func (i *InstancesV2) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
-	server, err := i.getInstance(ctx, node)
+	klog.V(4).InfoS("openstack.InstanceShutdown() called", "node", klog.KObj(node),
+		"providerID", node.Spec.ProviderID,
+		"region", node.Labels[v1.LabelTopologyRegion])
+
+	server, _, err := i.getInstance(ctx, node)
 	if err != nil {
 		return false, err
 	}
@@ -115,7 +135,11 @@ func (i *InstancesV2) InstanceShutdown(ctx context.Context, node *v1.Node) (bool
 
 // InstanceMetadata returns the instance's metadata.
 func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
-	srv, err := i.getInstance(ctx, node)
+	klog.V(4).InfoS("openstack.InstanceMetadata() called", "node", klog.KObj(node),
+		"providerID", node.Spec.ProviderID,
+		"region", node.Labels[v1.LabelTopologyRegion])
+
+	srv, region, err := i.getInstance(ctx, node)
 	if err != nil {
 		return nil, err
 	}
@@ -124,17 +148,17 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 		server = *srv
 	}
 
-	instanceType, err := srvInstanceType(ctx, i.compute, &server)
+	instanceType, err := srvInstanceType(ctx, i.compute[region], &server)
 	if err != nil {
 		return nil, err
 	}
 
-	ports, err := getAttachedPorts(ctx, i.network, server.ID)
+	ports, err := getAttachedPorts(ctx, i.network[region], server.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	addresses, err := nodeAddresses(ctx, &server, ports, i.network, i.networkingOpts)
+	addresses, err := nodeAddresses(ctx, &server, ports, i.network[region], i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -142,76 +166,122 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 	availabilityZone := util.SanitizeLabel(server.AvailabilityZone)
 
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    i.makeInstanceID(&server),
+		ProviderID:    i.makeInstanceID(&server, region),
 		InstanceType:  instanceType,
 		NodeAddresses: addresses,
 		Zone:          availabilityZone,
-		Region:        i.region,
+		Region:        region,
 	}, nil
 }
 
-func (i *InstancesV2) makeInstanceID(srv *servers.Server) string {
+func (i *InstancesV2) makeInstanceID(srv *servers.Server, region string) string {
 	if i.regionProviderID {
-		return fmt.Sprintf("%s://%s/%s", ProviderName, i.region, srv.ID)
+		return fmt.Sprintf("%s://%s/%s", ProviderName, region, srv.ID)
 	}
 	return fmt.Sprintf("%s:///%s", ProviderName, srv.ID)
 }
 
-func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*servers.Server, error) {
-	if node.Spec.ProviderID == "" {
-		return getServerByName(ctx, i.compute, node.Name)
-	}
+func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*servers.Server, string, error) {
+	var instanceID, instanceRegion string
 
-	instanceID, instanceRegion, err := instanceIDFromProviderID(node.Spec.ProviderID)
-	if err != nil {
-		return nil, err
-	}
+	if node.Spec.ProviderID != "" {
+		var err error
 
-	if instanceRegion != "" && instanceRegion != i.region {
-		return nil, fmt.Errorf("ProviderID \"%s\" didn't match supported region \"%s\"", node.Spec.ProviderID, i.region)
-	}
-
-	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(ctx, i.compute, instanceID).Extract()
-	if mc.ObserveRequest(err) != nil {
-		if errors.IsNotFound(err) {
-			return nil, cloudprovider.InstanceNotFound
+		instanceID, instanceRegion, err = instanceIDFromProviderID(node.Spec.ProviderID)
+		if err != nil {
+			return nil, "", err
 		}
-		return nil, err
 	}
-	return server, nil
+
+	if instanceRegion != "" {
+		if slices.Contains(i.regions, instanceRegion) {
+			return i.getInstanceByID(ctx, instanceID, []string{instanceRegion})
+		}
+
+		return nil, "", fmt.Errorf("getInstance: ProviderID \"%s\" didn't match supported regions \"%s\"", node.Spec.ProviderID, strings.Join(i.regions, ","))
+	}
+
+	// At this point we know that ProviderID is not properly set or it doesn't contain region information
+	// We need to search for the instance in all regions
+	var searchRegions []string
+
+	// We cannot trust the region label, so we need to check the region
+	instanceRegion = node.Labels[v1.LabelTopologyRegion]
+	if slices.Contains(i.regions, instanceRegion) {
+		searchRegions = []string{instanceRegion}
+	}
+
+	for _, r := range i.regions {
+		if r != instanceRegion {
+			searchRegions = append(searchRegions, r)
+		}
+	}
+
+	klog.V(4).InfoS("openstack.getInstance() trying to find the instance in regions", "node", klog.KObj(node),
+		"instanceID", instanceID,
+		"regions", strings.Join(searchRegions, ","))
+
+	if instanceID == "" {
+		return i.getInstanceByName(ctx, node.Name, searchRegions)
+	}
+
+	return i.getInstanceByID(ctx, instanceID, searchRegions)
 }
 
-func getServerByName(ctx context.Context, client *gophercloud.ServiceClient, name string) (*servers.Server, error) {
+func (i *InstancesV2) getInstanceByID(ctx context.Context, instanceID string, searchRegions []string) (*servers.Server, string, error) {
+	server := servers.Server{}
+
+	mc := metrics.NewMetricContext("server", "get")
+	for _, r := range searchRegions {
+		err := servers.Get(ctx, i.compute[r], instanceID).ExtractInto(&server)
+		if mc.ObserveRequest(err) != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+
+			return nil, "", err
+		}
+
+		return &server, r, nil
+	}
+
+	return nil, "", cloudprovider.InstanceNotFound
+}
+
+func (i *InstancesV2) getInstanceByName(ctx context.Context, name string, searchRegions []string) (*servers.Server, string, error) {
 	opts := servers.ListOpts{
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(name)),
 	}
 
 	serverList := make([]servers.Server, 0, 1)
-
 	mc := metrics.NewMetricContext("server", "list")
-	pager := servers.List(client, opts)
 
-	err := pager.EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
-		s, err := servers.ExtractServers(page)
-		if err != nil {
-			return false, err
+	for _, r := range searchRegions {
+		pager := servers.List(i.compute[r], opts)
+
+		err := pager.EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
+			s, err := servers.ExtractServers(page)
+			if err != nil {
+				return false, err
+			}
+			serverList = append(serverList, s...)
+			if len(serverList) > 1 {
+				return false, errors.ErrMultipleResults
+			}
+			return true, nil
+		})
+		if mc.ObserveRequest(err) != nil {
+			return nil, "", err
 		}
-		serverList = append(serverList, s...)
-		if len(serverList) > 1 {
-			return false, errors.ErrMultipleResults
+
+		if len(serverList) == 0 {
+			continue
 		}
-		return true, nil
-	})
-	if mc.ObserveRequest(err) != nil {
-		return nil, err
+
+		return &serverList[0], r, nil
 	}
 
-	if len(serverList) == 0 {
-		return nil, errors.ErrNotFound
-	}
-
-	return &serverList[0], nil
+	return nil, "", cloudprovider.InstanceNotFound
 }
 
 // If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
