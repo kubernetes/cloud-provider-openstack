@@ -133,6 +133,10 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 		klog.V(5).Infof("Credentials are loaded from %s:", cfg.Global.CloudsFile)
 	}
 
+	if len(cfg.Global.Regions) == 0 {
+		cfg.Global.Regions = []string{cfg.Global.Region}
+	}
+
 	return cfg, nil
 }
 
