@@ -93,8 +93,9 @@ const (
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
 	// See https://nip.io
-	defaultProxyHostnameSuffix      = "nip.io"
-	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
+	defaultProxyHostnameSuffix                   = "nip.io"
+	ServiceAnnotationLoadBalancerID              = "loadbalancer.openstack.org/load-balancer-id"
+	ServiceAnnotationLoadBalancerRecreateOnError = "loadbalancer.openstack.org/recreate-on-error"
 
 	// Octavia resources name formats
 	servicePrefix  = "kube_service_"
@@ -313,8 +314,11 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clust
 		svcConf.lbMemberSubnetID = loadbalancer.VipSubnetID
 	}
 
+	// Allow users to disable automatic recreation on Octavia ERROR state
+	recreateOnError := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerRecreateOnError, true)
+
 	if loadbalancer, err = openstackutil.WaitActiveAndGetLoadBalancer(ctx, lbaas.lb, loadbalancer.ID); err != nil {
-		if loadbalancer != nil && loadbalancer.ProvisioningStatus == errorStatus {
+		if loadbalancer != nil && loadbalancer.ProvisioningStatus == errorStatus && recreateOnError {
 			// If LB landed in ERROR state we should delete it and retry the creation later.
 			if err = lbaas.deleteLoadBalancer(ctx, loadbalancer, service, svcConf, true); err != nil {
 				return nil, fmt.Errorf("loadbalancer %s is in ERROR state and there was an error when removing it: %v", loadbalancer.ID, err)
