@@ -65,6 +65,7 @@ spec:
               value: /etc/config/cloud.conf
             - name: CLUSTER_NAME
               value: kubernetes
+      dnsPolicy: ClusterFirstWithHostNet
       hostNetwork: true
       volumes:
       - hostPath:
