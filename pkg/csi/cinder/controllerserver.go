@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -949,7 +950,28 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 }
 
 func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetCapacity is not yet implemented")
+	klog.V(4).Infof("GetCapacity: called with args %+v", protosanitizer.StripSecrets(*req))
+
+	topology := req.GetAccessibleTopology()
+	if topology == nil {
+		return &csi.GetCapacityResponse{}, nil
+	}
+
+	region := topology.GetSegments()[corev1.LabelTopologyRegion]
+
+	cloud, cloudExist := cs.Clouds[region]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[GetCapacity] specified cloud undefined")
+	}
+
+	availableCapacity, err := cloud.GetFreeQuotaStorageSpace()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[GetCapacity]: failed with error %v", err)
+	}
+
+	return &csi.GetCapacityResponse{
+		AvailableCapacity: int64(availableCapacity * 1024 * 1024 * 1024),
+	}, nil
 }
 
 func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {

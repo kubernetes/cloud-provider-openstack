@@ -248,6 +248,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 
 * [Dynamic Provisioning](./features.md#dynamic-provisioning)
 * [Topology](./features.md#topology)
+* [Storage capacity](./features.md#storage-capacity)
 * [Raw Block Volume](./features.md#block-volume)
 * [Volume Expansion](./features.md#volume-expansion)
 * [Volume Cloning](./features.md#volume-cloning)

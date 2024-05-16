@@ -70,6 +70,7 @@ type IOpenStack interface {
 	GetInstanceByID(instanceID string) (*servers.Server, error)
 	ExpandVolume(volumeID string, status string, size int) error
 	GetMaxVolLimit() int64
+	GetFreeQuotaStorageSpace() (int, error)
 	GetMetadataOpts() metadata.Opts
 	GetBlockStorageOpts() BlockStorageOpts
 }

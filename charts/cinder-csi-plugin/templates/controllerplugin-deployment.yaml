@@ -73,6 +73,10 @@ spec:
             - "--default-fstype=ext4"
             - "--feature-gates=Topology={{ .Values.csi.provisioner.topology }}"
             - "--extra-create-metadata"
+            {{- if .Values.csi.provisioner.capacity }}
+            - "--enable-capacity"
+            - "--capacity-ownerref-level=2"
+            {{- end }}
             {{- if .Values.csi.provisioner.extraArgs }}
             {{- with .Values.csi.provisioner.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}

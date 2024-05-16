@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/limits"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
 	"github.com/gophercloud/gophercloud/v2/pagination"
@@ -394,6 +395,22 @@ func (os *OpenStack) GetMaxVolLimit() int64 {
 	}
 
 	return defaultMaxVolAttachLimit
+}
+
+// GetFreeQuotaStorageSpace returns the tenant quota capacity of the block storage, in GB
+func (os *OpenStack) GetFreeQuotaStorageSpace() (int, error) {
+	mc := metrics.NewMetricContext("limits", "get")
+
+	res, err := limits.Get(context.TODO(), os.blockstorage).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return 0, err
+	}
+
+	capacity := res.Absolute.MaxTotalVolumeGigabytes - res.Absolute.TotalGigabytesUsed
+	if capacity < 0 {
+		capacity = 0
+	}
+	return capacity, nil
 }
 
 // diskIsAttached queries if a volume is attached to a compute instance

@@ -460,6 +460,10 @@ func (_m *OpenStackMock) GetMaxVolLimit() int64 {
 	return 256
 }
 
+func (_m *OpenStackMock) GetFreeQuotaStorageSpace() (int, error) {
+	return 100, nil
+}
+
 func (_m *OpenStackMock) BackupsAreEnabled() (bool, error) {
 	return true, nil
 }
