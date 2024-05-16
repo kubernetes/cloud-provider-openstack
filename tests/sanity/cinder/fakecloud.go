@@ -332,6 +332,10 @@ func (cloud *cloud) GetMaxVolLimit() int64 {
 	return 256
 }
 
+func (cloud *cloud) GetFreeQuotaStorageSpace() (int, error) {
+	return 100, nil
+}
+
 func (cloud *cloud) GetMetadataOpts() metadata.Opts {
 	var m metadata.Opts
 	m.SearchOrder = fmt.Sprintf("%s,%s", "configDrive", "metadataService")

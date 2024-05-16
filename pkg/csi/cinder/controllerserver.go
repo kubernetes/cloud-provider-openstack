@@ -772,7 +772,16 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 }
 
 func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetCapacity is not yet implemented")
+	klog.V(4).Infof("GetCapacity: called with args %+v", protosanitizer.StripSecrets(*req))
+
+	availableCapacity, err := cs.Cloud.GetFreeQuotaStorageSpace()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "GetCapacity: failed with error %v", err)
+	}
+
+	return &csi.GetCapacityResponse{
+		AvailableCapacity: int64(availableCapacity * 1024 * 1024 * 1024),
+	}, nil
 }
 
 func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
