@@ -56,6 +56,7 @@ const (
 	annotationXForwardedFor             = "X-Forwarded-For"
 
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
+	ServiceAnnotationLoadBalancerTargetNodeLabels     = "service.beta.kubernetes.io/openstack-load-balancer-target-node-labels"
 	ServiceAnnotationLoadBalancerConnLimit            = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerFloatingNetworkID    = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerFloatingSubnet       = "loadbalancer.openstack.org/floating-subnet"
@@ -1315,6 +1316,18 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
+	// TODO: try mershal
+	svcConf.targetNodeLabels = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTargetNodeLabels, lbaas.opts.TargetNodeLabels)
+	if svcConf.targetNodeLabels != "" {
+		klog.V(3).InfoS("Target node labels %s are set", svcConf.targetNodeLabels)
+	}
+	// TODO: review if needed?
+	// test again
+	if len(nodes) == 0 {
+		return fmt.Errorf("there are no available nodes for LoadBalancer service %s after filtered by node label", serviceName)
+	}
+
+	// If in the config file internal-lb=true, user is not allowed to create external service.
 	if lbaas.opts.InternalLB {
 		if !getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, false) {
 			klog.V(3).InfoS("Enforcing internal LB", "annotation", true, "config", false)
@@ -1602,6 +1615,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		return nil, err
 	}
 
+	targetNodes := filterTargetNodes(nodes, svcConf.targetNodeLabels)
+
 	// Use more meaningful name for the load balancer but still need to check the legacy name for backward compatibility.
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	svcConf.lbName = lbName
@@ -1666,7 +1681,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 			}
 			klog.InfoS("Creating loadbalancer", "lbName", lbName, "service", klog.KObj(service))
-			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, nodes, svcConf)
+			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, targetNodes, svcConf)
 			if err != nil {
 				return nil, fmt.Errorf("error creating loadbalancer %s: %v", lbName, err)
 			}
@@ -1712,7 +1727,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, lbName), listener, service, port, nodes, svcConf)
+			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, lbName), listener, service, port, targetNodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
@@ -1765,7 +1780,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, nodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, targetNodes, svcConf)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
@@ -1818,8 +1833,10 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		return err
 	}
 
+	targetNodes := filterTargetNodes(nodes, svcConf.TargetNodeLabels)
+
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
-	klog.V(2).Infof("Updating %d nodes for Service %s in cluster %s", len(nodes), serviceName, clusterName)
+	klog.V(2).Infof("Updating %d nodes for Service %s in cluster %s", len(targetNodes), serviceName, clusterName)
 
 	// Get load balancer
 	var loadbalancer *loadbalancers.LoadBalancer
@@ -1866,7 +1883,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, loadbalancer.Name), &listener, service, port, nodes, svcConf)
+		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, loadbalancer.Name), &listener, service, port, targetNodes, svcConf)
 		if err != nil {
 			return err
 		}
@@ -1878,7 +1895,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, nodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, targetNodes, svcConf)
 		if err != nil {
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
@@ -2183,4 +2200,36 @@ func PreserveGopherError(rawError error) error {
 		return fmt.Errorf("%s: %s", rawError, details)
 	}
 	return rawError
+}
+
+// filterTargetNodes uses node labels to filter the nodes that should be targeted by the LB,
+// checking if all the labels provided in an annotation are present in the nodes
+func filterTargetNodes(nodes []*v1.Node, annotations map[string]string) []*v1.Node {
+
+	targetNodeLabels := getKeyValuePropertiesFromAnnotation(annotations, ServiceAnnotationLoadBalancerTargetNodeLabels)
+
+	if len(targetNodeLabels) == 0 {
+		return nodes
+	}
+
+	targetNodes := make([]*v1.Node, 0, len(nodes))
+
+	for _, node := range nodes {
+		if node.Labels != nil && len(node.Labels) > 0 {
+			allFiltersMatch := true
+
+			for targetLabelKey, targetLabelValue := range targetNodeLabels {
+				if nodeLabelValue, ok := node.Labels[targetLabelKey]; !ok || (nodeLabelValue != targetLabelValue && targetLabelValue != "") {
+					allFiltersMatch = false
+					break
+				}
+			}
+
+			if allFiltersMatch {
+				targetNodes = append(targetNodes, node)
+			}
+		}
+	}
+
+	return targetNodes
 }
