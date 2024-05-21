@@ -120,7 +120,7 @@ type serviceConfig struct {
 	lbMemberSubnetID            string
 	lbPublicNetworkID           string
 	lbPublicSubnetSpec          *floatingSubnetSpec
-	targetNodeLabels            string
+	targetNodeLabels            map[string]string
 	keepClientIP                bool
 	enableProxyProtocol         bool
 	timeoutClientData           int
@@ -405,6 +405,38 @@ func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (str
 	}
 
 	return "", cpoerrors.ErrNoAddressFound
+}
+
+// getKeyValuePropertiesFromAnnotation converts the comma separated list of key-value
+// pairs from the specified annotation and returns it as a map.
+func getKeyValuePropertiesFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting map[string]string) map[string]string {
+	klog.V(4).Infof("getStringFromServiceAnnotation") //(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
+	if additionalTagsList, ok := service.Annotations[annotationKey]; ok {
+		additionalTags := make(map[string]string)
+		additionalTagsList = strings.TrimSpace(additionalTagsList)
+
+		// Break up list of "Key1=Val,Key2=Val2"
+		tagList := strings.Split(additionalTagsList, ",")
+
+		// Break up "Key=Val"
+		for _, tagSet := range tagList {
+			tag := strings.Split(strings.TrimSpace(tagSet), "=")
+
+			// Accept "Key=val" or "Key=" or just "Key"
+			if len(tag) >= 2 && len(tag[0]) != 0 {
+				// There is a key and a value, so save it
+				additionalTags[tag[0]] = tag[1]
+			} else if len(tag) == 1 && len(tag[0]) != 0 {
+				// Just "Key"
+				additionalTags[tag[0]] = ""
+			}
+		}
+		return additionalTags
+	}
+
+	// TODO: print default setting to log
+	klog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting")
+	return defaultSetting
 }
 
 // getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
@@ -1317,10 +1349,16 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
-	// TODO: try mershal
-	svcConf.targetNodeLabels = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTargetNodeLabels, lbaas.opts.TargetNodeLabels)
-	if svcConf.targetNodeLabels != "" {
-		klog.V(3).InfoS("Target node labels %s are set", svcConf.targetNodeLabels)
+	svcConf.targetNodeLabels = getKeyValuePropertiesFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTargetNodeLabels, lbaas.opts.TargetNodeLabels)
+	if len(svcConf.targetNodeLabels) > 0 {
+		for key, value := range svcConf.targetNodeLabels {
+			if value == "" {
+				klog.V(3).InfoS("Target node label key=%s is set to LoadBalancer service %s", key, serviceName)
+			} else {
+				klog.V(3).InfoS("Target node label key=%s,value=%s is set to LoadBalancer service %s", key, value, serviceName)
+			}
+		}
+
 	}
 	// TODO: review if needed?
 	// test again
@@ -1826,7 +1864,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		return err
 	}
 
-	targetNodes := filterTargetNodes(nodes, svcConf.TargetNodeLabels)
+	targetNodes := filterTargetNodes(nodes, svcConf.targetNodeLabels)
 
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 	klog.V(2).Infof("Updating %d nodes for Service %s in cluster %s", len(targetNodes), serviceName, clusterName)
@@ -2197,9 +2235,7 @@ func PreserveGopherError(rawError error) error {
 
 // filterTargetNodes uses node labels to filter the nodes that should be targeted by the LB,
 // checking if all the labels provided in an annotation are present in the nodes
-func filterTargetNodes(nodes []*corev1.Node, annotations map[string]string) []*corev1.Node {
-
-	targetNodeLabels := getKeyValuePropertiesFromAnnotation(annotations, ServiceAnnotationLoadBalancerTargetNodeLabels)
+func filterTargetNodes(nodes []*corev1.Node, targetNodeLabels map[string]string) []*corev1.Node {
 
 	if len(targetNodeLabels) == 0 {
 		return nodes
