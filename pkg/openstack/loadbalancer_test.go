@@ -2455,48 +2455,83 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 
 func TestFilterTargetNodes(t *testing.T) {
 	tests := []struct {
-		name                    string
-		nodeLabels, annotations map[string]string
-		nodeTargeted            bool
+		name           string
+		nodeLabels     map[string]string
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting map[string]string
+		nodeTargeted   bool
 	}{
 		{
-			name:         "when no filter is provided, node should be targeted",
-			nodeLabels:   map[string]string{"k1": "v1"},
-			nodeTargeted: true,
+			name:       "when no filter is provided, node should be targeted",
+			nodeLabels: map[string]string{"k1": "v1"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerTargetNodeLabels,
+			defaultSetting: make(map[string]string),
+			nodeTargeted:   true,
 		},
 		{
-			name:         "when all key-value filters match, node should be targeted",
-			nodeLabels:   map[string]string{"k1": "v1", "k2": "v2"},
-			annotations:  map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k1=v1,k2=v2"},
-			nodeTargeted: true,
+			name:       "when all key-value filters match, node should be targeted",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k1=v1,k2=v2"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerTargetNodeLabels,
+			defaultSetting: make(map[string]string),
+			nodeTargeted:   true,
 		},
 		{
-			name:         "when all just-key filter match, node should be targeted",
-			nodeLabels:   map[string]string{"k1": "v1", "k2": "v2"},
-			annotations:  map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k1,k2"},
-			nodeTargeted: true,
+			name:       "when all just-key filter match, node should be targeted",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k1,k2"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerTargetNodeLabels,
+			defaultSetting: make(map[string]string),
+			nodeTargeted:   true,
 		},
 		{
-			name:         "when some filters do not match, node should not be targeted",
-			nodeLabels:   map[string]string{"k1": "v1"},
-			annotations:  map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k1=v1,k2"},
-			nodeTargeted: false,
+			name:       "when some filters do not match, node should not be targeted",
+			nodeLabels: map[string]string{"k1": "v1"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k1=v1,k2"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerTargetNodeLabels,
+			defaultSetting: make(map[string]string),
+			nodeTargeted:   false,
 		},
 		{
-			name:         "when no filter matches, node should not be targeted",
-			nodeLabels:   map[string]string{"k1": "v1", "k2": "v2"},
-			annotations:  map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k3=v3"},
-			nodeTargeted: false,
+			name:       "when no filter matches, node should not be targeted",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerTargetNodeLabels: "k3=v3"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerTargetNodeLabels,
+			defaultSetting: make(map[string]string),
+			nodeTargeted:   false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			node := &v1.Node{}
+			node := &corev1.Node{}
 			node.Labels = test.nodeLabels
 
-			nodes := []*v1.Node{node}
-			targetNodes := filterTargetNodes(nodes, test.annotations)
+			// TODO: add testArgs
+			targetNodeLabels := getKeyValuePropertiesFromServiceAnnotation(test.service, ServiceAnnotationLoadBalancerTargetNodeLabels, make(map[string]string))
+
+			nodes := []*corev1.Node{node}
+			targetNodes := filterTargetNodes(nodes, targetNodeLabels)
 
 			if test.nodeTargeted {
 				assert.Equal(t, nodes, targetNodes)
