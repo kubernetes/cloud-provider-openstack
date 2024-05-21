@@ -120,6 +120,7 @@ type serviceConfig struct {
 	lbMemberSubnetID            string
 	lbPublicNetworkID           string
 	lbPublicSubnetSpec          *floatingSubnetSpec
+	targetNodeLabels            string
 	keepClientIP                bool
 	enableProxyProtocol         bool
 	timeoutClientData           int
@@ -2204,7 +2205,7 @@ func PreserveGopherError(rawError error) error {
 
 // filterTargetNodes uses node labels to filter the nodes that should be targeted by the LB,
 // checking if all the labels provided in an annotation are present in the nodes
-func filterTargetNodes(nodes []*v1.Node, annotations map[string]string) []*v1.Node {
+func filterTargetNodes(nodes []*corev1.Node, annotations map[string]string) []*corev1.Node {
 
 	targetNodeLabels := getKeyValuePropertiesFromAnnotation(annotations, ServiceAnnotationLoadBalancerTargetNodeLabels)
 
@@ -2212,7 +2213,7 @@ func filterTargetNodes(nodes []*v1.Node, annotations map[string]string) []*v1.No
 		return nodes
 	}
 
-	targetNodes := make([]*v1.Node, 0, len(nodes))
+	targetNodes := make([]*corev1.Node, 0, len(nodes))
 
 	for _, node := range nodes {
 		if node.Labels != nil && len(node.Labels) > 0 {
