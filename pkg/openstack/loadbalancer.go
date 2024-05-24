@@ -56,7 +56,7 @@ const (
 	annotationXForwardedFor             = "X-Forwarded-For"
 
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
-	ServiceAnnotationLoadBalancerTargetNodeLabels     = "service.beta.kubernetes.io/openstack-load-balancer-target-node-labels"
+	ServiceAnnotationLoadBalancerNodeSelector         = "loadbalancer.openstack.org/node-selector"
 	ServiceAnnotationLoadBalancerConnLimit            = "loadbalancer.openstack.org/connection-limit"
 	ServiceAnnotationLoadBalancerFloatingNetworkID    = "loadbalancer.openstack.org/floating-network-id"
 	ServiceAnnotationLoadBalancerFloatingSubnet       = "loadbalancer.openstack.org/floating-subnet"
@@ -120,7 +120,7 @@ type serviceConfig struct {
 	lbMemberSubnetID            string
 	lbPublicNetworkID           string
 	lbPublicSubnetSpec          *floatingSubnetSpec
-	targetNodeLabels            map[string]string
+	nodeSelectors               map[string]string
 	keepClientIP                bool
 	enableProxyProtocol         bool
 	timeoutClientData           int
@@ -407,36 +407,12 @@ func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (str
 	return "", cpoerrors.ErrNoAddressFound
 }
 
-// getKeyValuePropertiesFromAnnotation converts the comma separated list of key-value
-// pairs from the specified annotation and returns it as a map.
-func getKeyValuePropertiesFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting map[string]string) map[string]string {
-	klog.V(4).Infof("getStringFromServiceAnnotation") //(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
-	if additionalTagsList, ok := service.Annotations[annotationKey]; ok {
-		additionalTags := make(map[string]string)
-		additionalTagsList = strings.TrimSpace(additionalTagsList)
-
-		// Break up list of "Key1=Val,Key2=Val2"
-		tagList := strings.Split(additionalTagsList, ",")
-
-		// Break up "Key=Val"
-		for _, tagSet := range tagList {
-			tag := strings.Split(strings.TrimSpace(tagSet), "=")
-
-			// Accept "Key=val" or "Key=" or just "Key"
-			if len(tag) >= 2 && len(tag[0]) != 0 {
-				// There is a key and a value, so save it
-				additionalTags[tag[0]] = tag[1]
-			} else if len(tag) == 1 && len(tag[0]) != 0 {
-				// Just "Key"
-				additionalTags[tag[0]] = ""
-			}
-		}
-		return additionalTags
-	}
-
-	// TODO: print default setting to log
-	klog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting")
-	return defaultSetting
+// getKeyValueFromServiceAnnotation converts a comma-separated list of key-value
+// pairs from the specified annotation into a map or returns the specified
+// defaultSetting if the annotation is empty
+func getKeyValueFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting string) map[string]string {
+	annotationValue := getStringFromServiceAnnotation(service, annotationKey, defaultSetting)
+	return cpoutil.StringToMap(annotationValue)
 }
 
 // getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
@@ -1263,6 +1239,16 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
+	// Get service node-selector annotations
+	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
+	for key, value := range svcConf.nodeSelectors {
+		if value == "" {
+			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
+		} else {
+			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
+		}
+	}
+
 	// Find subnet ID for creating members
 	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
@@ -1348,22 +1334,14 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
-	// If in the config file internal-lb=true, user is not allowed to create external service.
-	svcConf.targetNodeLabels = getKeyValuePropertiesFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTargetNodeLabels, lbaas.opts.TargetNodeLabels)
-	if len(svcConf.targetNodeLabels) > 0 {
-		for key, value := range svcConf.targetNodeLabels {
-			if value == "" {
-				klog.V(3).InfoS("Target node label key=%s is set to LoadBalancer service %s", key, serviceName)
-			} else {
-				klog.V(3).InfoS("Target node label key=%s,value=%s is set to LoadBalancer service %s", key, value, serviceName)
-			}
+	// Get service node-selector annotations
+	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
+	for key, value := range svcConf.nodeSelectors {
+		if value == "" {
+			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
+		} else {
+			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
 		}
-
-	}
-	// TODO: review if needed?
-	// test again
-	if len(nodes) == 0 {
-		return fmt.Errorf("there are no available nodes for LoadBalancer service %s after filtered by node label", serviceName)
 	}
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
@@ -1654,7 +1632,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		return nil, err
 	}
 
-	targetNodes := filterTargetNodes(nodes, svcConf.targetNodeLabels)
+	// apply node-selector to a list of nodes
+	filteredNodes := filterNodes(nodes, svcConf.nodeSelectors)
 
 	// Use more meaningful name for the load balancer but still need to check the legacy name for backward compatibility.
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
@@ -1720,7 +1699,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 			}
 			klog.InfoS("Creating loadbalancer", "lbName", lbName, "service", klog.KObj(service))
-			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, targetNodes, svcConf)
+			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, filteredNodes, svcConf)
 			if err != nil {
 				return nil, fmt.Errorf("error creating loadbalancer %s: %v", lbName, err)
 			}
@@ -1766,7 +1745,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, lbName), listener, service, port, targetNodes, svcConf)
+			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, lbName), listener, service, port, filteredNodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
@@ -1819,7 +1798,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, targetNodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, filteredNodes, svcConf)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
@@ -1872,10 +1851,11 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		return err
 	}
 
-	targetNodes := filterTargetNodes(nodes, svcConf.targetNodeLabels)
+	// apply node-selector to a list of nodes
+	filteredNodes := filterNodes(nodes, svcConf.nodeSelectors)
 
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
-	klog.V(2).Infof("Updating %d nodes for Service %s in cluster %s", len(targetNodes), serviceName, clusterName)
+	klog.V(2).Infof("Updating %d nodes for Service %s in cluster %s", len(filteredNodes), serviceName, clusterName)
 
 	// Get load balancer
 	var loadbalancer *loadbalancers.LoadBalancer
@@ -1922,7 +1902,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, loadbalancer.Name), &listener, service, port, targetNodes, svcConf)
+		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, loadbalancer.Name), &listener, service, port, filteredNodes, svcConf)
 		if err != nil {
 			return err
 		}
@@ -1934,7 +1914,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, targetNodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, filteredNodes, svcConf)
 		if err != nil {
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
@@ -2241,32 +2221,34 @@ func PreserveGopherError(rawError error) error {
 	return rawError
 }
 
-// filterTargetNodes uses node labels to filter the nodes that should be targeted by the LB,
-// checking if all the labels provided in an annotation are present in the nodes
-func filterTargetNodes(nodes []*corev1.Node, targetNodeLabels map[string]string) []*corev1.Node {
-
-	if len(targetNodeLabels) == 0 {
+// filterNodes uses node labels to filter the nodes that should be targeted by the LB,
+// ensuring that all the labels provided in an annotation are present on the nodes
+func filterNodes(nodes []*corev1.Node, filterLabels map[string]string) []*corev1.Node {
+	if len(filterLabels) == 0 {
 		return nodes
 	}
 
-	targetNodes := make([]*corev1.Node, 0, len(nodes))
-
+	filteredNodes := make([]*corev1.Node, 0, len(nodes))
 	for _, node := range nodes {
-		if node.Labels != nil && len(node.Labels) > 0 {
-			allFiltersMatch := true
-
-			for targetLabelKey, targetLabelValue := range targetNodeLabels {
-				if nodeLabelValue, ok := node.Labels[targetLabelKey]; !ok || (nodeLabelValue != targetLabelValue && targetLabelValue != "") {
-					allFiltersMatch = false
-					break
-				}
-			}
-
-			if allFiltersMatch {
-				targetNodes = append(targetNodes, node)
-			}
+		if matchNodeLabels(node, filterLabels) {
+			filteredNodes = append(filteredNodes, node)
 		}
 	}
 
-	return targetNodes
+	return filteredNodes
+}
+
+// matchNodeLabels checks if a node has all the labels in filterLabels with matching values
+func matchNodeLabels(node *corev1.Node, filterLabels map[string]string) bool {
+	if node == nil || len(node.Labels) == 0 {
+		return false
+	}
+
+	for k, v := range filterLabels {
+		if nodeLabelValue, ok := node.Labels[k]; !ok || (v != "" && nodeLabelValue != v) {
+			return false
+		}
+	}
+
+	return true
 }
