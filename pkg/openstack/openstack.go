@@ -114,8 +114,8 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries              uint                `gcfg:"monitor-max-retries"`
 	MonitorMaxRetriesDown          uint                `gcfg:"monitor-max-retries-down"`
 	ManageSecurityGroups           bool                `gcfg:"manage-security-groups"`
-	InternalLB                     bool                `gcfg:"internal-lb"` // default false
-	TargetNodeLabels               map[string]string   `gcfg:"target-node-labels"`   // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
+	InternalLB                     bool                `gcfg:"internal-lb"`        // default false
+	TargetNodeLabels               map[string]string   `gcfg:"target-node-labels"` // If specified, will create floating ip for loadbalancer in one of the matching floating pool subnetworks.
 	CascadeDelete                  bool                `gcfg:"cascade-delete"`
 	FlavorID                       string              `gcfg:"flavor-id"`
 	AvailabilityZone               string              `gcfg:"availability-zone"`
@@ -223,7 +223,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	// Set default values explicitly
 	cfg.LoadBalancer.Enabled = true
 	cfg.LoadBalancer.InternalLB = false
-    cfg.LoadBalancer.TargetNodeLabels = make(map[string]string)
+	cfg.LoadBalancer.TargetNodeLabels = make(map[string]string)
 	cfg.LoadBalancer.LBProvider = "amphora"
 	cfg.LoadBalancer.LBMethod = "ROUND_ROBIN"
 	cfg.LoadBalancer.CreateMonitor = false
