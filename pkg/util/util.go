@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -75,6 +76,31 @@ func Contains(list []string, strToSearch string) bool {
 		}
 	}
 	return false
+}
+
+// StringToMap converts a string of comma-separated key-values into a map
+func StringToMap(str string) map[string]string {
+	// break up a "key1=val,key2=val2,key3=,key4" string into a list
+	values := strings.Split(strings.TrimSpace(str), ",")
+	keyValues := make(map[string]string, len(values))
+
+	for _, kv := range values {
+		kv := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+
+		k := kv[0]
+		if len(kv) == 1 {
+			if k != "" {
+				// process "key=" or "key"
+				keyValues[k] = ""
+			}
+			continue
+		}
+
+		// process "key=val" or "key=val=foo"
+		keyValues[k] = kv[1]
+	}
+
+	return keyValues
 }
 
 // RoundUpSize calculates how many allocation units are needed to accommodate
