@@ -236,6 +236,12 @@ Request Body:
   This annotation is automatically added and it contains the floating ip address of the load balancer service.
   When using `loadbalancer.openstack.org/hostname` annotation it is the only place to see the real address of the load balancer.
 
+- `loadbalancer.openstack.org/node-selector`
+
+  A set of key=value annotations used to filter nodes for targeting by the load balancer. When defined, only nodes that match all the specified key=value annotations will be targeted. If an annotation includes only a key without a value, the filter will check only for the existence of the key on the node. If the value is not set, the `node-selector` value defined in the OCCM configuration is applied.
+
+  Example: To filter nodes with the labels `env=production` and `region=default`, set the `loadbalancer.openstack.org/node-selector` annotation to `env=production, region=default`
+
 ### Switching between Floating Subnets by using preconfigured Classes
 
 If you have multiple `FloatingIPPools` and/or `FloatingIPSubnets` it might be desirable to offer the user logical meanings for `LoadBalancers` like `internetFacing` or `DMZ` instead of requiring the user to select a dedicated network or subnet ID at the service object level as an annotation.
