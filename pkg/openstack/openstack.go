@@ -114,7 +114,8 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries              uint                `gcfg:"monitor-max-retries"`
 	MonitorMaxRetriesDown          uint                `gcfg:"monitor-max-retries-down"`
 	ManageSecurityGroups           bool                `gcfg:"manage-security-groups"`
-	InternalLB                     bool                `gcfg:"internal-lb"` // default false
+	InternalLB                     bool                `gcfg:"internal-lb"`   // default false
+	NodeSelector                   string              `gcfg:"node-selector"` // If specified, the loadbalancer members will be assined only from nodes list filtered by node-selector labels
 	CascadeDelete                  bool                `gcfg:"cascade-delete"`
 	FlavorID                       string              `gcfg:"flavor-id"`
 	AvailabilityZone               string              `gcfg:"availability-zone"`
@@ -222,6 +223,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	// Set default values explicitly
 	cfg.LoadBalancer.Enabled = true
 	cfg.LoadBalancer.InternalLB = false
+	cfg.LoadBalancer.NodeSelector = ""
 	cfg.LoadBalancer.LBProvider = "amphora"
 	cfg.LoadBalancer.LBMethod = "ROUND_ROBIN"
 	cfg.LoadBalancer.CreateMonitor = false
