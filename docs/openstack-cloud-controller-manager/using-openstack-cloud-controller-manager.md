@@ -237,6 +237,23 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `internal-lb`
   Determines whether or not to create an internal load balancer (no floating IP) by default. Default: false.
 
+* `node-selector`
+  A comma separated list of key=value annotations used to filter nodes for targeting by the load balancer. When defined, only nodes that match all the specified key=value annotations will be targeted. If an annotation includes only a key without a value, the filter will check only for the existence of the key on the node. When node-selector is not set (default value), all nodes will be added as members to a load balancer pool.
+
+  Note: This configuration option can be overridden with the `loadbalancer.openstack.org/node-selector` service annotation. Refer to [Exposing applications using services of LoadBalancer type](./expose-applications-using-loadbalancer-type-service.md)
+
+  Example: To filter nodes with the labels `env=production` and `region=default`, set the `node-selector` as follows:
+
+  ```
+  node-selector="env=production, region=default"
+  ```
+
+  Example: To filter nodes that have the key `env` with any value and the key `region` specifically set to `default`, set the `node-selector` as follows:
+
+  ```
+  node-selector="env, region=default"
+  ```
+
 * `cascade-delete`
   Determines whether or not to perform cascade deletion of load balancers. Default: true.
 
