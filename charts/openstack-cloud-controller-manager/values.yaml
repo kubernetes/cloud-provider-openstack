@@ -46,7 +46,7 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-dnsPolicy: ClusterFirstWithHostNet
+dnsPolicy: Default
 
 # Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:
