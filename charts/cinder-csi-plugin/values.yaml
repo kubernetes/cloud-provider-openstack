@@ -12,6 +12,7 @@ csi:
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
+    extraEnv: []
   provisioner:
     topology: "true"
     image:
@@ -20,6 +21,7 @@ csi:
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
+    extraEnv: []
   snapshotter:
     image:
       repository: registry.k8s.io/sig-storage/csi-snapshotter
@@ -27,6 +29,7 @@ csi:
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
+    extraEnv: []
   resizer:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
@@ -34,6 +37,7 @@ csi:
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
+    extraEnv: []
   livenessprobe:
     image:
       repository: registry.k8s.io/sig-storage/livenessprobe
@@ -45,6 +49,7 @@ csi:
     periodSeconds: 60
     resources: {}
     extraArgs: {}
+    extraEnv: []
   nodeDriverRegistrar:
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
@@ -52,6 +57,7 @@ csi:
       pullPolicy: IfNotPresent
     resources: {}
     extraArgs: {}
+    extraEnv: []
   plugin:
     image:
       repository: registry.k8s.io/provider-os/cinder-csi-plugin
@@ -131,6 +137,7 @@ csi:
     podMonitor:
       enabled: false
     extraArgs: {}
+    extraEnv: []
 
 # Log verbosity level.
 # See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md

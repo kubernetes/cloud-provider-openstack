@@ -49,6 +49,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            {{- if .Values.csi.nodeDriverRegistrar.extraEnv }}
+              {{- toYaml .Values.csi.nodeDriverRegistrar.extraEnv | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -67,6 +70,10 @@ spec:
             {{- with .Values.csi.livenessprobe.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
             {{- end }}
+            {{- end }}
+          env:
+            {{- if .Values.csi.livenessprobe.extraEnv }}
+              {{- toYaml .Values.csi.livenessprobe.extraEnv | nindent 12 }}
             {{- end }}
           volumeMounts:
             - name: socket-dir
@@ -95,6 +102,9 @@ spec:
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
               value: /etc/kubernetes/{{ .Values.secret.filename }}
+            {{- if .Values.csi.plugin.extraEnv }}
+              {{- toYaml .Values.csi.plugin.extraEnv | nindent 12 }}
+            {{- end }}
           ports:
             - containerPort: 9808
               name: healthz
