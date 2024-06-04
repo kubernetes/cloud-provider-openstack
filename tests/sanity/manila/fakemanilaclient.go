@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/messages"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/sharetypes"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/snapshots"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 )
@@ -217,7 +217,7 @@ func (c fakeManilaClient) GrantAccess(shareID string, opts shares.GrantAccessOpt
 func (c fakeManilaClient) GetSnapshotByID(snapID string) (*snapshots.Snapshot, error) {
 	s, ok := fakeSnapshots[strToInt(snapID)]
 	if !ok {
-		return nil, gophercloud.ErrDefault404{}
+		return nil, gophercloud.ErrUnexpectedResponseCode{Actual: 404}
 	}
 
 	return s, nil
@@ -233,7 +233,7 @@ func (c fakeManilaClient) GetSnapshotByName(snapName string) (*snapshots.Snapsho
 	}
 
 	if snapID == "" {
-		return nil, gophercloud.ErrResourceNotFound{}
+		return nil, gophercloud.ErrResourceNotFound{Name: snapName, ResourceType: "snapshot"}
 	}
 
 	return c.GetSnapshotByID(snapID)
@@ -252,7 +252,7 @@ func (c fakeManilaClient) CreateSnapshot(opts snapshots.CreateOptsBuilder) (*sna
 	snap.Status = "available"
 
 	if !shareExists(snap.ShareID) {
-		return nil, gophercloud.ErrDefault404{}
+		return nil, gophercloud.ErrUnexpectedResponseCode{Actual: 404}
 	}
 
 	fakeSnapshots[fakeSnapshotID] = snap

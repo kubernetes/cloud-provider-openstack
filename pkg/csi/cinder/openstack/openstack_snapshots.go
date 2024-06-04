@@ -19,13 +19,14 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
 	"time"
 
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/v2/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/klog/v2"
@@ -71,7 +72,7 @@ func (os *OpenStack) CreateSnapshot(name, volID string, tags map[string]string) 
 	}
 	// TODO: Do some check before really call openstack API on the input
 	mc := metrics.NewMetricContext("snapshot", "create")
-	snap, err := snapshots.Create(os.blockstorage, opts).Extract()
+	snap, err := snapshots.Create(context.TODO(), os.blockstorage, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return &snapshots.Snapshot{}, err
 	}
@@ -107,7 +108,7 @@ func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snaps
 		}
 	}
 	mc := metrics.NewMetricContext("snapshot", "list")
-	err := snapshots.List(os.blockstorage, opts).EachPage(func(page pagination.Page) (bool, error) {
+	err := snapshots.List(os.blockstorage, opts).EachPage(context.TODO(), func(_ context.Context, page pagination.Page) (bool, error) {
 		var err error
 
 		snaps, err = snapshots.ExtractSnapshots(page)
@@ -140,7 +141,7 @@ func (os *OpenStack) ListSnapshots(filters map[string]string) ([]snapshots.Snaps
 // DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend
 func (os *OpenStack) DeleteSnapshot(snapID string) error {
 	mc := metrics.NewMetricContext("snapshot", "delete")
-	err := snapshots.Delete(os.blockstorage, snapID).ExtractErr()
+	err := snapshots.Delete(context.TODO(), os.blockstorage, snapID).ExtractErr()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to delete snapshot: %v", err)
 	}
@@ -150,7 +151,7 @@ func (os *OpenStack) DeleteSnapshot(snapID string) error {
 // GetSnapshotByID returns snapshot details by id
 func (os *OpenStack) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
 	mc := metrics.NewMetricContext("snapshot", "get")
-	s, err := snapshots.Get(os.blockstorage, snapshotID).Extract()
+	s, err := snapshots.Get(context.TODO(), os.blockstorage, snapshotID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to get snapshot: %v", err)
 		return nil, err

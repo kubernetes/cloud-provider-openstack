@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -24,12 +25,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/extensions/trusts"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
-	"github.com/gophercloud/utils/client"
-	"github.com/gophercloud/utils/openstack/clientconfig"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/utils/v2/client"
+	"github.com/gophercloud/utils/v2/openstack/clientconfig"
 
 	"k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/util/cert"
@@ -111,7 +110,7 @@ func (l Logger) Printf(format string, args ...interface{}) {
 		var gc = "/github.com/gophercloud/gophercloud"
 
 		// detect the depth of the actual function, which calls gophercloud code
-		// 10 is the common depth from the logger to "github.com/gophercloud/gophercloud"
+		// 10 is the common depth from the logger to "github.com/gophercloud/gophercloud/v2"
 		for i := 10; i <= 20; i++ {
 			if _, file, _, ok := runtime.Caller(i); ok && !found && strings.Contains(file, gc) {
 				found = true
@@ -166,10 +165,10 @@ func (authOpts AuthOpts) ToAuthOptions() gophercloud.AuthOptions {
 	return *ao
 }
 
-func (authOpts AuthOpts) ToAuth3Options() tokens.AuthOptions {
+func (authOpts AuthOpts) ToAuth3Options() gophercloud.AuthOptions {
 	ao := authOpts.ToAuthOptions()
 
-	var scope tokens.Scope
+	var scope gophercloud.AuthScope
 	if ao.Scope != nil {
 		scope.ProjectID = ao.Scope.ProjectID
 		scope.ProjectName = ao.Scope.ProjectName
@@ -177,7 +176,7 @@ func (authOpts AuthOpts) ToAuth3Options() tokens.AuthOptions {
 		scope.DomainName = ao.Scope.DomainName
 	}
 
-	return tokens.AuthOptions{
+	return gophercloud.AuthOptions{
 		IdentityEndpoint:            ao.IdentityEndpoint,
 		UserID:                      ao.UserID,
 		Username:                    ao.Username,
@@ -187,7 +186,7 @@ func (authOpts AuthOpts) ToAuth3Options() tokens.AuthOptions {
 		ApplicationCredentialID:     ao.ApplicationCredentialID,
 		ApplicationCredentialName:   ao.ApplicationCredentialName,
 		ApplicationCredentialSecret: ao.ApplicationCredentialSecret,
-		Scope:                       scope,
+		Scope:                       &scope,
 		AllowReauth:                 ao.AllowReauth,
 	}
 }
@@ -298,18 +297,15 @@ func NewOpenStackClient(cfg *AuthOpts, userAgent string, extraUserAgent ...strin
 		// if TrusteeID and TrusteePassword were defined, then use them
 		opts.UserID = replaceEmpty(cfg.TrusteeID, opts.UserID)
 		opts.Password = replaceEmpty(cfg.TrusteePassword, opts.Password)
+		opts.Scope.TrustID = replaceEmpty(cfg.TrustID, opts.Scope.TrustID)
 
-		authOptsExt := trusts.AuthOptsExt{
-			TrustID:            cfg.TrustID,
-			AuthOptionsBuilder: &opts,
-		}
-		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
+		err = openstack.AuthenticateV3(context.TODO(), provider, &opts, gophercloud.EndpointOpts{})
 
 		return provider, err
 	}
 
 	opts := cfg.ToAuthOptions()
-	err = openstack.Authenticate(provider, opts)
+	err = openstack.Authenticate(context.TODO(), provider, opts)
 
 	return provider, err
 }

@@ -20,24 +20,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/containers"
-	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
-	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
-	v2pools "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/keymanager/v1/containers"
+	"github.com/gophercloud/gophercloud/v2/openstack/keymanager/v1/secrets"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
+	v2monitors "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
+	v2pools "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/floatingips"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
+	"k8s.io/utils/ptr"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
@@ -273,7 +275,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 	if !lbaas.opts.ProviderRequiresSerialAPICalls {
 		for portIndex, port := range service.Spec.Ports {
 			listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, cpoutil.Sprintf255(listenerFormat, portIndex, name))
-			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+			members, newMembers, err := lbaas.buildCreateMemberOpts(port, nodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
@@ -294,7 +296,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 	}
 
 	mc := metrics.NewMetricContext("loadbalancer", "create")
-	loadbalancer, err := loadbalancers.Create(lbaas.lb, createOpts).Extract()
+	loadbalancer, err := loadbalancers.Create(context.TODO(), lbaas.lb, createOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		var printObj interface{} = createOpts
 		if opts, err := json.Marshal(createOpts); err == nil {
@@ -576,7 +578,7 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
-	floatIP, err := floatingips.Create(lbaas.network, floatIPOpts).Extract()
+	floatIP, err := floatingips.Create(context.TODO(), lbaas.network, floatIPOpts).Extract()
 	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
 		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
@@ -594,7 +596,7 @@ func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portI
 		klog.V(4).Infof("Detaching floating ip %q from port %q", floatingip.FloatingIP, floatingip.PortID)
 	}
 	mc := metrics.NewMetricContext("floating_ip", "update")
-	floatingip, err := floatingips.Update(lbaas.network, floatingip.ID, floatUpdateOpts).Extract()
+	floatingip, err := floatingips.Update(context.TODO(), lbaas.network, floatingip.ID, floatUpdateOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error updating LB floatingip %+v: %v", floatUpdateOpts, err)
 	}
@@ -1003,6 +1005,31 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes 
 	return members, newMembers, nil
 }
 
+func (lbaas *LbaasV2) buildCreateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.CreateMemberOpts, sets.Set[string], error) {
+	batchUpdateMemberOpts, newMembers, err := lbaas.buildBatchUpdateMemberOpts(port, nodes, svcConf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	createMemberOpts := make([]v2pools.CreateMemberOpts, len(batchUpdateMemberOpts))
+	for i := range batchUpdateMemberOpts {
+		createMemberOpts[i] = v2pools.CreateMemberOpts{
+			Address:        batchUpdateMemberOpts[i].Address,
+			ProtocolPort:   batchUpdateMemberOpts[i].ProtocolPort,
+			Name:           ptr.Deref(batchUpdateMemberOpts[i].Name, ""),
+			ProjectID:      batchUpdateMemberOpts[i].ProjectID,
+			Weight:         batchUpdateMemberOpts[i].Weight,
+			SubnetID:       ptr.Deref(batchUpdateMemberOpts[i].SubnetID, ""),
+			AdminStateUp:   batchUpdateMemberOpts[i].AdminStateUp,
+			Backup:         batchUpdateMemberOpts[i].Backup,
+			MonitorAddress: ptr.Deref(batchUpdateMemberOpts[i].MonitorAddress, ""),
+			MonitorPort:    batchUpdateMemberOpts[i].MonitorPort,
+			Tags:           batchUpdateMemberOpts[i].Tags,
+		}
+	}
+	return createMemberOpts, newMembers, nil
+}
+
 // Make sure the listener is created for Service
 func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
 	listener, isPresent := curListenerMapping[listenerKey{
@@ -1371,13 +1398,13 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			barbicanUUID := slice[len(slice)-1]
 			barbicanType := slice[len(slice)-2]
 			if barbicanType == "containers" {
-				container, err := containers.Get(lbaas.secret, barbicanUUID).Extract()
+				container, err := containers.Get(context.TODO(), lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
 				}
 				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 			} else if barbicanType == "secrets" {
-				secret, err := secrets.Get(lbaas.secret, barbicanUUID).Extract()
+				secret, err := secrets.Get(context.TODO(), lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
 				}
@@ -1488,7 +1515,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		// check configured subnet belongs to network
 		if floatingNetworkID != "" && floatingSubnet.subnetID != "" {
 			mc := metrics.NewMetricContext("subnet", "get")
-			subnet, err := subnets.Get(lbaas.network, floatingSubnet.subnetID).Extract()
+			subnet, err := subnets.Get(context.TODO(), lbaas.network, floatingSubnet.subnetID).Extract()
 			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to find subnet %q: %v", floatingSubnet.subnetID, err)
 			}
@@ -1829,7 +1856,7 @@ func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubN
 		}
 	}
 	mc := metrics.NewMetricContext("subnet", "list")
-	allPages, err := subnets.List(lbaas.network, opts).AllPages()
+	allPages, err := subnets.List(lbaas.network, opts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error listing subnets of network %s: %v", networkID, err)
 	}
@@ -1952,7 +1979,7 @@ func (lbaas *LbaasV2) deleteFIPIfCreatedByProvider(fip *floatingips.FloatingIP, 
 	}
 	klog.InfoS("Deleting floating IP for service", "floatingIP", fip.FloatingIP, "service", klog.KObj(service))
 	mc := metrics.NewMetricContext("floating_ip", "delete")
-	err = floatingips.Delete(lbaas.network, fip.ID).ExtractErr()
+	err = floatingips.Delete(context.TODO(), lbaas.network, fip.ID).ExtractErr()
 	if mc.ObserveRequest(err) != nil {
 		return false, fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
 	}
@@ -2193,25 +2220,30 @@ func PreserveGopherError(rawError error) error {
 		rawError = v.ErrOriginal
 	}
 	var details []byte
-	switch e := rawError.(type) {
-	case gophercloud.ErrDefault400:
-	case gophercloud.ErrDefault401:
-		details = e.Body
-	case gophercloud.ErrDefault403:
-	case gophercloud.ErrDefault404:
-		details = e.Body
-	case gophercloud.ErrDefault405:
-		details = e.Body
-	case gophercloud.ErrDefault408:
-		details = e.Body
-	case gophercloud.ErrDefault409:
-	case gophercloud.ErrDefault429:
-		details = e.Body
-	case gophercloud.ErrDefault500:
-		details = e.Body
-	case gophercloud.ErrDefault503:
-		details = e.Body
-	default:
+
+	if e, ok := rawError.(gophercloud.ErrUnexpectedResponseCode); ok {
+		switch e.Actual {
+		case http.StatusBadRequest:
+		case http.StatusUnauthorized:
+			details = e.Body
+		case http.StatusForbidden:
+		case http.StatusNotFound:
+			details = e.Body
+		case http.StatusMethodNotAllowed:
+			details = e.Body
+		case http.StatusRequestTimeout:
+			details = e.Body
+		case http.StatusConflict:
+		case http.StatusTooManyRequests:
+			details = e.Body
+		case http.StatusInternalServerError:
+			details = e.Body
+		case http.StatusServiceUnavailable:
+			details = e.Body
+		default:
+			return rawError
+		}
+	} else {
 		return rawError
 	}
 

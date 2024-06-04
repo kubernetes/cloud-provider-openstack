@@ -1,11 +1,11 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 
-	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	gcfg "gopkg.in/gcfg.v1"

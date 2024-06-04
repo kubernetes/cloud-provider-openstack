@@ -24,17 +24,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	gopenstack "github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/startstop"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clusters"
-	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/nodegroups"
-	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stackresources"
-	"github.com/gophercloud/gophercloud/openstack/orchestration/v1/stacks"
-	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/gophercloud/v2"
+	gopenstack "github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v2/volumes"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
+	"github.com/gophercloud/gophercloud/v2/openstack/containerinfra/v1/clusters"
+	"github.com/gophercloud/gophercloud/v2/openstack/containerinfra/v1/nodegroups"
+	"github.com/gophercloud/gophercloud/v2/openstack/orchestration/v1/stackresources"
+	"github.com/gophercloud/gophercloud/v2/openstack/orchestration/v1/stacks"
+	"github.com/gophercloud/gophercloud/v2/pagination"
 	uuid "github.com/pborman/uuid"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -97,7 +96,7 @@ func (provider CloudProvider) GetName() string {
 
 // getStackName finds the name of a stack matching a given ID.
 func (provider *CloudProvider) getStackName(stackID string) (string, error) {
-	stack, err := stacks.Find(provider.Heat, stackID).Extract()
+	stack, err := stacks.Find(context.TODO(), provider.Heat, stackID).Extract()
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +115,7 @@ func (provider *CloudProvider) getAllStackResourceMapping(stackName, stackID str
 
 	mapping := make(map[string]ResourceStackRelationship)
 
-	serverPages, err := stackresources.List(provider.Heat, stackName, stackID, stackresources.ListOpts{Depth: 2}).AllPages()
+	serverPages, err := stackresources.List(provider.Heat, stackName, stackID, stackresources.ListOpts{Depth: 2}).AllPages(context.TODO())
 	if err != nil {
 		return m, err
 	}
@@ -156,15 +155,15 @@ func (provider *CloudProvider) getAllStackResourceMapping(stackName, stackID str
 }
 
 func (provider CloudProvider) waitForServerPoweredOff(serverID string, timeout time.Duration) error {
-	err := startstop.Stop(provider.Nova, serverID).ExtractErr()
+	ctx := context.Background()
+	err := servers.Stop(ctx, provider.Nova, serverID).ExtractErr()
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
 	err = wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, false,
 		func(ctx context.Context) (bool, error) {
-			server, err := servers.Get(provider.Nova, serverID).Extract()
+			server, err := servers.Get(ctx, provider.Nova, serverID).Extract()
 			if err != nil {
 				return false, err
 			}
@@ -187,7 +186,7 @@ func (provider CloudProvider) waitForClusterComplete(clusterID string, timeout t
 	ctx := context.Background()
 	err := wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, false,
 		func(ctx context.Context) (bool, error) {
-			cluster, err := clusters.Get(provider.Magnum, clusterID).Extract()
+			cluster, err := clusters.Get(ctx, provider.Magnum, clusterID).Extract()
 			if err != nil {
 				return false, err
 			}
@@ -204,14 +203,15 @@ func (provider CloudProvider) waitForClusterComplete(clusterID string, timeout t
 // server with the timeout. And if there is a root volume of the server, the root
 // volume ID will be returned.
 func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeout time.Duration) (string, error) {
+	ctx := context.Background()
 	rootVolumeID := ""
-	err := volumeattach.List(provider.Nova, serverID).EachPage(func(page pagination.Page) (bool, error) {
+	err := volumeattach.List(provider.Nova, serverID).EachPage(ctx, func(ctx context.Context, page pagination.Page) (bool, error) {
 		attachments, err := volumeattach.ExtractVolumeAttachments(page)
 		if err != nil {
 			return false, err
 		}
 		for _, attachment := range attachments {
-			volume, err := volumes.Get(provider.Cinder, attachment.VolumeID).Extract()
+			volume, err := volumes.Get(ctx, provider.Cinder, attachment.VolumeID).Extract()
 			if err != nil {
 				return false, fmt.Errorf("failed to get volume %s, error: %v", attachment.VolumeID, err)
 			}
@@ -225,7 +225,7 @@ func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeou
 
 			if !bootable {
 				log.Infof("detaching volume %s for instance %s", attachment.VolumeID, serverID)
-				err := volumeattach.Delete(provider.Nova, serverID, attachment.ID).ExtractErr()
+				err := volumeattach.Delete(ctx, provider.Nova, serverID, attachment.ID).ExtractErr()
 				if err != nil {
 					return false, fmt.Errorf("failed to detach volume %s from instance %s, error: %v", attachment.VolumeID, serverID, err)
 				}
@@ -239,10 +239,9 @@ func (provider CloudProvider) waitForServerDetachVolumes(serverID string, timeou
 	if err != nil {
 		return rootVolumeID, err
 	}
-	ctx := context.Background()
 	err = wait.PollUntilContextTimeout(ctx, 3*time.Second, timeout, false,
 		func(ctx context.Context) (bool, error) {
-			server, err := servers.Get(provider.Nova, serverID).Extract()
+			server, err := servers.Get(ctx, provider.Nova, serverID).Extract()
 			if err != nil {
 				return false, err
 			}
@@ -282,7 +281,7 @@ func (provider CloudProvider) firstTimeRepair(n healthcheck.NodeInfo, serverID s
 	if firstTimeUnhealthy {
 		log.Infof("rebooting node %s to repair it", serverID)
 
-		if res := servers.Reboot(provider.Nova, serverID, servers.RebootOpts{Type: servers.SoftReboot}); res.Err != nil {
+		if res := servers.Reboot(context.TODO(), provider.Nova, serverID, servers.RebootOpts{Type: servers.SoftReboot}); res.Err != nil {
 			// Usually it means the node is being rebooted
 			log.Warningf("failed to reboot node %s, error: %v", serverID, res.Err)
 			if strings.Contains(res.Err.Error(), "reboot_started") {
@@ -376,7 +375,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 		return fmt.Errorf("failed to update the health status of cluster %s, error: %v", clusterName, err)
 	}
 
-	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
+	cluster, err := clusters.Get(context.TODO(), provider.Magnum, clusterName).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to get the cluster %s, error: %v", clusterName, err)
 	}
@@ -421,7 +420,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 				NodesToRemove: nodesToReplace.List(),
 			}
 
-			clusters.Resize(provider.Magnum, clusterName, opts)
+			clusters.Resize(context.TODO(), provider.Magnum, clusterName, opts)
 			// Wait 10 seconds to make sure Magnum has already got the request
 			// to avoid sending all of the resize API calls at the same time.
 			time.Sleep(10 * time.Second)
@@ -471,7 +470,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 			} else {
 				// Mark root volume as unhealthy
 				if rootVolumeID != "" {
-					err = stackresources.MarkUnhealthy(provider.Heat, allMapping[serverID].StackName, allMapping[serverID].StackID, rootVolumeID, opts).ExtractErr()
+					err = stackresources.MarkUnhealthy(context.TODO(), provider.Heat, allMapping[serverID].StackName, allMapping[serverID].StackID, rootVolumeID, opts).ExtractErr()
 					if err != nil {
 						log.Errorf("failed to mark resource %s unhealthy, error: %v", rootVolumeID, err)
 					}
@@ -482,7 +481,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 				log.Warningf("Failed to shutdown the server %s, error: %v", serverID, err)
 				// If the server is failed to delete after 180s, then delete it to avoid the
 				// stack update failure later.
-				res := servers.ForceDelete(provider.Nova, serverID)
+				res := servers.ForceDelete(context.TODO(), provider.Nova, serverID)
 				if res.Err != nil {
 					log.Warningf("Failed to delete the server %s, error: %v", serverID, err)
 				}
@@ -491,7 +490,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 			log.Infof("Marking Nova VM %s(Heat resource %s) unhealthy for Heat stack %s", serverID, allMapping[serverID].ResourceID, cluster.StackID)
 
 			// Mark VM as unhealthy
-			err = stackresources.MarkUnhealthy(provider.Heat, allMapping[serverID].StackName, allMapping[serverID].StackID, allMapping[serverID].ResourceID, opts).ExtractErr()
+			err = stackresources.MarkUnhealthy(context.TODO(), provider.Heat, allMapping[serverID].StackName, allMapping[serverID].StackID, allMapping[serverID].ResourceID, opts).ExtractErr()
 			if err != nil {
 				log.Errorf("failed to mark resource %s unhealthy, error: %v", serverID, err)
 			}
@@ -499,7 +498,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 			delete(unHealthyNodes, serverID)
 		}
 
-		if err := stacks.UpdatePatch(provider.Heat, clusterStackName, cluster.StackID, stacks.UpdateOpts{}).ExtractErr(); err != nil {
+		if err := stacks.UpdatePatch(context.TODO(), provider.Heat, clusterStackName, cluster.StackID, stacks.UpdateOpts{}).ExtractErr(); err != nil {
 			return fmt.Errorf("failed to update Heat stack to rebuild resources, error: %v", err)
 		}
 
@@ -524,7 +523,7 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 func (provider CloudProvider) getNodeGroup(clusterName string, node healthcheck.NodeInfo) (nodegroups.NodeGroup, error) {
 	var ng nodegroups.NodeGroup
 
-	ngPages, err := nodegroups.List(provider.Magnum, clusterName, nodegroups.ListOpts{}).AllPages()
+	ngPages, err := nodegroups.List(provider.Magnum, clusterName, nodegroups.ListOpts{}).AllPages(context.TODO())
 	if err == nil {
 		ngs, err := nodegroups.ExtractNodeGroups(ngPages)
 		if err != nil {
@@ -532,7 +531,7 @@ func (provider CloudProvider) getNodeGroup(clusterName string, node healthcheck.
 			return ng, err
 		}
 		for _, ng := range ngs {
-			ngInfo, err := nodegroups.Get(provider.Magnum, clusterName, ng.UUID).Extract()
+			ngInfo, err := nodegroups.Get(context.TODO(), provider.Magnum, clusterName, ng.UUID).Extract()
 			if err != nil {
 				log.Warningf("Failed to get node group for cluster %s, error: %v", clusterName, err)
 				return ng, err
@@ -599,7 +598,7 @@ func (provider CloudProvider) UpdateHealthStatus(masters []healthcheck.NodeInfo,
 	}
 
 	log.Infof("updating cluster health status as %s for reason %s.", healthStatus, healthStatusReason)
-	res := clusters.Update(provider.Magnum, clusterName, updateOpts)
+	res := clusters.Update(context.TODO(), provider.Magnum, clusterName, updateOpts)
 
 	if res.Err != nil {
 		return fmt.Errorf("failed to update the health status of cluster %s error: %v", clusterName, res.Err)
@@ -619,7 +618,7 @@ func (provider CloudProvider) UpdateHealthStatus(masters []healthcheck.NodeInfo,
 func (provider CloudProvider) Enabled() bool {
 	clusterName := provider.Config.ClusterName
 
-	cluster, err := clusters.Get(provider.Magnum, clusterName).Extract()
+	cluster, err := clusters.Get(context.TODO(), provider.Magnum, clusterName).Extract()
 	if err != nil {
 		log.Warningf("failed to get the cluster %s, error: %v", clusterName, err)
 		return false
@@ -648,7 +647,7 @@ func (provider CloudProvider) Enabled() bool {
 		log.Warningf("Failed to get the Heat stack ID for cluster %s, error: %v", clusterName, err)
 		return false
 	}
-	stack, err := stacks.Get(provider.Heat, clusterStackName, cluster.StackID).Extract()
+	stack, err := stacks.Get(context.TODO(), provider.Heat, clusterStackName, cluster.StackID).Extract()
 	if err != nil {
 		log.Warningf("Failed to get Heat stack %s for cluster %s, error: %v", cluster.StackID, clusterName, err)
 		return false

@@ -17,10 +17,10 @@ limitations under the License.
 package manilaclient
 
 import (
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/messages"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/sharetypes"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/snapshots"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/messages"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/sharetypes"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/snapshots"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 

@@ -18,9 +18,10 @@ package csiclient
 
 import (
 	"context"
+	"time"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
-	"time"
 )
 
 type Node interface {

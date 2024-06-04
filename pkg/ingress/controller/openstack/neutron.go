@@ -17,16 +17,17 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
-	neutrontags "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/attributestags"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
+	neutrontags "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/attributestags"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/floatingips"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/groups"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -35,7 +36,7 @@ import (
 )
 
 func (os *OpenStack) getFloatingIPs(listOpts floatingips.ListOpts) ([]floatingips.FloatingIP, error) {
-	allPages, err := floatingips.List(os.neutron, listOpts).AllPages()
+	allPages, err := floatingips.List(os.neutron, listOpts).AllPages(context.TODO())
 	if err != nil {
 		return []floatingips.FloatingIP{}, err
 	}
@@ -53,7 +54,7 @@ func (os *OpenStack) createFloatingIP(portID string, floatingNetworkID string, d
 		FloatingNetworkID: floatingNetworkID,
 		Description:       description,
 	}
-	return floatingips.Create(os.neutron, floatIPOpts).Extract()
+	return floatingips.Create(context.TODO(), os.neutron, floatIPOpts).Extract()
 }
 
 // associateFloatingIP associate an unused floating IP to a given Port
@@ -62,7 +63,7 @@ func (os *OpenStack) associateFloatingIP(fip *floatingips.FloatingIP, portID str
 		PortID:      &portID,
 		Description: &description,
 	}
-	return floatingips.Update(os.neutron, fip.ID, updateOpts).Extract()
+	return floatingips.Update(context.TODO(), os.neutron, fip.ID, updateOpts).Extract()
 }
 
 // disassociateFloatingIP disassociate a floating IP from a port
@@ -71,12 +72,12 @@ func (os *OpenStack) disassociateFloatingIP(fip *floatingips.FloatingIP, descrip
 		PortID:      new(string),
 		Description: &description,
 	}
-	return floatingips.Update(os.neutron, fip.ID, updateDisassociateOpts).Extract()
+	return floatingips.Update(context.TODO(), os.neutron, fip.ID, updateDisassociateOpts).Extract()
 }
 
 // GetSubnet get a subnet by the given ID.
 func (os *OpenStack) GetSubnet(subnetID string) (*subnets.Subnet, error) {
-	subnet, err := subnets.Get(os.neutron, subnetID).Extract()
+	subnet, err := subnets.Get(context.TODO(), os.neutron, subnetID).Extract()
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func (os *OpenStack) GetSubnet(subnetID string) (*subnets.Subnet, error) {
 
 // getPorts gets all the filtered ports.
 func (os *OpenStack) getPorts(listOpts ports.ListOpts) ([]ports.Port, error) {
-	allPages, err := ports.List(os.neutron, listOpts).AllPages()
+	allPages, err := ports.List(os.neutron, listOpts).AllPages(context.TODO())
 	if err != nil {
 		return []ports.Port{}, err
 	}
@@ -108,7 +109,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 	// If needed, delete the floating IPs and return.
 	if needDelete {
 		for _, fip := range fips {
-			if err := floatingips.Delete(os.neutron, fip.ID).ExtractErr(); err != nil {
+			if err := floatingips.Delete(context.TODO(), os.neutron, fip.ID).ExtractErr(); err != nil {
 				return "", err
 			}
 		}
@@ -186,7 +187,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 
 // GetSecurityGroups gets all the filtered security groups.
 func (os *OpenStack) GetSecurityGroups(listOpts groups.ListOpts) ([]groups.SecGroup, error) {
-	allPages, err := groups.List(os.neutron, listOpts).AllPages()
+	allPages, err := groups.List(os.neutron, listOpts).AllPages(context.TODO())
 	if err != nil {
 		return []groups.SecGroup{}, err
 	}
@@ -211,7 +212,7 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 	// If needed, delete the security groups and return.
 	if needDelete {
 		for _, group := range allGroups {
-			if err := groups.Delete(os.neutron, group.ID).ExtractErr(); err != nil {
+			if err := groups.Delete(context.TODO(), os.neutron, group.ID).ExtractErr(); err != nil {
 				return "", err
 			}
 		}
@@ -229,7 +230,7 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 			Name:        name,
 			Description: description,
 		}
-		group, err = groups.Create(os.neutron, createOpts).Extract()
+		group, err = groups.Create(context.TODO(), os.neutron, createOpts).Extract()
 		if err != nil {
 			return "", err
 		}
@@ -241,7 +242,7 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 		//}
 
 		for _, t := range tags {
-			if err := neutrontags.Add(os.neutron, "security_groups", group.ID, t).ExtractErr(); err != nil {
+			if err := neutrontags.Add(context.TODO(), os.neutron, "security_groups", group.ID, t).ExtractErr(); err != nil {
 				return "", fmt.Errorf("failed to add tag %s to security group %s: %v", t, group.ID, err)
 			}
 		}
@@ -259,7 +260,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 		SecGroupID:     sgID,
 		RemoteIPPrefix: sourceIP,
 	}
-	allPages, err := rules.List(os.neutron, listOpts).AllPages()
+	allPages, err := rules.List(os.neutron, listOpts).AllPages(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -272,7 +273,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 		// Delete all the rules and return.
 
 		for _, rule := range allRules {
-			if err := rules.Delete(os.neutron, rule.ID).ExtractErr(); err != nil {
+			if err := rules.Delete(context.TODO(), os.neutron, rule.ID).ExtractErr(); err != nil {
 				return err
 			}
 		}
@@ -291,7 +292,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 	for _, rule := range allRules {
 		if !dstPortsSet.Has(strconv.Itoa(rule.PortRangeMin)) {
 			// Delete the rule
-			if err := rules.Delete(os.neutron, rule.ID).ExtractErr(); err != nil {
+			if err := rules.Delete(context.TODO(), os.neutron, rule.ID).ExtractErr(); err != nil {
 				return err
 			}
 		} else {
@@ -315,7 +316,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 			RemoteIPPrefix: sourceIP,
 			SecGroupID:     sgID,
 		}
-		if _, err := rules.Create(os.neutron, createOpts).Extract(); err != nil {
+		if _, err := rules.Create(context.TODO(), os.neutron, createOpts).Extract(); err != nil {
 			return err
 		}
 	}
@@ -345,7 +346,7 @@ func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes
 				sgSet.Delete(sgID)
 				newSGs := sets.List(sgSet)
 				updateOpts := ports.UpdateOpts{SecurityGroups: &newSGs}
-				if _, err := ports.Update(os.neutron, port.ID, updateOpts).Extract(); err != nil {
+				if _, err := ports.Update(context.TODO(), os.neutron, port.ID, updateOpts).Extract(); err != nil {
 					return err
 				}
 
@@ -357,7 +358,7 @@ func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes
 				sgSet.Insert(sgID)
 				newSGs := sets.List(sgSet)
 				updateOpts := ports.UpdateOpts{SecurityGroups: &newSGs}
-				if _, err := ports.Update(os.neutron, port.ID, updateOpts).Extract(); err != nil {
+				if _, err := ports.Update(context.TODO(), os.neutron, port.ID, updateOpts).Extract(); err != nil {
 					return err
 				}
 

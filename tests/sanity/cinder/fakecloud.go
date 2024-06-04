@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -145,11 +145,11 @@ func (cloud *cloud) GetVolume(volumeID string) (*volumes.Volume, error) {
 }
 
 func notFoundError() error {
-	return gophercloud.ErrDefault404{}
+	return gophercloud.ErrUnexpectedResponseCode{Actual: 404}
 }
 
 func invalidError() error {
-	return gophercloud.ErrDefault400{}
+	return gophercloud.ErrUnexpectedResponseCode{Actual: 400}
 }
 
 func (cloud *cloud) CreateSnapshot(name, volID string, tags map[string]string) (*snapshots.Snapshot, error) {
@@ -318,7 +318,7 @@ func (cloud *cloud) GetInstanceByID(instanceID string) (*servers.Server, error) 
 	inst, ok := cloud.instances[instanceID]
 
 	if !ok {
-		return nil, gophercloud.ErrDefault404{}
+		return nil, gophercloud.ErrUnexpectedResponseCode{Actual: 404}
 	}
 
 	return inst, nil

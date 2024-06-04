@@ -16,7 +16,7 @@ package keystone
 import (
 	"testing"
 
-	th "github.com/gophercloud/gophercloud/testhelper"
+	th "github.com/gophercloud/gophercloud/v2/testhelper"
 	"k8s.io/apiserver/pkg/authentication/user"
 )
 

@@ -18,16 +18,17 @@ package openstack
 
 import (
 	"context"
-	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 	"net"
 	"sync"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/extraroutes"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
+	v1 "k8s.io/api/core/v1"
+	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 
-	"k8s.io/api/core/v1"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/extraroutes"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/routers"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
@@ -81,7 +82,7 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	}
 
 	mc := metrics.NewMetricContext("router", "get")
-	router, err := routers.Get(r.network, r.os.routeOpts.RouterID).Extract()
+	router, err := routers.Get(context.TODO(), r.network, r.os.routeOpts.RouterID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -112,7 +113,7 @@ func getRouterNetworkIDs(network *gophercloud.ServiceClient, routerID string) ([
 		DeviceID: routerID,
 	}
 	mc := metrics.NewMetricContext("port", "list")
-	pages, err := ports.List(network, opts).AllPages()
+	pages, err := ports.List(network, opts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -176,7 +177,7 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 	origRoutes := router.Routes // shallow copy
 
 	mc := metrics.NewMetricContext("router", "update")
-	_, err := routers.Update(network, router.ID, routers.UpdateOpts{
+	_, err := routers.Update(context.TODO(), network, router.ID, routers.UpdateOpts{
 		Routes: &newRoutes,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -186,7 +187,7 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", router.ID)
 		mc := metrics.NewMetricContext("router", "update")
-		_, err := routers.Update(network, router.ID, routers.UpdateOpts{
+		_, err := routers.Update(context.TODO(), network, router.ID, routers.UpdateOpts{
 			Routes: &origRoutes,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -199,7 +200,7 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 
 func addRoute(network *gophercloud.ServiceClient, routerID string, newRoute []routers.Route) (func(), error) {
 	mc := metrics.NewMetricContext("router", "update")
-	_, err := extraroutes.Add(network, routerID, extraroutes.Opts{
+	_, err := extraroutes.Add(context.TODO(), network, routerID, extraroutes.Opts{
 		Routes: &newRoute,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -209,7 +210,7 @@ func addRoute(network *gophercloud.ServiceClient, routerID string, newRoute []ro
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", routerID)
 		mc := metrics.NewMetricContext("router", "update")
-		_, err := extraroutes.Remove(network, routerID, extraroutes.Opts{
+		_, err := extraroutes.Remove(context.TODO(), network, routerID, extraroutes.Opts{
 			Routes: &newRoute,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -222,7 +223,7 @@ func addRoute(network *gophercloud.ServiceClient, routerID string, newRoute []ro
 
 func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute []routers.Route) (func(), error) {
 	mc := metrics.NewMetricContext("router", "update")
-	_, err := extraroutes.Remove(network, routerID, extraroutes.Opts{
+	_, err := extraroutes.Remove(context.TODO(), network, routerID, extraroutes.Opts{
 		Routes: &oldRoute,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -232,7 +233,7 @@ func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute [
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", routerID)
 		mc := metrics.NewMetricContext("router", "update")
-		_, err := extraroutes.Add(network, routerID, extraroutes.Opts{
+		_, err := extraroutes.Add(context.TODO(), network, routerID, extraroutes.Opts{
 			Routes: &oldRoute,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -247,7 +248,7 @@ func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *PortWit
 	origPairs := port.AllowedAddressPairs // shallow copy
 
 	mc := metrics.NewMetricContext("port", "update")
-	_, err := ports.Update(network, port.ID, ports.UpdateOpts{
+	_, err := ports.Update(context.TODO(), network, port.ID, ports.UpdateOpts{
 		AllowedAddressPairs: &newPairs,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -257,7 +258,7 @@ func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *PortWit
 	unwinder := func() {
 		klog.V(4).Infof("Reverting allowed-address-pairs change to port %v", port.ID)
 		mc := metrics.NewMetricContext("port", "update")
-		_, err := ports.Update(network, port.ID, ports.UpdateOpts{
+		_, err := ports.Update(context.TODO(), network, port.ID, ports.UpdateOpts{
 			AllowedAddressPairs: &origPairs,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -294,7 +295,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		defer r.Unlock()
 
 		mc := metrics.NewMetricContext("router", "get")
-		router, err := routers.Get(r.network, r.os.routeOpts.RouterID).Extract()
+		router, err := routers.Get(context.TODO(), r.network, r.os.routeOpts.RouterID).Extract()
 		if mc.ObserveRequest(err) != nil {
 			return err
 		}
@@ -403,7 +404,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		defer r.Unlock()
 
 		mc := metrics.NewMetricContext("router", "get")
-		router, err := routers.Get(r.network, r.os.routeOpts.RouterID).Extract()
+		router, err := routers.Get(context.TODO(), r.network, r.os.routeOpts.RouterID).Extract()
 		if mc.ObserveRequest(err) != nil {
 			return err
 		}

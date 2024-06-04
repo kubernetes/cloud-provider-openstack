@@ -24,12 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/availabilityzones"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/portsecurity"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunk_details"
-	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/portsecurity"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/trunk_details"
+	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,7 +36,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -151,11 +150,6 @@ type NetworkingOpts struct {
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
 	RouterID string `gcfg:"router-id"`
-}
-
-type ServerAttributesExt struct {
-	servers.Server
-	availabilityzones.ServerAvailabilityZoneExt
 }
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -424,18 +418,17 @@ func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string)
 		return cloudprovider.Zone{}, err
 	}
 
-	var serverWithAttributesExt ServerAttributesExt
 	mc := metrics.NewMetricContext("server", "get")
-	err = servers.Get(compute, instanceID).ExtractInto(&serverWithAttributesExt)
+	server, err := servers.Get(ctx, compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return cloudprovider.Zone{}, err
 	}
 
 	zone := cloudprovider.Zone{
-		FailureDomain: serverWithAttributesExt.AvailabilityZone,
+		FailureDomain: server.AvailabilityZone,
 		Region:        os.epOpts.Region,
 	}
-	klog.V(4).Infof("The instance %s in zone %v", serverWithAttributesExt.Name, zone)
+	klog.V(4).Infof("The instance %s in zone %v", server.Name, zone)
 	return zone, nil
 }
 

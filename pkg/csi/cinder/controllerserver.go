@@ -17,15 +17,15 @@ limitations under the License.
 package cinder
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

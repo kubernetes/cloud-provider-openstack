@@ -17,10 +17,11 @@ limitations under the License.
 package cinder
 
 import (
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
-	"golang.org/x/net/context"
+	"context"
+
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 )
 

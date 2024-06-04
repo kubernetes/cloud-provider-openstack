@@ -17,7 +17,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 )
 
 // Predicate type for filtering out export locations.

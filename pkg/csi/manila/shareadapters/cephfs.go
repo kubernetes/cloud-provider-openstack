@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/v2/shares"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
 	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
 	"k8s.io/klog/v2"
