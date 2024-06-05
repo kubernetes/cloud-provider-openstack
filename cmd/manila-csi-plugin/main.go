@@ -52,6 +52,8 @@ var (
 	provideNodeService       bool
 )
 
+const _ = "noop"
+
 func validateShareProtocolSelector(v string) error {
 	supportedShareProtocols := []string{"NFS", "CEPHFS"}
 
