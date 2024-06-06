@@ -29,6 +29,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            {{- if $.Values.nodeplugin.registrar.extraEnv }}
+              {{- toYaml $.Values.nodeplugin.registrar.extraEnv | nindent 12 }}
+            {{- end }}
           imagePullPolicy: {{ $.Values.nodeplugin.registrar.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
@@ -74,6 +77,9 @@ spec:
               value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
             - name: MANILA_SHARE_PROTO
               value: "{{ .protocolSelector }}"
+            {{- if $.Values.nodeplugin.nodeplugin.extraEnv }}
+              {{- toYaml $.Values.nodeplugin.nodeplugin.extraEnv | nindent 12 }}
+            {{- end }}
           imagePullPolicy: {{ $.Values.csimanila.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
