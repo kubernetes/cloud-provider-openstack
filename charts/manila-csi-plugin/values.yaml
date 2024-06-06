@@ -56,7 +56,7 @@ nodeplugin:
   # CSI Manila container compute resources constraints
   nodeplugin:
     resources: {}
-    # extraEnv: []
+    extraEnv: []
   # csi-node-driver-registrar
   registrar:
     image:
@@ -64,7 +64,7 @@ nodeplugin:
       tag: v2.4.0
       pullPolicy: IfNotPresent
     resources: {}
-    # extraEnv: []
+    extraEnv: []
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -83,7 +83,7 @@ controllerplugin:
   # CSI Manila container compute resources constraints
   nodeplugin:
     resources: {}
-    # extraEnv: []
+    extraEnv: []
   # CSI external-provisioner container spec
   provisioner:
     image:
@@ -91,7 +91,7 @@ controllerplugin:
       tag: v3.0.0
       pullPolicy: IfNotPresent
     resources: {}
-    # extraEnv: []
+    extraEnv: []
     # Whether to pass --extra-create-metadata flag to csi-provisioner.
     extraCreateMetadata: false
   # CSI external-snapshotter container spec
@@ -101,7 +101,7 @@ controllerplugin:
       tag: v5.0.1
       pullPolicy: IfNotPresent
     resources: {}
-    # extraEnv: []
+    extraEnv: []
   # CSI external-resizer container spec
   resizer:
     image:
@@ -109,7 +109,7 @@ controllerplugin:
       tag: v1.8.0
       pullPolicy: IfNotPresent
     resources: {}
-    # extraEnv: []
+    extraEnv: []
   nodeSelector: {}
   tolerations: []
   affinity: {}
