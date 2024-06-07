@@ -53,6 +53,9 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            {{- if .Values.csi.attacher.extraEnv }}
+              {{- toYaml .Values.csi.attacher.extraEnv | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
@@ -78,6 +81,9 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            {{- if .Values.csi.provisioner.extraEnv }}
+              {{- toYaml .Values.csi.provisioner.extraEnv | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
@@ -100,6 +106,9 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            {{- if .Values.csi.snapshotter.extraEnv }}
+              {{- toYaml .Values.csi.snapshotter.extraEnv | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
@@ -123,6 +132,9 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            {{- if .Values.csi.resizer.extraEnv }}
+              {{- toYaml .Values.csi.resizer.extraEnv | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
@@ -143,6 +155,9 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            {{- if .Values.csi.livenessprobe.extraEnv }}
+              {{- toYaml .Values.csi.livenessprobe.extraEnv | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
@@ -173,6 +188,9 @@ spec:
               value: /etc/kubernetes/{{ .Values.secret.filename }}
             - name: CLUSTER_NAME
               value: "{{ .Values.clusterID }}"
+            {{- if .Values.csi.plugin.extraEnv }}
+              {{- toYaml .Values.csi.plugin.extraEnv | nindent 12 }}
+            {{- end }}
           ports:
             - containerPort: 9808
               name: healthz
