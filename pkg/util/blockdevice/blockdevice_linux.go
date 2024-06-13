@@ -85,6 +85,16 @@ func checkBlockDeviceSize(devicePath string, deviceMountPath string, newSize int
 	return nil
 }
 
+func triggerRescan(blockDeviceRescanPath string) error {
+	klog.V(4).Infof("Rescanning %q block device geometry", blockDeviceRescanPath)
+	err := os.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
+	if err != nil {
+		klog.Errorf("Error rescanning new block device geometry: %v", err)
+		return err
+	}
+	return nil
+}
+
 func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSize int64) error {
 	if newSize == 0 {
 		klog.Error("newSize is empty, skipping the block device rescan")
@@ -106,13 +116,25 @@ func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSiz
 	}
 
 	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
-	klog.V(4).Infof("Rescanning %q block device geometry", devicePath)
-	err = os.WriteFile(blockDeviceRescanPath, []byte{'1'}, 0666)
+	err = triggerRescan(blockDeviceRescanPath)
 	if err != nil {
-		klog.Errorf("Error rescanning new block device geometry: %v", err)
 		// no need to run checkBlockDeviceSize second time here, return the saved error
 		return bdSizeErr
 	}
 
 	return checkBlockDeviceSize(devicePath, deviceMountPath, newSize)
+}
+
+func RescanDevice(devicePath string) error {
+	blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath)
+	if err != nil {
+		return fmt.Errorf("Device does not have rescan path " + devicePath)
+	}
+
+	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
+	err = triggerRescan(blockDeviceRescanPath)
+	if err != nil {
+		return fmt.Errorf("Error rescanning new block device geometry " + devicePath)
+	}
+	return nil
 }
