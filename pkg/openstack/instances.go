@@ -448,27 +448,6 @@ func isValidLabelValue(v string) bool {
 	return true
 }
 
-// If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
-var providerIDRegexp = regexp.MustCompile(`^` + ProviderName + `://([^/]*)/([^/]+)$`)
-
-// instanceIDFromProviderID splits a provider's id and return instanceID.
-// A providerID is build out of '${ProviderName}:///${instance-id}' which contains ':///'.
-// or '${ProviderName}://${region}/${instance-id}' which contains '://'.
-// See cloudprovider.GetInstanceProviderID and Instances.InstanceID.
-func instanceIDFromProviderID(providerID string) (instanceID string, region string, err error) {
-
-	// https://github.com/kubernetes/kubernetes/issues/85731
-	if providerID != "" && !strings.Contains(providerID, "://") {
-		providerID = ProviderName + "://" + providerID
-	}
-
-	matches := providerIDRegexp.FindStringSubmatch(providerID)
-	if len(matches) != 3 {
-		return "", "", fmt.Errorf("ProviderID \"%s\" didn't match expected format \"openstack://region/InstanceID\"", providerID)
-	}
-	return matches[2], matches[1], nil
-}
-
 // AddToNodeAddresses appends the NodeAddresses to the passed-by-pointer slice,
 // only if they do not already exist
 func AddToNodeAddresses(addresses *[]v1.NodeAddress, addAddresses ...v1.NodeAddress) {
