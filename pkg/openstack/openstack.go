@@ -37,7 +37,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -160,6 +160,7 @@ type ServerAttributesExt struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
+	regions        []string
 	provider       *gophercloud.ProviderClient
 	epOpts         *gophercloud.EndpointOpts
 	lbOpts         LoadBalancerOpts
@@ -259,6 +260,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 		klog.V(5).Infof("Config, loaded from the %s:", cfg.Global.CloudsFile)
 		client.LogCfg(cfg.Global)
 	}
+
+	if len(cfg.Global.Regions) == 0 {
+		cfg.Global.Regions = []string{cfg.Global.Region}
+	}
+
 	// Set the default values for search order if not set
 	if cfg.Metadata.SearchOrder == "" {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
@@ -311,6 +317,7 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 
 	os := OpenStack{
+		regions:  cfg.Global.Regions,
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
 			Region:       cfg.Global.Region,

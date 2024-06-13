@@ -74,6 +74,7 @@ rescan-on-resize=true`
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
+	expectedOpts.Global.Regions = []string{fakeRegion}
 	expectedOpts.BlockStorage.RescanOnResize = true
 
 	// Invoke GetConfigFromFiles
@@ -155,6 +156,7 @@ rescan-on-resize=true`
 	expectedOpts.Global.CAFile = fakeCAfile
 	expectedOpts.Global.TenantID = fakeTenantID
 	expectedOpts.Global.Region = fakeRegion
+	expectedOpts.Global.Regions = []string{fakeRegion}
 	expectedOpts.Global.EndpointType = gophercloud.AvailabilityPublic
 	expectedOpts.Global.UseClouds = true
 	expectedOpts.Global.CloudsFile = wd + "/fixtures/clouds.yaml"
