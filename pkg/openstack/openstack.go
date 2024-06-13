@@ -37,7 +37,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -150,7 +150,8 @@ type NetworkingOpts struct {
 
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
-	RouterID string `gcfg:"router-id"`
+	RouterID                string `gcfg:"router-id"`
+	AutoConfigSecurityGroup bool   `gcfg:"auto-config-node-security-group"`
 }
 
 type ServerAttributesExt struct {
@@ -239,6 +240,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.ContainerStore = "barbican"
 	cfg.LoadBalancer.MaxSharedLB = 2
 	cfg.LoadBalancer.ProviderRequiresSerialAPICalls = false
+	cfg.Route.AutoConfigSecurityGroup = false
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
@@ -485,7 +487,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 		return nil, false
 	}
 
-	r, err := NewRoutes(os, network, netExts["extraroute-atomic"], netExts["allowed-address-pairs"])
+	r, err := NewRoutes(os, network, netExts["extraroute-atomic"], netExts["allowed-address-pairs"], os.routeOpts.AutoConfigSecurityGroup)
 	if err != nil {
 		klog.Warningf("Error initialising Routes support: %v", err)
 		return nil, false
