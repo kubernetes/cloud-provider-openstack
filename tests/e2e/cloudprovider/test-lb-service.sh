@@ -801,6 +801,160 @@ EOF
     fi
 }
 
+
+########################################################################
+## Name: test_preserve_and_reused_fip
+## Desc: The steps in this test case:
+##   1. Create load balanccer with loadbalancer.openstack.org/keep-floatingip: "true" annotation
+##   2. Delete the load balancer
+##   3. Check if the floating IP is preserved after deletion
+##   4. Create new load balancer reassigning the floating IP allocated in point 1.
+##   5. Delete the service and the allocated floating ip.
+########################################################################
+function test_preserve_and_reused_fip {
+	local service="test-preserve-fip"
+	local second_service="test-reuse-fip"
+
+	printf "\n>>>>>>> Test - preserving Floating IP\n"
+	printf ">>>>>>> Create Service ${service}\n"
+	cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service}
+  namespace: $NAMESPACE
+  annotations:
+    loadbalancer.openstack.org/keep-floatingip: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+EOF
+
+	printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
+	wait_for_service_address ${service}
+	printf "\n>>>>>>> Getting the floating IP of the service\n"
+	FIP=`kubectl -n $NAMESPACE get svc test-preserve-fip --no-headers| awk '{print $4}'`
+	printf "\n>>>>>>> Checking if Floating IP is in openstack"
+	FIP_IN_OS=`openstack floating ip list --floating-ip-address "$FIP" -f json | jq length`
+	if [ "$FIP_IN_OS" -ne "1" ]; then
+	    printf "The floating IP doesn't exist in openstack"
+	    exit 1
+	fi
+
+	printf "\n>>>>>>> Delete Service ${service}\n"
+	kubectl -n $NAMESPACE delete service ${service}
+
+	printf "\n>>>>>>> Checking if Floating IP is still in openstack"
+	FIP_IN_OS=`openstack floating ip list --floating-ip-address "$FIP" -f json | jq length`
+	if [ "$FIP_IN_OS" -ne "1" ]; then
+	    printf "The floating IP doesn't exist in openstack"
+	    exit 1
+	fi
+
+		printf "\n>>>>>>> Creating new service with the same floating ip"
+	
+	cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${second_service}
+  namespace: $NAMESPACE
+  annotations:
+    loadbalancer.openstack.org/keep-floatingip: "true"
+    loadbalancer.openstack.org/load-balancer-address: "$FIP"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+EOF
+	printf "\n>>>>>>> Waiting for the Service ${second_service} creation finished\n"
+	wait_for_service_address ${second_service}
+	
+	printf "\n>>>>>>> Delete Service ${second_service}\n"
+	kubectl -n $NAMESPACE delete service ${second_service}
+
+	printf "\n>>>>>>> Delete floating IP ${FIP_IN_OS}\n"
+	FIP_ID=`openstack floating ip list --floating-ip-address "$FIP" -f json | jq '.[0].ID' | tr -d '"'`
+	openstack floating ip delete $FIP_ID
+}
+########################################################################
+## Name: test_healthmonitors
+## Desc: The steps in this test case:
+##   1. Create load balanccer with healthmonitor with non-default values
+##   2. Using the openstack CLI check if:
+##    2.1 The load balancer has health monitor
+##    2.2 The health monitor matches the specification provided in the service via annotation
+##   3. Delete the service
+########################################################################
+function test_healthmonitors {
+	local service="test-healthmonitor"
+
+
+	printf "\n>>>>>>> Test - Creating healthmonitor\n"
+	printf ">>>>>>> Create Service ${service}\n"
+	cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: ${service}
+  namespace: $NAMESPACE
+  annotations:
+    loadbalancer.openstack.org/enable-health-monitor: "true"
+    loadbalancer.openstack.org/health-monitor-delay: "61"
+    loadbalancer.openstack.org/health-monitor-timeout: "32"
+    loadbalancer.openstack.org/health-monitor-max-retries: "7"
+    loadbalancer.openstack.org/health-monitor-max-retries-down: "2"
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+EOF
+
+	printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
+	wait_for_service_address ${service}
+	printf "\n>>>>>>> Checking if Octavia health monitor is matching spec\n"
+	
+	HM_ID=`openstack loadbalancer healthmonitor list | grep "$service" | awk '{print $2}'`
+	HM=`openstack loadbalancer healthmonitor show "$HM_ID" -f json`
+	
+	HM_DELAY=`echo "$HM" | jq '.delay'`
+	HM_MAX_RETRIES=`echo "$HM" | jq '.max_retries'`
+	HM_TIMEOUT=`echo "$HM" | jq '.timeout'`
+	HM_MAX_RETRIES_DOWN=`echo "$HM" | jq '.max_retries_down'`
+	
+	if [ "$HM_DELAY" -ne "61" ]; then
+	    printf "The healthmonitor DELAY doesn't match the one in the service specification"
+	    exit 1
+	fi
+	if [ "$HM_MAX_RETRIES" -ne "7" ]; then
+	    printf "The healthmonitor MAX RETRIES doesn't match the one in the service specification"
+	    exit 1
+	fi
+	if [ "$HM_TIMEOUT" -ne "32" ]; then
+	    printf "The healthmonitor TIMEOUT doesn't match the one in the service specification"
+	    exit 1
+	fi
+	if [ "$HM_MAX_RETRIES_DOWN" -ne "2" ]; then
+	    printf "The healthmonitor MAX RETRIES DOWN doesn't match the one in the service specification"
+	    exit 1
+	fi
+	
+	printf "\n>>>>>>> Delete Service ${service}\n"
+	kubectl -n $NAMESPACE delete service ${service}
+}
 create_namespace
 create_deployment
 set_openstack_credentials
@@ -810,3 +964,5 @@ test_forwarded
 test_update_port
 test_shared_lb
 test_shared_user_lb
+test_preserve_and_reused_fip
+test_healthmonitors
