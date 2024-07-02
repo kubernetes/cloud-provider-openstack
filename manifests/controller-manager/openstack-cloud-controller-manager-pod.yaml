@@ -38,7 +38,7 @@ spec:
           value: /etc/config/cloud.conf
         - name: CLUSTER_NAME
           value: kubernetes
-  dnsPolicy: ClusterFirstWithHostNet
+  dnsPolicy: Default
   hostNetwork: true
   securityContext:
     runAsUser: 1001
