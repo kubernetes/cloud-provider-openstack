@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"log"
 
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	pb "k8s.io/kms/apis/v2"

@@ -26,12 +26,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
-	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
-	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/networks"
+	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/v2/pagination"
 	"github.com/mitchellh/mapstructure"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -229,7 +229,7 @@ func (i *Instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(i.compute, instanceID).Extract()
+	server, err := servers.Get(ctx, i.compute, instanceID).Extract()
 
 	if mc.ObserveRequest(err) != nil {
 		return []v1.NodeAddress{}, err
@@ -267,7 +267,7 @@ func instanceExistsByProviderID(ctx context.Context, compute *gophercloud.Servic
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	_, err = servers.Get(compute, instanceID).Extract()
+	_, err = servers.Get(ctx, compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
@@ -301,7 +301,7 @@ func instanceShutdownByProviderID(ctx context.Context, compute *gophercloud.Serv
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(compute, instanceID).Extract()
+	server, err := servers.Get(ctx, compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return false, err
 	}
@@ -331,7 +331,7 @@ func (i *Instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloud
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	srv, err := servers.Get(i.compute, instanceID).Extract()
+	srv, err := servers.Get(ctx, i.compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -390,7 +390,7 @@ func (i *Instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 	}
 
 	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(i.compute, instanceID).Extract()
+	server, err := servers.Get(ctx, i.compute, instanceID).Extract()
 
 	if mc.ObserveRequest(err) != nil {
 		return "", err
@@ -407,7 +407,7 @@ func (i *Instances) InstanceType(ctx context.Context, name types.NodeName) (stri
 		return "", err
 	}
 
-	return srvInstanceType(i.compute, &srv.Server)
+	return srvInstanceType(i.compute, srv)
 }
 
 func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (string, error) {
@@ -429,7 +429,7 @@ func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (st
 
 		// get flavor name by id
 		mc := metrics.NewMetricContext("flavor", "get")
-		f, err := flavors.Get(client, flavor).Extract()
+		f, err := flavors.Get(context.TODO(), client, flavor).Extract()
 		if mc.ObserveRequest(err) == nil {
 			if isValidLabelValue(f.Name) {
 				return f.Name, nil
@@ -536,19 +536,19 @@ func readInstanceID(searchOrder string) (string, error) {
 	return "", err
 }
 
-func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*ServerAttributesExt, error) {
+func getServerByName(client *gophercloud.ServiceClient, name types.NodeName) (*servers.Server, error) {
 	opts := servers.ListOpts{
 		Name: fmt.Sprintf("^%s$", regexp.QuoteMeta(mapNodeNameToServerName(name))),
 	}
 
-	var s []ServerAttributesExt
-	serverList := make([]ServerAttributesExt, 0, 1)
+	serverList := make([]servers.Server, 0, 1)
 
 	mc := metrics.NewMetricContext("server", "list")
 	pager := servers.List(client, opts)
 
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		if err := servers.ExtractServersInto(page, &s); err != nil {
+	err := pager.EachPage(context.TODO(), func(_ context.Context, page pagination.Page) (bool, error) {
+		s, err := servers.ExtractServers(page)
+		if err != nil {
 			return false, err
 		}
 		serverList = append(serverList, s...)
@@ -637,12 +637,12 @@ func nodeAddresses(srv *servers.Server, ports []PortWithTrunkDetails, client *go
 	// This exposes the vlan networks to which subports are attached
 	for _, port := range ports {
 		for _, subport := range port.TrunkDetails.SubPorts {
-			p, err := neutronports.Get(client, subport.PortID).Extract()
+			p, err := neutronports.Get(context.TODO(), client, subport.PortID).Extract()
 			if err != nil {
 				klog.Errorf("Failed to get subport %s details: %v", subport.PortID, err)
 				continue
 			}
-			n, err := networks.Get(client, p.NetworkID).Extract()
+			n, err := networks.Get(context.TODO(), client, p.NetworkID).Extract()
 			if err != nil {
 				klog.Errorf("Failed to get subport %s network details: %v", subport.PortID, err)
 				continue
@@ -731,7 +731,7 @@ func getAddressesByName(client *gophercloud.ServiceClient, name types.NodeName, 
 		return nil, err
 	}
 
-	return nodeAddresses(&srv.Server, ports, client, networkingOpts)
+	return nodeAddresses(srv, ports, client, networkingOpts)
 }
 
 // getAttachedPorts returns a list of ports attached to a server.
@@ -742,7 +742,7 @@ func getAttachedPorts(client *gophercloud.ServiceClient, serverID string) ([]Por
 
 	var ports []PortWithTrunkDetails
 
-	allPages, err := neutronports.List(client, listOpts).AllPages()
+	allPages, err := neutronports.List(client, listOpts).AllPages(context.TODO())
 	if err != nil {
 		return ports, err
 	}

@@ -20,7 +20,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/v2"
 )
 
 // ErrNotFound is used to inform that the object is missing
@@ -47,47 +47,17 @@ func IsNotFound(err error) bool {
 		return true
 	}
 
-	if _, ok := err.(gophercloud.ErrDefault404); ok {
-		return true
-	}
-
 	if _, ok := err.(gophercloud.ErrResourceNotFound); ok {
 		return true
 	}
 
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusNotFound {
-			return true
-		}
-	}
-
-	return false
+	return gophercloud.ResponseCodeIs(err, http.StatusNotFound)
 }
 
 func IsInvalidError(err error) bool {
-	if _, ok := err.(gophercloud.ErrDefault400); ok {
-		return true
-	}
-
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusBadRequest {
-			return true
-		}
-	}
-
-	return false
+	return gophercloud.ResponseCodeIs(err, http.StatusBadRequest)
 }
 
 func IsConflictError(err error) bool {
-	if _, ok := err.(gophercloud.ErrDefault409); ok {
-		return true
-	}
-
-	if errCode, ok := err.(gophercloud.ErrUnexpectedResponseCode); ok {
-		if errCode.Actual == http.StatusConflict {
-			return true
-		}
-	}
-
-	return false
+	return gophercloud.ResponseCodeIs(err, http.StatusConflict)
 }

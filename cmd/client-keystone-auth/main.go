@@ -19,11 +19,12 @@ package main
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/utils/openstack/clientconfig"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/utils/v2/openstack/clientconfig"
 	"github.com/spf13/cobra"
 	"k8s.io/component-base/cli"
 
@@ -215,7 +216,7 @@ func handle() {
 
 	token, err := keystone.GetToken(options)
 	if err != nil {
-		if _, ok := err.(gophercloud.ErrDefault401); ok {
+		if gophercloud.ResponseCodeIs(err, http.StatusUnauthorized) {
 			fmt.Println(errRespTemplate)
 			os.Stderr.WriteString("Invalid user credentials were provided\n")
 			os.Exit(0)

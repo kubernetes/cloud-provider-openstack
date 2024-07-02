@@ -1,9 +1,11 @@
 package barbican
 
 import (
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
+	"context"
+
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/keymanager/v1/secrets"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
@@ -41,7 +43,7 @@ func (barbican *Barbican) GetSecret(keyID string) ([]byte, error) {
 		PayloadContentType: "application/octet-stream",
 	}
 
-	key, err := secrets.GetPayload(barbican.Client, keyID, opts).Extract()
+	key, err := secrets.GetPayload(context.TODO(), barbican.Client, keyID, opts).Extract()
 	if err != nil {
 		return nil, err
 	}

@@ -17,17 +17,18 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/l7policies"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -260,7 +261,7 @@ func (os *OpenStack) waitLoadbalancerActiveProvisioningStatus(loadbalancerID str
 
 	var provisioningStatus string
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		loadbalancer, err := loadbalancers.Get(os.Octavia, loadbalancerID).Extract()
+		loadbalancer, err := loadbalancers.Get(context.TODO(), os.Octavia, loadbalancerID).Extract()
 		if err != nil {
 			return false, err
 		}
@@ -298,7 +299,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 			Provider:    os.config.Octavia.Provider,
 			FlavorID:    flavorId,
 		}
-		loadbalancer, err = loadbalancers.Create(os.Octavia, createOpts).Extract()
+		loadbalancer, err = loadbalancers.Create(context.TODO(), os.Octavia, createOpts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating loadbalancer %v: %v", createOpts, err)
 		}
@@ -318,7 +319,7 @@ func (os *OpenStack) EnsureLoadBalancer(name string, subnetID string, ingNamespa
 
 // UpdateLoadBalancerDescription updates the load balancer description field.
 func (os *OpenStack) UpdateLoadBalancerDescription(lbID string, newDescription string) error {
-	_, err := loadbalancers.Update(os.Octavia, lbID, loadbalancers.UpdateOpts{
+	_, err := loadbalancers.Update(context.TODO(), os.Octavia, lbID, loadbalancers.UpdateOpts{
 		Description: &newDescription,
 	}).Extract()
 	if err != nil {
@@ -358,7 +359,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 		if len(listenerAllowedCIDRs) > 0 {
 			opts.AllowedCIDRs = listenerAllowedCIDRs
 		}
-		listener, err = listeners.Create(os.Octavia, opts).Extract()
+		listener, err = listeners.Create(context.TODO(), os.Octavia, opts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating listener: %v", err)
 		}
@@ -381,7 +382,7 @@ func (os *OpenStack) EnsureListener(name string, lbID string, secretRefs []strin
 		}
 
 		if updateOpts != (listeners.UpdateOpts{}) {
-			_, err := listeners.Update(os.Octavia, listener.ID, updateOpts).Extract()
+			_, err := listeners.Update(context.TODO(), os.Octavia, listener.ID, updateOpts).Extract()
 			if err != nil {
 				return nil, fmt.Errorf("failed to update listener options: %v", err)
 			}
@@ -412,7 +413,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		}
 
 		// Delete the existing pool, members are deleted automatically
-		err = pools.Delete(os.Octavia, pool.ID).ExtractErr()
+		err = pools.Delete(context.TODO(), os.Octavia, pool.ID).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			return nil, fmt.Errorf("error deleting pool %s: %v", pool.ID, err)
 		}
@@ -452,7 +453,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 				Persistence:    nil,
 			}
 		}
-		pool, err = pools.Create(os.Octavia, opts).Extract()
+		pool, err = pools.Create(context.TODO(), os.Octavia, opts).Extract()
 		if err != nil {
 			return nil, fmt.Errorf("error creating pool: %v", err)
 		}
@@ -505,7 +506,7 @@ func (os *OpenStack) EnsurePoolMembers(deleted bool, poolName string, lbID strin
 		return nil, fmt.Errorf("error because no members in pool: %s", pool.ID)
 	}
 
-	if err := pools.BatchUpdateMembers(os.Octavia, pool.ID, members).ExtractErr(); err != nil {
+	if err := pools.BatchUpdateMembers(context.TODO(), os.Octavia, pool.ID, members).ExtractErr(); err != nil {
 		return nil, fmt.Errorf("error batch updating members for pool %s: %v", pool.ID, err)
 	}
 	_, err = os.waitLoadbalancerActiveProvisioningStatus(lbID)

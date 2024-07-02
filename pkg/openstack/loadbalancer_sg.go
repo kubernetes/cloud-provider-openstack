@@ -17,16 +17,17 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	neutrontags "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/attributestags"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
-	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
-	secgroups "github.com/gophercloud/utils/openstack/networking/v2/extensions/security/groups"
+	"github.com/gophercloud/gophercloud/v2"
+	neutrontags "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/attributestags"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/groups"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
+	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
+	secgroups "github.com/gophercloud/utils/v2/openstack/networking/v2/extensions/security/groups"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
@@ -91,7 +92,7 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 			newSGs := append(port.SecurityGroups, sg)
 			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
 			mc := metrics.NewMetricContext("port", "update")
-			res := neutronports.Update(network, port.ID, updateOpts)
+			res := neutronports.Update(context.TODO(), network, port.ID, updateOpts)
 			if mc.ObserveRequest(res.Err) != nil {
 				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 			}
@@ -124,7 +125,7 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 		//              we don't trigger a lost update issue.
 		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
 		mc := metrics.NewMetricContext("port", "update")
-		res := neutronports.Update(network, port.ID, updateOpts)
+		res := neutronports.Update(context.TODO(), network, port.ID, updateOpts)
 		if mc.ObserveRequest(res.Err) != nil {
 			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 		}
@@ -133,7 +134,7 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 		// so this stays for backward compatibility. It's reasonable to delete it in the future. 404s are ignored.
 		if slices.Contains(port.Tags, sg) {
 			mc = metrics.NewMetricContext("port_tag", "delete")
-			err := neutrontags.Delete(network, "ports", port.ID, sg).ExtractErr()
+			err := neutrontags.Delete(context.TODO(), network, "ports", port.ID, sg).ExtractErr()
 			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
 			}
@@ -146,7 +147,7 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 // group, if it not present.
 func (lbaas *LbaasV2) ensureSecurityRule(sgRuleCreateOpts rules.CreateOpts) error {
 	mc := metrics.NewMetricContext("security_group_rule", "create")
-	_, err := rules.Create(lbaas.network, sgRuleCreateOpts).Extract()
+	_, err := rules.Create(context.TODO(), lbaas.network, sgRuleCreateOpts).Extract()
 	if err != nil && cpoerrors.IsConflictError(err) {
 		// Conflict means the SG rule already exists, so ignoring that error.
 		klog.Warningf("Security group rule already found when trying to create it. This indicates concurrent "+
@@ -212,7 +213,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 
 	// ensure security group for LB
 	lbSecGroupName := getSecurityGroupName(apiService)
-	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
+	lbSecGroupID, err := secgroups.IDFromName(context.TODO(), lbaas.network, lbSecGroupName)
 	if err != nil {
 		// If the security group of LB not exist, create it later
 		if cpoerrors.IsNotFound(err) {
@@ -229,7 +230,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 		}
 
 		mc := metrics.NewMetricContext("security_group", "create")
-		lbSecGroup, err := groups.Create(lbaas.network, lbSecGroupCreateOpts).Extract()
+		lbSecGroup, err := groups.Create(context.TODO(), lbaas.network, lbSecGroupCreateOpts).Extract()
 		if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to create Security Group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
@@ -237,7 +238,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")
-	subnet, err := subnets.Get(lbaas.network, svcConf.lbMemberSubnetID).Extract()
+	subnet, err := subnets.Get(context.TODO(), lbaas.network, svcConf.lbMemberSubnetID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return fmt.Errorf(
 			"failed to find subnet %s from openstack: %v", svcConf.lbMemberSubnetID, err)
@@ -315,7 +316,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 	for _, existingRule := range toDelete {
 		klog.Infof("Deleting rule %s from security group %s (%s)", existingRule.ID, existingRule.SecGroupID, lbSecGroupName)
 		mc := metrics.NewMetricContext("security_group_rule", "delete")
-		err := rules.Delete(lbaas.network, existingRule.ID).ExtractErr()
+		err := rules.Delete(context.TODO(), lbaas.network, existingRule.ID).ExtractErr()
 		if err != nil && cpoerrors.IsNotFound(err) {
 			// ignore 404
 			klog.Warningf("Security group rule %s found missing when trying to delete it. This indicates concurrent "+
@@ -336,7 +337,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 func (lbaas *LbaasV2) ensureSecurityGroupDeleted(_ string, service *corev1.Service) error {
 	// Generate Name
 	lbSecGroupName := getSecurityGroupName(service)
-	lbSecGroupID, err := secgroups.IDFromName(lbaas.network, lbSecGroupName)
+	lbSecGroupID, err := secgroups.IDFromName(context.TODO(), lbaas.network, lbSecGroupName)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			// It is OK when the security group has been deleted by others.
@@ -351,7 +352,7 @@ func (lbaas *LbaasV2) ensureSecurityGroupDeleted(_ string, service *corev1.Servi
 	}
 
 	mc := metrics.NewMetricContext("security_group", "delete")
-	lbSecGroup := groups.Delete(lbaas.network, lbSecGroupID)
+	lbSecGroup := groups.Delete(context.TODO(), lbaas.network, lbSecGroupID)
 	if lbSecGroup.Err != nil && !cpoerrors.IsNotFound(lbSecGroup.Err) {
 		return mc.ObserveRequest(lbSecGroup.Err)
 	}

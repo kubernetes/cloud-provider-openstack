@@ -19,14 +19,14 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/backups"
-	"golang.org/x/net/context"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/klog/v2"
 )
@@ -79,7 +79,7 @@ func (os *OpenStack) CreateBackup(name, volID, snapshotID, availabilityZone stri
 
 	// TODO: Do some check before really call openstack API on the input
 	mc := metrics.NewMetricContext("backup", "create")
-	backup, err := backups.Create(blockstorageServiceClient, opts).Extract()
+	backup, err := backups.Create(context.TODO(), blockstorageServiceClient, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return &backups.Backup{}, err
 	}
@@ -115,7 +115,7 @@ func (os *OpenStack) ListBackups(filters map[string]string) ([]backups.Backup, e
 	}
 	mc := metrics.NewMetricContext("backup", "list")
 
-	allPages, err := backups.List(os.blockstorage, opts).AllPages()
+	allPages, err := backups.List(os.blockstorage, opts).AllPages(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (os *OpenStack) ListBackups(filters map[string]string) ([]backups.Backup, e
 // DeleteBackup issues a request to delete the Backup with the specified ID from the Cinder backend.
 func (os *OpenStack) DeleteBackup(backupID string) error {
 	mc := metrics.NewMetricContext("backup", "delete")
-	err := backups.Delete(os.blockstorage, backupID).ExtractErr()
+	err := backups.Delete(context.TODO(), os.blockstorage, backupID).ExtractErr()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to delete backup: %v", err)
 	}
@@ -144,7 +144,7 @@ func (os *OpenStack) DeleteBackup(backupID string) error {
 // GetBackupByID returns backup details by id.
 func (os *OpenStack) GetBackupByID(backupID string) (*backups.Backup, error) {
 	mc := metrics.NewMetricContext("backup", "get")
-	backup, err := backups.Get(os.blockstorage, backupID).Extract()
+	backup, err := backups.Get(context.TODO(), os.blockstorage, backupID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to get backup: %v", err)
 		return nil, err

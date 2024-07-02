@@ -20,8 +20,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gophercloud/gophercloud"
-	th "github.com/gophercloud/gophercloud/testhelper"
+	"github.com/gophercloud/gophercloud/v2"
+	th "github.com/gophercloud/gophercloud/v2/testhelper"
 )
 
 func TestTokenGetter(t *testing.T) {
@@ -98,7 +98,7 @@ func TestTokenGetter(t *testing.T) {
 	options.AuthOptions.Password = "wrongpw"
 
 	_, err = GetToken(options)
-	if _, ok := err.(gophercloud.ErrDefault401); !ok {
+	if !gophercloud.ResponseCodeIs(err, http.StatusUnauthorized) {
 		t.FailNow()
 	}
 

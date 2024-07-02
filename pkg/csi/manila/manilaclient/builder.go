@@ -17,14 +17,15 @@ limitations under the License.
 package manilaclient
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/sharedfilesystems/apiversions"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/apiversions"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 )
 
@@ -98,7 +99,7 @@ func compareManilaVersionsLessThan(a, b string) bool {
 }
 
 func validateManilaClient(c *gophercloud.ServiceClient) error {
-	serverVersion, err := apiversions.Get(c, "v2").Extract()
+	serverVersion, err := apiversions.Get(context.TODO(), c, "v2").Extract()
 	if err != nil {
 		return fmt.Errorf("failed to get Manila v2 API microversions: %v", err)
 	}
