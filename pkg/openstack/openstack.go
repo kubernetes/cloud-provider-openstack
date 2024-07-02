@@ -183,6 +183,7 @@ type Config struct {
 
 func init() {
 	metrics.RegisterMetrics("occm")
+	fmt.Printf("foobar")
 
 	cloudprovider.RegisterCloudProvider(ProviderName, func(config io.Reader) (cloudprovider.Interface, error) {
 		cfg, err := ReadConfig(config)
