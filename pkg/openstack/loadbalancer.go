@@ -32,6 +32,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
 	v2pools "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/attributestags"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	corev1 "k8s.io/api/core/v1"
@@ -607,7 +608,7 @@ func (lbaas *LbaasV2) updateFloatingIPTag(floatingip *floatingips.FloatingIP, Ta
 	if Tag == "" {
 		return fmt.Errorf("Error input tag argument ")
 	}
-	tags, err := attributestags.List(lbaas.network, "floatingips", floatingip.ID).Extract()
+	tags, err := attributestags.List(context.TODO(), lbaas.network, "floatingips", floatingip.ID).Extract()
 	if err != nil {
 		klog.V(3).Infof("Cannot get floatIP tags for floating %s", floatingip.ID)
 		return err
@@ -622,7 +623,7 @@ func (lbaas *LbaasV2) updateFloatingIPTag(floatingip *floatingips.FloatingIP, Ta
 		if !found {
 			return nil
 		}
-		err = attributestags.Delete(lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+		err = attributestags.Delete(context.TODO(), lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
 		if err != nil {
 			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
 		}
@@ -630,7 +631,7 @@ func (lbaas *LbaasV2) updateFloatingIPTag(floatingip *floatingips.FloatingIP, Ta
 	}
 
 	if !found {
-		err = attributestags.Add(lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+		err = attributestags.Add(context.TODO(), lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
 		if err != nil {
 			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
 		}
