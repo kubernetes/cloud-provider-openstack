@@ -17,14 +17,16 @@ limitations under the License.
 package openstack
 
 import (
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"context"
+
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 )
 
 func GetSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
 	mc := metrics.NewMetricContext("security_group_rule", "list")
-	page, err := rules.List(client, opts).AllPages()
+	page, err := rules.List(client, opts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}

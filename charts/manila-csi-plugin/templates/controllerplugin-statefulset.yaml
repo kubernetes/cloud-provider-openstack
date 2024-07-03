@@ -32,6 +32,9 @@ spec:
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
+            {{- if $.Values.controllerplugin.provisioner.extraEnv }}
+              {{- toYaml $.Values.controllerplugin.provisioner.extraEnv | nindent 12 }}
+            {{- end }}
           imagePullPolicy: {{ $.Values.controllerplugin.provisioner.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
@@ -46,6 +49,9 @@ spec:
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
+            {{- if $.Values.controllerplugin.snapshotter.extraEnv }}
+              {{- toYaml $.Values.controllerplugin.snapshotter.extraEnv | nindent 12 }}
+            {{- end }}
           imagePullPolicy: {{ $.Values.controllerplugin.snapshotter.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
@@ -61,6 +67,9 @@ spec:
           env:
             - name: ADDRESS
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
+            {{- if $.Values.controllerplugin.resizer.extraEnv }}
+              {{- toYaml $.Values.controllerplugin.resizer.extraEnv | nindent 12 }}
+            {{- end }}
           imagePullPolicy: {{ $.Values.controllerplugin.resizer.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
@@ -107,6 +116,9 @@ spec:
               value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
             - name: MANILA_SHARE_PROTO
               value: "{{ .protocolSelector }}"
+            {{- if $.Values.controllerplugin.nodeplugin.extraEnv }}
+              {{- toYaml $.Values.controllerplugin.nodeplugin.extraEnv | nindent 12 }}
+            {{- end }}
           imagePullPolicy: {{ $.Values.csimanila.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir

@@ -7,11 +7,11 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
-	v2monitors "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
+	v2monitors "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -709,12 +709,15 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 	}
 }
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
+	ipmodeProxy := corev1.LoadBalancerIPModeProxy
+	ipmodeVIP := corev1.LoadBalancerIPModeVIP
 	type fields struct {
 		LoadBalancer LoadBalancer
 	}
 	type result struct {
 		HostName  string
 		IPAddress string
+		IPMode    *corev1.LoadBalancerIPMode
 	}
 	type args struct {
 		service *corev1.Service
@@ -800,6 +803,33 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			},
 			want: result{
 				IPAddress: "10.10.0.6",
+				IPMode:    &ipmodeVIP,
+			},
+		},
+		{
+			name: "it should return ipMode proxy if using proxyProtocol and not EnableIngressHostname",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"test": "key"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: true,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				IPAddress: "10.10.0.6",
+				IPMode:    &ipmodeProxy,
 			},
 		},
 	}
@@ -812,6 +842,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
 			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
 			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
+			assert.Equal(t, tt.want.IPMode, result.Ingress[0].IPMode)
 		})
 	}
 }
@@ -2418,6 +2449,107 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			createOpt := lbaas.buildListenerCreateOpt(tc.port, tc.svcConf, tc.name)
 			assert.Equal(t, tc.expectedCreateOpt, createOpt)
 
+		})
+	}
+}
+
+func TestFilterNodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		nodeLabels     map[string]string
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting map[string]string
+		nodeFiltered   bool
+	}{
+		{
+			name:       "when no filter is provided, node should be filtered",
+			nodeLabels: map[string]string{"k1": "v1"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerNodeSelector,
+			defaultSetting: make(map[string]string),
+			nodeFiltered:   true,
+		},
+		{
+			name:       "when all key-value filters match, node should be filtered",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerNodeSelector: "k1=v1,k2=v2"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerNodeSelector,
+			defaultSetting: make(map[string]string),
+			nodeFiltered:   true,
+		},
+		{
+			name:       "when all key-value filters match and a key value contains equals sign, node should be filtered",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2=true"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerNodeSelector: "k1=v1,k2=v2=true"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerNodeSelector,
+			defaultSetting: make(map[string]string),
+			nodeFiltered:   true,
+		},
+		{
+			name:       "when all just-key filter match, node should be filtered",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerNodeSelector: "k1,k2"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerNodeSelector,
+			defaultSetting: make(map[string]string),
+			nodeFiltered:   true,
+		},
+		{
+			name:       "when some filters do not match, node should not be filtered",
+			nodeLabels: map[string]string{"k1": "v1"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerNodeSelector: " k1=v1, k2 "},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerNodeSelector,
+			defaultSetting: make(map[string]string),
+			nodeFiltered:   false,
+		},
+		{
+			name:       "when no filter matches, node should not be filtered",
+			nodeLabels: map[string]string{"k1": "v1", "k2": "v2"},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerNodeSelector: "k3=v3"},
+				},
+			},
+			annotationKey:  ServiceAnnotationLoadBalancerNodeSelector,
+			defaultSetting: make(map[string]string),
+			nodeFiltered:   false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			node := &corev1.Node{}
+			node.Labels = test.nodeLabels
+
+			// TODO: add testArgs
+			targetNodeLabels := getKeyValueFromServiceAnnotation(test.service, ServiceAnnotationLoadBalancerNodeSelector, "")
+
+			nodes := []*corev1.Node{node}
+			filteredNodes := filterNodes(nodes, targetNodeLabels)
+
+			if test.nodeFiltered {
+				assert.Equal(t, nodes, filteredNodes)
+			} else {
+				assert.Empty(t, filteredNodes)
+			}
 		})
 	}
 }

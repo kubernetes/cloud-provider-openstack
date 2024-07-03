@@ -21,9 +21,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
-	"k8s.io/api/core/v1"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/routers"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
@@ -170,7 +170,7 @@ func getServers(os *OpenStack) []servers.Server {
 	opts := servers.ListOpts{
 		Status: "ACTIVE",
 	}
-	allPages, err := servers.List(c, opts).AllPages()
+	allPages, err := servers.List(c, opts).AllPages(context.TODO())
 	if err != nil {
 		panic(err)
 	}
@@ -190,7 +190,7 @@ func getRouters(os *OpenStack) []routers.Router {
 	if err != nil {
 		panic(err)
 	}
-	allPages, err := routers.List(n, listOpts).AllPages()
+	allPages, err := routers.List(n, listOpts).AllPages(context.TODO())
 	if err != nil {
 		panic(err)
 	}

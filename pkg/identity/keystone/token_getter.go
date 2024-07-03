@@ -17,15 +17,16 @@ limitations under the License.
 package keystone
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	tokens3 "github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
-	"github.com/gophercloud/utils/client"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	tokens3 "github.com/gophercloud/gophercloud/v2/openstack/identity/v3/tokens"
+	"github.com/gophercloud/utils/v2/client"
 	certutil "k8s.io/client-go/util/cert"
 	osClient "k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/version"
@@ -112,7 +113,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 	}
 
 	// Issue new unscoped token
-	result := tokens3.Create(v3Client, &options.AuthOptions)
+	result := tokens3.Create(context.TODO(), v3Client, &options.AuthOptions)
 	if result.Err != nil {
 		return token, result.Err
 	}

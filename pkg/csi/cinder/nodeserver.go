@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,9 +25,8 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -398,7 +398,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			options = append(options, collectMountOptions(fsType, mountFlags)...)
 		}
 		// Mount
-		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = ns.formatAndMountRetry(devicePath, stagingTarget, fsType, options)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -424,6 +424,25 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	}
 
 	return &csi.NodeStageVolumeResponse{}, nil
+}
+
+// formatAndMountRetry attempts to format and mount a device at the given path.
+// If the initial mount fails, it rescans the device and retries the mount operation.
+func (ns *nodeServer) formatAndMountRetry(devicePath, stagingTarget, fsType string, options []string) error {
+	m := ns.Mount
+	err := m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+	if err != nil {
+		klog.Infof("Initial format and mount failed: %v. Attempting rescan.", err)
+		// Attempting rescan if the initial mount fails
+		rescanErr := blockdevice.RescanDevice(devicePath)
+		if rescanErr != nil {
+			klog.Infof("Rescan failed: %v. Returning original mount error.", rescanErr)
+			return err
+		}
+		klog.Infof("Rescan succeeded, retrying format and mount")
+		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+	}
+	return err
 }
 
 func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {

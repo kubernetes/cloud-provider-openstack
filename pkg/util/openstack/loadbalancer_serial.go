@@ -1,10 +1,11 @@
 package openstack
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
 	apiv1 "k8s.io/api/core/v1"
 	klog "k8s.io/klog/v2"
 
@@ -68,7 +69,7 @@ func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools
 		}
 		if !memberExists(members, addr, nodePort) {
 			klog.V(2).Infof("Creating member for pool %s", pool.ID)
-			_, err := pools.CreateMember(client, pool.ID, pools.CreateMemberOpts{
+			_, err := pools.CreateMember(context.TODO(), client, pool.ID, pools.CreateMemberOpts{
 				Name:         cpoutil.CutString255(fmt.Sprintf("member_%s_%s_%d", node.Name, addr, nodePort)),
 				ProtocolPort: nodePort,
 				Address:      addr,
@@ -87,7 +88,7 @@ func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools
 	}
 	for _, member := range members {
 		klog.V(2).Infof("Deleting obsolete member %s for pool %s address %s", member.ID, pool.ID, member.Address)
-		err := pools.DeleteMember(client, pool.ID, member.ID).ExtractErr()
+		err := pools.DeleteMember(context.TODO(), client, pool.ID, member.ID).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			return fmt.Errorf("error deleting obsolete member %s for pool %s address %s: %v", member.ID, pool.ID, member.Address, err)
 		}

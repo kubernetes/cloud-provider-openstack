@@ -43,9 +43,7 @@ Usually, shares / share adapters offer a set of options which users may want to 
 
 **Controller Service:**
 * `CREATE_DELETE_VOLUME`
-* `CREATE_DELETE_SNAPSHOT` (snapshotting CephFS shares is not supported yet - planned as a part of GSoC 2019)
-
-Availability Zones are not supported yet.
+* `CREATE_DELETE_SNAPSHOT`
 
 **Node Service:**
 

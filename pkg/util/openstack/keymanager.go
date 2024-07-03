@@ -17,11 +17,12 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/keymanager/v1/secrets"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/keymanager/v1/secrets"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
@@ -47,7 +48,7 @@ func GetSecret(client *gophercloud.ServiceClient, name string) (*secrets.Secret,
 		Name: name,
 	}
 	mc := metrics.NewMetricContext("secret", "list")
-	allPages, err := secrets.List(client, listOpts).AllPages()
+	allPages, err := secrets.List(client, listOpts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -79,7 +80,7 @@ func CreateSecret(client *gophercloud.ServiceClient, name string, secretType str
 		SecretType:             secrets.OpaqueSecret,
 	}
 	mc := metrics.NewMetricContext("secret", "create")
-	secret, err := secrets.Create(client, createOpts).Extract()
+	secret, err := secrets.Create(context.TODO(), client, createOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return "", err
 	}
@@ -102,7 +103,7 @@ func DeleteSecrets(client *gophercloud.ServiceClient, partName string) error {
 		SecretType: secrets.OpaqueSecret,
 	}
 	mc := metrics.NewMetricContext("secret", "list")
-	allPages, err := secrets.List(client, listOpts).AllPages()
+	allPages, err := secrets.List(client, listOpts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func DeleteSecrets(client *gophercloud.ServiceClient, partName string) error {
 				return err
 			}
 			mc := metrics.NewMetricContext("secret", "delete")
-			err = secrets.Delete(client, secretID).ExtractErr()
+			err = secrets.Delete(context.TODO(), client, secretID).ExtractErr()
 			if mc.ObserveRequest(err) != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}

@@ -17,14 +17,16 @@ limitations under the License.
 package openstack
 
 import (
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
-	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
-	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
-	"github.com/gophercloud/gophercloud/pagination"
+	"context"
+
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/external"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/floatingips"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/networks"
+	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
+	"github.com/gophercloud/gophercloud/v2/pagination"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -36,7 +38,7 @@ func GetNetworkExtensions(client *gophercloud.ServiceClient) (map[string]bool, e
 
 	mc := metrics.NewMetricContext("network_extension", "list")
 	pager := extensions.List(client)
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+	err := pager.EachPage(context.TODO(), func(_ context.Context, page pagination.Page) (bool, error) {
 		exts, err := extensions.ExtractExtensions(page)
 		if err != nil {
 			return false, err
@@ -55,7 +57,7 @@ func GetFloatingIPs(client *gophercloud.ServiceClient, opts floatingips.ListOpts
 	var floatingIPList []floatingips.FloatingIP
 
 	mc := metrics.NewMetricContext("floating_ip", "list")
-	allPages, err := floatingips.List(client, opts).AllPages()
+	allPages, err := floatingips.List(client, opts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return floatingIPList, err
 	}
@@ -93,7 +95,7 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 	var allNetworks []NetworkWithExternalExt
 
 	mc := metrics.NewMetricContext("network", "list")
-	page, err := networks.List(client, networks.ListOpts{}).AllPages()
+	page, err := networks.List(client, networks.ListOpts{}).AllPages(context.TODO())
 	if err != nil {
 		return "", mc.ObserveRequest(err)
 	}
@@ -106,7 +108,7 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 	for _, network := range allNetworks {
 		if network.External && len(network.Subnets) > 0 {
 			mc := metrics.NewMetricContext("subnet", "list")
-			page, err := subnets.List(client, subnets.ListOpts{NetworkID: network.ID}).AllPages()
+			page, err := subnets.List(client, subnets.ListOpts{NetworkID: network.ID}).AllPages(context.TODO())
 			if err != nil {
 				return "", mc.ObserveRequest(err)
 			}
@@ -142,7 +144,7 @@ func getSubnet(networkSubnet string, subnetList []subnets.Subnet) *subnets.Subne
 // GetPorts gets all the filtered ports.
 func GetPorts[PortType interface{}](client *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]PortType, error) {
 	mc := metrics.NewMetricContext("port", "list")
-	allPages, err := neutronports.List(client, listOpts).AllPages()
+	allPages, err := neutronports.List(client, listOpts).AllPages(context.TODO())
 	if mc.ObserveRequest(err) != nil {
 		return []PortType{}, err
 	}

@@ -18,16 +18,16 @@ package openstack
 
 import (
 	"fmt"
-	"k8s.io/cloud-provider-openstack/pkg/util"
 	"regexp"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
-	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 

@@ -21,8 +21,8 @@ import (
 	"fmt"
 	sysos "os"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
@@ -113,12 +113,12 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 	if err != nil {
 		return nil, err
 	}
-	server := ServerAttributesExt{}
+	var server servers.Server
 	if srv != nil {
 		server = *srv
 	}
 
-	instanceType, err := srvInstanceType(i.compute, &server.Server)
+	instanceType, err := srvInstanceType(i.compute, &server)
 	if err != nil {
 		return nil, err
 	}
@@ -128,13 +128,13 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 		return nil, err
 	}
 
-	addresses, err := nodeAddresses(&server.Server, ports, i.network, i.networkingOpts)
+	addresses, err := nodeAddresses(&server, ports, i.network, i.networkingOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    i.makeInstanceID(&server.Server),
+		ProviderID:    i.makeInstanceID(&server),
 		InstanceType:  instanceType,
 		NodeAddresses: addresses,
 		Zone:          server.AvailabilityZone,
@@ -149,19 +149,18 @@ func (i *InstancesV2) makeInstanceID(srv *servers.Server) string {
 	return fmt.Sprintf("%s:///%s", ProviderName, srv.ID)
 }
 
-func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*ServerAttributesExt, error) {
+func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*servers.Server, error) {
 	if node.Spec.ProviderID == "" {
 		opt := servers.ListOpts{
 			Name: fmt.Sprintf("^%s$", node.Name),
 		}
 		mc := metrics.NewMetricContext("server", "list")
-		allPages, err := servers.List(i.compute, opt).AllPages()
+		allPages, err := servers.List(i.compute, opt).AllPages(context.TODO())
 		if mc.ObserveRequest(err) != nil {
 			return nil, fmt.Errorf("error listing servers %v: %v", opt, err)
 		}
 
-		serverList := []ServerAttributesExt{}
-		err = servers.ExtractServersInto(allPages, &serverList)
+		serverList, err := servers.ExtractServers(allPages)
 		if err != nil {
 			return nil, fmt.Errorf("error extracting servers from pages: %v", err)
 		}
@@ -183,14 +182,13 @@ func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*ServerAt
 		return nil, fmt.Errorf("ProviderID \"%s\" didn't match supported region \"%s\"", node.Spec.ProviderID, i.region)
 	}
 
-	server := ServerAttributesExt{}
 	mc := metrics.NewMetricContext("server", "get")
-	err = servers.Get(i.compute, instanceID).ExtractInto(&server)
+	server, err := servers.Get(context.TODO(), i.compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		if errors.IsNotFound(err) {
 			return nil, cloudprovider.InstanceNotFound
 		}
 		return nil, err
 	}
-	return &server, nil
+	return server, nil
 }

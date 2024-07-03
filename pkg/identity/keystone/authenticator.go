@@ -17,12 +17,13 @@ limitations under the License.
 package keystone
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/groups"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/tokens"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/users"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/identity/v3/groups"
+	"github.com/gophercloud/gophercloud/v2/openstack/identity/v3/tokens"
+	"github.com/gophercloud/gophercloud/v2/openstack/identity/v3/users"
 	"k8s.io/apiserver/pkg/authentication/user"
 )
 
@@ -54,7 +55,7 @@ func NewKeystoner(client *gophercloud.ServiceClient) *Keystoner {
 // revive:disable:unexported-return
 func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 	k.client.ProviderClient.SetToken(token)
-	ret := tokens.Get(k.client, token)
+	ret := tokens.Get(context.TODO(), k.client, token)
 
 	tokenUser, err := ret.ExtractUser()
 	if err != nil {
@@ -91,7 +92,7 @@ func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 
 func (k *Keystoner) GetGroups(token string, userID string) ([]string, error) {
 	k.client.ProviderClient.SetToken(token)
-	allGroupPages, err := users.ListGroups(k.client, userID).AllPages()
+	allGroupPages, err := users.ListGroups(k.client, userID).AllPages(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user groups from Keystone: %v", err)
 	}
