@@ -212,5 +212,5 @@ priorityClassName: ""
 imagePullSecrets: []
 # - name: my-imagepull-secret
 
-# add annotations to all pods
+# add annotations to all pods, deployment, daemonset and podmonitor
 commonAnnotations: {}
