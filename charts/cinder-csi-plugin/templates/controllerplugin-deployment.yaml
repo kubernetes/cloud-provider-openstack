@@ -25,8 +25,14 @@ spec:
     metadata:
       labels:
         {{- include "cinder-csi.controllerplugin.labels" . | nindent 8 }}
+        {{- with .Values.csi.plugin.controllerPlugin.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.csi.plugin.controllerPlugin.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:

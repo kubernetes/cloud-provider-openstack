@@ -17,8 +17,14 @@ spec:
     metadata:
       labels:
         {{- include "cinder-csi.nodeplugin.labels" . | nindent 8 }}
+        {{- with .Values.csi.plugin.nodePlugin.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.csi.plugin.nodePlugin.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
