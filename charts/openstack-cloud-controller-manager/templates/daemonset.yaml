@@ -21,6 +21,9 @@ spec:
         {{- with .Values.commonAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       labels:
         {{- include "occm.controllermanager.labels" . | nindent 8 }}
     spec:
