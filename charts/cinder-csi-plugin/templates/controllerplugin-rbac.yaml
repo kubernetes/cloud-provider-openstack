@@ -6,19 +6,11 @@ kind: ServiceAccount
 metadata:
   name: csi-cinder-controller-sa
   namespace: {{ .Release.Namespace }}
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-attacher-role
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -40,10 +32,6 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-attacher-binding
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
@@ -58,10 +46,6 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-provisioner-role
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -95,10 +79,6 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-provisioner-binding
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
@@ -113,10 +93,6 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-snapshotter-role
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 rules:
   - apiGroups: [""]
     resources: ["events"]
@@ -145,10 +121,6 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-snapshotter-binding
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
@@ -162,10 +134,6 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-role
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 rules:
   # The following rule should be uncommented for plugins that require secrets
   # for provisioning.
@@ -195,10 +163,6 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-binding
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa

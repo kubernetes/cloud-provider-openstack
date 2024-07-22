@@ -2,10 +2,6 @@ apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
   name: cinder.csi.openstack.org
-  annotations:
-    {{- with .Values.commonAnnotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
 spec:
   attachRequired: true
   podInfoOnMount: true
