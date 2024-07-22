@@ -82,6 +82,13 @@ component: controllerplugin
 {{ include "cinder-csi.common.metaLabels" . }}
 {{- end -}}
 
+{{- define "cinder-csi.controllerplugin.podLabels" -}}
+{{ include "cinder-csi.controllerplugin.labels" . }}
+{{ if .Values.csi.plugin.controllerPlugin.podLabels }}
+{{- toYaml .Values.csi.plugin.controllerPlugin.podLabels }}
+{{- end }}
+{{- end -}}
+
 {{- define "cinder-csi.nodeplugin.matchLabels" -}}
 component: nodeplugin
 {{ include "cinder-csi.common.matchLabels" . }}
@@ -92,6 +99,13 @@ component: nodeplugin
 {{ include "cinder-csi.common.metaLabels" . }}
 {{- end -}}
 
+{{- define "cinder-csi.nodeplugin.podLabels" -}}
+{{ include "cinder-csi.nodeplugin.labels" . }}
+{{ if .Values.csi.plugin.nodePlugin.podLabels }}
+{{- toYaml .Values.csi.plugin.nodePlugin.podLabels }}
+{{- end }}
+{{- end -}}
+
 {{- define "cinder-csi.snapshot-controller.matchLabels" -}}
 component: snapshot-controller
 {{ include "cinder-csi.common.matchLabels" . }}
@@ -100,4 +114,31 @@ component: snapshot-controller
 {{- define "cinder-csi.snapshot-controller.labels" -}}
 {{ include "cinder-csi.snapshot-controller.matchLabels" . }}
 {{ include "cinder-csi.common.metaLabels" . }}
+{{- end -}}
+
+{{/*
+Common annotations
+*/}}
+{{- define "cinder-csi.annotations" -}}
+{{- if .Values.commonAnnotations }}
+{{- toYaml .Values.commonAnnotations }}
+{{- end }}
+{{- end -}}
+
+
+{{/*
+Create unified annotations for cinder-csi components
+*/}}
+{{- define "cinder-csi.controllerplugin.podAnnotations" -}}
+{{ include "cinder-csi.annotations" . }}
+{{ if .Values.csi.plugin.controllerPlugin.podAnnotations }}
+{{- toYaml .Values.csi.plugin.controllerPlugin.podAnnotations }}
+{{- end }}
+{{- end -}}
+
+{{- define "cinder-csi.nodeplugin.podAnnotations" -}}
+{{ include "cinder-csi.annotations" . }}
+{{ if .Values.csi.plugin.nodePlugin.podAnnotations }}
+{{- toYaml .Values.csi.plugin.nodePlugin.podAnnotations }}
+{{- end }}
 {{- end -}}

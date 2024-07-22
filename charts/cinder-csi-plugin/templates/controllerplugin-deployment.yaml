@@ -24,17 +24,9 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "cinder-csi.controllerplugin.labels" . | nindent 8 }}
-        {{- with .Values.csi.plugin.controllerPlugin.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- include "cinder-csi.controllerplugin.podLabels" . | nindent 8 }}
       annotations:
-        {{- with .Values.commonAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- with .Values.csi.plugin.controllerPlugin.podAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- include "cinder-csi.controllerplugin.podAnnotations" . | nindent 8 }}
     spec:
       serviceAccount: csi-cinder-controller-sa
       securityContext:
