@@ -34,6 +34,8 @@ var (
 	endpoint                 string
 	nodeID                   string
 	cloudConfig              []string
+	cloudNames               []string
+	additionalTopologies     map[string]string
 	cluster                  string
 	httpEndpoint             string
 	provideControllerService bool
@@ -65,6 +67,9 @@ func main() {
 		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
 	}
 
+	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
+	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
+
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
 
@@ -82,14 +87,18 @@ func handle() {
 	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
-		return
+	var err error
+	clouds := make(map[string]openstack.IOpenStack)
+	for _, cloudName := range cloudNames {
+		clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
+		if err != nil {
+			klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
+			return
+		}
 	}
 
 	if provideControllerService {
-		d.SetupControllerService(cloud)
+		d.SetupControllerService(clouds)
 	}
 
 	if provideNodeService {
@@ -97,9 +106,9 @@ func handle() {
 		mount := mount.GetMountProvider()
 
 		//Initialize Metadata
-		metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+		metadata := metadata.GetMetadataProvider(clouds[cloudNames[0]].GetMetadataOpts().SearchOrder)
 
-		d.SetupNodeService(cloud, mount, metadata)
+		d.SetupNodeService(clouds[cloudNames[0]], mount, metadata, additionalTopologies)
 	}
 
 	d.Run()
