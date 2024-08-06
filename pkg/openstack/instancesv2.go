@@ -79,9 +79,20 @@ func (os *OpenStack) instancesv2() (*InstancesV2, bool) {
 
 // InstanceExists indicates whether a given node exists according to the cloud provider
 func (i *InstancesV2) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
+	if i.regionProviderID {
+		if node.Spec.ProviderID == "" {
+			return false, fmt.Errorf("node %s has empty ProviderID, it should be initialized first", node.Name)
+		}
+
+		if isNodeUnmanaged(node.Spec.ProviderID) {
+			klog.V(4).InfoS("Omitting unmanaged node", "node", klog.KObj(node))
+			return true, nil
+		}
+	}
+
 	_, err := i.getInstance(ctx, node)
 	if err == cloudprovider.InstanceNotFound {
-		klog.V(6).Infof("instance not found for node: %s", node.Name)
+		klog.V(6).InfoS("Node is not found in cloud provider", "node", klog.KObj(node))
 		return false, nil
 	}
 
@@ -94,6 +105,17 @@ func (i *InstancesV2) InstanceExists(ctx context.Context, node *v1.Node) (bool, 
 
 // InstanceShutdown returns true if the instance is shutdown according to the cloud provider.
 func (i *InstancesV2) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
+	if i.regionProviderID {
+		if node.Spec.ProviderID == "" {
+			return false, fmt.Errorf("node %s has empty ProviderID, it should be initialized first", node.Name)
+		}
+
+		if isNodeUnmanaged(node.Spec.ProviderID) {
+			klog.V(4).InfoS("Omitting unmanaged node", "node", klog.KObj(node))
+			return false, nil
+		}
+	}
+
 	server, err := i.getInstance(ctx, node)
 	if err != nil {
 		return false, err
@@ -101,6 +123,7 @@ func (i *InstancesV2) InstanceShutdown(ctx context.Context, node *v1.Node) (bool
 
 	// SHUTOFF is the only state where we can detach volumes immediately
 	if server.Status == instanceShutoff {
+		klog.V(6).InfoS("Node is shutoff", "node", klog.KObj(node))
 		return true, nil
 	}
 
