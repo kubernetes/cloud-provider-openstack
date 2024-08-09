@@ -32,6 +32,12 @@ import (
 const (
 	driverName  = "cinder.csi.openstack.org"
 	topologyKey = "topology." + driverName + "/zone"
+
+	// maxVolumesPerNode is the maximum number of volumes that can be attached to a node
+	maxVolumesPerNode = 256
+
+	// ResizeRequired parameter, if set to true, will trigger a resize on mount operation
+	ResizeRequired = driverName + "/resizeRequired"
 )
 
 var (
@@ -177,9 +183,9 @@ func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack) 
 	d.cs = NewControllerServer(d, clouds)
 }
 
-func (d *Driver) SetupNodeService(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata, topologies map[string]string) {
+func (d *Driver) SetupNodeService(mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string) {
 	klog.Info("Providing node service")
-	d.ns = NewNodeServer(d, mount, metadata, cloud, topologies)
+	d.ns = NewNodeServer(d, mount, metadata, opts, topologies)
 }
 
 func (d *Driver) Run() {

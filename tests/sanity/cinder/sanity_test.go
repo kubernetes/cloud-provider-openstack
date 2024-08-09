@@ -28,9 +28,13 @@ func TestDriver(t *testing.T) {
 
 	fakemnt := GetFakeMountProvider()
 	fakemet := &fakemetadata{}
+	fakeOpts := openstack.BlockStorageOpts{
+		RescanOnResize:        false,
+		NodeVolumeAttachLimit: 200,
+	}
 
 	d.SetupControllerService(openstack.OsInstances)
-	d.SetupNodeService(fakecloudprovider, fakemnt, fakemet, map[string]string{})
+	d.SetupNodeService(fakemnt, fakemet, fakeOpts, map[string]string{})
 
 	// TODO: Stop call
 
