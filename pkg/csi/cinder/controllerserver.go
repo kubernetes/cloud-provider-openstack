@@ -1061,8 +1061,11 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
 
 	var volsrc *csi.VolumeContentSource
+	volCnx := map[string]string{}
 
 	if vol.SnapshotID != "" {
+		volCnx[ResizeRequired] = "true"
+
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
@@ -1073,6 +1076,8 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 	}
 
 	if vol.SourceVolID != "" {
+		volCnx[ResizeRequired] = "true"
+
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Volume{
 				Volume: &csi.VolumeContentSource_VolumeSource{
@@ -1083,6 +1088,8 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 	}
 
 	if vol.BackupID != nil && *vol.BackupID != "" {
+		volCnx[ResizeRequired] = "true"
+
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
@@ -1113,9 +1120,9 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: accessibleTopology,
 			ContentSource:      volsrc,
+			VolumeContext:      volCnx,
 		},
 	}
 
 	return resp
-
 }

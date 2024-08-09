@@ -144,12 +144,10 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 const defaultMaxVolAttachLimit int64 = 256
 
 var OsInstances map[string]IOpenStack
-var NoopInstances map[string]IOpenStack
 var configFiles = []string{"/etc/cloud.conf"}
 
 func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 	OsInstances = make(map[string]IOpenStack)
-	NoopInstances = make(map[string]IOpenStack)
 	metrics.RegisterMetrics("cinder-csi")
 	if httpEndpoint != "" {
 		mux := http.NewServeMux()
@@ -168,7 +166,7 @@ func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 }
 
 // CreateOpenStackProvider creates Openstack Instance with custom Global config param
-func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error) {
+func CreateOpenStackProvider(cloudName string) (IOpenStack, error) {
 	// Get config from file
 	cfg, err := GetConfigFromFiles(configFiles)
 	if err != nil {
@@ -177,23 +175,13 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 	}
 	logcfg(cfg)
 	global := cfg.Global[cloudName]
-	if global == nil && !noClient {
+	if global == nil {
 		return nil, fmt.Errorf("GetConfigFromFiles cloud name \"%s\" not found in configuration files: %s", cloudName, configFiles)
 	}
 
 	// if no search order given, use default
 	if len(cfg.Metadata.SearchOrder) == 0 {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
-	}
-
-	if noClient {
-		// Init OpenStack
-		NoopInstances[cloudName] = &NoopOpenStack{
-			bsOpts:       cfg.BlockStorage,
-			metadataOpts: cfg.Metadata,
-		}
-
-		return NoopInstances[cloudName], nil
 	}
 
 	provider, err := client.NewOpenStackClient(global, "cinder-csi-plugin", userAgentData...)
@@ -231,25 +219,12 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 }
 
 // GetOpenStackProvider returns Openstack Instance
-func GetOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error) {
-	if noClient {
-		NoopInstance, NoopInstanceDefined := NoopInstances[cloudName]
-		if NoopInstanceDefined {
-			return NoopInstance, nil
-		}
-		NoopInstance, err := CreateOpenStackProvider(cloudName, noClient)
-		if err != nil {
-			return nil, err
-		}
-
-		return NoopInstance, nil
-	}
-
+func GetOpenStackProvider(cloudName string) (IOpenStack, error) {
 	OsInstance, OsInstanceDefined := OsInstances[cloudName]
 	if OsInstanceDefined {
 		return OsInstance, nil
 	}
-	OsInstance, err := CreateOpenStackProvider(cloudName, noClient)
+	OsInstance, err := CreateOpenStackProvider(cloudName)
 	if err != nil {
 		return nil, err
 	}
