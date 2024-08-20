@@ -136,6 +136,7 @@ csi:
     # See https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor
     podMonitor:
       enabled: false
+      additionalLabels: {}
     extraArgs: {}
     extraEnv: []
 
