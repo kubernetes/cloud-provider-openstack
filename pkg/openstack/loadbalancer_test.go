@@ -2652,3 +2652,82 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 		})
 	}
 }
+
+func Test_getStringArrayFromServiceAnnotationSeparateByComma(t *testing.T) {
+	type args struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "ensure string is well split",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"my-csv-annotation": "10.0.0.0/8, my-string-data"},
+					},
+				},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{"10.0.0.0/8", "my-string-data"},
+		},
+		{
+			name: "ensure default is return when annotation doesn't exist",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service:        &corev1.Service{},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{"10.0.0.0/8"},
+		},
+		{
+			name: "ensure empty array is returned when annotation has blank chars",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"my-csv-annotation": " , "},
+					},
+				},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{},
+		},
+		{
+			name: "ensure empty array is returned when annotation is empty",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"my-csv-annotation": ""},
+					},
+				},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, getStringArrayFromServiceAnnotationSeparatedByComma(tt.args.service, tt.args.annotationKey, tt.args.defaultSetting), "getStringArrayFromServiceAnnotationSeparatedByComma(%v, %v, %v)", tt.args.service, tt.args.annotationKey, tt.args.defaultSetting)
+		})
+	}
+}
