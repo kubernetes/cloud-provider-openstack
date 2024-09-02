@@ -92,7 +92,7 @@ type Auth struct {
 	syncer         *Syncer
 	config         *Config
 	stopCh         chan struct{}
-	queue          workqueue.RateLimitingInterface
+	queue          workqueue.TypedRateLimitingInterface[any]
 	informer       informers.SharedInformerFactory
 	cmLister       corelisters.ConfigMapLister
 	cmListerSynced cache.InformerSynced
@@ -491,7 +491,7 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 	}
 
 	if k8sClient != nil {
-		queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any]())
 		kubeInformerFactory := informers.NewSharedInformerFactory(k8sClient, time.Minute*5)
 		cmInformer := kubeInformerFactory.Core().V1().ConfigMaps()
 		_, err := cmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
