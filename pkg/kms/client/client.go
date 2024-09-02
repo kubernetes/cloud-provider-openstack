@@ -12,7 +12,7 @@ import (
 //This client is for test purpose only, Kubernetes api server will call to kms plugin grpc server
 
 func main() {
-	connection, err := grpc.Dial("unix:///var/lib/kms/kms.sock", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connection, err := grpc.NewClient("unix:///var/lib/kms/kms.sock", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer func() { _ = connection.Close() }()
 	if err != nil {
 		log.Fatalf("Connection to KMS plugin failed, error: %v", err)

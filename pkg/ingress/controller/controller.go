@@ -160,7 +160,7 @@ type Event struct {
 type Controller struct {
 	stopCh              chan struct{}
 	knownNodes          []*apiv1.Node
-	queue               workqueue.RateLimitingInterface
+	queue               workqueue.TypedRateLimitingInterface[any]
 	informer            informers.SharedInformerFactory
 	recorder            record.EventRecorder
 	ingressLister       nwlisters.IngressLister
@@ -310,7 +310,7 @@ func NewController(conf config.Config) *Controller {
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	serviceInformer := kubeInformerFactory.Core().V1().Services()
 	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any]())
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)

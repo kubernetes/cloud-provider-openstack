@@ -191,6 +191,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}, nil
 }
 
+func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+	klog.V(4).InfoS("ControllerModifyVolume: called", "args", *req)
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	if err := validateDeleteVolumeRequest(req); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
