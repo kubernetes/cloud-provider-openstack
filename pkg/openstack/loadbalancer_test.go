@@ -3,6 +3,7 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/ptr"
 	"reflect"
 	"sort"
 	"testing"
@@ -747,7 +748,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 					},
 				},
 				svcConf: &serviceConfig{
-					enableProxyProtocol: false,
+					proxyProtocolVersion: nil,
 				},
 				addr: "10.10.0.6",
 			},
@@ -772,7 +773,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 					},
 				},
 				svcConf: &serviceConfig{
-					enableProxyProtocol: true,
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
 				},
 				addr: "10.10.0.6",
 			},
@@ -797,7 +798,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 					},
 				},
 				svcConf: &serviceConfig{
-					enableProxyProtocol: false,
+					proxyProtocolVersion: nil,
 				},
 				addr: "10.10.0.6",
 			},
@@ -823,7 +824,7 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 					},
 				},
 				svcConf: &serviceConfig{
-					enableProxyProtocol: true,
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
 				},
 				addr: "10.10.0.6",
 			},
@@ -981,9 +982,9 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:        true,
-					tlsContainerRef:     "tls-container-ref",
-					enableProxyProtocol: true,
+					keepClientIP:         true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
 				},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
@@ -1011,9 +1012,9 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "HTTP",
 				svcConf: &serviceConfig{
-					keepClientIP:        true,
-					tlsContainerRef:     "tls-container-ref",
-					enableProxyProtocol: false,
+					keepClientIP:         true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: nil,
 				},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
@@ -1041,9 +1042,9 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "UDP",
 				svcConf: &serviceConfig{
-					keepClientIP:        true,
-					tlsContainerRef:     "tls-container-ref",
-					enableProxyProtocol: false,
+					keepClientIP:         true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: nil,
 				},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
@@ -1120,6 +1121,36 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			want: pools.CreateOpts{
 				Name:        "test for session affinity client ip",
 				Protocol:    pools.ProtocolHTTP,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for proxy protocol v2 enabled",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientIP:         true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2),
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for proxy protocol v2 enabled",
+				Protocol:    pools.ProtocolPROXYV2,
 				LBMethod:    "SOURCE_IP_PORT",
 				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
 			},
@@ -2550,6 +2581,74 @@ func TestFilterNodes(t *testing.T) {
 			} else {
 				assert.Empty(t, filteredNodes)
 			}
+		})
+	}
+}
+
+func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
+	type args struct {
+		service *corev1.Service
+	}
+	tests := []struct {
+		name string
+		args args
+		want *pools.Protocol
+	}{
+		{
+			name: "no proxy protocol",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerProxyEnabled: "false"},
+				},
+			}},
+			want: nil,
+		},
+		{
+			name: "proxy protocol true",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerProxyEnabled: "true"},
+				},
+			}},
+			want: ptr.To(pools.ProtocolPROXY),
+		},
+		{
+			name: "proxy protocol v1",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerProxyEnabled: "v1"},
+				},
+			}},
+			want: ptr.To(pools.ProtocolPROXY),
+		},
+		{
+			name: "proxy protocol v2",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerProxyEnabled: "v2"},
+				},
+			}},
+			want: ptr.To(pools.ProtocolPROXYV2),
+		},
+		{
+			name: "no proxy protocol annotation",
+			args: args{service: &corev1.Service{}},
+			want: nil,
+		},
+		{
+			name: "unknown proxy protocol annotation's value",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerProxyEnabled: "not valid value"},
+				},
+			}},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getProxyProtocolFromServiceAnnotation(tt.args.service)
+			assert.Equalf(t, tt.want, got, "getProxyProtocolFromServiceAnnotation(%v)", tt.args.service)
 		})
 	}
 }

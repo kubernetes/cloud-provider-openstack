@@ -124,7 +124,7 @@ type serviceConfig struct {
 	lbPublicSubnetSpec          *floatingSubnetSpec
 	nodeSelectors               map[string]string
 	keepClientIP                bool
-	enableProxyProtocol         bool
+	proxyProtocolVersion        *v2pools.Protocol
 	timeoutClientData           int
 	timeoutMemberConnect        int
 	timeoutMemberData           int
@@ -472,6 +472,21 @@ func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string,
 	}
 	klog.V(4).Infof("Could not find a Service Annotation; falling back to default setting: %v = %v", annotationKey, defaultSetting)
 	return defaultSetting
+}
+
+// getProxyProtocolFromServiceAnnotation searches a given v1.Service the ServiceAnnotationLoadBalancerProxyEnabled to guess if the proxyProtocol needs to be
+// enabled and return the ProxyProtocol's version which is need to be applied
+func getProxyProtocolFromServiceAnnotation(service *corev1.Service) *v2pools.Protocol {
+	switch getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, "false") {
+	case "true":
+		return ptr.To(v2pools.ProtocolPROXY)
+	case "v1":
+		return ptr.To(v2pools.ProtocolPROXY)
+	case "v2":
+		return ptr.To(v2pools.ProtocolPROXYV2)
+	default:
+		return nil
+	}
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
@@ -868,8 +883,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listener.Protocol)
-	if svcConf.enableProxyProtocol {
-		poolProto = v2pools.ProtocolPROXY
+	if svcConf.proxyProtocolVersion != nil {
+		poolProto = *svcConf.proxyProtocolVersion
 	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		poolProto = v2pools.ProtocolHTTP
 	}
@@ -935,8 +950,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev1.Service, svcConf *serviceConfig, name string) v2pools.CreateOpts {
 	// By default, use the protocol of the listener
 	poolProto := v2pools.Protocol(listenerProtocol)
-	if svcConf.enableProxyProtocol {
-		poolProto = v2pools.ProtocolPROXY
+	if svcConf.proxyProtocolVersion != nil {
+		poolProto = *svcConf.proxyProtocolVersion
 	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
 		if svcConf.keepClientIP && svcConf.tlsContainerRef != "" {
 			klog.V(4).Infof("Forcing to use %q protocol for pool because annotations %q %q are set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor, ServiceAnnotationTlsContainerRef)
@@ -1310,12 +1325,11 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 
 	// This affects the protocol of listener and pool
 	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
-	useProxyProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
-	if useProxyProtocol && keepClientIP {
+	svcConf.proxyProtocolVersion = getProxyProtocolFromServiceAnnotation(service)
+	if svcConf.proxyProtocolVersion != nil && keepClientIP {
 		return fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 	}
 	svcConf.keepClientIP = keepClientIP
-	svcConf.enableProxyProtocol = useProxyProtocol
 
 	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
@@ -1335,7 +1349,7 @@ func (lbaas *LbaasV2) checkServiceDelete(service *corev1.Service, svcConf *servi
 
 	// This affects the protocol of listener and pool
 	svcConf.keepClientIP = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
-	svcConf.enableProxyProtocol = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
+	svcConf.proxyProtocolVersion = getProxyProtocolFromServiceAnnotation(service)
 	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
 
 	return nil
@@ -1537,12 +1551,11 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	}
 
 	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
-	useProxyProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
-	if useProxyProtocol && keepClientIP {
+	svcConf.proxyProtocolVersion = getProxyProtocolFromServiceAnnotation(service)
+	if svcConf.proxyProtocolVersion != nil && keepClientIP {
 		return fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
 	}
 	svcConf.keepClientIP = keepClientIP
-	svcConf.enableProxyProtocol = useProxyProtocol
 
 	if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
 		svcConf.timeoutClientData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
@@ -1627,7 +1640,7 @@ func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf 
 	}
 
 	ipMode := corev1.LoadBalancerIPModeVIP
-	if svcConf.enableProxyProtocol {
+	if svcConf.proxyProtocolVersion != nil {
 		// If the load balancer is using the PROXY protocol, expose its IP address via
 		// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
 		// Setting must be removed by the user to allow the use of the LoadBalancerIPModeProxy.
