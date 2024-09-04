@@ -306,7 +306,7 @@ func (m *metadataService) GetAvailabilityZone() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return md.AvailabilityZone, nil
+	return util.SanitizeLabel(md.AvailabilityZone), nil
 }
 
 func CheckMetadataSearchOrder(order string) error {

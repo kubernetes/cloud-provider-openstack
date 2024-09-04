@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -166,4 +167,20 @@ func GetAZFromTopology(topologyKey string, requirement *csi.TopologyRequirement)
 	}
 
 	return zone
+}
+
+func SanitizeLabel(input string) string {
+	// Replace non-alphanumeric characters (except '-', '_', '.') with '-'
+	reg := regexp.MustCompile(`[^-a-zA-Z0-9_.]+`)
+	sanitized := reg.ReplaceAllString(input, "-")
+
+	// Ensure the label starts and ends with an alphanumeric character
+	sanitized = strings.Trim(sanitized, "-_.")
+
+	// Ensure the label is not longer than 63 characters
+	if len(sanitized) > 63 {
+		sanitized = sanitized[:63]
+	}
+
+	return sanitized
 }
