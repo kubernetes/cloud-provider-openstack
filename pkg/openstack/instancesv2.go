@@ -27,6 +27,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog/v2"
 )
@@ -133,11 +134,13 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 		return nil, err
 	}
 
+	availabilityZone := util.SanitizeLabel(server.AvailabilityZone)
+
 	return &cloudprovider.InstanceMetadata{
 		ProviderID:    i.makeInstanceID(&server),
 		InstanceType:  instanceType,
 		NodeAddresses: addresses,
-		Zone:          server.AvailabilityZone,
+		Zone:          availabilityZone,
 		Region:        i.region,
 	}, nil
 }
