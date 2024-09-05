@@ -10,7 +10,7 @@ critical bug fixes.
 
     ```bash
     $ git fetch upstream
-    $ git checkout -b my-release upstream/release-X.Y
+    $ git pull upstream master
     ```
 
 2. Update the minor version with the expected version.
@@ -31,10 +31,11 @@ critical bug fixes.
 4. Once the PR is merged, make a tag and push it to the upstream repository.
 
     ```bash
-    $ git checkout -b release-X.Y upstream/release-X.Y
+    $ git checkout -b release-X.Y upstream master
     $ git pull upstream release-X.Y --tags
     $ git tag -m "Release for cloud-provider-openstack to support Kubernetes release x" vX.Y.Z
     $ git push upstream vX.Y.Z
+    $ git push upstream release-X.Y
     ```
 
 5. [Github Actions](https://github.com/kubernetes/cloud-provider-openstack/actions/workflows/release-cpo.yaml) will create new [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) and generate a [new draft release](https://github.com/kubernetes/cloud-provider-openstack/releases) in the repository.
