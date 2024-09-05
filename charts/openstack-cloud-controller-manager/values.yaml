@@ -86,6 +86,7 @@ controllerExtraArgs: {}
 serviceMonitor: {}
 # serviceMonitor:
 #   enabled: true
+#   additionalLabels: {}
 
 # Create a secret resource cloud-config (or other name) to store credentials and settings from cloudConfig
 # You can also provide your own secret (not created by the Helm chart), in this case set create to false
