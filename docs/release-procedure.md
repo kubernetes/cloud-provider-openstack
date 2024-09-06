@@ -38,7 +38,7 @@ critical bug fixes.
     $ git push upstream release-X.Y
     ```
 
-5. [Github Actions](https://github.com/kubernetes/cloud-provider-openstack/actions/workflows/release-cpo.yaml) will create new [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) and generate a [new draft release](https://github.com/kubernetes/cloud-provider-openstack/releases) in the repository.
+5. new [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) will be builded.
 
 6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote gcr.io images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the images.yaml.
 
