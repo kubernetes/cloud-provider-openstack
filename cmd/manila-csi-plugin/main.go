@@ -71,7 +71,7 @@ func main() {
 		Short: "CSI Manila driver",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := validateShareProtocolSelector(protoSelector); err != nil {
-				klog.Fatalf(err.Error())
+				klog.Fatal(err.Error())
 			}
 
 			manilaClientBuilder := &manilaclient.ClientBuilder{UserAgent: "manila-csi-plugin", ExtraUserAgentData: userAgentData}
