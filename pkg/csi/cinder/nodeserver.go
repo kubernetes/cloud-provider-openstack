@@ -161,7 +161,7 @@ func nodePublishEphemeral(req *csi.NodePublishVolumeRequest, ns *nodeServer) (*c
 		targetStatus := []string{openstack.VolumeAvailableStatus}
 		err := ns.Cloud.WaitVolumeTargetStatus(evol.ID, targetStatus)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, err.Error())
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 	}
 

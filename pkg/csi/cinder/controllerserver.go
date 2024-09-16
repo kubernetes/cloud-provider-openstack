@@ -634,7 +634,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 
 	err = cs.Cloud.ExpandVolume(volumeID, volume.Status, volSizeGB)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, fmt.Sprintf("Could not resize volume %q to size %v: %v", volumeID, volSizeGB, err))
+		return nil, status.Errorf(codes.Internal, "Could not resize volume %q to size %v: %v", volumeID, volSizeGB, err)
 	}
 
 	// we need wait for the volume to be available or InUse, it might be error_extending in some scenario
