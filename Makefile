@@ -81,7 +81,7 @@ $(BUILD_CMDS): $(SOURCES)
 test: unit functional
 
 check: work
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.0 run ./...
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0 run ./...
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
