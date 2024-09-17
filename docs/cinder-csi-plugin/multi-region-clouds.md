@@ -138,7 +138,7 @@ Daemonsets should deploy pods on nodes from proper openstack context. We suppose
 
 Do as follows:
 - Use nodeSelector to match proper nodes labels
-- Add cli argument `--additionnal-topology topology.kubernetes.io/region=region-one`, which should match node labels, to container cinder-csi-plugin
+- Add cli argument `--additional-topology topology.kubernetes.io/region=region-one`, which should match node labels, to container cinder-csi-plugin
 - Add cli argument `--cloud-name="region-one"`, which should match configuration file subsection name, to container cinder-csi-plugin.
 
 ```yaml
@@ -168,7 +168,7 @@ spec:
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
         - --cloud-name="region-one"
-        - --additionnal-topology
+        - --additional-topology
         - topology.kubernetes.io/region=region-one
         env:
         - name: CSI_ENDPOINT
@@ -218,7 +218,7 @@ spec:
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
         - --cloud-name="region-two"
-        - --additionnal-topology
+        - --additional-topology
         - topology.kubernetes.io/region=region-two
         env:
         - name: CSI_ENDPOINT
