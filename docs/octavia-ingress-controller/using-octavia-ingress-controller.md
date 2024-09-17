@@ -171,7 +171,7 @@ Here are several other config options are not included in the example configurat
 ### Deploy octavia-ingress-controller
 
 ```shell
-image="registry.k8s.io/provider-os/octavia-ingress-controller:v1.29.0"
+image="registry.k8s.io/provider-os/octavia-ingress-controller:v1.29.1"
 
 cat <<EOF > /etc/kubernetes/octavia-ingress-controller/deployment.yaml
 ---
