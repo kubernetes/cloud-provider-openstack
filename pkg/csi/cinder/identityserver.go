@@ -30,7 +30,7 @@ type identityServer struct {
 }
 
 func (ids *identityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
-	klog.V(5).Infof("Using default GetPluginInfo")
+	klog.V(5).InfoS("GetPluginInfo() called", "args", *req)
 
 	if ids.Driver.name == "" {
 		return nil, status.Error(codes.Unavailable, "Driver name not configured")
@@ -51,7 +51,8 @@ func (ids *identityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*c
 }
 
 func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
-	klog.V(5).Infof("GetPluginCapabilities called with req %+v", req)
+	klog.V(5).InfoS("GetPluginCapabilities() called", "args", *req)
+
 	return &csi.GetPluginCapabilitiesResponse{
 		Capabilities: []*csi.PluginCapability{
 			{

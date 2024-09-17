@@ -165,7 +165,7 @@ func TestNodePublishVolumeEphemeral(t *testing.T) {
 
 	// Invoke NodePublishVolume
 	_, err := fakeNs.NodePublishVolume(FakeCtx, fakeReq)
-	assert.Equal(status.Error(codes.Unimplemented, "CSI inline ephemeral volumes support is removed in 1.31 release."), err)
+	assert.Equal(status.Error(codes.Unimplemented, "[NodePublishVolume] CSI inline ephemeral volumes support is removed in 1.31 release."), err)
 }
 
 // Test NodeStageVolume
