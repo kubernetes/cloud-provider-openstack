@@ -41,7 +41,7 @@ func findBlockDeviceRescanPath(path string) (string, error) {
 	if len(parts) == 3 && strings.HasPrefix(parts[1], "dev") {
 		return filepath.EvalSymlinks(filepath.Join("/sys/block", parts[2], "device", "rescan"))
 	}
-	return "", fmt.Errorf("illegal path for device " + devicePath)
+	return "", fmt.Errorf("illegal path for device %s", devicePath)
 }
 
 // IsBlockDevice checks whether device on the path is a block device
@@ -128,13 +128,13 @@ func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSiz
 func RescanDevice(devicePath string) error {
 	blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath)
 	if err != nil {
-		return fmt.Errorf("Device does not have rescan path " + devicePath)
+		return fmt.Errorf("Device does not have rescan path %s", devicePath)
 	}
 
 	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
 	err = triggerRescan(blockDeviceRescanPath)
 	if err != nil {
-		return fmt.Errorf("Error rescanning new block device geometry " + devicePath)
+		return fmt.Errorf("Error rescanning new block device geometry %s", devicePath)
 	}
 	return nil
 }
