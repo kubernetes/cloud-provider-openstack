@@ -41,7 +41,7 @@ func findBlockDeviceRescanPath(path string) (string, error) {
 	if len(parts) == 3 && strings.HasPrefix(parts[1], "dev") {
 		return filepath.EvalSymlinks(filepath.Join("/sys/block", parts[2], "device", "rescan"))
 	}
-	return "", fmt.Errorf("illegal path for device " + devicePath)
+	return "", fmt.Errorf("illegal path for device %s", devicePath)
 }
 
 // IsBlockDevice checks whether device on the path is a block device
