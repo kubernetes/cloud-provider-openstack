@@ -88,6 +88,16 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   This will be added as metadata to every Cinder volume created by this plugin.
   </dd>
+
+  <dt>--http-endpoint &lt;HTTP server&gt;</dt>
+  <dd>
+  This argument is optional.
+
+  The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`).
+
+  The default is empty string, which means the server is disabled.
+  </dd>
+
 </dl>
 
 ## Driver Config

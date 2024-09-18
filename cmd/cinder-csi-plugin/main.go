@@ -64,7 +64,7 @@ func main() {
 	}
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
-	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
+	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	code := cli.Run(cmd)
