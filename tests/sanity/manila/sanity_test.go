@@ -43,10 +43,20 @@ func TestDriver(t *testing.T) {
 			FwdCSIEndpoint:      fwdEndpoint,
 			ManilaClientBuilder: &fakeManilaClientBuilder{},
 			CSIClientBuilder:    &fakeCSIClientBuilder{},
-		})
-
+		},
+	)
 	if err != nil {
-		t.Fatalf("failed to initialize CSI Manila driver: %v", err)
+		t.Fatalf("Failed to initialize CSI Manila driver: %v", err)
+	}
+
+	err = d.SetupControllerService()
+	if err != nil {
+		t.Fatalf("Failed to initialize CSI Manila controller service: %v", err)
+	}
+
+	err = d.SetupNodeService()
+	if err != nil {
+		t.Fatalf("Failed to initialize CSI Manila node service: %v", err)
 	}
 
 	go d.Run()
