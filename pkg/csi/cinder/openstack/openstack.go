@@ -139,6 +139,7 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 const defaultMaxVolAttachLimit int64 = 256
 
 var OsInstance IOpenStack
+var NoopInstance IOpenStack
 var configFiles = []string{"/etc/cloud.conf"}
 
 func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
@@ -160,7 +161,7 @@ func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 }
 
 // CreateOpenStackProvider creates Openstack Instance
-func CreateOpenStackProvider() (IOpenStack, error) {
+func CreateOpenStackProvider(noClient bool) (IOpenStack, error) {
 	// Get config from file
 	cfg, err := GetConfigFromFiles(configFiles)
 	if err != nil {
@@ -168,6 +169,21 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		return nil, err
 	}
 	logcfg(cfg)
+
+	// if no search order given, use default
+	if len(cfg.Metadata.SearchOrder) == 0 {
+		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
+	}
+
+	if noClient {
+		// Init OpenStack
+		NoopInstance = &NoopOpenStack{
+			bsOpts:       cfg.BlockStorage,
+			metadataOpts: cfg.Metadata,
+		}
+
+		return NoopInstance, nil
+	}
 
 	provider, err := client.NewOpenStackClient(&cfg.Global, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
@@ -191,11 +207,6 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 		return nil, err
 	}
 
-	// if no search order given, use default
-	if len(cfg.Metadata.SearchOrder) == 0 {
-		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
-	}
-
 	// Init OpenStack
 	OsInstance = &OpenStack{
 		compute:      computeclient,
@@ -209,12 +220,25 @@ func CreateOpenStackProvider() (IOpenStack, error) {
 }
 
 // GetOpenStackProvider returns Openstack Instance
-func GetOpenStackProvider() (IOpenStack, error) {
+func GetOpenStackProvider(noClient bool) (IOpenStack, error) {
+	if noClient {
+		if NoopInstance != nil {
+			return NoopInstance, nil
+		}
+		var err error
+		NoopInstance, err = CreateOpenStackProvider(noClient)
+		if err != nil {
+			return nil, err
+		}
+
+		return NoopInstance, nil
+	}
+
 	if OsInstance != nil {
 		return OsInstance, nil
 	}
 	var err error
-	OsInstance, err = CreateOpenStackProvider()
+	OsInstance, err = CreateOpenStackProvider(noClient)
 	if err != nil {
 		return nil, err
 	}
