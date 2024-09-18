@@ -19,14 +19,16 @@ func TestDriver(t *testing.T) {
 	endpoint := "unix://" + socket
 	cluster := "kubernetes"
 
-	d := cinder.NewDriver(endpoint, cluster)
+	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
+
 	fakecloudprovider := getfakecloud()
 	openstack.OsInstance = fakecloudprovider
 
 	fakemnt := GetFakeMountProvider()
 	fakemet := &fakemetadata{}
 
-	d.SetupDriver(fakecloudprovider, fakemnt, fakemet)
+	d.SetupControllerService(fakecloudprovider)
+	d.SetupNodeService(fakecloudprovider, fakemnt, fakemet)
 
 	// TODO: Stop call
 

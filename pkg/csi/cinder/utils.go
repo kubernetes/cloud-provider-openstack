@@ -68,8 +68,7 @@ func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, c
 
 //revive:enable:unexported-return
 
-func RunControllerandNodePublishServer(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
-
+func RunServicesInitialized(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
 	s := NewNonBlockingGRPCServer()
 	s.Start(endpoint, ids, cs, ns)
 	s.Wait()
