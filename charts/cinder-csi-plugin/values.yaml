@@ -92,6 +92,7 @@ csi:
       tolerations:
         - operator: Exists
       kubeletDir: /var/lib/kubelet
+      extraArgs: {}
       # Allow for specifying internal IP addresses for multiple hostnames
       # hostAliases:
       #   - ip: "10.0.0.1"
@@ -130,6 +131,7 @@ csi:
       affinity: {}
       nodeSelector: {}
       tolerations: []
+      extraArgs: {}
       # Allow for specifying internal IP addresses for multiple hostnames
       # hostAliases:
       #   - ip: "10.0.0.1"
