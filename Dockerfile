@@ -38,7 +38,7 @@ ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3
 # Build an image containing a common ca-certificates used by all target images
 # regardless of how they are built. We arbitrarily take ca-certificates from
 # the amd64 Alpine image.
-FROM --platform=linux/amd64 ${ALPINE_IMAGE} as certs
+FROM --platform=linux/amd64 ${ALPINE_IMAGE} AS certs
 RUN apk add --no-cache ca-certificates
 
 
@@ -46,7 +46,7 @@ RUN apk add --no-cache ca-certificates
 # stage for efficiency. Target images copy their binary from this image.
 # We use go's native cross compilation for multi-arch in this stage, so the
 # builder itself is always amd64
-FROM --platform=linux/amd64 ${GOLANG_IMAGE} as builder
+FROM --platform=linux/amd64 ${GOLANG_IMAGE} AS builder
 
 ARG GOPROXY=https://goproxy.io,direct
 ARG TARGETOS
@@ -67,7 +67,7 @@ RUN make build GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOPROXY=${GOPROXY} VERSION=
 ##
 ## openstack-cloud-controller-manager
 ##
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as openstack-cloud-controller-manager
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} AS openstack-cloud-controller-manager
 
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs
 COPY --from=builder /build/openstack-cloud-controller-manager /bin/openstack-cloud-controller-manager
@@ -85,7 +85,7 @@ CMD [ "/bin/openstack-cloud-controller-manager" ]
 ##
 ## barbican-kms-plugin
 ##
-FROM --platform=${TARGETPLATFORM} ${ALPINE_IMAGE} as barbican-kms-plugin
+FROM --platform=${TARGETPLATFORM} ${ALPINE_IMAGE} AS barbican-kms-plugin
 # barbican-kms-plugin uses ALPINE instead of distroless because its entrypoint
 # uses a shell for environment substitution. If there are no other uses this
 # could be replaced by callers passing arguments explicitly.
@@ -109,7 +109,7 @@ CMD ["sh", "-c", "/bin/barbican-kms-plugin --socketpath ${socketpath} --cloud-co
 
 # step 1: copy all necessary files from Debian distro to /dest folder
 # all magic happens in tools/csi-deps.sh
-FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} as cinder-csi-plugin-utils
+FROM --platform=${TARGETPLATFORM} ${DEBIAN_IMAGE} AS cinder-csi-plugin-utils
 
 RUN clean-install bash rsync mount udev btrfs-progs e2fsprogs xfsprogs util-linux
 COPY tools/csi-deps.sh /tools/csi-deps.sh
@@ -117,7 +117,7 @@ RUN /tools/csi-deps.sh
 
 # step 2: check if all necessary files are copied and work properly
 # the build have to finish without errors, but the result image will not be used
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as cinder-csi-plugin-utils-check
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} AS cinder-csi-plugin-utils-check
 
 COPY --from=cinder-csi-plugin-utils /dest /
 COPY --from=cinder-csi-plugin-utils /bin/sh /bin/sh
@@ -127,7 +127,7 @@ SHELL ["/bin/sh"]
 RUN /tools/csi-deps-check.sh
 
 # step 3: build tiny cinder-csi-plugin image with only necessary files
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as cinder-csi-plugin
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} AS cinder-csi-plugin
 
 # Copying csi-deps-check.sh simply ensures that the resulting image has a dependency
 # on cinder-csi-plugin-utils-check and therefore that the check has passed
@@ -149,7 +149,7 @@ CMD ["/bin/cinder-csi-plugin"]
 ##
 ## k8s-keystone-auth
 ##
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as k8s-keystone-auth
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} AS k8s-keystone-auth
 
 COPY --from=builder /build/k8s-keystone-auth /bin/k8s-keystone-auth
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs
@@ -169,7 +169,7 @@ CMD ["/bin/k8s-keystone-auth"]
 ##
 ## magnum-auto-healer
 ##
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as magnum-auto-healer
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} AS magnum-auto-healer
 
 COPY --from=builder /build/magnum-auto-healer /bin/magnum-auto-healer
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs
@@ -187,7 +187,7 @@ CMD ["/bin/magnum-auto-healer"]
 ##
 ## manila-csi-plugin
 ##
-FROM --platform=${TARGETPLATFORM} ${ALPINE_IMAGE} as manila-csi-plugin
+FROM --platform=${TARGETPLATFORM} ${ALPINE_IMAGE} AS manila-csi-plugin
 # manila-csi-plugin uses ALPINE because it pulls in jq and curl
 
 RUN apk add --no-cache jq curl
@@ -208,7 +208,7 @@ ENTRYPOINT ["/bin/manila-csi-plugin"]
 ##
 ## octavia-ingress-controller
 ##
-FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} as octavia-ingress-controller
+FROM --platform=${TARGETPLATFORM} ${DISTROLESS_IMAGE} AS octavia-ingress-controller
 
 COPY --from=builder /build/octavia-ingress-controller /bin/octavia-ingress-controller
 COPY --from=certs /etc/ssl/certs /etc/ssl/certs

@@ -177,7 +177,7 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 	}
 	logcfg(cfg)
 	_, cloudNameDefined := cfg.Global[cloudName]
-	if !cloudNameDefined {
+	if !cloudNameDefined && !noClient {
 		return nil, fmt.Errorf("GetConfigFromFiles cloud name \"%s\" not found in configuration files: %s", cloudName, configFiles)
 	}
 

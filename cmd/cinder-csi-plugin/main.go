@@ -47,6 +47,16 @@ func main() {
 	cmd := &cobra.Command{
 		Use:   "cinder-csi-plugin",
 		Short: "CSI based Cinder driver",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			noClient, _ := cmd.Flags().GetBool("node-service-no-os-client")
+			controllerService, _ := cmd.Flags().GetBool("provide-controller-service")
+			if !noClient || controllerService {
+				// cloud config is needed only if using real OpenStack client
+				if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
+					klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
+				}
+			}
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
@@ -64,10 +74,6 @@ func main() {
 	}
 
 	cmd.PersistentFlags().StringSliceVar(&cloudConfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
-	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
-		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
-	}
-
 	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
 	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
 
