@@ -329,13 +329,28 @@ If you set the extraArgs in `plugin.extraArgs`, the same `extraArgs` will end up
 You will still need to manually create your additionnal daemonsets for your additionnal regions.
 
 ```yaml
-        nodePlugin:
-          extraArgs: |-
-            - --cloud-name=region-one
-            - --additional-topology
-            - topology.kubernetes.io/region=region-one
-        controllerPlugin:
-          extraArgs: |-
-            - --cloud-name=region-one
-            - --cloud-name=region-two
+nodePlugin:
+  extraArgs: |-
+    - --cloud-name=region-one
+    - --additional-topology
+    - topology.kubernetes.io/region=region-one
+controllerPlugin:
+  extraArgs: |-
+    - --cloud-name=region-one
+    - --cloud-name=region-two
+```
+
+In addition, if you use the `resizer` and the `snapshotter`, you will need them to be able to read the secrets you defined in the storage class' annotations in order to determine which cloud to address. You will need to add some `extraRbac` in YAML format, like this: 
+
+```yaml
+snapshotter:
+  extraRbac:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list"]
+resizer:
+  extraRbac:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list", "watch"]
 ```
