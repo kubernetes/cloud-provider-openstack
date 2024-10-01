@@ -60,6 +60,7 @@ const (
 	instanceShutoff       = "SHUTOFF"
 	RegionalProviderIDEnv = "OS_CCM_REGIONAL"
 	noSortPriority        = 0
+	LabelHostID           = "topology.openstack.org/host-id"
 )
 
 var _ cloudprovider.Instances = &Instances{}
@@ -439,6 +440,15 @@ func srvInstanceType(client *gophercloud.ServiceClient, srv *servers.Server) (st
 		}
 	}
 	return "", fmt.Errorf("flavor original_name/id not found")
+}
+
+func getAdditionalLabels(srv *servers.Server) map[string]string {
+	additionalLabels := map[string]string{}
+
+	// Add the host ID to the additional labels
+	additionalLabels[LabelHostID] = srv.HostID
+
+	return additionalLabels
 }
 
 func isValidLabelValue(v string) bool {
