@@ -176,8 +176,8 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 		return nil, err
 	}
 	logcfg(cfg)
-	_, cloudNameDefined := cfg.Global[cloudName]
-	if !cloudNameDefined {
+	global := cfg.Global[cloudName]
+	if global == nil && !noClient {
 		return nil, fmt.Errorf("GetConfigFromFiles cloud name \"%s\" not found in configuration files: %s", cloudName, configFiles)
 	}
 
@@ -196,14 +196,14 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 		return NoopInstances[cloudName], nil
 	}
 
-	provider, err := client.NewOpenStackClient(cfg.Global[cloudName], "cinder-csi-plugin", userAgentData...)
+	provider, err := client.NewOpenStackClient(global, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
 
 	epOpts := gophercloud.EndpointOpts{
-		Region:       cfg.Global[cloudName].Region,
-		Availability: cfg.Global[cloudName].EndpointType,
+		Region:       global.Region,
+		Availability: global.EndpointType,
 	}
 
 	// Init Nova ServiceClient
