@@ -97,13 +97,6 @@ rules:
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["list", "watch", "create", "update", "patch"]
-  # Secret permission is optional.
-  # Enable it if your driver needs secret.
-  # For example, `csi.storage.k8s.io/snapshotter-secret-name` is set in VolumeSnapshotClass.
-  # See https://kubernetes-csi.github.io/docs/secrets-and-credentials.html for more details.
-  #  - apiGroups: [""]
-  #    resources: ["secrets"]
-  #    verbs: ["get", "list"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshotclasses"]
     verbs: ["get", "list", "watch"]
@@ -116,6 +109,9 @@ rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "watch", "list", "delete", "update", "create"]
+  {{- with .Values.csi.snapshotter.extraRbac }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -135,11 +131,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-role
 rules:
-  # The following rule should be uncommented for plugins that require secrets
-  # for provisioning.
-  # - apiGroups: [""]
-  #   resources: ["secrets"]
-  #   verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["persistentvolumes"]
     verbs: ["get", "list", "watch", "patch"]
@@ -158,6 +149,9 @@ rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "watch", "list", "delete", "update", "create"]
+  {{- with .Values.csi.resizer.extraRbac }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
