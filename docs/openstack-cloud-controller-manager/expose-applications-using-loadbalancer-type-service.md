@@ -152,6 +152,14 @@ Request Body:
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
+- `loadbalancer.openstack.org/lb-method`
+
+  Load balancing algorithm to use when distributed to members. [OpenStack Pool Creation | lb_algorithm](https://docs.openstack.org/api-ref/load-balancer/v2/#create-pool)
+
+  Default value: defined in your OCCM configuration
+
+  Possible values: `ROUND_ROBIN`, `LEAST_CONNECTIONS`, `SOURCE_IP`, `SOURCE_IP_PORT`
+
 - `loadbalancer.openstack.org/timeout-client-data`
 
   Frontend client inactivity timeout in milliseconds for the load balancer.

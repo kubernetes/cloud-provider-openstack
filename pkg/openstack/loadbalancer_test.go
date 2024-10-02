@@ -1155,6 +1155,29 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
 			},
 		},
+		{
+			name: "test for loadbalancing method",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					poolLbMethod: "ROUND_ROBIN",
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{},
+			},
+			want: pools.CreateOpts{
+				Name:     "test for loadbalancing method",
+				Protocol: pools.ProtocolTCP,
+				LBMethod: "ROUND_ROBIN",
+			},
+		},
 	}
 
 	for _, tt := range tests {
