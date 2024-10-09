@@ -57,6 +57,7 @@ spec:
           args:
             - /bin/cinder-csi-plugin
             - "--endpoint=$(CSI_ENDPOINT)"
+            - "--provide-controller-service=false"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--v=1"
           env:

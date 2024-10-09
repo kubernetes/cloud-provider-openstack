@@ -57,13 +57,17 @@ func NewIdentityServer(d *Driver) *identityServer {
 	}
 }
 
-func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, cloud openstack.IOpenStack, topologies map[string]string) *nodeServer {
+func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string) *nodeServer {
+	if opts.NodeVolumeAttachLimit < 0 || opts.NodeVolumeAttachLimit > maxVolumesPerNode {
+		opts.NodeVolumeAttachLimit = maxVolumesPerNode
+	}
+
 	return &nodeServer{
 		Driver:     d,
 		Mount:      mount,
 		Metadata:   metadata,
-		Cloud:      cloud,
 		Topologies: topologies,
+		Opts:       opts,
 	}
 }
 
