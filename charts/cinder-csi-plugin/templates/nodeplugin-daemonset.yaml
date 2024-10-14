@@ -91,6 +91,7 @@ spec:
             - /bin/cinder-csi-plugin
             - "-v={{ .Values.logVerbosityLevel }}"
             - "--endpoint=$(CSI_ENDPOINT)"
+            - "--provide-controller-service=false"
             - "--cloud-config=$(CLOUD_CONFIG)"
             {{- if .Values.csi.plugin.extraArgs }}
             {{- with .Values.csi.plugin.extraArgs }}

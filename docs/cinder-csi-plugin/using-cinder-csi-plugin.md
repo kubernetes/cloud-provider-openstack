@@ -111,13 +111,6 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   The default is to provide the node service.
   </dd>
-
-  <dt>--node-service-no-os-client &lt;disabled&gt;</dt>
-  <dd>
-  If set to true then the CSI driver does not provide the OpenStack client in the node service.
-
-  The default is to provide the OpenStack client in the node service.
-  </dd>
 </dl>
 
 ## Driver Config
@@ -277,7 +270,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 | VolumeSnapshotClass `parameters` | `type`            | Empty String    | `snapshot` creates a VolumeSnapshot object linked to a Cinder volume snapshot. `backup` creates a VolumeSnapshot object linked to a cinder volume backup. Defaults to `snapshot` if not defined |
 | VolumeSnapshotClass `parameters` | `backup-max-duration-seconds-per-gb`  | `20`    | Defines the amount of time to wait for a backup to complete in seconds per GB of volume size |
 | VolumeSnapshotClass `parameters`  | `availability`          | Same as volume | String. Backup Availability Zone |
-| Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes| 
+| Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes|
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |
 
 ## Local Development

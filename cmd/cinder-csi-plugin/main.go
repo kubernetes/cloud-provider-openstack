@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -50,6 +51,24 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
 		},
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			f := cmd.Flags()
+
+			if !provideControllerService {
+				return nil
+			}
+
+			configs, err := f.GetStringSlice("cloud-config")
+			if err != nil {
+				return err
+			}
+
+			if len(configs) == 0 {
+				return fmt.Errorf("unable to mark flag cloud-config to be required")
+			}
+
+			return nil
+		},
 		Version: version.Version,
 	}
 
@@ -63,10 +82,7 @@ func main() {
 		klog.Fatalf("Unable to mark flag endpoint to be required: %v", err)
 	}
 
-	cmd.PersistentFlags().StringSliceVar(&cloudConfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
-	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
-		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
-	}
+	cmd.Flags().StringSliceVar(&cloudConfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
 
 	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
 	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
@@ -77,6 +93,7 @@ func main() {
 	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
 	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
 	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
+	cmd.PersistentFlags().MarkDeprecated("node-service-no-os-client", "This flag is deprecated and will be removed in the future. Node service do not use OpenStack credentials anymore.") //nolint:errcheck
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
@@ -94,7 +111,7 @@ func handle() {
 		var err error
 		clouds := make(map[string]openstack.IOpenStack)
 		for _, cloudName := range cloudNames {
-			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, false)
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
 			if err != nil {
 				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
 				return
@@ -105,23 +122,19 @@ func handle() {
 	}
 
 	if provideNodeService {
-		var err error
-		clouds := make(map[string]openstack.IOpenStack)
-		for _, cloudName := range cloudNames {
-			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, noClient)
-			if err != nil {
-				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
-				return
-			}
-		}
-
 		//Initialize mount
 		mount := mount.GetMountProvider()
 
-		//Initialize Metadata
-		metadata := metadata.GetMetadataProvider(clouds[cloudNames[0]].GetMetadataOpts().SearchOrder)
+		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
+		if err != nil && !os.IsNotExist(err) {
+			klog.Warningf("Failed to GetConfigFromFiles: %v", err)
+			return
+		}
 
-		d.SetupNodeService(clouds[cloudNames[0]], mount, metadata, additionalTopologies)
+		//Initialize Metadata
+		metadata := metadata.GetMetadataProvider(cfg.Metadata.SearchOrder)
+
+		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies)
 	}
 
 	d.Run()
