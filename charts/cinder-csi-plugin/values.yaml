@@ -207,6 +207,9 @@ storageClass:
 # to volume metadata in newly provisioned volumes as `cinder.csi.openstack.org/cluster=<cluster ID>`.
 clusterID: "kubernetes"
 
+# Enable PVC annotations support to create PVCs with extra parameters
+pvcAnnotations: false
+
 priorityClassName: ""
 
 imagePullSecrets: []

@@ -9,14 +9,12 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/klog/v2"
 )
 
 // CutString255 makes sure the string length doesn't exceed 255, which is usually the maximum string length in OpenStack.
@@ -135,31 +133,6 @@ func PatchService(ctx context.Context, client clientset.Interface, cur, mod *v1.
 	return nil
 }
 
-func GetAZFromTopology(topologyKey string, requirement *csi.TopologyRequirement) string {
-	var zone string
-	var exists bool
-
-	defer func() { klog.V(1).Infof("detected AZ from the topology: %s", zone) }()
-	klog.V(4).Infof("preferred topology requirement: %+v", requirement.GetPreferred())
-	klog.V(4).Infof("requisite topology requirement: %+v", requirement.GetRequisite())
-
-	for _, topology := range requirement.GetPreferred() {
-		zone, exists = topology.GetSegments()[topologyKey]
-		if exists {
-			return zone
-		}
-	}
-
-	for _, topology := range requirement.GetRequisite() {
-		zone, exists = topology.GetSegments()[topologyKey]
-		if exists {
-			return zone
-		}
-	}
-
-	return zone
-}
-
 func SanitizeLabel(input string) string {
 	// Replace non-alphanumeric characters (except '-', '_', '.') with '-'
 	reg := regexp.MustCompile(`[^-a-zA-Z0-9_.]+`)
@@ -176,6 +149,28 @@ func SanitizeLabel(input string) string {
 	return sanitized
 }
 
+// SetMapIfNotEmpty sets the value of the key in the provided map if the value
+// is not empty (i.e., it is not the zero value for that type) and returns a
+// pointer to the new map. If the map is nil, it will be initialized with a new
+// map.
+func SetMapIfNotEmpty[K comparable, V comparable](m map[K]V, key K, value V) map[K]V {
+	// Check if the value is the zero value for its type
+	var zeroValue V
+	if value == zeroValue {
+		return m
+	}
+
+	// Initialize the map if it's nil
+	if m == nil {
+		m = make(map[K]V)
+	}
+
+	// Set the value in the map
+	m[key] = value
+
+	return m
+}
+
 // SplitTrim splits a string of values separated by sep rune into a slice of
 // strings with trimmed spaces.
 func SplitTrim(s string, sep rune) []string {
@@ -183,4 +178,10 @@ func SplitTrim(s string, sep rune) []string {
 		return unicode.IsSpace(c) || c == sep
 	}
 	return strings.FieldsFunc(s, f)
+}
+
+// SplitTrimJoin sanitizes a string of values separated by sep rune into a
+// slice of strings with trimmed spaces and joins them with sep rune.
+func SplitTrimJoin(s string, sep rune) string {
+	return strings.Join(SplitTrim(s, sep), string(sep))
 }

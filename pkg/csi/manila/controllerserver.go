@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/apimachinery/pkg/util/wait"
+	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -34,7 +35,12 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const clusterMetadataKey = "manila.csi.openstack.org/cluster"
+const (
+	clusterMetadataKey = "manila.csi.openstack.org/cluster"
+	affinityKey        = "manila.csi.openstack.org/affinity"
+	antiAffinityKey    = "manila.csi.openstack.org/anti-affinity"
+	groupIDKey         = "manila.csi.openstack.org/group-id"
+)
 
 type controllerServer struct {
 	d *Driver
@@ -43,15 +49,6 @@ type controllerServer struct {
 var (
 	pendingVolumes   = sync.Map{}
 	pendingSnapshots = sync.Map{}
-
-	// Recognized volume parameters passed by Kubernetes csi-provisioner sidecar
-	// when run with --extra-create-metadata flag. These are added to metadata
-	// of newly created shares if present.
-	recognizedCSIProvisionerParams = []string{
-		"csi.storage.k8s.io/pvc/name",
-		"csi.storage.k8s.io/pvc/namespace",
-		"csi.storage.k8s.io/pv/name",
-	}
 )
 
 func getVolumeCreator(source *csi.VolumeContentSource) (volumeCreator, error) {
@@ -63,8 +60,8 @@ func getVolumeCreator(source *csi.VolumeContentSource) (volumeCreator, error) {
 		return nil, status.Error(codes.Unimplemented, "volume cloning is not supported yet")
 	}
 
-	if source.GetSnapshot() != nil {
-		return &volumeFromSnapshot{}, nil
+	if s := source.GetSnapshot(); s != nil {
+		return &volumeFromSnapshot{s.SnapshotId}, nil
 	}
 
 	return nil, status.Error(codes.InvalidArgument, "invalid volume content source")
@@ -88,7 +85,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	// Configuration
-
+	shareName := req.GetName()
 	params := req.GetParameters()
 	if params == nil {
 		params = make(map[string]string)
@@ -139,11 +136,28 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 		// When "autoTopology" is enabled and "availability" is empty, obtain the AZ from the target node.
 		if shareOpts.AvailabilityZone == "" && strings.EqualFold(shareOpts.AutoTopology, "true") {
-			shareOpts.AvailabilityZone = util.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+			shareOpts.AvailabilityZone = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
 			accessibleTopology = []*csi.Topology{{
 				Segments: map[string]string{topologyKey: shareOpts.AvailabilityZone},
 			}}
 		}
+	}
+
+	// get the PVC annotation
+	pvcAnnotations := sharedcsi.GetPVCAnnotations(cs.d.pvcLister, params)
+	for k, v := range pvcAnnotations {
+		klog.V(4).Infof("CreateVolume: retrieved %q pvc annotation: %s: %s", k, v, shareName)
+	}
+	shareOpts.Affinity = util.SplitTrimJoin(pvcAnnotations[affinityKey], ',')
+	shareOpts.AntiAffinity = util.SplitTrimJoin(pvcAnnotations[antiAffinityKey], ',')
+	if shareOpts.Affinity != "" || shareOpts.AntiAffinity != "" {
+		klog.V(4).Infof("CreateVolume: Setting scheduler hints: affinity=%s, anti-affinity=%s", shareOpts.Affinity, shareOpts.AntiAffinity)
+	}
+
+	// override the storage class group ID if it is set in the PVC annotation
+	if v, ok := pvcAnnotations[groupIDKey]; ok {
+		shareOpts.GroupID = v
+		klog.V(4).Infof("CreateVolume: Overriding share group ID: %s", v)
 	}
 
 	// Retrieve an existing share or create a new one
@@ -153,7 +167,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	share, err := volCreator.create(manilaClient, req, req.GetName(), sizeInGiB, shareOpts, shareMetadata)
+	share, err := volCreator.create(manilaClient, shareName, sizeInGiB, shareOpts, shareMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -177,8 +191,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	volCtx := filterParametersForVolumeContext(params, options.NodeVolumeContextFields())
-	volCtx["shareID"] = share.ID
-	volCtx["shareAccessID"] = accessRight.ID
+	volCtx = util.SetMapIfNotEmpty(volCtx, "shareID", share.ID)
+	volCtx = util.SetMapIfNotEmpty(volCtx, "shareAccessID", accessRight.ID)
+	volCtx = util.SetMapIfNotEmpty(volCtx, "groupID", share.ShareGroupID)
+	volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", shareOpts.Affinity)
+	volCtx = util.SetMapIfNotEmpty(volCtx, "antiAffinity", shareOpts.AntiAffinity)
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
@@ -508,7 +525,7 @@ func prepareShareMetadata(appendShareMetadata, clusterID string, volumeParams ma
 	shareMetadata := make(map[string]string)
 
 	// Get extra metadata provided by csi-provisioner sidecar if present.
-	for _, k := range recognizedCSIProvisionerParams {
+	for _, k := range sharedcsi.RecognizedCSIProvisionerParams {
 		if v, ok := volumeParams[k]; ok {
 			shareMetadata[k] = v
 		}

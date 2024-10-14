@@ -85,7 +85,16 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
+func (_m *OpenStackMock) CreateVolume(opts *volumes.CreateOpts, _ volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
+	name := opts.Name
+	size := opts.Size
+	vtype := opts.VolumeType
+	availability := opts.AvailabilityZone
+	snapshotID := opts.SnapshotID
+	sourceVolID := opts.SourceVolID
+	sourceBackupID := opts.BackupID
+	tags := opts.Metadata
+
 	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, sourceBackupID, tags)
 
 	var r0 *volumes.Volume

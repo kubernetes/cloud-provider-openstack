@@ -51,22 +51,7 @@ const (
 var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
-
-	opts := &volumes.CreateOpts{
-		Name:             name,
-		Size:             size,
-		VolumeType:       vtype,
-		AvailabilityZone: availability,
-		Description:      volumeDescription,
-		SnapshotID:       snapshotID,
-		SourceVolID:      sourceVolID,
-		BackupID:         sourceBackupID,
-	}
-	if tags != nil {
-		opts.Metadata = tags
-	}
-
+func (os *OpenStack) CreateVolume(opts *volumes.CreateOpts, schedulerHints volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
 	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
 	if err != nil {
 		return nil, err
@@ -74,12 +59,13 @@ func (os *OpenStack) CreateVolume(name string, size int, vtype, availability str
 
 	// creating volumes from backups and backups cross-az is available since 3.51 microversion
 	// https://docs.openstack.org/cinder/latest/contributor/api_microversion_history.html#id47
-	if !os.bsOpts.IgnoreVolumeMicroversion && sourceBackupID != "" {
+	if !os.bsOpts.IgnoreVolumeMicroversion && opts.BackupID != "" {
 		blockstorageClient.Microversion = "3.51"
 	}
 
 	mc := metrics.NewMetricContext("volume", "create")
-	vol, err := volumes.Create(context.TODO(), blockstorageClient, opts, nil).Extract()
+	opts.Description = volumeDescription
+	vol, err := volumes.Create(context.TODO(), blockstorageClient, opts, schedulerHints).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}

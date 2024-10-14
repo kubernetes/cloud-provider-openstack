@@ -39,6 +39,7 @@ spec:
           image: "registry.k8s.io/sig-storage/csi-provisioner:v3.0.0"
           args:
             - "--csi-address=$(ADDRESS)"
+            - "--extra-create-metadata"
             # To enable topology awareness in csi-provisioner, uncomment the following line:
             # - "--feature-gates=Topology=true"
           env:
@@ -84,7 +85,8 @@ spec:
             --endpoint=$(CSI_ENDPOINT)
             --drivername=$(DRIVER_NAME)
             --share-protocol-selector=$(MANILA_SHARE_PROTO)
-            --fwdendpoint=$(FWD_CSI_ENDPOINT)'
+            --fwdendpoint=$(FWD_CSI_ENDPOINT)
+            --pvc-annotations'
             # To enable topology awareness and retrieve compute node AZs from the OpenStack Metadata Service, add the following flags:
             # --with-topology
             # --nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)

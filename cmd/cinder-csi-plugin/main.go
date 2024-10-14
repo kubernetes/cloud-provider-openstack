@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -72,6 +73,8 @@ func main() {
 		Version: version.Version,
 	}
 
+	csi.AddPVCFlags(cmd)
+
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
 	if err := cmd.PersistentFlags().MarkDeprecated("nodeid", "This flag would be removed in future. Currently, the value is ignored by the driver"); err != nil {
 		klog.Fatalf("Unable to mark flag nodeid to be deprecated: %v", err)
@@ -103,7 +106,11 @@ func main() {
 
 func handle() {
 	// Initialize cloud
-	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
+	d := cinder.NewDriver(&cinder.DriverOpts{
+		Endpoint:  endpoint,
+		ClusterID: cluster,
+		PVCLister: csi.GetPVCLister(),
+	})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
 
