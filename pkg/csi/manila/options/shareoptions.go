@@ -27,6 +27,9 @@ type ControllerVolumeContext struct {
 	AutoTopology        string `name:"autoTopology" value:"default:false" matches:"(?i)^true|false$"`
 	AvailabilityZone    string `name:"availability" value:"optional"`
 	AppendShareMetadata string `name:"appendShareMetadata" value:"optional"`
+	Affinity            string `name:"affinity" value:"optional"`
+	AntiAffinity        string `name:"antiAffinity" value:"optional"`
+	GroupID             string `name:"groupID" value:"optional"`
 
 	// Adapter options
 

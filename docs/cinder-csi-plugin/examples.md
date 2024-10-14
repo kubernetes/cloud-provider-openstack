@@ -10,6 +10,7 @@
   - [Snapshot Create and Restore](#snapshot-create-and-restore)
   - [Use Topology](#use-topology)
   - [Disaster recovery of PV and PVC](#disaster-recovery-of-pv-and-pvc)
+  - [Use scheduler hints annotations](#use-scheduler-hints-annotations)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -453,3 +454,51 @@ spec:
   storageClassName: sata
   volumeMode: Filesystem
 ```
+
+## Use scheduler hints annotations
+
+Cinder CSI driver supports the use of scheduler hints to influence the
+placement of volumes. Scheduler hints can be specified in the
+PersistentVolumeClaim (PVC) annotations:
+
+* `cinder.csi.openstack.org/affinity`
+* `cinder.csi.openstack.org/anti-affinity`
+
+In order to use scheduler hints, the Cinder CSI controller plugin must be
+started with the `--pvc-annotations` flag. The PVC annotations take effect only
+when the PVC is created. The scheduler hints are not updated when the PVC is
+updated. The following example demonstrates how to use scheduler hints to
+influence the placement of volumes:
+
+```
+$ kubectl apply -f scheduler-hints-pvc.yaml
+```
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: csi-pvc-cinderplugin
+  annotations:
+    cinder.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"
+    cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,1b4e28ba-2fa1-11ec-8d3d-0242ac130005"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-sc-cinderplugin
+```
+
+where `1b4e28ba-2fa1-11ec-8d3d-0242ac130003`,
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130005` are the UUIDs of the already provisioned
+volumes in the OpenStack cloud. The scheduler will try to place the volume in
+the same block storage server as the volume with UUID
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130003` and avoid placing the volume in the same
+block storage server as the volumes with UUIDs
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130005`. If the scheduler hints are not
+satisfied, the volume will not be provisioned with an error message in the
+controller logs.

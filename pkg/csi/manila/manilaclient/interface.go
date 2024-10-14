@@ -25,6 +25,9 @@ import (
 )
 
 type Interface interface {
+	GetMicroversion() string
+	SetMicroversion(version string)
+
 	GetShareByID(shareID string) (*shares.Share, error)
 	GetShareByName(shareName string) (*shares.Share, error)
 	CreateShare(opts shares.CreateOptsBuilder) (*shares.Share, error)
