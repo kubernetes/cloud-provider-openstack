@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -386,23 +387,22 @@ func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (str
 	}
 
 	allowedAddrTypes := []corev1.NodeAddressType{corev1.NodeInternalIP, corev1.NodeExternalIP}
-
-	for _, allowedAddrType := range allowedAddrTypes {
-		for _, addr := range addrs {
-			if addr.Type == allowedAddrType {
-				switch preferredIPFamily {
-				case corev1.IPv4Protocol:
-					if netutils.IsIPv4String(addr.Address) {
-						return addr.Address, nil
-					}
-				case corev1.IPv6Protocol:
-					if netutils.IsIPv6String(addr.Address) {
-						return addr.Address, nil
-					}
-				default:
-					return addr.Address, nil
-				}
+	for _, addr := range addrs {
+		if !slices.Contains(allowedAddrTypes, addr.Type) {
+			// Skip the address type that is not allowed
+			continue
+		}
+		switch preferredIPFamily {
+		case corev1.IPv4Protocol:
+			if netutils.IsIPv4String(addr.Address) {
+				return addr.Address, nil
 			}
+		case corev1.IPv6Protocol:
+			if netutils.IsIPv6String(addr.Address) {
+				return addr.Address, nil
+			}
+		default:
+			return addr.Address, nil
 		}
 	}
 
@@ -558,7 +558,7 @@ func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.List
 func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listeners.Listener, isLBOwner bool, lbName string) error {
 	for _, listener := range listenerList {
 		// If the listener was created by this Service before or after supporting shared LB.
-		if (isLBOwner && len(listener.Tags) == 0) || cpoutil.Contains(listener.Tags, lbName) {
+		if (isLBOwner && len(listener.Tags) == 0) || slices.Contains(listener.Tags, lbName) {
 			klog.InfoS("Deleting listener", "listenerID", listener.ID, "lbID", lbID)
 
 			pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
@@ -1069,7 +1069,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListene
 		updateOpts := listeners.UpdateOpts{}
 
 		if svcConf.supportLBTags {
-			if !cpoutil.Contains(listener.Tags, svcConf.lbName) {
+			if !slices.Contains(listener.Tags, svcConf.lbName) {
 				var newTags []string
 				copy(newTags, listener.Tags)
 				newTags = append(newTags, svcConf.lbName)
@@ -1612,7 +1612,7 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 		if listener, isPresent := curListenerMapping[key]; isPresent {
 			// The listener is used by this Service if LB name is in the tags, or
 			// the listener was created by this Service.
-			if cpoutil.Contains(listener.Tags, lbName) || (len(listener.Tags) == 0 && isLBOwner) {
+			if slices.Contains(listener.Tags, lbName) || (len(listener.Tags) == 0 && isLBOwner) {
 				continue
 			} else {
 				return fmt.Errorf("the listener port %d already exists", svcPort.Port)
@@ -1721,7 +1721,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 					sharedCount++
 				}
 			}
-			if !isLBOwner && !cpoutil.Contains(loadbalancer.Tags, lbName) && sharedCount+1 > lbaas.opts.MaxSharedLB {
+			if !isLBOwner && !slices.Contains(loadbalancer.Tags, lbName) && sharedCount+1 > lbaas.opts.MaxSharedLB {
 				return nil, fmt.Errorf("load balancer %s already shared with %d Services", loadbalancer.ID, sharedCount)
 			}
 
@@ -1825,7 +1825,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// add LB name to load balancer tags.
 	if svcConf.supportLBTags {
 		lbTags := loadbalancer.Tags
-		if !cpoutil.Contains(lbTags, lbName) {
+		if !slices.Contains(lbTags, lbName) {
 			lbTags = append(lbTags, lbName)
 			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", lbTags)
 			if err := openstackutil.UpdateLoadBalancerTags(lbaas.lb, loadbalancer.ID, lbTags); err != nil {
@@ -2029,7 +2029,7 @@ func (lbaas *LbaasV2) deleteLoadBalancer(loadbalancer *loadbalancers.LoadBalance
 					Protocol: proto,
 					Port:     int(port.Port),
 				}]
-				if isPresent && cpoutil.Contains(listener.Tags, svcConf.lbName) {
+				if isPresent && slices.Contains(listener.Tags, svcConf.lbName) {
 					listenersToDelete = append(listenersToDelete, *listener)
 				}
 			}
@@ -2186,32 +2186,33 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 // If the field is not specified, turn to parse and verify the AnnotationLoadBalancerSourceRangesKey annotation from a service,
 // extracting the source ranges to allow, and if not present returns a default (allow-all) value.
 func GetLoadBalancerSourceRanges(service *corev1.Service, preferredIPFamily corev1.IPFamily) (netsets.IPNet, error) {
-	var ipnets netsets.IPNet
-	var err error
 	// if SourceRange field is specified, ignore sourceRange annotation
 	if len(service.Spec.LoadBalancerSourceRanges) > 0 {
 		specs := service.Spec.LoadBalancerSourceRanges
-		ipnets, err = netsets.ParseIPNets(specs...)
+		ipnets, err := netsets.ParseIPNets(specs...)
 
 		if err != nil {
 			return nil, fmt.Errorf("service.Spec.LoadBalancerSourceRanges: %v is not valid. Expecting a list of IP ranges. For example, 10.0.0.0/24. Error msg: %v", specs, err)
 		}
-	} else {
-		val := service.Annotations[corev1.AnnotationLoadBalancerSourceRangesKey]
-		val = strings.TrimSpace(val)
-		if val == "" {
-			if preferredIPFamily == corev1.IPv6Protocol {
-				val = defaultLoadBalancerSourceRangesIPv6
-			} else {
-				val = defaultLoadBalancerSourceRangesIPv4
-			}
-		}
-		specs := strings.Split(val, ",")
-		ipnets, err = netsets.ParseIPNets(specs...)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %s is not valid. Expecting a comma-separated list of source IP ranges. For example, 10.0.0.0/24,192.168.2.0/24", corev1.AnnotationLoadBalancerSourceRangesKey, val)
+
+		return ipnets, nil
+	}
+
+	val := service.Annotations[corev1.AnnotationLoadBalancerSourceRangesKey]
+	val = strings.TrimSpace(val)
+	if val == "" {
+		if preferredIPFamily == corev1.IPv6Protocol {
+			val = defaultLoadBalancerSourceRangesIPv6
+		} else {
+			val = defaultLoadBalancerSourceRangesIPv4
 		}
 	}
+	specs := strings.Split(val, ",")
+	ipnets, err := netsets.ParseIPNets(specs...)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %s is not valid. Expecting a comma-separated list of source IP ranges. For example, 10.0.0.0/24,192.168.2.0/24", corev1.AnnotationLoadBalancerSourceRangesKey, val)
+	}
+
 	return ipnets, nil
 }
 

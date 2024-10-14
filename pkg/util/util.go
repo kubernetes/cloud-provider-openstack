@@ -69,16 +69,6 @@ func StringListEqual(list1, list2 []string) bool {
 	return s1.Equal(s2)
 }
 
-// Contains searches if a string list contains the given string or not.
-func Contains(list []string, strToSearch string) bool {
-	for _, item := range list {
-		if item == strToSearch {
-			return true
-		}
-	}
-	return false
-}
-
 // StringToMap converts a string of comma-separated key-values into a map
 func StringToMap(str string) map[string]string {
 	// break up a "key1=val,key2=val2,key3=,key4" string into a list
