@@ -5,6 +5,9 @@ metadata:
 spec:
   attachRequired: true
   podInfoOnMount: true
+  {{- if .Values.csi.provisioner.capacity }}
+  storageCapacity: true
+  {{- end }}
   volumeLifecycleModes:
   - Persistent
   - Ephemeral
