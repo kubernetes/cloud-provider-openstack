@@ -19,6 +19,7 @@ package openstack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -68,6 +69,7 @@ const (
 	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
+	ServiceAnnotationLoadBalancerLbMethod             = "loadbalancer.openstack.org/lb-method"
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
@@ -125,6 +127,7 @@ type serviceConfig struct {
 	lbPublicSubnetSpec          *floatingSubnetSpec
 	nodeSelectors               map[string]string
 	keepClientIP                bool
+	poolLbMethod                *v2pools.LBMethod
 	proxyProtocolVersion        *v2pools.Protocol
 	timeoutClientData           int
 	timeoutMemberConnect        int
@@ -487,6 +490,14 @@ func getProxyProtocolFromServiceAnnotation(service *corev1.Service) *v2pools.Pro
 	default:
 		return nil
 	}
+}
+
+func getLBMethodFromServiceAnnotation(service *corev1.Service) *v2pools.LBMethod {
+	lbMethodValue := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLbMethod, "")
+	if lbMethodValue == "" {
+		return nil
+	}
+	return ptr.To(v2pools.LBMethod(lbMethodValue))
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
@@ -900,6 +911,26 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		pool = nil
 	}
 
+	// If LBMethod changes, update the Pool with the new value
+	if pool != nil && v2pools.LBMethod(pool.LBMethod) != *svcConf.poolLbMethod {
+		klog.InfoS("Updating LoadBalancer LBMethod", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
+		err = openstackutil.UpdatePool(lbaas.lb, lbID, pool.ID, v2pools.UpdateOpts{LBMethod: *svcConf.poolLbMethod})
+		if err != nil {
+			var msg string
+			var castErr gophercloud.ErrUnexpectedResponseCode
+			switch {
+			case errors.As(err, &castErr):
+				msg = fmt.Sprintf("Error updating LB method for LoadBalancer: %s", string(castErr.Body))
+			default:
+				msg = fmt.Sprintf("Error updating LB method for LoadBalancer: %s", err.Error())
+			}
+			klog.Errorf(msg, "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
+		} else {
+			pool.LBMethod = string(*svcConf.poolLbMethod)
+		}
+	}
+
 	if pool == nil {
 		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf, name)
 		createOpt.ListenerID = listener.ID
@@ -971,12 +1002,17 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 	case corev1.ServiceAffinityClientIP:
 		persistence = &v2pools.SessionPersistence{Type: "SOURCE_IP"}
 	}
+	var lbMethod v2pools.LBMethod
+	if svcConf.poolLbMethod == nil { // fallback on the OCCM configuration if nil
+		lbMethod = v2pools.LBMethod(lbaas.opts.LBMethod)
+	} else {
+		lbMethod = *svcConf.poolLbMethod
+	}
 
-	lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
 	return v2pools.CreateOpts{
 		Name:        name,
 		Protocol:    poolProto,
-		LBMethod:    lbmethod,
+		LBMethod:    lbMethod,
 		Persistence: persistence,
 	}
 }
@@ -1678,6 +1714,12 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// Use more meaningful name for the load balancer but still need to check the legacy name for backward compatibility.
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 	svcConf.lbName = lbName
+	// Get the LBMethod from the annotation. If not set via the annotation, fallback on the OCCM's configuration
+	svcConf.poolLbMethod = getLBMethodFromServiceAnnotation(service)
+	if svcConf.poolLbMethod == nil {
+		svcConf.poolLbMethod = ptr.To(v2pools.LBMethod(lbaas.opts.LBMethod))
+	}
+
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 	var loadbalancer *loadbalancers.LoadBalancer
 	isLBOwner := false

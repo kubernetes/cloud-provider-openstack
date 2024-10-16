@@ -1155,6 +1155,52 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
 			},
 		},
+		{
+			name: "test for override LBMethod from the svcConf",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					poolLbMethod: ptr.To(pools.LBMethod("ROUND_ROBIN")),
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{},
+			},
+			want: pools.CreateOpts{
+				Name:     "test for override LBMethod from the svcConf",
+				Protocol: pools.ProtocolTCP,
+				LBMethod: "ROUND_ROBIN",
+			},
+		},
+		{
+			name: "no LBMethod define in the svcConf",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					poolLbMethod: nil,
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{},
+			},
+			want: pools.CreateOpts{
+				Name:     "no LBMethod define in the svcConf",
+				Protocol: pools.ProtocolTCP,
+				LBMethod: "SOURCE_IP_PORT",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2649,6 +2695,46 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getProxyProtocolFromServiceAnnotation(tt.args.service)
 			assert.Equalf(t, tt.want, got, "getProxyProtocolFromServiceAnnotation(%v)", tt.args.service)
+		})
+	}
+}
+
+func Test_getLBMethodFromServiceAnnotation(t *testing.T) {
+	type args struct {
+		service *corev1.Service
+	}
+	tests := []struct {
+		name string
+		args args
+		want *pools.LBMethod
+	}{
+		{
+			name: "should return non-nil value",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerLbMethod: "ROUND_ROBIN"},
+				},
+			}},
+			want: ptr.To(pools.LBMethod("ROUND_ROBIN")),
+		},
+		{
+			name: "should return nil value with empty annotation",
+			args: args{service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{ServiceAnnotationLoadBalancerLbMethod: ""},
+				},
+			}},
+			want: nil,
+		},
+		{
+			name: "should return nil value with no annotation",
+			args: args{service: &corev1.Service{}},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, getLBMethodFromServiceAnnotation(tt.args.service), "getLBMethodFromServiceAnnotation(%v)", tt.args.service)
 		})
 	}
 }
