@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -32,8 +33,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-
-	cpoutil "k8s.io/cloud-provider-openstack/pkg/util"
 )
 
 const (
@@ -314,7 +313,7 @@ func (s *Syncer) syncRoles(user *userInfo) *userInfo {
 
 	if roles, isPresent := user.Extra[Roles]; isPresent {
 		for _, roleMap := range s.syncConfig.RoleMaps {
-			if roleMap.KeystoneRole != "" && cpoutil.Contains(roles, roleMap.KeystoneRole) {
+			if roleMap.KeystoneRole != "" && slices.Contains(roles, roleMap.KeystoneRole) {
 				if len(roleMap.Groups) > 0 {
 					user.Groups = append(user.Groups, roleMap.Groups...)
 				}

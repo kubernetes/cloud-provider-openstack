@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -258,11 +259,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
 
-	if !util.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
+	if !slices.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
 		klog.Warningf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
 	}
 
-	if !util.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
+	if !slices.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
 		klog.Warningf("Unsupported Container Store: %s", cfg.LoadBalancer.ContainerStore)
 	}
 

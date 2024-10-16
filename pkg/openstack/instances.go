@@ -23,6 +23,7 @@ import (
 	"net"
 	sysos "os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -41,7 +42,6 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
-	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
@@ -677,7 +677,7 @@ func nodeAddresses(srv *servers.Server, ports []PortWithTrunkDetails, client *go
 			var addressType v1.NodeAddressType
 			if props.IPType == "floating" {
 				addressType = v1.NodeExternalIP
-			} else if util.Contains(networkingOpts.PublicNetworkName, network) {
+			} else if slices.Contains(networkingOpts.PublicNetworkName, network) {
 				addressType = v1.NodeExternalIP
 				// removing already added address to avoid listing it as both ExternalIP and InternalIP
 				// may happen due to listing "private" network as "public" in CCM's config
@@ -687,7 +687,7 @@ func nodeAddresses(srv *servers.Server, ports []PortWithTrunkDetails, client *go
 					},
 				)
 			} else {
-				if len(networkingOpts.InternalNetworkName) == 0 || util.Contains(networkingOpts.InternalNetworkName, network) {
+				if len(networkingOpts.InternalNetworkName) == 0 || slices.Contains(networkingOpts.InternalNetworkName, network) {
 					addressType = v1.NodeInternalIP
 				} else {
 					klog.V(5).Infof("Node '%s' address '%s' ignored due to 'internal-network-name' option", srv.Name, props.Addr)
