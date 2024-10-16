@@ -30,7 +30,23 @@ component: controllermanager
 {{- define "occm.controllermanager.labels" -}}
 {{ include "occm.controllermanager.matchLabels" . }}
 {{ include "occm.common.metaLabels" . }}
+{{ if .Values.podLabels }}
+{{- toYaml .Values.podLabels }}
+{{- end }}
 {{- end -}}
+
+{{/*
+Common annotations and pod annotations
+*/}}
+{{- define "occm.controllermanager.annotations" -}}
+{{- if .Values.commonAnnotations }}
+{{- toYaml .Values.commonAnnotations }}
+{{- end }}
+{{ if .Values.podAnnotations }}
+{{- toYaml .Values.podAnnotations }}
+{{- end }}
+{{- end -}}
+
 
 {{/*
 Create cloud-config makro.
