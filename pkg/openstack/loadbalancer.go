@@ -490,7 +490,7 @@ func getProxyProtocolFromServiceAnnotation(service *corev1.Service) *v2pools.Pro
 }
 
 // getSubnetIDForLB returns subnet-id for a specific node
-func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
+func getSubnetIDForLB(ctx context.Context, network *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
 	ipAddress, err := nodeAddressForLB(&node, preferredIPFamily)
 	if err != nil {
 		return "", err
@@ -501,7 +501,7 @@ func getSubnetIDForLB(network *gophercloud.ServiceClient, node corev1.Node, pref
 		return "", fmt.Errorf("can't determine instance ID from ProviderID when autodetecting LB subnet: %w", err)
 	}
 
-	ports, err := getAttachedPorts(network, instanceID)
+	ports, err := getAttachedPorts(ctx, network, instanceID)
 	if err != nil {
 		return "", err
 	}
@@ -1266,7 +1266,7 @@ func (lbaas *LbaasV2) getNetworkID(service *corev1.Service, svcConf *serviceConf
 	return "", nil
 }
 
-func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) checkServiceUpdate(ctx context.Context, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	if len(service.Spec.Ports) == 0 {
 		return fmt.Errorf("no ports provided to openstack load balancer")
 	}
@@ -1314,7 +1314,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 		} else {
 			svcConf.lbMemberSubnetID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerSubnetID, lbaas.opts.SubnetID)
 			if len(svcConf.lbMemberSubnetID) == 0 && len(nodes) > 0 {
-				subnetID, err := getSubnetIDForLB(lbaas.network, *nodes[0], svcConf.preferredIPFamily)
+				subnetID, err := getSubnetIDForLB(ctx, lbaas.network, *nodes[0], svcConf.preferredIPFamily)
 				if err != nil {
 					return fmt.Errorf("no subnet-id found for service %s: %v", serviceName, err)
 				}
@@ -1355,7 +1355,7 @@ func (lbaas *LbaasV2) checkServiceDelete(service *corev1.Service, svcConf *servi
 	return nil
 }
 
-func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
 	if len(nodes) == 0 {
@@ -1449,7 +1449,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		svcConf.lbMemberSubnetID = svcConf.lbSubnetID
 	}
 	if len(svcConf.lbNetworkID) == 0 && len(svcConf.lbSubnetID) == 0 {
-		subnetID, err := getSubnetIDForLB(lbaas.network, *nodes[0], svcConf.preferredIPFamily)
+		subnetID, err := getSubnetIDForLB(ctx, lbaas.network, *nodes[0], svcConf.preferredIPFamily)
 		if err != nil {
 			return fmt.Errorf("failed to get subnet to create load balancer for service %s: %v", serviceName, err)
 		}
@@ -1668,7 +1668,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	patcher := newServicePatcher(lbaas.kclient, service)
 	defer func() { err = patcher.Patch(ctx, err) }()
 
-	if err := lbaas.checkService(service, nodes, svcConf); err != nil {
+	if err := lbaas.checkService(ctx, service, nodes, svcConf); err != nil {
 		return nil, err
 	}
 
@@ -1887,7 +1887,7 @@ func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubN
 func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node) error {
 	svcConf := new(serviceConfig)
 	var err error
-	if err := lbaas.checkServiceUpdate(service, nodes, svcConf); err != nil {
+	if err := lbaas.checkServiceUpdate(ctx, service, nodes, svcConf); err != nil {
 		return err
 	}
 
