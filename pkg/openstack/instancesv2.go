@@ -137,11 +137,12 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 	availabilityZone := util.SanitizeLabel(server.AvailabilityZone)
 
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    i.makeInstanceID(&server),
-		InstanceType:  instanceType,
-		NodeAddresses: addresses,
-		Zone:          availabilityZone,
-		Region:        i.region,
+		ProviderID:       i.makeInstanceID(&server),
+		InstanceType:     instanceType,
+		NodeAddresses:    addresses,
+		Zone:             availabilityZone,
+		Region:           i.region,
+		AdditionalLabels: getAdditionalLabels(&server),
 	}, nil
 }
 
