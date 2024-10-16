@@ -86,11 +86,8 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 			}
 
 			// Add the SG to the port
-			// TODO(dulek): This isn't an atomic operation. In order to protect from lost update issues we should use
-			//              `revision_number` handling to make sure our update to `security_groups` field wasn't preceded
-			//              by a different one. Same applies to a removal of the SG.
 			newSGs := append(port.SecurityGroups, sg)
-			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs, RevisionNumber: &port.RevisionNumber}
 			mc := metrics.NewMetricContext("port", "update")
 			res := neutronports.Update(context.TODO(), network, port.ID, updateOpts)
 			if mc.ObserveRequest(res.Err) != nil {
@@ -121,9 +118,7 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 
 		// Update port security groups
 		newSGs := existingSGs.List()
-		// TODO(dulek): This should be done using Neutron's revision_number to make sure
-		//              we don't trigger a lost update issue.
-		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs, RevisionNumber: &port.RevisionNumber}
 		mc := metrics.NewMetricContext("port", "update")
 		res := neutronports.Update(context.TODO(), network, port.ID, updateOpts)
 		if mc.ObserveRequest(res.Err) != nil {
