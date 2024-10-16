@@ -29,7 +29,7 @@ ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.3.1-go1.22.2-bookw
 ARG ALPINE_IMAGE=alpine:3.17.5
 
 # cinder-csi-plugin uses Debian as a base image
-ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bullseye-v1.4.3
+ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bookworm-v1.0.4
 
 ################################################################################
 ##                              BUILD STAGE                                   ##
