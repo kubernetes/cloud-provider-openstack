@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
@@ -134,7 +135,7 @@ func TestNodePublishVolume(t *testing.T) {
 
 func TestNodePublishVolumeEphemeral(t *testing.T) {
 
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
 	fvolName := fmt.Sprintf("ephemeral-%s", FakeVolID)
 
 	omock.On("CreateVolume", fvolName, 2, "test", "nova", "", "", "", properties).Return(&FakeVol, nil)
@@ -159,7 +160,7 @@ func TestNodePublishVolumeEphemeral(t *testing.T) {
 		TargetPath:       FakeTargetPath,
 		VolumeCapability: stdVolCap,
 		Readonly:         false,
-		VolumeContext:    map[string]string{"capacity": "2Gi", "csi.storage.k8s.io/ephemeral": "true", "type": "test"},
+		VolumeContext:    map[string]string{"capacity": "2Gi", sharedcsi.VolEphemeralKey: "true", "type": "test"},
 	}
 
 	// Invoke NodePublishVolume

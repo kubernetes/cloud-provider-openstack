@@ -30,6 +30,7 @@ import (
 	"k8s.io/klog/v2"
 	utilpath "k8s.io/utils/path"
 
+	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -63,7 +64,7 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Error(codes.InvalidArgument, "NodePublishVolume Volume Capability must be provided")
 	}
 
-	ephemeralVolume := req.GetVolumeContext()["csi.storage.k8s.io/ephemeral"] == "true"
+	ephemeralVolume := req.GetVolumeContext()[sharedcsi.VolEphemeralKey] == "true"
 	if ephemeralVolume {
 		// See https://github.com/kubernetes/cloud-provider-openstack/issues/2599
 		return nil, status.Error(codes.Unimplemented, "CSI inline ephemeral volumes support is removed in 1.31 release.")

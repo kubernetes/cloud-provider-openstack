@@ -175,6 +175,9 @@ spec:
             {{- if .Values.csi.plugin.httpEndpoint.enabled }}
             - "--http-endpoint=:{{ .Values.csi.plugin.httpEndpoint.port }}"
             {{- end }}
+            {{- if .Values.pvcAnnotations }}
+            - "--pvc-annotations"
+            {{- end }}
             {{- if .Values.csi.plugin.extraArgs }}
             {{- with .Values.csi.plugin.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}

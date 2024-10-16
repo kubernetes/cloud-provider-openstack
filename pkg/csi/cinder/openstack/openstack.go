@@ -45,7 +45,7 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 }
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error)
+	CreateVolume(*volumes.CreateOpts, volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error)
 	DeleteVolume(volumeID string) error
 	AttachVolume(instanceID, volumeID string) (string, error)
 	ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error)
