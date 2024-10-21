@@ -63,7 +63,7 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 			continue
 		}
 
-		listOpts := neutronports.ListOpts{DeviceID: serverID}
+		listOpts := neutronports.ListOpts{}
 		allPorts, err := openstackutil.GetPorts[PortWithPortSecurity](network, listOpts)
 		if err != nil {
 			return err
@@ -85,6 +85,27 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 				continue
 			}
 
+			// If the port is not attached to the server, we'll check whether it has the SG and remove it.
+			// When the load balancer is updated, this function is triggered so we need to make sure
+			// that the SG is removed from the ports that are not attached to the server where the LB is running.
+			// This is to avoid the SG being attached to the port when the LB is moved to another Node.
+			if port.DeviceID != serverID {
+				sgFound := false
+				for _, portSG := range port.SecurityGroups {
+					if portSG == sg {
+						sgFound = true
+						break
+					}
+				}
+				if sgFound {
+					err := removeSecurityGroupFromPort(network, port.Port, sg)
+					if err != nil {
+						return err
+					}
+					continue
+				}
+			}
+
 			// Add the SG to the port
 			// TODO(dulek): This isn't an atomic operation. In order to protect from lost update issues we should use
 			//              `revision_number` handling to make sure our update to `security_groups` field wasn't preceded
@@ -97,6 +118,7 @@ func applyNodeSecurityGroupIDForLB(network *gophercloud.ServiceClient, svcConf *
 				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
 			}
 		}
+
 	}
 
 	return nil
@@ -113,31 +135,41 @@ func disassociateSecurityGroupForLB(network *gophercloud.ServiceClient, sg strin
 
 	// Disassocate security group and remove the tag.
 	for _, port := range allPorts {
-		existingSGs := sets.NewString()
-		for _, sgID := range port.SecurityGroups {
-			existingSGs.Insert(sgID)
+		err := removeSecurityGroupFromPort(network, port, sg)
+		if err != nil {
+			return err
 		}
-		existingSGs.Delete(sg)
+	}
 
-		// Update port security groups
-		newSGs := existingSGs.List()
-		// TODO(dulek): This should be done using Neutron's revision_number to make sure
-		//              we don't trigger a lost update issue.
-		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
-		mc := metrics.NewMetricContext("port", "update")
-		res := neutronports.Update(context.TODO(), network, port.ID, updateOpts)
-		if mc.ObserveRequest(res.Err) != nil {
-			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
-		}
+	return nil
+}
 
-		// Remove the security group ID tag from the port. Please note we don't tag ports with SG IDs anymore,
-		// so this stays for backward compatibility. It's reasonable to delete it in the future. 404s are ignored.
-		if slices.Contains(port.Tags, sg) {
-			mc = metrics.NewMetricContext("port_tag", "delete")
-			err := neutrontags.Delete(context.TODO(), network, "ports", port.ID, sg).ExtractErr()
-			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
-			}
+// removeSecurityGroupFromPort removes the given security group from the port
+func removeSecurityGroupFromPort(network *gophercloud.ServiceClient, port neutronports.Port, sg string) error {
+	existingSGs := sets.NewString()
+	for _, sgID := range port.SecurityGroups {
+		existingSGs.Insert(sgID)
+	}
+	existingSGs.Delete(sg)
+
+	// Update port security groups
+	newSGs := existingSGs.List()
+	// TODO(dulek): This should be done using Neutron's revision_number to make sure
+	//              we don't trigger a lost update issue.
+	updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
+	mc := metrics.NewMetricContext("port", "update")
+	res := neutronports.Update(context.TODO(), network, port.ID, updateOpts)
+	if mc.ObserveRequest(res.Err) != nil {
+		return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
+	}
+
+	// Remove the security group ID tag from the port. Please note we don't tag ports with SG IDs anymore,
+	// so this stays for backward compatibility. It's reasonable to delete it in the future. 404s are ignored.
+	if slices.Contains(port.Tags, sg) {
+		mc = metrics.NewMetricContext("port_tag", "delete")
+		err := neutrontags.Delete(context.TODO(), network, "ports", port.ID, sg).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
 		}
 	}
 
