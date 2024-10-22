@@ -22,7 +22,6 @@ import (
 	"io"
 	"os"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -155,16 +154,13 @@ type RouterOpts struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
-	provider       *gophercloud.ProviderClient
-	epOpts         *gophercloud.EndpointOpts
-	lbOpts         LoadBalancerOpts
-	routeOpts      RouterOpts
-	metadataOpts   metadata.Opts
-	networkingOpts NetworkingOpts
-	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID       string
+	provider              *gophercloud.ProviderClient
+	epOpts                *gophercloud.EndpointOpts
+	lbOpts                LoadBalancerOpts
+	routeOpts             RouterOpts
+	metadataOpts          metadata.Opts
+	networkingOpts        NetworkingOpts
 	kclient               kubernetes.Interface
-	useV1Instances        bool // TODO: v1 instance apis can be deleted after the v2 is verified enough
 	nodeInformer          coreinformers.NodeInformer
 	nodeInformerHasSynced func() bool
 
@@ -299,12 +295,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
-	useV1Instances := false
-	v1instances := os.Getenv("OS_V1_INSTANCES")
-	if strings.ToLower(v1instances) == "true" {
-		useV1Instances = true
-	}
-
 	os := OpenStack{
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
@@ -315,7 +305,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		routeOpts:      cfg.Route,
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
-		useV1Instances: useV1Instances,
 	}
 
 	// ini file doesn't support maps so we are reusing top level sub sections
@@ -328,6 +317,11 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 
 	return &os, nil
+}
+
+// Instances v1 is no longer supported
+func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
+	return nil, false
 }
 
 // Clusters is a no-op
@@ -442,7 +436,7 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 		return cloudprovider.Zone{}, err
 	}
 
-	srv, err := getServerByName(compute, nodeName)
+	srv, err := getServerByName(ctx, compute, string(nodeName))
 	if err != nil {
 		if err == errors.ErrNotFound {
 			return cloudprovider.Zone{}, cloudprovider.InstanceNotFound

@@ -388,7 +388,7 @@ func TestNodeAddresses(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -468,7 +468,7 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -546,7 +546,7 @@ func TestNodeAddressesCustomPublicNetworkWithIntersectingFixedIP(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -631,7 +631,7 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -716,7 +716,7 @@ func TestNodeAddressesOneInternalNetwork(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -793,7 +793,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -875,7 +875,7 @@ func TestNodeAddressesWithAddressSortOrderOptions(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}

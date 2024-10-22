@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	v1 "k8s.io/api/core/v1"
@@ -173,4 +174,13 @@ func SanitizeLabel(input string) string {
 	}
 
 	return sanitized
+}
+
+// SplitTrim splits a string of values separated by sep rune into a slice of
+// strings with trimmed spaces.
+func SplitTrim(s string, sep rune) []string {
+	f := func(c rune) bool {
+		return unicode.IsSpace(c) || c == sep
+	}
+	return strings.FieldsFunc(s, f)
 }
