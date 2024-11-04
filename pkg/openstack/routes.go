@@ -82,7 +82,7 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	}
 
 	mc := metrics.NewMetricContext("router", "get")
-	router, err := routers.Get(context.TODO(), r.network, r.os.routeOpts.RouterID).Extract()
+	router, err := routers.Get(ctx, r.network, r.os.routeOpts.RouterID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	}
 
 	// detect router's private network ID for further VM ports filtering
-	r.networkIDs, err = getRouterNetworkIDs(r.network, r.os.routeOpts.RouterID)
+	r.networkIDs, err = getRouterNetworkIDs(ctx, r.network, r.os.routeOpts.RouterID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,12 +108,12 @@ func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudpr
 	return routes, nil
 }
 
-func getRouterNetworkIDs(network *gophercloud.ServiceClient, routerID string) ([]string, error) {
+func getRouterNetworkIDs(ctx context.Context, network *gophercloud.ServiceClient, routerID string) ([]string, error) {
 	opts := ports.ListOpts{
 		DeviceID: routerID,
 	}
 	mc := metrics.NewMetricContext("port", "list")
-	pages, err := ports.List(network, opts).AllPages(context.TODO())
+	pages, err := ports.List(network, opts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -173,11 +173,11 @@ func getAddrByNodeName(name types.NodeName, needIPv6 bool, nodes []*v1.Node) str
 	return ""
 }
 
-func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, newRoutes []routers.Route) (func(), error) {
+func updateRoutes(ctx context.Context, network *gophercloud.ServiceClient, router *routers.Router, newRoutes []routers.Route) (func(), error) {
 	origRoutes := router.Routes // shallow copy
 
 	mc := metrics.NewMetricContext("router", "update")
-	_, err := routers.Update(context.TODO(), network, router.ID, routers.UpdateOpts{
+	_, err := routers.Update(ctx, network, router.ID, routers.UpdateOpts{
 		Routes: &newRoutes,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -187,7 +187,7 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", router.ID)
 		mc := metrics.NewMetricContext("router", "update")
-		_, err := routers.Update(context.TODO(), network, router.ID, routers.UpdateOpts{
+		_, err := routers.Update(ctx, network, router.ID, routers.UpdateOpts{
 			Routes: &origRoutes,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -198,9 +198,9 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 	return unwinder, nil
 }
 
-func addRoute(network *gophercloud.ServiceClient, routerID string, newRoute []routers.Route) (func(), error) {
+func addRoute(ctx context.Context, network *gophercloud.ServiceClient, routerID string, newRoute []routers.Route) (func(), error) {
 	mc := metrics.NewMetricContext("router", "update")
-	_, err := extraroutes.Add(context.TODO(), network, routerID, extraroutes.Opts{
+	_, err := extraroutes.Add(ctx, network, routerID, extraroutes.Opts{
 		Routes: &newRoute,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -210,7 +210,7 @@ func addRoute(network *gophercloud.ServiceClient, routerID string, newRoute []ro
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", routerID)
 		mc := metrics.NewMetricContext("router", "update")
-		_, err := extraroutes.Remove(context.TODO(), network, routerID, extraroutes.Opts{
+		_, err := extraroutes.Remove(ctx, network, routerID, extraroutes.Opts{
 			Routes: &newRoute,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -221,9 +221,9 @@ func addRoute(network *gophercloud.ServiceClient, routerID string, newRoute []ro
 	return unwinder, nil
 }
 
-func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute []routers.Route) (func(), error) {
+func removeRoute(ctx context.Context, network *gophercloud.ServiceClient, routerID string, oldRoute []routers.Route) (func(), error) {
 	mc := metrics.NewMetricContext("router", "update")
-	_, err := extraroutes.Remove(context.TODO(), network, routerID, extraroutes.Opts{
+	_, err := extraroutes.Remove(ctx, network, routerID, extraroutes.Opts{
 		Routes: &oldRoute,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -233,7 +233,7 @@ func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute [
 	unwinder := func() {
 		klog.V(4).Infof("Reverting routes change to router %v", routerID)
 		mc := metrics.NewMetricContext("router", "update")
-		_, err := extraroutes.Add(context.TODO(), network, routerID, extraroutes.Opts{
+		_, err := extraroutes.Add(ctx, network, routerID, extraroutes.Opts{
 			Routes: &oldRoute,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -244,11 +244,11 @@ func removeRoute(network *gophercloud.ServiceClient, routerID string, oldRoute [
 	return unwinder, nil
 }
 
-func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *PortWithPortSecurity, newPairs []ports.AddressPair) (func(), error) {
+func updateAllowedAddressPairs(ctx context.Context, network *gophercloud.ServiceClient, port *PortWithPortSecurity, newPairs []ports.AddressPair) (func(), error) {
 	origPairs := port.AllowedAddressPairs // shallow copy
 
 	mc := metrics.NewMetricContext("port", "update")
-	_, err := ports.Update(context.TODO(), network, port.ID, ports.UpdateOpts{
+	_, err := ports.Update(ctx, network, port.ID, ports.UpdateOpts{
 		AllowedAddressPairs: &newPairs,
 	}).Extract()
 	if mc.ObserveRequest(err) != nil {
@@ -258,7 +258,7 @@ func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *PortWit
 	unwinder := func() {
 		klog.V(4).Infof("Reverting allowed-address-pairs change to port %v", port.ID)
 		mc := metrics.NewMetricContext("port", "update")
-		_, err := ports.Update(context.TODO(), network, port.ID, ports.UpdateOpts{
+		_, err := ports.Update(ctx, network, port.ID, ports.UpdateOpts{
 			AllowedAddressPairs: &origPairs,
 		}).Extract()
 		if mc.ObserveRequest(err) != nil {
@@ -295,7 +295,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		defer r.Unlock()
 
 		mc := metrics.NewMetricContext("router", "get")
-		router, err := routers.Get(context.TODO(), r.network, r.os.routeOpts.RouterID).Extract()
+		router, err := routers.Get(ctx, r.network, r.os.routeOpts.RouterID).Extract()
 		if mc.ObserveRequest(err) != nil {
 			return err
 		}
@@ -314,7 +314,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 			NextHop:         addr,
 		})
 
-		unwind, err := updateRoutes(r.network, router, routes)
+		unwind, err := updateRoutes(ctx, r.network, router, routes)
 		if err != nil {
 			return err
 		}
@@ -326,7 +326,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 			DestinationCIDR: route.DestinationCIDR,
 			NextHop:         addr,
 		}}
-		unwind, err := addRoute(r.network, r.os.routeOpts.RouterID, route)
+		unwind, err := addRoute(ctx, r.network, r.os.routeOpts.RouterID, route)
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 	}
 
 	// get the port of addr on target node.
-	port, err := getPortByIP(r.network, addr, r.networkIDs)
+	port, err := r.getPortByIP(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -364,7 +364,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		newPairs := append(port.AllowedAddressPairs, ports.AddressPair{
 			IPAddress: route.DestinationCIDR,
 		})
-		unwind, err := updateAllowedAddressPairs(r.network, port, newPairs)
+		unwind, err := updateAllowedAddressPairs(ctx, r.network, port, newPairs)
 		if err != nil {
 			return err
 		}
@@ -404,7 +404,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		defer r.Unlock()
 
 		mc := metrics.NewMetricContext("router", "get")
-		router, err := routers.Get(context.TODO(), r.network, r.os.routeOpts.RouterID).Extract()
+		router, err := routers.Get(ctx, r.network, r.os.routeOpts.RouterID).Extract()
 		if mc.ObserveRequest(err) != nil {
 			return err
 		}
@@ -427,7 +427,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		routes[index] = routes[len(routes)-1]
 		routes = routes[:len(routes)-1]
 
-		unwind, err := updateRoutes(r.network, router, routes)
+		unwind, err := updateRoutes(ctx, r.network, router, routes)
 		// If this was a blackhole route we are done, there are no ports to update
 		if err != nil || route.Blackhole {
 			return err
@@ -444,7 +444,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 			DestinationCIDR: route.DestinationCIDR,
 			NextHop:         addr,
 		}}
-		unwind, err := removeRoute(r.network, r.os.routeOpts.RouterID, route)
+		unwind, err := removeRoute(ctx, r.network, r.os.routeOpts.RouterID, route)
 		// If this was a blackhole route we are done, there are no ports to update
 		if err != nil || blackhole {
 			return err
@@ -460,7 +460,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	}
 
 	// get the port of addr on target node.
-	port, err := getPortByIP(r.network, addr, r.networkIDs)
+	port, err := r.getPortByIP(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -484,7 +484,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		addrPairs[index] = addrPairs[len(addrPairs)-1]
 		addrPairs = addrPairs[:len(addrPairs)-1]
 
-		unwind, err := updateAllowedAddressPairs(r.network, port, addrPairs)
+		unwind, err := updateAllowedAddressPairs(ctx, r.network, port, addrPairs)
 		if err != nil {
 			return err
 		}
@@ -496,8 +496,8 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	return nil
 }
 
-func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []string) (*PortWithPortSecurity, error) {
-	for _, networkID := range networkIDs {
+func (r *Routes) getPortByIP(ctx context.Context, addr string) (*PortWithPortSecurity, error) {
+	for _, networkID := range r.networkIDs {
 		opts := ports.ListOpts{
 			FixedIPs: []ports.FixedIPOpts{
 				{
@@ -506,7 +506,7 @@ func getPortByIP(network *gophercloud.ServiceClient, addr string, networkIDs []s
 			},
 			NetworkID: networkID,
 		}
-		ports, err := openstackutil.GetPorts[PortWithPortSecurity](network, opts)
+		ports, err := openstackutil.GetPorts[PortWithPortSecurity](ctx, r.network, opts)
 		if err != nil {
 			return nil, err
 		}

@@ -225,7 +225,7 @@ func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) liste
 	}
 }
 
-func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) (*loadbalancers.LoadBalancer, error) {
+func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clusterName string, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) (*loadbalancers.LoadBalancer, error) {
 	createOpts := loadbalancers.CreateOpts{
 		Name:        name,
 		Description: fmt.Sprintf("Kubernetes external service %s/%s from cluster %s", service.Namespace, service.Name, clusterName),
@@ -297,7 +297,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 	}
 
 	mc := metrics.NewMetricContext("loadbalancer", "create")
-	loadbalancer, err := loadbalancers.Create(context.TODO(), lbaas.lb, createOpts).Extract()
+	loadbalancer, err := loadbalancers.Create(ctx, lbaas.lb, createOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		var printObj interface{} = createOpts
 		if opts, err := json.Marshal(createOpts); err == nil {
@@ -329,7 +329,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(name, clusterName string, servic
 // GetLoadBalancer returns whether the specified load balancer exists and its status
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service) (*corev1.LoadBalancerStatus, bool, error) {
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.getLoadBalancerLegacyName(ctx, clusterName, service)
+	legacyName := lbaas.getLoadBalancerLegacyName(service)
 	lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	var loadbalancer *loadbalancers.LoadBalancer
 	var err error
@@ -349,7 +349,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	status := &corev1.LoadBalancerStatus{}
 	portID := loadbalancer.VipPortID
 	if portID != "" {
-		floatIP, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
+		floatIP, err := openstackutil.GetFloatingIPByPortID(ctx, lbaas.network, portID)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed when trying to get floating IP for port %s: %v", portID, err)
 		}
@@ -369,7 +369,7 @@ func (lbaas *LbaasV2) GetLoadBalancerName(_ context.Context, clusterName string,
 }
 
 // getLoadBalancerLegacyName returns the legacy load balancer name for backward compatibility.
-func (lbaas *LbaasV2) getLoadBalancerLegacyName(_ context.Context, _ string, service *corev1.Service) string {
+func (lbaas *LbaasV2) getLoadBalancerLegacyName(service *corev1.Service) string {
 	return cloudprovider.DefaultLoadBalancerName(service)
 }
 
@@ -590,10 +590,10 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 	return nil
 }
 
-func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
+func (lbaas *LbaasV2) createFloatingIP(ctx context.Context, msg string, floatIPOpts floatingips.CreateOpts) (*floatingips.FloatingIP, error) {
 	klog.V(4).Infof("%s floating ip with opts %+v", msg, floatIPOpts)
 	mc := metrics.NewMetricContext("floating_ip", "create")
-	floatIP, err := floatingips.Create(context.TODO(), lbaas.network, floatIPOpts).Extract()
+	floatIP, err := floatingips.Create(ctx, lbaas.network, floatIPOpts).Extract()
 	err = PreserveGopherError(err)
 	if mc.ObserveRequest(err) != nil {
 		return floatIP, fmt.Errorf("error creating LB floatingip: %v", err)
@@ -601,7 +601,7 @@ func (lbaas *LbaasV2) createFloatingIP(msg string, floatIPOpts floatingips.Creat
 	return floatIP, err
 }
 
-func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portID *string) (*floatingips.FloatingIP, error) {
+func (lbaas *LbaasV2) updateFloatingIP(ctx context.Context, floatingip *floatingips.FloatingIP, portID *string) (*floatingips.FloatingIP, error) {
 	floatUpdateOpts := floatingips.UpdateOpts{
 		PortID: portID,
 	}
@@ -611,7 +611,7 @@ func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portI
 		klog.V(4).Infof("Detaching floating ip %q from port %q", floatingip.FloatingIP, floatingip.PortID)
 	}
 	mc := metrics.NewMetricContext("floating_ip", "update")
-	floatingip, err := floatingips.Update(context.TODO(), lbaas.network, floatingip.ID, floatUpdateOpts).Extract()
+	floatingip, err := floatingips.Update(ctx, lbaas.network, floatingip.ID, floatUpdateOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error updating LB floatingip %+v: %v", floatUpdateOpts, err)
 	}
@@ -631,12 +631,12 @@ func (lbaas *LbaasV2) updateFloatingIP(floatingip *floatingips.FloatingIP, portI
 //     a) If Spec.LoadBalancerIP is not set, just create a random FIP in the external network and use that.
 //     b) If Spec.LoadBalancerIP is specified, try to create a FIP with that address. By default this is not allowed by
 //     the Neutron policy for regular users!
-func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Service, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, isLBOwner bool) (string, error) {
+func (lbaas *LbaasV2) ensureFloatingIP(ctx context.Context, clusterName string, service *corev1.Service, lb *loadbalancers.LoadBalancer, svcConf *serviceConfig, isLBOwner bool) (string, error) {
 	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
 
 	// We need to fetch the FIP attached to load balancer's VIP port for both codepaths
 	portID := lb.VipPortID
-	floatIP, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
+	floatIP, err := openstackutil.GetFloatingIPByPortID(ctx, lbaas.network, portID)
 	if err != nil {
 		return "", fmt.Errorf("failed when getting floating IP for port %s: %v", portID, err)
 	}
@@ -652,14 +652,14 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 			fipDeleted := false
 			if !keepFloatingAnnotation {
 				klog.V(4).Infof("Deleting floating IP %v attached to loadbalancer port id %q for internal service %s", floatIP, portID, serviceName)
-				fipDeleted, err = lbaas.deleteFIPIfCreatedByProvider(floatIP, portID, service)
+				fipDeleted, err = lbaas.deleteFIPIfCreatedByProvider(ctx, floatIP, portID, service)
 				if err != nil {
 					return "", err
 				}
 			}
 			if !fipDeleted {
 				// if FIP wasn't deleted (because of keep-floatingip annotation or not being created by us) we should still detach it
-				_, err = lbaas.updateFloatingIP(floatIP, nil)
+				_, err = lbaas.updateFloatingIP(ctx, floatIP, nil)
 				if err != nil {
 					return "", err
 				}
@@ -684,7 +684,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 		opts := floatingips.ListOpts{
 			FloatingIP: loadBalancerIP,
 		}
-		existingIPs, err := openstackutil.GetFloatingIPs(lbaas.network, opts)
+		existingIPs, err := openstackutil.GetFloatingIPs(ctx, lbaas.network, opts)
 		if err != nil {
 			return "", fmt.Errorf("failed when trying to get existing floating IP %s, error: %v", loadBalancerIP, err)
 		}
@@ -693,7 +693,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 		if len(existingIPs) > 0 {
 			floatingip := existingIPs[0]
 			if len(floatingip.PortID) == 0 {
-				floatIP, err = lbaas.updateFloatingIP(&floatingip, &portID)
+				floatIP, err = lbaas.updateFloatingIP(ctx, &floatingip, &portID)
 				if err != nil {
 					return "", err
 				}
@@ -714,10 +714,10 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 				Description:       fmt.Sprintf("Floating IP for Kubernetes external service %s from cluster %s", serviceName, clusterName),
 			}
 
-			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.MatcherConfigured() {
+			if loadBalancerIP == "" && svcConf.lbPublicSubnetSpec.matcherConfigured() {
 				var foundSubnet subnets.Subnet
 				// tweak list options for tags
-				foundSubnets, err := svcConf.lbPublicSubnetSpec.ListSubnetsForNetwork(lbaas, svcConf.lbPublicNetworkID)
+				foundSubnets, err := svcConf.lbPublicSubnetSpec.listSubnetsForNetwork(ctx, lbaas, svcConf.lbPublicNetworkID)
 				if err != nil {
 					return "", err
 				}
@@ -731,7 +731,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					svcConf.lbPublicSubnetSpec, svcConf.lbPublicNetworkID)
 				for _, subnet := range foundSubnets {
 					floatIPOpts.SubnetID = subnet.ID
-					floatIP, err = lbaas.createFloatingIP(fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
+					floatIP, err = lbaas.createFloatingIP(ctx, fmt.Sprintf("Trying subnet %s for creating", subnet.Name), floatIPOpts)
 					if err == nil {
 						foundSubnet = subnet
 						break
@@ -748,7 +748,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(clusterName string, service *corev1.Servi
 					floatIPOpts.SubnetID = svcConf.lbPublicSubnetSpec.subnetID
 				}
 				floatIPOpts.FloatingIP = loadBalancerIP
-				floatIP, err = lbaas.createFloatingIP("Creating", floatIPOpts)
+				floatIP, err = lbaas.createFloatingIP(ctx, "Creating", floatIPOpts)
 				if err != nil {
 					return "", err
 				}
@@ -1046,7 +1046,7 @@ func (lbaas *LbaasV2) buildCreateMemberOpts(port corev1.ServicePort, nodes []*co
 }
 
 // Make sure the listener is created for Service
-func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, _ *corev1.Service) (*listeners.Listener, error) {
+func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig) (*listeners.Listener, error) {
 	listener, isPresent := curListenerMapping[listenerKey{
 		Protocol: getListenerProtocol(port.Protocol, svcConf),
 		Port:     int(port.Port),
@@ -1412,13 +1412,13 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 			barbicanUUID := slice[len(slice)-1]
 			barbicanType := slice[len(slice)-2]
 			if barbicanType == "containers" {
-				container, err := containers.Get(context.TODO(), lbaas.secret, barbicanUUID).Extract()
+				container, err := containers.Get(ctx, lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
 				}
 				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
 			} else if barbicanType == "secrets" {
-				secret, err := secrets.Get(context.TODO(), lbaas.secret, barbicanUUID).Extract()
+				secret, err := secrets.Get(ctx, lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
 				}
@@ -1499,7 +1499,7 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 
 		// If there's no annotation and configuration, try to autodetect the FIP network by looking up external nets
 		if floatingNetworkID == "" {
-			floatingNetworkID, err = openstackutil.GetFloatingNetworkID(lbaas.network)
+			floatingNetworkID, err = openstackutil.GetFloatingNetworkID(ctx, lbaas.network)
 			if err != nil {
 				msg := "Failed to find floating-network-id for Service %s: %v"
 				lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBExternalNetworkSearchFailed, msg, serviceName, err)
@@ -1529,7 +1529,7 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 		// check configured subnet belongs to network
 		if floatingNetworkID != "" && floatingSubnet.subnetID != "" {
 			mc := metrics.NewMetricContext("subnet", "get")
-			subnet, err := subnets.Get(context.TODO(), lbaas.network, floatingSubnet.subnetID).Extract()
+			subnet, err := subnets.Get(ctx, lbaas.network, floatingSubnet.subnetID).Extract()
 			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to find subnet %q: %v", floatingSubnet.subnetID, err)
 			}
@@ -1732,14 +1732,14 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			}
 		}
 	} else {
-		legacyName := lbaas.getLoadBalancerLegacyName(ctx, clusterName, service)
+		legacyName := lbaas.getLoadBalancerLegacyName(service)
 		loadbalancer, err = getLoadbalancerByName(lbaas.lb, lbName, legacyName)
 		if err != nil {
 			if err != cpoerrors.ErrNotFound {
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 			}
 			klog.InfoS("Creating loadbalancer", "lbName", lbName, "service", klog.KObj(service))
-			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, filteredNodes, svcConf)
+			loadbalancer, err = lbaas.createOctaviaLoadBalancer(ctx, lbName, clusterName, service, filteredNodes, svcConf)
 			if err != nil {
 				return nil, fmt.Errorf("error creating loadbalancer %s: %v", lbName, err)
 			}
@@ -1780,7 +1780,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 
 		for portIndex, port := range service.Spec.Ports {
-			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cpoutil.Sprintf255(listenerFormat, portIndex, lbName), curListenerMapping, port, svcConf, service)
+			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cpoutil.Sprintf255(listenerFormat, portIndex, lbName), curListenerMapping, port, svcConf)
 			if err != nil {
 				return nil, err
 			}
@@ -1813,7 +1813,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBFloatingIPSkipped, msg, serviceName, addr)
 		klog.Infof(msg, serviceName, addr)
 	} else {
-		addr, err = lbaas.ensureFloatingIP(clusterName, service, loadbalancer, svcConf, isLBOwner)
+		addr, err = lbaas.ensureFloatingIP(ctx, clusterName, service, loadbalancer, svcConf, isLBOwner)
 		if err != nil {
 			return nil, err
 		}
@@ -1838,14 +1838,14 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, filteredNodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(ctx, clusterName, service, filteredNodes, svcConf)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
 	} else {
 		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
 		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
-		if err := lbaas.ensureSecurityGroupDeleted(clusterName, service); err != nil {
+		if err := lbaas.ensureSecurityGroupDeleted(ctx, service); err != nil {
 			return status, err
 		}
 	}
@@ -1861,7 +1861,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string
 	return status, mc.ObserveReconcile(err)
 }
 
-func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubNetListOpsFunction) ([]subnets.Subnet, error) {
+func (lbaas *LbaasV2) listSubnetsForNetwork(ctx context.Context, networkID string, tweak ...TweakSubNetListOpsFunction) ([]subnets.Subnet, error) {
 	var opts = subnets.ListOpts{NetworkID: networkID}
 	for _, f := range tweak {
 		if f != nil {
@@ -1869,7 +1869,7 @@ func (lbaas *LbaasV2) listSubnetsForNetwork(networkID string, tweak ...TweakSubN
 		}
 	}
 	mc := metrics.NewMetricContext("subnet", "list")
-	allPages, err := subnets.List(lbaas.network, opts).AllPages(context.TODO())
+	allPages, err := subnets.List(lbaas.network, opts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return nil, fmt.Errorf("error listing subnets of network %s: %v", networkID, err)
 	}
@@ -1907,7 +1907,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	} else {
 		// This is a Service created before shared LB is supported.
 		name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-		legacyName := lbaas.getLoadBalancerLegacyName(ctx, clusterName, service)
+		legacyName := lbaas.getLoadBalancerLegacyName(service)
 		loadbalancer, err = getLoadbalancerByName(lbaas.lb, name, legacyName)
 		if err != nil {
 			return err
@@ -1954,7 +1954,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, filteredNodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(ctx, clusterName, service, filteredNodes, svcConf)
 		if err != nil {
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
@@ -1980,7 +1980,7 @@ func (lbaas *LbaasV2) EnsureLoadBalancerDeleted(ctx context.Context, clusterName
 	return mc.ObserveReconcile(err)
 }
 
-func (lbaas *LbaasV2) deleteFIPIfCreatedByProvider(fip *floatingips.FloatingIP, portID string, service *corev1.Service) (bool, error) {
+func (lbaas *LbaasV2) deleteFIPIfCreatedByProvider(ctx context.Context, fip *floatingips.FloatingIP, portID string, service *corev1.Service) (bool, error) {
 	matched, err := regexp.Match("Floating IP for Kubernetes external service", []byte(fip.Description))
 	if err != nil {
 		return false, err
@@ -1992,7 +1992,7 @@ func (lbaas *LbaasV2) deleteFIPIfCreatedByProvider(fip *floatingips.FloatingIP, 
 	}
 	klog.InfoS("Deleting floating IP for service", "floatingIP", fip.FloatingIP, "service", klog.KObj(service))
 	mc := metrics.NewMetricContext("floating_ip", "delete")
-	err = floatingips.Delete(context.TODO(), lbaas.network, fip.ID).ExtractErr()
+	err = floatingips.Delete(ctx, lbaas.network, fip.ID).ExtractErr()
 	if mc.ObserveRequest(err) != nil {
 		return false, fmt.Errorf("failed to delete floating IP %s for loadbalancer VIP port %s: %v", fip.FloatingIP, portID, err)
 	}
@@ -2079,7 +2079,7 @@ func (lbaas *LbaasV2) deleteLoadBalancer(loadbalancer *loadbalancers.LoadBalance
 
 func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.getLoadBalancerLegacyName(ctx, clusterName, service)
+	legacyName := lbaas.getLoadBalancerLegacyName(service)
 	var err error
 	var loadbalancer *loadbalancers.LoadBalancer
 	isSharedLB := false
@@ -2135,14 +2135,14 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 	if needDeleteLB && !keepFloatingAnnotation {
 		if loadbalancer.VipPortID != "" {
 			portID := loadbalancer.VipPortID
-			fip, err := openstackutil.GetFloatingIPByPortID(lbaas.network, portID)
+			fip, err := openstackutil.GetFloatingIPByPortID(ctx, lbaas.network, portID)
 			if err != nil {
 				return fmt.Errorf("failed to get floating IP for loadbalancer VIP port %s: %v", portID, err)
 			}
 
 			// Delete the floating IP only if it was created dynamically by the controller manager.
 			if fip != nil {
-				_, err = lbaas.deleteFIPIfCreatedByProvider(fip, portID, service)
+				_, err = lbaas.deleteFIPIfCreatedByProvider(ctx, fip, portID, service)
 				if err != nil {
 					return err
 				}
@@ -2175,7 +2175,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 
 	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
 	// orphan created SGs even if CPO got reconfigured.
-	if err := lbaas.ensureSecurityGroupDeleted(clusterName, service); err != nil {
+	if err := lbaas.ensureSecurityGroupDeleted(ctx, service); err != nil {
 		return err
 	}
 
@@ -2207,7 +2207,7 @@ func GetLoadBalancerSourceRanges(service *corev1.Service, preferredIPFamily core
 			val = defaultLoadBalancerSourceRangesIPv4
 		}
 	}
-	specs := strings.Split(val, ",")
+	specs := cpoutil.SplitTrim(val, ',')
 	ipnets, err := netsets.ParseIPNets(specs...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s is not valid. Expecting a comma-separated list of source IP ranges. For example, 10.0.0.0/24,192.168.2.0/24", corev1.AnnotationLoadBalancerSourceRangesKey, val)

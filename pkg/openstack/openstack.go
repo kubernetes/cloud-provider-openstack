@@ -456,13 +456,14 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 	klog.V(4).Info("openstack.Routes() called")
 
+	ctx := context.TODO()
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
-	netExts, err := openstackutil.GetNetworkExtensions(network)
+	netExts, err := openstackutil.GetNetworkExtensions(ctx, network)
 	if err != nil {
 		klog.Warningf("Failed to list neutron extensions: %v", err)
 		return nil, false
