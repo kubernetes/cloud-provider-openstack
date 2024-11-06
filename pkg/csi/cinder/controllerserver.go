@@ -200,16 +200,29 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Set scheduler hints if affinity or anti-affinity is set in PVC annotations
 	var schedulerHints volumes.SchedulerHintOptsBuilder
 	var volCtx map[string]string
-	affinity := util.SplitTrimJoin(pvcAnnotations[affinityKey], ',')
-	antiAffinity := util.SplitTrimJoin(pvcAnnotations[antiAffinityKey], ',')
+	affinity := pvcAnnotations[affinityKey]
+	antiAffinity := pvcAnnotations[antiAffinityKey]
 	if affinity != "" || antiAffinity != "" {
+		klog.V(4).Infof("CreateVolume: Getting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
+
+		// resolve volume names to UUIDs
+		affinity, err = cloud.ResolveVolumeListToUUIDs(affinity)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve affinity volume UUIDs: %v", err)
+		}
+		antiAffinity, err = cloud.ResolveVolumeListToUUIDs(antiAffinity)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity volume UUIDs: %v", err)
+		}
+
 		volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", affinity)
 		volCtx = util.SetMapIfNotEmpty(volCtx, "anti-affinity", antiAffinity)
 		schedulerHints = &volumes.SchedulerHintOpts{
 			SameHost:      util.SplitTrim(affinity, ','),
 			DifferentHost: util.SplitTrim(antiAffinity, ','),
 		}
-		klog.V(4).Infof("CreateVolume: Setting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
+
+		klog.V(4).Infof("CreateVolume: Resolved scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
 	}
 
 	vol, err := cloud.CreateVolume(opts, schedulerHints)

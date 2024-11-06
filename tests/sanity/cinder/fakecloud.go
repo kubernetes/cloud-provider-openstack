@@ -13,6 +13,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -131,6 +132,23 @@ func (cloud *cloud) GetVolumesByName(name string) ([]volumes.Volume, error) {
 	}
 
 	return vlist, nil
+}
+
+func (cloud *cloud) GetVolumeByName(n string) (*volumes.Volume, error) {
+	vols, err := cloud.GetVolumesByName(n)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vols) == 0 {
+		return nil, errors.ErrNotFound
+	}
+
+	if len(vols) > 1 {
+		return nil, fmt.Errorf("found %d volumes with name %q", len(vols), n)
+	}
+
+	return &vols[0], nil
 }
 
 func (cloud *cloud) GetVolume(volumeID string) (*volumes.Volume, error) {
@@ -339,4 +357,8 @@ func (cloud *cloud) GetMetadataOpts() metadata.Opts {
 
 func (cloud *cloud) GetBlockStorageOpts() openstack.BlockStorageOpts {
 	return openstack.BlockStorageOpts{}
+}
+
+func (cloud *cloud) ResolveVolumeListToUUIDs(v string) (string, error) {
+	return v, nil
 }

@@ -481,7 +481,7 @@ metadata:
   name: csi-pvc-cinderplugin
   annotations:
     cinder.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"
-    cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,1b4e28ba-2fa1-11ec-8d3d-0242ac130005"
+    cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644"
 spec:
   accessModes:
     - ReadWriteOnce
@@ -493,12 +493,12 @@ spec:
 
 where `1b4e28ba-2fa1-11ec-8d3d-0242ac130003`,
 `1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
-`1b4e28ba-2fa1-11ec-8d3d-0242ac130005` are the UUIDs of the already provisioned
-volumes in the OpenStack cloud. The scheduler will try to place the volume in
-the same block storage server as the volume with UUID
-`1b4e28ba-2fa1-11ec-8d3d-0242ac130003` and avoid placing the volume in the same
-block storage server as the volumes with UUIDs
-`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
-`1b4e28ba-2fa1-11ec-8d3d-0242ac130005`. If the scheduler hints are not
-satisfied, the volume will not be provisioned with an error message in the
-controller logs.
+`pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644` are names or UUIDs of
+the already provisioned volumes in the OpenStack cloud. The scheduler will try
+to place the volume in the same block storage server as the volume with the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130003` UUID and avoid placing the volume in the
+same block storage server as the volumes with the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` UUID and the
+`pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644` volume name. If the
+scheduler hints are not satisfied, the volume will not be provisioned with an
+error message in the controller logs.

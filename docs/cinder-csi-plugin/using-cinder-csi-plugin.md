@@ -291,14 +291,14 @@ following PVC annotations are supported:
 
 | Annotation Name            | Description      | Example |
 |-------------------------   |-----------------|----------|
-| `cinder.csi.openstack.org/affinity` | Volume affinity to existing volume or volumes UUIDs. The value should be a comma-separated list of volume UUIDs. | `cinder.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
-| `cinder.csi.openstack.org/anti-affinity` | Volume anti-affinity to existing volume or volumes UUIDs. The value should be a comma-separated list of volume UUIDs. | `cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,1b4e28ba-2fa1-11ec-8d3d-0242ac130005"` |
+| `cinder.csi.openstack.org/affinity` | Volume affinity to existing volume or volumes names/UUIDs. The value should be a comma-separated list of volume names/UUIDs. | `cinder.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
+| `cinder.csi.openstack.org/anti-affinity` | Volume anti-affinity to existing volume or volumes names/UUIDs. The value should be a comma-separated list of volume names/UUIDs. | `cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644"` |
 
 If the PVC annotation is set, the volume will be created according to the
-existing volume UUIDs placements, i.e. on the same host as the
+existing volume names/UUIDs placements, i.e. on the same host as the
 `1b4e28ba-2fa1-11ec-8d3d-0242ac130003` volume and not on the same host as the
 `1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
-`1b4e28ba-2fa1-11ec-8d3d-0242ac130005` volumes.
+`pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644` volumes.
 
 ## Local Development
 

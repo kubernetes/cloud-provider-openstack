@@ -286,15 +286,15 @@ following PVC annotations are supported:
 
 | Annotation Name            | Description      | Example |
 |-------------------------   |-----------------|----------|
-| `manila.csi.openstack.org/affinity` | Share affinity to existing share or shares UUIDs. The value should be a comma-separated list of share UUIDs. | `manila.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
-| `manila.csi.openstack.org/anti-affinity` | Share anti-affinity to existing share or shares UUIDs. The value should be a comma-separated list of share UUIDs. | `manila.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,1b4e28ba-2fa1-11ec-8d3d-0242ac130005"` |
+| `manila.csi.openstack.org/affinity` | Share affinity to existing share or shares names/UUIDs. The value should be a comma-separated list of share names or UUIDs. | `manila.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
+| `manila.csi.openstack.org/anti-affinity` | Share anti-affinity to existing share or shares names/UUIDs. The value should be a comma-separated list of share names/UUIDs. | `manila.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,pv-default-50c5a3b3-e0b5-48d6-a163-4e68956aeb54"` |
 | `manila.csi.openstack.org/group-id` | The UUID of the share group to which the provisioned share must belong. The share group must be created before the PVC is created. | `manila.csi.openstack.org/group-id: "1b4e28ba-2fa1-11ec-8d3d-0242ac130006"` |
 
 If the PVC annotation is set, the share will be created according to the
-existing share UUIDs placements, i.e. on the same host as the
+existing share names/UUIDs placements, i.e. on the same host as the
 `1b4e28ba-2fa1-11ec-8d3d-0242ac130003` share and not on the same host as the
 `1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
-`1b4e28ba-2fa1-11ec-8d3d-0242ac130005` shares.
+`pv-default-50c5a3b3-e0b5-48d6-a163-4e68956aeb54` shares.
 
 The `manila.csi.openstack.org/group-id` annotation value overrides the storage
 class `groupID` parameter if both are set.
@@ -302,4 +302,3 @@ class `groupID` parameter if both are set.
 ## For developers
 
 If you'd like to contribute to CSI Manila, check out `docs/manila-csi-plugin/developers-csi-manila.md` to get you started.
-

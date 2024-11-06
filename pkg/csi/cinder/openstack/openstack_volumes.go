@@ -20,14 +20,18 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
 	"github.com/gophercloud/gophercloud/v2/pagination"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 
 	"k8s.io/klog/v2"
@@ -138,6 +142,25 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 	}
 
 	return vols, nil
+}
+
+// GetVolumeByName is a wrapper around GetVolumesByName that returns a single Volume reference
+// with the specified name
+func (os *OpenStack) GetVolumeByName(n string) (*volumes.Volume, error) {
+	vols, err := os.GetVolumesByName(n)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vols) == 0 {
+		return nil, cpoerrors.ErrNotFound
+	}
+
+	if len(vols) > 1 {
+		return nil, fmt.Errorf("found %d volumes with name %q", len(vols), n)
+	}
+
+	return &vols[0], nil
 }
 
 // DeleteVolume delete a volume
@@ -413,4 +436,40 @@ func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
 // GetBlockStorageOpts returns OpenStack block storage options
 func (os *OpenStack) GetBlockStorageOpts() BlockStorageOpts {
 	return os.bsOpts
+}
+
+// ResolveVolumeListToUUIDs resolves a list of volume names or UUIDs to a
+// string of UUIDs
+func (os *OpenStack) ResolveVolumeListToUUIDs(affinityList string) (string, error) {
+	list := util.SplitTrim(affinityList, ',')
+	if len(list) == 0 {
+		return "", nil
+	}
+
+	affinityUUIDs := make([]string, 0, len(list))
+	for _, v := range list {
+		var volume *volumes.Volume
+		var err error
+
+		if id, e := util.UUID(v); e == nil {
+			// First try to get volume by ID
+			volume, err = os.GetVolume(id)
+			if err != nil && cpoerrors.IsNotFound(err) {
+				volume, err = os.GetVolumeByName(v)
+			}
+		} else {
+			// If not a UUID, try to get volume by name
+			volume, err = os.GetVolumeByName(v)
+		}
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				return "", status.Errorf(codes.NotFound, "referenced volume %s not found: %v", v, err)
+			}
+			return "", status.Errorf(codes.Internal, "failed to resolve volume %s: %v", v, err)
+		}
+
+		affinityUUIDs = append(affinityUUIDs, volume.ID)
+	}
+
+	return strings.Join(affinityUUIDs, ","), nil
 }

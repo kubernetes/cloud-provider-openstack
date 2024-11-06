@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -180,8 +181,11 @@ func SplitTrim(s string, sep rune) []string {
 	return strings.FieldsFunc(s, f)
 }
 
-// SplitTrimJoin sanitizes a string of values separated by sep rune into a
-// slice of strings with trimmed spaces and joins them with sep rune.
-func SplitTrimJoin(s string, sep rune) string {
-	return strings.Join(SplitTrim(s, sep), string(sep))
+// UUID converts a string to a valid UUID string.
+func UUID(s string) (string, error) {
+	u, err := uuid.Parse(s)
+	if err != nil {
+		return "", err
+	}
+	return u.String(), nil
 }

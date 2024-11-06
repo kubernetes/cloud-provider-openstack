@@ -148,10 +148,22 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	for k, v := range pvcAnnotations {
 		klog.V(4).Infof("CreateVolume: retrieved %q pvc annotation: %s: %s", k, v, shareName)
 	}
-	shareOpts.Affinity = util.SplitTrimJoin(pvcAnnotations[affinityKey], ',')
-	shareOpts.AntiAffinity = util.SplitTrimJoin(pvcAnnotations[antiAffinityKey], ',')
-	if shareOpts.Affinity != "" || shareOpts.AntiAffinity != "" {
-		klog.V(4).Infof("CreateVolume: Setting scheduler hints: affinity=%s, anti-affinity=%s", shareOpts.Affinity, shareOpts.AntiAffinity)
+	affinity := pvcAnnotations[affinityKey]
+	antiAffinity := pvcAnnotations[antiAffinityKey]
+	if affinity != "" || antiAffinity != "" {
+		klog.V(4).Infof("CreateVolume: Getting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
+
+		// resolve share names to UUIDs
+		shareOpts.Affinity, err = resolveShareListToUUIDs(manilaClient, affinity)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve affinity share UUIDs: %v", err)
+		}
+		shareOpts.AntiAffinity, err = resolveShareListToUUIDs(manilaClient, antiAffinity)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity share UUIDs: %v", err)
+		}
+
+		klog.V(4).Infof("CreateVolume: Resolved scheduler hints: affinity=%v, anti-affinity=%v", shareOpts.Affinity, shareOpts.AntiAffinity)
 	}
 
 	// override the storage class group ID if it is set in the PVC annotation

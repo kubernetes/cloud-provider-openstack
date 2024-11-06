@@ -56,6 +56,7 @@ type IOpenStack interface {
 	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
 	GetVolume(volumeID string) (*volumes.Volume, error)
 	GetVolumesByName(name string) ([]volumes.Volume, error)
+	GetVolumeByName(name string) (*volumes.Volume, error)
 	CreateSnapshot(name, volID string, tags map[string]string) (*snapshots.Snapshot, error)
 	ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error)
 	DeleteSnapshot(snapID string) error
@@ -72,6 +73,7 @@ type IOpenStack interface {
 	GetMaxVolLimit() int64
 	GetMetadataOpts() metadata.Opts
 	GetBlockStorageOpts() BlockStorageOpts
+	ResolveVolumeListToUUIDs(volumes string) (string, error)
 }
 
 type OpenStack struct {
