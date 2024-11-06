@@ -349,13 +349,13 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
-		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
+		klog.Fatalf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
 	lb, err := client.NewLoadBalancerV2(os.provider, os.epOpts)
 	if err != nil {
-		klog.Errorf("Failed to create an OpenStack LoadBalancer client: %v", err)
+		klog.Fatalf("Failed to create an OpenStack LoadBalancer client: %v", err)
 		return nil, false
 	}
 
@@ -369,7 +369,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	// Currently kubernetes OpenStack cloud provider just support LBaaS v2.
 	lbVersion := os.lbOpts.LBVersion
 	if lbVersion != "" && lbVersion != "v2" {
-		klog.Warningf("Config error: currently only support LBaaS v2, unrecognised lb-version \"%v\"", lbVersion)
+		klog.Fatalf("Config error: currently only support LBaaS v2, unrecognised lb-version \"%v\"", lbVersion)
 		return nil, false
 	}
 
