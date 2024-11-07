@@ -619,26 +619,23 @@ func (lbaas *LbaasV2) updateFloatingIP(ctx context.Context, floatingip *floating
 	return floatingip, nil
 }
 
-func (lbaas *LbaasV2) updateFloatingIPTag(floatingip *floatingips.FloatingIP, Tag string, delete bool) error {
+func (lbaas *LbaasV2) updateFloatingIPTag(ctx context.Context, floatingip *floatingips.FloatingIP, Tag string, delete bool) error {
 	if Tag == "" {
 		return fmt.Errorf("Error input tag argument ")
 	}
-	tags, err := attributestags.List(context.TODO(), lbaas.network, "floatingips", floatingip.ID).Extract()
+	tags, err := attributestags.List(ctx, lbaas.network, "floatingips", floatingip.ID).Extract()
 	if err != nil {
 		klog.V(3).Infof("Cannot get floatIP tags for floating %s", floatingip.ID)
 		return err
 	}
-	found := false
-	for _, tag := range tags {
-		if tag == Tag {
-			found = true
-		}
-	}
+
+	found := slices.Contains(tags, Tag)
+
 	if delete {
 		if !found {
 			return nil
 		}
-		err = attributestags.Delete(context.TODO(), lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+		err = attributestags.Delete(ctx, lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
 		if err != nil {
 			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
 		}
@@ -646,7 +643,7 @@ func (lbaas *LbaasV2) updateFloatingIPTag(floatingip *floatingips.FloatingIP, Ta
 	}
 
 	if !found {
-		err = attributestags.Add(context.TODO(), lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+		err = attributestags.Add(ctx, lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
 		if err != nil {
 			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
 		}
@@ -700,7 +697,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(ctx context.Context, clusterName string, 
 				if err != nil {
 					return "", err
 				}
-				_ = lbaas.updateFloatingIPTag(floatIP, svcConf.lbName, true)
+				_ = lbaas.updateFloatingIPTag(ctx, floatIP, svcConf.lbName, true)
 			}
 		}
 		return lb.VipAddress, nil
@@ -800,7 +797,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(ctx context.Context, clusterName string, 
 	}
 
 	if floatIP != nil {
-		_ = lbaas.updateFloatingIPTag(floatIP, svcConf.lbName, false)
+		_ = lbaas.updateFloatingIPTag(ctx, floatIP, svcConf.lbName, false)
 		return floatIP.FloatingIP, nil
 	}
 
