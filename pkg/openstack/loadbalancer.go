@@ -619,33 +619,34 @@ func (lbaas *LbaasV2) updateFloatingIP(ctx context.Context, floatingip *floating
 	return floatingip, nil
 }
 
-func (lbaas *LbaasV2) updateFloatingIPTag(ctx context.Context, floatingip *floatingips.FloatingIP, Tag string, delete bool) error {
+func (lbaas *LbaasV2) updateFloatingIPTag(ctx context.Context, fip *floatingips.FloatingIP, Tag string, del bool) error {
 	if Tag == "" {
 		return fmt.Errorf("Error input tag argument ")
 	}
-	tags, err := attributestags.List(ctx, lbaas.network, "floatingips", floatingip.ID).Extract()
+	tags, err := attributestags.List(ctx, lbaas.network, "floatingips", fip.ID).Extract()
 	if err != nil {
-		klog.V(3).Infof("Cannot get floatIP tags for floating %s", floatingip.ID)
+		klog.V(3).Infof("Cannot get floatIP tags for floating %s", fip.ID)
 		return err
 	}
 
 	found := slices.Contains(tags, Tag)
 
-	if delete {
-		if !found {
-			return nil
-		}
-		err = attributestags.Delete(ctx, lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+	if (found && !del) || (!found && del) {
+		return nil
+	}
+
+	if found && del {
+		err = attributestags.Delete(ctx, lbaas.network, "floatingips", fip.ID, Tag).ExtractErr()
 		if err != nil {
-			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
+			klog.V(2).ErrorS(err, "Cannot update floating IP tag %s for floating %s", Tag, fip.ID)
 		}
 		return err
 	}
 
-	if !found {
-		err = attributestags.Add(ctx, lbaas.network, "floatingips", floatingip.ID, Tag).ExtractErr()
+	if !found && !del {
+		err = attributestags.Add(ctx, lbaas.network, "floatingips", fip.ID, Tag).ExtractErr()
 		if err != nil {
-			klog.V(3).Infof("Cannot update floatIP tag %s for floating %s", Tag, floatingip.ID)
+			klog.V(2).ErrorS(err, "Cannot update floating IP tag %s for floating %s", Tag, fip.ID)
 		}
 		return err
 	}
