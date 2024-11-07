@@ -101,7 +101,7 @@ function wait_for_service_address {
 
   end=$(($(date +%s) + ${TIMEOUT}))
   while true; do
-    ipaddr=$(kubectl -n $NAMESPACE describe service ${service_name} | grep 'LoadBalancer Ingress' | awk -F":" '{print $2}' | tr -d ' ')
+    ipaddr=$(kubectl -n $NAMESPACE describe service ${service_name} | grep 'LoadBalancer Ingress' | awk '{print $3}')
     if [ "x${ipaddr}" != "x" ]; then
       printf "\n>>>>>>> Service ${service_name} is created successfully, IP: ${ipaddr}\n"
       export ipaddr=${ipaddr}

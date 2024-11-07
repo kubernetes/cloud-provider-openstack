@@ -105,8 +105,11 @@ type IMetadata interface {
 
 // GetMetadataProvider retrieves instance of IMetadata
 func GetMetadataProvider(order string) IMetadata {
-
 	if MetadataService == nil {
+		if len(order) == 0 {
+			order = fmt.Sprintf("%s,%s", ConfigDriveID, MetadataID)
+		}
+
 		MetadataService = &metadataService{searchOrder: order}
 	}
 	return MetadataService
@@ -306,7 +309,7 @@ func (m *metadataService) GetAvailabilityZone() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return md.AvailabilityZone, nil
+	return util.SanitizeLabel(md.AvailabilityZone), nil
 }
 
 func CheckMetadataSearchOrder(order string) error {

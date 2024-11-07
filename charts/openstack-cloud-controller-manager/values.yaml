@@ -46,7 +46,7 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-dnsPolicy: ClusterFirstWithHostNet
+dnsPolicy: ClusterFirst
 
 # Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:
@@ -60,6 +60,12 @@ tolerations:
     effect: NoSchedule
   - key: node-role.kubernetes.io/control-plane
     effect: NoSchedule
+
+# Optional additional annotations to add to the controller Pods.
+podAnnotations: {}
+
+# Optional additional labels to add to the controller Pods.
+podLabels: {}
 
 # Set security settings for the controller pods
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
@@ -86,6 +92,7 @@ controllerExtraArgs: {}
 serviceMonitor: {}
 # serviceMonitor:
 #   enabled: true
+#   additionalLabels: {}
 
 # Create a secret resource cloud-config (or other name) to store credentials and settings from cloudConfig
 # You can also provide your own secret (not created by the Helm chart), in this case set create to false

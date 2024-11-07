@@ -18,9 +18,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include "cloudConfig" . | sha256sum }}
-        {{- with .Values.commonAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- include "occm.controllermanager.annotations" . | nindent 8 }}
       labels:
         {{- include "occm.controllermanager.labels" . | nindent 8 }}
     spec:

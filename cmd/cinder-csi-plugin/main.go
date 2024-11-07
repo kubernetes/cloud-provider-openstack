@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -34,10 +35,13 @@ var (
 	endpoint                 string
 	nodeID                   string
 	cloudConfig              []string
+	cloudNames               []string
+	additionalTopologies     map[string]string
 	cluster                  string
 	httpEndpoint             string
 	provideControllerService bool
 	provideNodeService       bool
+	noClient                 bool
 )
 
 func main() {
@@ -46,6 +50,24 @@ func main() {
 		Short: "CSI based Cinder driver",
 		Run: func(cmd *cobra.Command, args []string) {
 			handle()
+		},
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			f := cmd.Flags()
+
+			if !provideControllerService {
+				return nil
+			}
+
+			configs, err := f.GetStringSlice("cloud-config")
+			if err != nil {
+				return err
+			}
+
+			if len(configs) == 0 {
+				return fmt.Errorf("unable to mark flag cloud-config to be required")
+			}
+
+			return nil
 		},
 		Version: version.Version,
 	}
@@ -60,16 +82,18 @@ func main() {
 		klog.Fatalf("Unable to mark flag endpoint to be required: %v", err)
 	}
 
-	cmd.PersistentFlags().StringSliceVar(&cloudConfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
-	if err := cmd.MarkPersistentFlagRequired("cloud-config"); err != nil {
-		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
-	}
+	cmd.Flags().StringSliceVar(&cloudConfig, "cloud-config", nil, "CSI driver cloud config. This option can be given multiple times")
+
+	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
+	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
 	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
 
 	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
 	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
+	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
+	cmd.PersistentFlags().MarkDeprecated("node-service-no-os-client", "This flag is deprecated and will be removed in the future. Node service do not use OpenStack credentials anymore.") //nolint:errcheck
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
@@ -82,24 +106,35 @@ func handle() {
 	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
-		return
-	}
 
 	if provideControllerService {
-		d.SetupControllerService(cloud)
+		var err error
+		clouds := make(map[string]openstack.IOpenStack)
+		for _, cloudName := range cloudNames {
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
+			if err != nil {
+				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
+				return
+			}
+		}
+
+		d.SetupControllerService(clouds)
 	}
 
 	if provideNodeService {
 		//Initialize mount
 		mount := mount.GetMountProvider()
 
-		//Initialize Metadata
-		metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
+		if err != nil && !os.IsNotExist(err) {
+			klog.Warningf("Failed to GetConfigFromFiles: %v", err)
+			return
+		}
 
-		d.SetupNodeService(cloud, mount, metadata)
+		//Initialize Metadata
+		metadata := metadata.GetMetadataProvider(cfg.Metadata.SearchOrder)
+
+		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies)
 	}
 
 	d.Run()

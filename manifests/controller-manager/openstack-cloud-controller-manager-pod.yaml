@@ -11,7 +11,7 @@ metadata:
 spec:
   containers:
     - name: openstack-cloud-controller-manager
-      image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.30.0
+      image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.31.0
       args:
         - /bin/openstack-cloud-controller-manager
         - --v=1
@@ -38,7 +38,7 @@ spec:
           value: /etc/config/cloud.conf
         - name: CLUSTER_NAME
           value: kubernetes
-  dnsPolicy: ClusterFirstWithHostNet
+  dnsPolicy: ClusterFirst
   hostNetwork: true
   securityContext:
     runAsUser: 1001

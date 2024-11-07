@@ -17,26 +17,36 @@ limitations under the License.
 package cinder
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	openstack "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 var fakeCs *controllerServer
+var fakeCsMultipleClouds *controllerServer
 var osmock *openstack.OpenStackMock
+var osmockRegionX *openstack.OpenStackMock
 
 // Init Controller Server
 func init() {
 	if fakeCs == nil {
 		osmock = new(openstack.OpenStackMock)
-		openstack.OsInstance = osmock
+		osmockRegionX = new(openstack.OpenStackMock)
 
 		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
 
-		fakeCs = NewControllerServer(d, openstack.OsInstance)
+		fakeCs = NewControllerServer(d, map[string]openstack.IOpenStack{
+			"": osmock,
+		})
+		fakeCsMultipleClouds = NewControllerServer(d, map[string]openstack.IOpenStack{
+			"":         osmock,
+			"region-x": osmockRegionX,
+		})
 	}
 }
 
@@ -406,36 +416,48 @@ func TestControllerUnpublishVolume(t *testing.T) {
 	assert.Equal(expectedRes, actualRes)
 }
 
+func extractFakeNodeIDs(attachments []volumes.Attachment) []string {
+	nodeIDs := make([]string, len(attachments))
+	for i, attachment := range attachments {
+		nodeIDs[i] = attachment.ServerID
+	}
+	return nodeIDs
+}
+
+func genFakeVolumeEntry(fakeVol volumes.Volume) *csi.ListVolumesResponse_Entry {
+	return &csi.ListVolumesResponse_Entry{
+		Volume: &csi.Volume{
+			VolumeId:      fakeVol.ID,
+			CapacityBytes: int64(fakeVol.Size * 1024 * 1024 * 1024),
+		},
+		Status: &csi.ListVolumesResponse_VolumeStatus{
+			PublishedNodeIds: extractFakeNodeIDs(fakeVol.Attachments),
+		},
+	}
+}
+func genFakeVolumeEntries(fakeVolumes []volumes.Volume) []*csi.ListVolumesResponse_Entry {
+	var entries []*csi.ListVolumesResponse_Entry
+	for _, fakeVol := range fakeVolumes {
+		entries = append(entries, genFakeVolumeEntry(fakeVol))
+	}
+	return entries
+}
+
 func TestListVolumes(t *testing.T) {
 	osmock.On("ListVolumes", 2, FakeVolID).Return(FakeVolListMultiple, "", nil)
 
 	// Init assert
 	assert := assert.New(t)
-
-	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: FakeVolID}
+	token := CloudsStartingToken{
+		CloudName: "",
+		Token:     FakeVolID,
+	}
+	data, _ := json.Marshal(token)
+	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: string(data)}
 
 	// Expected Result
 	expectedRes := &csi.ListVolumesResponse{
-		Entries: []*csi.ListVolumesResponse_Entry{
-			{
-				Volume: &csi.Volume{
-					VolumeId:      FakeVol1.ID,
-					CapacityBytes: int64(FakeVol1.Size * 1024 * 1024 * 1024),
-				},
-				Status: &csi.ListVolumesResponse_VolumeStatus{
-					PublishedNodeIds: []string{FakeNodeID},
-				},
-			},
-			{
-				Volume: &csi.Volume{
-					VolumeId:      FakeVol3.ID,
-					CapacityBytes: int64(FakeVol3.Size * 1024 * 1024 * 1024),
-				},
-				Status: &csi.ListVolumesResponse_VolumeStatus{
-					PublishedNodeIds: []string{},
-				},
-			},
-		},
+		Entries:   genFakeVolumeEntries(FakeVolListMultiple),
 		NextToken: "",
 	}
 
@@ -447,6 +469,849 @@ func TestListVolumes(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+}
+
+type ListVolumeTestOSMock struct {
+	//name           string
+	mockCloud      *openstack.OpenStackMock
+	mockMaxEntries int
+	mockVolumes    []volumes.Volume
+	mockToken      string
+	mockTokenCall  string
+}
+type ListVolumesTest struct {
+	volumeSet     map[string]ListVolumeTestOSMock
+	maxEntries    int
+	StartingToken string
+	Result        ListVolumesTestResult
+}
+type ListVolumesTestResult struct {
+	ExpectedToken CloudsStartingToken
+	Entries       []*csi.ListVolumesResponse_Entry
+}
+
+func TestGlobalListVolumesMultipleClouds(t *testing.T) {
+	//osmock.On("ListVolumes", 2, "").Return([]volumes.Volume{FakeVol1}, "", nil)
+	//osmockRegionX.On("ListVolumes", 1, "").Return([]volumes.Volume{FakeVol2}, FakeVol2.ID, nil)
+
+	tests := []*ListVolumesTest{
+		{
+			// no pagination, no clouds has volumes
+			maxEntries:    0,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 0,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 0,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{}),
+			},
+		},
+		{
+			// no pagination, all clouds has volumes
+			maxEntries:    0,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 0,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+						{ID: "vol3"},
+						{ID: "vol4"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 0,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol5"},
+						{ID: "vol6"},
+						{ID: "vol7"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+					{ID: "vol3"},
+					{ID: "vol4"},
+					{ID: "vol5"},
+					{ID: "vol6"},
+					{ID: "vol7"},
+				}),
+			},
+		},
+		{
+			// no pagination, only first cloud have volumes
+			maxEntries:    0,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 0,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+						{ID: "vol3"},
+						{ID: "vol4"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 0,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+		{
+			// no pagination, first cloud without volumes
+			maxEntries:    0,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 0,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 0,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+						{ID: "vol3"},
+						{ID: "vol4"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+		// PAGINATION
+		{
+			// no volmues
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{}),
+			},
+		},
+		{
+			// cloud1: 1 volume, cloud2: 0 volume
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+				}),
+			},
+		},
+		{
+			// cloud1: 0 volume, cloud2: 1 volume
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 0 volume
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 0 volume, cloud2: 2 volume
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes:    []volumes.Volume{},
+					mockToken:      "",
+					mockTokenCall:  "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 1 volume : 1st call
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "",
+					Token:     "",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 1 volume : 2nd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"\",\"token\":\"\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol3"},
+				}),
+			},
+		},
+		{
+			// cloud1: 1 volume, cloud2: 2 volume : 1st call
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol2"},
+					},
+					mockToken:     "vol2",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "region-x",
+					Token:     "vol2",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 1 volume, cloud2: 2 volume : 2nd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"region-x\",\"token\":\"vol2\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "vol2",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol3"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 2 volume : 1st call
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "vol3",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "",
+					Token:     "",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 2 volume : 2nd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"\",\"token\":\"\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+						{ID: "vol4"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "region-x",
+					Token:     "",
+					isEmpty:   true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+		{
+			// cloud1: 3 volume, cloud2: 2 volume : 1st call
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "vol2",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+						{ID: "vol4"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "",
+					Token:     "vol2",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 3 volume, cloud2: 2 volume : 2nd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"\",\"token\":\"vol2\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "vol2",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol4"},
+					},
+					mockToken:     "vol4",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "region-x",
+					Token:     "vol4",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+		{
+			// cloud1: 3 volume, cloud2: 2 volume : 3rd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"region-x\",\"token\":\"vol4\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol5"},
+					},
+					mockToken:     "",
+					mockTokenCall: "vol4",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "region-x",
+					Token:     "",
+					isEmpty:   true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol5"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 3 volume : 1st call
+			maxEntries:    2,
+			StartingToken: "",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "vol3",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "",
+					Token:     "",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			// cloud1: 3 volume, cloud2: 2 volume : 2nd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"\",\"token\":\"\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+						{ID: "vol4"},
+					},
+					mockToken:     "vol4",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "region-x",
+					Token:     "vol4",
+					isEmpty:   false,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+		{
+			// cloud1: 2 volume, cloud2: 3 volume : 3rd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"region-x\",\"token\":\"vol4\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 1234,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol5"},
+					},
+					mockToken:     "",
+					mockTokenCall: "vol4",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					CloudName: "region-x",
+					Token:     "",
+					isEmpty:   true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol5"},
+				}),
+			},
+		},
+		{
+			// cloud1: 3 volume, cloud2: 1 volume : 2rd call
+			maxEntries:    2,
+			StartingToken: "{\"cloud\":\"\",\"token\":\"vol2\"}",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockMaxEntries: 2,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol3"},
+					},
+					mockToken:     "",
+					mockTokenCall: "vol2",
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockMaxEntries: 1,
+					mockVolumes: []volumes.Volume{
+						{ID: "vol4"},
+					},
+					mockToken:     "",
+					mockTokenCall: "",
+				},
+			},
+			Result: ListVolumesTestResult{
+				ExpectedToken: CloudsStartingToken{
+					isEmpty: true,
+				},
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+	}
+
+	// Init assert
+	assert := assert.New(t)
+	for _, test := range tests {
+		// Setup Mock
+		for _, volumeSet := range test.volumeSet {
+			cloud := volumeSet.mockCloud
+			cloud.On(
+				"ListVolumes",
+				volumeSet.mockMaxEntries,
+				volumeSet.mockTokenCall,
+			).Return(
+				volumeSet.mockVolumes,
+				volumeSet.mockToken,
+				nil,
+			).Once()
+		}
+		fakeReq := &csi.ListVolumesRequest{MaxEntries: int32(test.maxEntries), StartingToken: test.StartingToken}
+		expectedToken, _ := json.Marshal(test.Result.ExpectedToken)
+		if test.Result.ExpectedToken.isEmpty {
+			expectedToken = []byte("")
+		}
+		expectedRes := &csi.ListVolumesResponse{
+			Entries:   test.Result.Entries,
+			NextToken: string(expectedToken),
+		}
+		// Invoke ListVolumes
+		actualRes, err := fakeCsMultipleClouds.ListVolumes(FakeCtx, fakeReq)
+		if err != nil {
+			t.Errorf("failed to ListVolumes: %v", err)
+		}
+		// Assert
+		assert.Equal(expectedRes, actualRes)
+
+		// Unset Mock
+		for _, volumeSet := range test.volumeSet {
+			cloud := volumeSet.mockCloud
+			cloud.On(
+				"ListVolumes",
+				volumeSet.mockMaxEntries,
+				volumeSet.mockTokenCall,
+			).Return(
+				volumeSet.mockVolumes,
+				volumeSet.mockToken,
+				nil,
+			).Unset()
+		}
+	}
 }
 
 // Test CreateSnapshot

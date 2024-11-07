@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	v1 "k8s.io/api/core/v1"
@@ -66,16 +68,6 @@ func StringListEqual(list1, list2 []string) bool {
 	}
 
 	return s1.Equal(s2)
-}
-
-// Contains searches if a string list contains the given string or not.
-func Contains(list []string, strToSearch string) bool {
-	for _, item := range list {
-		if item == strToSearch {
-			return true
-		}
-	}
-	return false
 }
 
 // StringToMap converts a string of comma-separated key-values into a map
@@ -166,4 +158,29 @@ func GetAZFromTopology(topologyKey string, requirement *csi.TopologyRequirement)
 	}
 
 	return zone
+}
+
+func SanitizeLabel(input string) string {
+	// Replace non-alphanumeric characters (except '-', '_', '.') with '-'
+	reg := regexp.MustCompile(`[^-a-zA-Z0-9_.]+`)
+	sanitized := reg.ReplaceAllString(input, "-")
+
+	// Ensure the label starts and ends with an alphanumeric character
+	sanitized = strings.Trim(sanitized, "-_.")
+
+	// Ensure the label is not longer than 63 characters
+	if len(sanitized) > 63 {
+		sanitized = sanitized[:63]
+	}
+
+	return sanitized
+}
+
+// SplitTrim splits a string of values separated by sep rune into a slice of
+// strings with trimmed spaces.
+func SplitTrim(s string, sep rune) []string {
+	f := func(c rune) bool {
+		return unicode.IsSpace(c) || c == sep
+	}
+	return strings.FieldsFunc(s, f)
 }

@@ -42,7 +42,6 @@ var (
 				MaxDelay:   time.Second,
 			},
 		}),
-		grpc.WithBlock(),
 		// CSI connections use unix:// so should ignore proxy settings
 		// WithNoProxy can be removed when we update to gRPC >= v1.34,
 		// which contains https://github.com/grpc/grpc-go/pull/3890.
@@ -85,7 +84,7 @@ func NewConnection(endpoint string) (*grpc.ClientConn, error) {
 
 	dialFinished := make(chan bool)
 	go func() {
-		conn, err = grpc.Dial(endpoint, dialOptions...)
+		conn, err = grpc.NewClient(endpoint, dialOptions...)
 		close(dialFinished)
 	}()
 
@@ -102,10 +101,6 @@ func NewConnection(endpoint string) (*grpc.ClientConn, error) {
 	}
 }
 
-func NewConnectionWithContext(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
-	return grpc.DialContext(ctx, endpoint, dialOptions...)
-}
-
 type ClientBuilder struct{}
 
 func (b ClientBuilder) NewConnection(endpoint string) (*grpc.ClientConn, error) {
@@ -113,7 +108,7 @@ func (b ClientBuilder) NewConnection(endpoint string) (*grpc.ClientConn, error) 
 }
 
 func (b ClientBuilder) NewConnectionWithContext(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
-	return NewConnectionWithContext(ctx, endpoint)
+	return grpc.DialContext(ctx, endpoint, dialOptions...) //nolint:staticcheck
 }
 
 func (b ClientBuilder) NewNodeServiceClient(conn *grpc.ClientConn) Node {

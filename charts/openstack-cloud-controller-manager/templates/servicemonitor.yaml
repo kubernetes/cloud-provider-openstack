@@ -3,7 +3,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "occm.name" . }}
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  labels: 
+    {{- include "common.labels.standard" . | nindent 4 }}
+  {{- if .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml .Values.serviceMonitor.additionalLabels | nindent 4 }}
+  {{- end }}
   namespace: {{ .Release.Namespace }}
   annotations:
     {{- with .Values.commonAnnotations }}

@@ -4,6 +4,9 @@ kind: PodMonitor
 metadata:
   labels:
     {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
+  {{- if .Values.csi.plugin.podMonitor.additionalLabels }}
+    {{- toYaml .Values.csi.plugin.podMonitor.additionalLabels | nindent 4 }}
+  {{- end }}
   name: {{ include "cinder-csi.name" . }}-controllerplugin
   namespace: {{ .Release.Namespace }}
   annotations:

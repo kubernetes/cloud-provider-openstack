@@ -24,11 +24,9 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "cinder-csi.controllerplugin.labels" . | nindent 8 }}
+        {{- include "cinder-csi.controllerplugin.podLabels" . | nindent 8 }}
       annotations:
-        {{- with .Values.commonAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- include "cinder-csi.controllerplugin.podAnnotations" . | nindent 8 }}
     spec:
       serviceAccount: csi-cinder-controller-sa
       securityContext:
@@ -173,6 +171,7 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
+            - "--provide-node-service=false"
             {{- if .Values.csi.plugin.httpEndpoint.enabled }}
             - "--http-endpoint=:{{ .Values.csi.plugin.httpEndpoint.port }}"
             {{- end }}

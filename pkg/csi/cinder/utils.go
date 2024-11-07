@@ -44,10 +44,10 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 }
 
 //revive:disable:unexported-return
-func NewControllerServer(d *Driver, cloud openstack.IOpenStack) *controllerServer {
+func NewControllerServer(d *Driver, clouds map[string]openstack.IOpenStack) *controllerServer {
 	return &controllerServer{
 		Driver: d,
-		Cloud:  cloud,
+		Clouds: clouds,
 	}
 }
 
@@ -57,12 +57,17 @@ func NewIdentityServer(d *Driver) *identityServer {
 	}
 }
 
-func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, cloud openstack.IOpenStack) *nodeServer {
+func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string) *nodeServer {
+	if opts.NodeVolumeAttachLimit < 0 || opts.NodeVolumeAttachLimit > maxVolumesPerNode {
+		opts.NodeVolumeAttachLimit = maxVolumesPerNode
+	}
+
 	return &nodeServer{
-		Driver:   d,
-		Mount:    mount,
-		Metadata: metadata,
-		Cloud:    cloud,
+		Driver:     d,
+		Mount:      mount,
+		Metadata:   metadata,
+		Topologies: topologies,
+		Opts:       opts,
 	}
 }
 

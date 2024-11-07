@@ -237,7 +237,7 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	})
 
 	if wait.Interrupted(err) {
-		err = fmt.Errorf("Volume %q failed to be attached within the alloted time", volumeID)
+		err = fmt.Errorf("Volume %q failed to be attached within the allotted time", volumeID)
 	}
 
 	return err
@@ -325,7 +325,7 @@ func (os *OpenStack) WaitDiskDetached(instanceID string, volumeID string) error 
 	})
 
 	if wait.Interrupted(err) {
-		err = fmt.Errorf("Volume %q failed to detach within the alloted time", volumeID)
+		err = fmt.Errorf("Volume %q failed to detach within the allotted time", volumeID)
 	}
 
 	return err

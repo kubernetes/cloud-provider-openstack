@@ -10,7 +10,7 @@ critical bug fixes.
 
     ```bash
     $ git fetch upstream
-    $ git checkout -b my-release upstream/release-X.Y
+    $ git pull upstream master
     ```
 
 2. Update the minor version with the expected version.
@@ -31,13 +31,15 @@ critical bug fixes.
 4. Once the PR is merged, make a tag and push it to the upstream repository.
 
     ```bash
-    $ git checkout -b release-X.Y upstream/release-X.Y
-    $ git pull upstream release-X.Y --tags
-    $ git tag -m "Release for cloud-provider-openstack to support Kubernetes release x" vX.Y.Z
+    $ git checkout master
+    $ git pull upstream master
+    $ git tag vX.Y.Z
     $ git push upstream vX.Y.Z
+    $ git checkout -b release-X.Y
+    $ git push origin release-X.Y
     ```
 
-5. [Github Actions](https://github.com/kubernetes/cloud-provider-openstack/actions/workflows/release-cpo.yaml) will create new [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) and generate a [new draft release](https://github.com/kubernetes/cloud-provider-openstack/releases) in the repository.
+5. new [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) will be builded.
 
 6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote gcr.io images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the images.yaml.
 

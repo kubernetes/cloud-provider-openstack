@@ -17,12 +17,14 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	"gopkg.in/godo.v2/glob"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 )
 
 // floatingSubnetSpec contains the specification of the public subnet to use for
@@ -119,18 +121,18 @@ func subnetTagMatcher(tags string) matcher {
 }
 
 func (s *floatingSubnetSpec) Configured() bool {
-	if s != nil && (s.subnetID != "" || s.MatcherConfigured()) {
+	if s != nil && (s.subnetID != "" || s.matcherConfigured()) {
 		return true
 	}
 	return false
 }
 
-func (s *floatingSubnetSpec) ListSubnetsForNetwork(lbaas *LbaasV2, networkID string) ([]subnets.Subnet, error) {
-	matcher, err := s.Matcher(false)
+func (s *floatingSubnetSpec) listSubnetsForNetwork(ctx context.Context, lbaas *LbaasV2, networkID string) ([]subnets.Subnet, error) {
+	matcher, err := s.matcher(false)
 	if err != nil {
 		return nil, err
 	}
-	list, err := lbaas.listSubnetsForNetwork(networkID, s.tweakListOpts)
+	list, err := lbaas.listSubnetsForNetwork(ctx, networkID, s.tweakListOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +172,7 @@ func (s *floatingSubnetSpec) tweakListOpts(opts *subnets.ListOpts) {
 	}
 }
 
-func (s *floatingSubnetSpec) MatcherConfigured() bool {
+func (s *floatingSubnetSpec) matcherConfigured() bool {
 	if s != nil && s.subnetID == "" && (s.subnet != "" || s.subnetTags != "") {
 		return true
 	}
@@ -196,8 +198,8 @@ func (s *floatingSubnetSpec) String() string {
 	return addField(pat, "tags", s.subnetTags)
 }
 
-func (s *floatingSubnetSpec) Matcher(tag bool) (matcher, error) {
-	if !s.MatcherConfigured() {
+func (s *floatingSubnetSpec) matcher(tag bool) (matcher, error) {
+	if !s.matcherConfigured() {
 		return nil, nil
 	}
 	var match matcher
@@ -226,9 +228,5 @@ func tagList(tags string) ([]string, bool, bool) {
 	if all {
 		tags = tags[1:]
 	}
-	list := strings.Split(tags, ",")
-	for i := range list {
-		list[i] = strings.TrimSpace(list[i])
-	}
-	return list, not, all
+	return util.SplitTrim(tags, ','), not, all
 }

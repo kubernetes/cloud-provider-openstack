@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
+	"slices"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -154,16 +154,13 @@ type RouterOpts struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
-	provider       *gophercloud.ProviderClient
-	epOpts         *gophercloud.EndpointOpts
-	lbOpts         LoadBalancerOpts
-	routeOpts      RouterOpts
-	metadataOpts   metadata.Opts
-	networkingOpts NetworkingOpts
-	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID       string
+	provider              *gophercloud.ProviderClient
+	epOpts                *gophercloud.EndpointOpts
+	lbOpts                LoadBalancerOpts
+	routeOpts             RouterOpts
+	metadataOpts          metadata.Opts
+	networkingOpts        NetworkingOpts
 	kclient               kubernetes.Interface
-	useV1Instances        bool // TODO: v1 instance apis can be deleted after the v2 is verified enough
 	nodeInformer          coreinformers.NodeInformer
 	nodeInformerHasSynced func() bool
 
@@ -258,11 +255,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
 
-	if !util.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
+	if !slices.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
 		klog.Warningf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
 	}
 
-	if !util.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
+	if !slices.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
 		klog.Warningf("Unsupported Container Store: %s", cfg.LoadBalancer.ContainerStore)
 	}
 
@@ -298,12 +295,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
-	useV1Instances := false
-	v1instances := os.Getenv("OS_V1_INSTANCES")
-	if strings.ToLower(v1instances) == "true" {
-		useV1Instances = true
-	}
-
 	os := OpenStack{
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
@@ -314,7 +305,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		routeOpts:      cfg.Route,
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
-		useV1Instances: useV1Instances,
 	}
 
 	// ini file doesn't support maps so we are reusing top level sub sections
@@ -327,6 +317,11 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 
 	return &os, nil
+}
+
+// Instances v1 is no longer supported
+func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
+	return nil, false
 }
 
 // Clusters is a no-op
@@ -441,7 +436,7 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 		return cloudprovider.Zone{}, err
 	}
 
-	srv, err := getServerByName(compute, nodeName)
+	srv, err := getServerByName(ctx, compute, string(nodeName))
 	if err != nil {
 		if err == errors.ErrNotFound {
 			return cloudprovider.Zone{}, cloudprovider.InstanceNotFound
@@ -461,13 +456,14 @@ func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeN
 func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 	klog.V(4).Info("openstack.Routes() called")
 
+	ctx := context.TODO()
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
-	netExts, err := openstackutil.GetNetworkExtensions(network)
+	netExts, err := openstackutil.GetNetworkExtensions(ctx, network)
 	if err != nil {
 		klog.Warningf("Failed to list neutron extensions: %v", err)
 		return nil, false

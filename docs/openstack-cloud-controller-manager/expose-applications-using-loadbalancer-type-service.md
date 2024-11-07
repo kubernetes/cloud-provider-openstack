@@ -136,7 +136,11 @@ Request Body:
 
 - `loadbalancer.openstack.org/proxy-protocol`
 
-  If 'true', the loadbalancer pool protocol will be set as `PROXY`. Default is 'false'.
+  Enable the ProxyProtocol on all listeners. Default is 'false'.
+
+  Values:
+  - `v1`, `true`: enable the ProxyProtocol version 1
+  - `v2`: enable the ProxyProtocol version 2
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
@@ -402,6 +406,8 @@ To enable PROXY protocol support, the either the openstack-cloud-controller-mana
        app: nginx-ingress
    ```
 
+> To use the ProxyProtocol's version 2, set the annotation's value to `v2`. By default, ProxyProtocol's version 1 is used.
+
    Wait until the service gets an external IP.
 
    ```bash
@@ -499,6 +505,8 @@ To enable PROXY protocol support, the either the openstack-cloud-controller-mana
    Request Body:
            -no body in request-
    ```
+
+> Note: the Proxy Protocol is only available with TCP services.
 
 ### Sharing load balancer with multiple Services
 
