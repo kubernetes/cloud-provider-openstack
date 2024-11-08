@@ -620,6 +620,9 @@ func (lbaas *LbaasV2) updateFloatingIP(ctx context.Context, floatingip *floating
 }
 
 func (lbaas *LbaasV2) updateFloatingIPTag(ctx context.Context, fip *floatingips.FloatingIP, Tag string, del bool) error {
+	if enabled, ok := lbaas.netExtensions["standard-attr-tag"]; !ok || !enabled {
+		return nil
+	}
 	if Tag == "" {
 		return fmt.Errorf("Error input tag argument ")
 	}
@@ -1796,6 +1799,13 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	loadbalancer.Listeners, err = openstackutil.GetListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
 	if err != nil {
 		return nil, err
+	}
+	extensions, err := openstackutil.GetNetworkExtensions(ctx, lbaas.network)
+	if err == nil {
+		klog.V(2).ErrorS(err, "cannot get network extensions")
+		lbaas.netExtensions = extensions
+	} else {
+		lbaas.netExtensions = map[string]bool{}
 	}
 
 	klog.V(4).InfoS("Load balancer ensured", "lbID", loadbalancer.ID, "isLBOwner", isLBOwner, "createNewLB", createNewLB)
