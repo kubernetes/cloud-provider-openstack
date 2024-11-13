@@ -5,6 +5,7 @@
 - [Plugin Features](#plugin-features)
   - [Dynamic Provisioning](#dynamic-provisioning)
   - [Topology](#topology)
+  - [Storage capacity](#storage-capacity)
   - [Block Volume](#block-volume)
   - [Volume Expansion](#volume-expansion)
     - [Rescan on in-use volume resize](#rescan-on-in-use-volume-resize)
@@ -24,7 +25,7 @@
 
 Dynamic Provisioning uses persistence volume claim (PVC) to request the Kubernetes to create the Cinder volume on behalf of user and consumes the volume from inside container.
 
-For usage, refer [sample app](./examples.md#dynamic-volume-provisioning)  
+For usage, refer [sample app](./examples.md#dynamic-volume-provisioning)
 
 ## Topology
 
@@ -35,9 +36,21 @@ This feature enables driver to consider the topology constraints while creating 
   `topology.cinder.csi.openstack.org/zone` : Availability by Zone
 * `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
 * To disable: set `--feature-gates=Topology=false` in external-provisioner (container `csi-provisioner` of `csi-cinder-controllerplugin`).
-  * If using Helm, it can be disabled by setting `Values.csi.provisioner.topology: "false"` 
+  * If using Helm, it can be disabled by setting `Values.csi.provisioner.topology: "false"`
 
 For usage, refer [sample app](./examples.md#use-topology)
+
+## Storage Capacity
+
+This feature enables driver to consider the storage capacity constraints while creating the volume. For more info, refer [Capacity Support](https://github.com/kubernetes-csi/external-provisioner/blob/master/README.md#capacity-support)
+
+The driver will expose the storage capacity limits of the openstack project.
+The capacity is calculated based on the quota, which is a sum of all the volumes and snapshots created by the csi project account.
+
+* Disabled by default
+* To enable: set `--enable-capacity` and `--capacity-ownerref-level=2` in external-provisioner (container `csi-provisioner` of `csi-cinder-controllerplugin`), you need to have `StorageCapacity: true` in CSIDriver object.
+  * If using Helm, it can be enabled by setting `Values.csi.provisioner.capacity: "true"`
+  * To change frequency of capacity check, set `--capacity-check-interval` in external-provisioner
 
 ## Block Volume
 
@@ -51,7 +64,7 @@ For usage, refer [sample app](./examples.md#using-block-volume)
 
 ## Volume Expansion
 
-Driver supports both `Offline` and `Online` resize of cinder volumes. Cinder online resize support is available since cinder 3.42 microversion. 
+Driver supports both `Offline` and `Online` resize of cinder volumes. Cinder online resize support is available since cinder 3.42 microversion.
 The same should be supported by underlying OpenStack Cloud to avail the feature.
 
 * As of kubernetes v1.16, Volume Expansion is a beta feature and enabled by default.
@@ -81,7 +94,7 @@ Two different Kubernetes features allow volumes to follow the Pod's lifecycle: C
 
 This feature allows CSI volumes to be directly embedded in the Pod specification instead of a PersistentVolume. Volumes specified in this way are ephemeral and do not persist across Pod restarts.
 
-* As of Kubernetes v1.16 this feature is beta so enabled by default. 
+* As of Kubernetes v1.16 this feature is beta so enabled by default.
 * To enable this feature for CSI Driver, `volumeLifecycleModes` needs to be specified in [CSIDriver](../../manifests/cinder-csi-plugin/csi-cinder-driver.yaml) object. The driver can run in `Persistent` mode, `Ephemeral` or in both modes.
 * `podInfoOnMount` must be `true` to use this feature.
 * For usage, refer [sample app](./examples.md#deploy-app-using-inline-volumes)

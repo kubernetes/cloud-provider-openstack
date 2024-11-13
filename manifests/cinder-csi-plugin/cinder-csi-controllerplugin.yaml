@@ -45,6 +45,8 @@ spec:
             - "--timeout=3m"
             - "--default-fstype=ext4"
             - "--feature-gates=Topology=true"
+            - "--enable-capacity"
+            - "--capacity-ownerref-level=2"
             - "--extra-create-metadata"
             - "--leader-election=true"
           env:
