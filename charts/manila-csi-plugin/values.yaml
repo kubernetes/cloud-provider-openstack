@@ -43,6 +43,9 @@ csimanila:
   # to share metadata in newly provisioned shares as `manila.csi.openstack.org/cluster=<cluster ID>`.
   clusterID: ""
 
+  # Enable PVC annotations support to create PVCs with extra parameters
+  pvcAnnotations: false
+
   # Image spec
   image:
     repository: registry.k8s.io/provider-os/manila-csi-plugin

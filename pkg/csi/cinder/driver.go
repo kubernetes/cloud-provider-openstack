@@ -22,6 +22,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
@@ -67,9 +68,10 @@ type Driver struct {
 	endpoint  string
 	cluster   string
 
-	ids *identityServer
-	cs  *controllerServer
-	ns  *nodeServer
+	ids       *identityServer
+	cs        *controllerServer
+	ns        *nodeServer
+	pvcLister v1.PersistentVolumeClaimLister
 
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
@@ -79,14 +81,17 @@ type Driver struct {
 type DriverOpts struct {
 	ClusterID string
 	Endpoint  string
+	PVCLister v1.PersistentVolumeClaimLister
 }
 
 func NewDriver(o *DriverOpts) *Driver {
-	d := &Driver{}
-	d.name = driverName
-	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
-	d.endpoint = o.Endpoint
-	d.cluster = o.ClusterID
+	d := &Driver{
+		name:      driverName,
+		fqVersion: fmt.Sprintf("%s@%s", Version, version.Version),
+		endpoint:  o.Endpoint,
+		cluster:   o.ClusterID,
+		pvcLister: o.PVCLister,
+	}
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)

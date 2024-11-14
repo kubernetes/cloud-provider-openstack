@@ -24,6 +24,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	openstack "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
@@ -53,7 +54,7 @@ func init() {
 // Test CreateVolume
 func TestCreateVolume(t *testing.T) {
 	// mock OpenStack
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", "", properties).Return(&FakeVol, nil)
 
@@ -75,7 +76,7 @@ func TestCreateVolume(t *testing.T) {
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
-					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+					Segments: map[string]string{topologyKey: FakeAvailability},
 				},
 			},
 		},
@@ -99,7 +100,7 @@ func TestCreateVolume(t *testing.T) {
 // Test CreateVolume with additional param
 func TestCreateVolumeWithParam(t *testing.T) {
 	// mock OpenStack
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
 	// Vol type and availability comes from CreateVolumeRequest.Parameters
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), "dummyVolType", "cinder", "", "", "", properties).Return(&FakeVol, nil)
@@ -127,7 +128,7 @@ func TestCreateVolumeWithParam(t *testing.T) {
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
-					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+					Segments: map[string]string{topologyKey: FakeAvailability},
 				},
 			},
 		},
@@ -151,10 +152,10 @@ func TestCreateVolumeWithParam(t *testing.T) {
 func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 	// mock OpenStack
 	properties := map[string]string{
-		"cinder.csi.openstack.org/cluster": FakeCluster,
-		"csi.storage.k8s.io/pv/name":       FakePVName,
-		"csi.storage.k8s.io/pvc/name":      FakePVCName,
-		"csi.storage.k8s.io/pvc/namespace": FakePVCNamespace,
+		cinderCSIClusterIDKey:     FakeCluster,
+		sharedcsi.PvNameKey:       FakePVName,
+		sharedcsi.PvcNameKey:      FakePVCName,
+		sharedcsi.PvcNamespaceKey: FakePVCNamespace,
 	}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", "", properties).Return(&FakeVol, nil)
@@ -165,9 +166,9 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 	fakeReq := &csi.CreateVolumeRequest{
 		Name: FakeVolName,
 		Parameters: map[string]string{
-			"csi.storage.k8s.io/pv/name":       FakePVName,
-			"csi.storage.k8s.io/pvc/name":      FakePVCName,
-			"csi.storage.k8s.io/pvc/namespace": FakePVCNamespace,
+			sharedcsi.PvNameKey:       FakePVName,
+			sharedcsi.PvcNameKey:      FakePVCName,
+			sharedcsi.PvcNamespaceKey: FakePVCNamespace,
 		},
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
@@ -180,7 +181,7 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 		AccessibilityRequirements: &csi.TopologyRequirement{
 			Requisite: []*csi.Topology{
 				{
-					Segments: map[string]string{"topology.cinder.csi.openstack.org/zone": FakeAvailability},
+					Segments: map[string]string{topologyKey: FakeAvailability},
 				},
 			},
 		},
@@ -195,7 +196,7 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 }
 
 func TestCreateVolumeFromSnapshot(t *testing.T) {
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, "", "", properties).Return(&FakeVolFromSnapshot, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
@@ -242,7 +243,7 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 }
 
 func TestCreateVolumeFromSourceVolume(t *testing.T) {
-	properties := map[string]string{"cinder.csi.openstack.org/cluster": FakeCluster}
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
 	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, "", properties).Return(&FakeVolFromSourceVolume, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
@@ -1347,11 +1348,11 @@ func TestCreateSnapshot(t *testing.T) {
 // Test CreateSnapshot with extra metadata
 func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 	properties := map[string]string{
-		"cinder.csi.openstack.org/cluster":              FakeCluster,
-		"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
-		"csi.storage.k8s.io/volumesnapshotcontent/name": FakeSnapshotContentName,
-		"csi.storage.k8s.io/volumesnapshot/namespace":   FakeSnapshotNamespace,
-		openstack.SnapshotForceCreate:                   "true",
+		cinderCSIClusterIDKey:               FakeCluster,
+		sharedcsi.VolSnapshotNameKey:        FakeSnapshotName,
+		sharedcsi.VolSnapshotContentNameKey: FakeSnapshotContentName,
+		sharedcsi.VolSnapshotNamespaceKey:   FakeSnapshotNamespace,
+		openstack.SnapshotForceCreate:       "true",
 	}
 
 	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, properties).Return(&FakeSnapshotRes, nil)
@@ -1366,10 +1367,10 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 		Name:           FakeSnapshotName,
 		SourceVolumeId: FakeVolID,
 		Parameters: map[string]string{
-			"csi.storage.k8s.io/volumesnapshot/name":        FakeSnapshotName,
-			"csi.storage.k8s.io/volumesnapshotcontent/name": FakeSnapshotContentName,
-			"csi.storage.k8s.io/volumesnapshot/namespace":   FakeSnapshotNamespace,
-			openstack.SnapshotForceCreate:                   "true",
+			sharedcsi.VolSnapshotNameKey:        FakeSnapshotName,
+			sharedcsi.VolSnapshotContentNameKey: FakeSnapshotContentName,
+			sharedcsi.VolSnapshotNamespaceKey:   FakeSnapshotNamespace,
+			openstack.SnapshotForceCreate:       "true",
 		},
 	}
 

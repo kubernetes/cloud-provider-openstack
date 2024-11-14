@@ -17,11 +17,14 @@ limitations under the License.
 package openstack
 
 import (
+	"fmt"
+
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/stretchr/testify/mock"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -85,7 +88,16 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
+func (_m *OpenStackMock) CreateVolume(opts *volumes.CreateOpts, _ volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
+	name := opts.Name
+	size := opts.Size
+	vtype := opts.VolumeType
+	availability := opts.AvailabilityZone
+	snapshotID := opts.SnapshotID
+	sourceVolID := opts.SourceVolID
+	sourceBackupID := opts.BackupID
+	tags := opts.Metadata
+
 	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, sourceBackupID, tags)
 
 	var r0 *volumes.Volume
@@ -223,6 +235,24 @@ func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error)
 	}
 
 	return r0, r1
+}
+
+// GetVolumeByName provides a mock function with given fields: name
+func (_m *OpenStackMock) GetVolumeByName(name string) (*volumes.Volume, error) {
+	vols, err := _m.GetVolumesByName(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vols) == 0 {
+		return nil, errors.ErrNotFound
+	}
+
+	if len(vols) > 1 {
+		return nil, fmt.Errorf("found %d volumes with name %q", len(vols), name)
+	}
+
+	return &vols[0], nil
 }
 
 // ListSnapshots provides a mock function with given fields: limit, offset, filters
@@ -491,4 +521,9 @@ func (_m *OpenStackMock) GetMetadataOpts() metadata.Opts {
 // GetBlockStorageOpts provides a mock function to return BlockStorageOpts
 func (_m *OpenStackMock) GetBlockStorageOpts() BlockStorageOpts {
 	return BlockStorageOpts{}
+}
+
+// ResolveVolumeListToUUIDs provides a mock function to return volume UUIDs
+func (_m *OpenStackMock) ResolveVolumeListToUUIDs(v string) (string, error) {
+	return v, nil
 }

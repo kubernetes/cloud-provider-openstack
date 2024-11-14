@@ -29,6 +29,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/version"
@@ -48,6 +49,8 @@ type DriverOpts struct {
 
 	ManilaClientBuilder manilaclient.Builder
 	CSIClientBuilder    csiclient.Builder
+
+	PVCLister v1.PersistentVolumeClaimLister
 }
 
 type Driver struct {
@@ -72,6 +75,8 @@ type Driver struct {
 
 	manilaClientBuilder manilaclient.Builder
 	csiClientBuilder    csiclient.Builder
+
+	pvcLister v1.PersistentVolumeClaimLister
 }
 
 type nonBlockingGRPCServer struct {
@@ -122,6 +127,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		manilaClientBuilder: o.ManilaClientBuilder,
 		csiClientBuilder:    o.CSIClientBuilder,
 		clusterID:           o.ClusterID,
+		pvcLister:           o.PVCLister,
 	}
 
 	klog.Info("Driver: ", d.name)

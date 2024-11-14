@@ -26,7 +26,7 @@ spec:
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             - "--feature-gates=Topology=true"
             {{- end }}
-            {{- if $.Values.controllerplugin.provisioner.extraCreateMetadata }}
+            {{- if or $.Values.controllerplugin.provisioner.extraCreateMetadata $.Values.csimanila.pvcAnnotations }}
             - "--extra-create-metadata"
             {{- end }}
           env:
@@ -101,7 +101,10 @@ spec:
             {{- if .compatibilitySettings }}
             --compatibility-settings={{ .compatibilitySettings }}
             {{- end }}
-            --cluster-id="{{ $.Values.csimanila.clusterID }}"'
+            --cluster-id="{{ $.Values.csimanila.clusterID }}"
+            {{- if $.Values.csimanila.pvcAnnotations }}
+            --pvc-annotations
+            {{- end }}'
           ]
           env:
             - name: DRIVER_NAME

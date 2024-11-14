@@ -66,6 +66,13 @@ func shareExists(shareID string) bool {
 	return ok
 }
 
+func (c fakeManilaClient) GetMicroversion() string {
+	return ""
+}
+
+func (c fakeManilaClient) SetMicroversion(_ string) {
+}
+
 func (c fakeManilaClient) GetShareByID(shareID string) (*shares.Share, error) {
 	s, ok := fakeShares[strToInt(shareID)]
 	if !ok {

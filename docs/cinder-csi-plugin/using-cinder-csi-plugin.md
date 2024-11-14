@@ -17,6 +17,7 @@
   - [Supported Features](#supported-features)
   - [Sidecar Compatibility](#sidecar-compatibility)
   - [Supported Parameters](#supported-parameters)
+  - [Supported PVC Annotations](#supported-pvc-annotations)
   - [Local Development](#local-development)
     - [Build](#build)
     - [Testing](#testing)
@@ -110,6 +111,14 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
   If set to true then the CSI driver does provide the node service.
 
   The default is to provide the node service.
+
+  <dt>--pvc-annotations &lt;disabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver will use PVC annotations to provide volume
+  scheduler hints. See [Supported PVC Annotations](#supported-pvc-annotations)
+  for more information.
+
+  The default is not to provide the PVC annotations support.
   </dd>
 </dl>
 
@@ -272,6 +281,24 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 | VolumeSnapshotClass `parameters`  | `availability`          | Same as volume | String. Backup Availability Zone |
 | Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes|
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |
+
+## Supported PVC Annotations
+
+The PVC annotations support must be enabled in the Cinder CSI controller with
+the `--pvc-annotations` flag. The PVC annotations take effect only when the PVC
+is created. The scheduler hints are not updated when the PVC is updated. The
+following PVC annotations are supported:
+
+| Annotation Name            | Description      | Example |
+|-------------------------   |-----------------|----------|
+| `cinder.csi.openstack.org/affinity` | Volume affinity to existing volume or volumes names/UUIDs. The value should be a comma-separated list of volume names/UUIDs. | `cinder.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
+| `cinder.csi.openstack.org/anti-affinity` | Volume anti-affinity to existing volume or volumes names/UUIDs. The value should be a comma-separated list of volume names/UUIDs. | `cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644"` |
+
+If the PVC annotation is set, the volume will be created according to the
+existing volume names/UUIDs placements, i.e. on the same host as the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130003` volume and not on the same host as the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
+`pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644` volumes.
 
 ## Local Development
 

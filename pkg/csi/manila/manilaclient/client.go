@@ -33,6 +33,14 @@ type Client struct {
 	c *gophercloud.ServiceClient
 }
 
+func (c Client) GetMicroversion() string {
+	return c.c.Microversion
+}
+
+func (c Client) SetMicroversion(version string) {
+	c.c.Microversion = version
+}
+
 func (c Client) GetShareByID(shareID string) (*shares.Share, error) {
 	return shares.Get(context.TODO(), c.c, shareID).Extract()
 }

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
@@ -86,6 +87,7 @@ func main() {
 				ManilaClientBuilder: manilaClientBuilder,
 				CSIClientBuilder:    csiClientBuilder,
 				ClusterID:           clusterID,
+				PVCLister:           csi.GetPVCLister(),
 			}
 
 			if provideNodeService {
@@ -118,6 +120,8 @@ func main() {
 		},
 		Version: version.Version,
 	}
+
+	csi.AddPVCFlags(cmd)
 
 	cmd.PersistentFlags().StringVar(&endpoint, "endpoint", "unix://tmp/csi.sock", "CSI endpoint")
 
