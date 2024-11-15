@@ -38,12 +38,12 @@ func NewBarbicanClient(cfg Config) (*gophercloud.ServiceClient, error) {
 }
 
 // GetSecret gets unencrypted secret
-func (barbican *Barbican) GetSecret(keyID string) ([]byte, error) {
+func (barbican *Barbican) GetSecret(ctx context.Context, keyID string) ([]byte, error) {
 	opts := secrets.GetPayloadOpts{
 		PayloadContentType: "application/octet-stream",
 	}
 
-	key, err := secrets.GetPayload(context.TODO(), barbican.Client, keyID, opts).Extract()
+	key, err := secrets.GetPayload(ctx, barbican.Client, keyID, opts).Extract()
 	if err != nil {
 		return nil, err
 	}

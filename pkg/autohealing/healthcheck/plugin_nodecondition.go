@@ -17,6 +17,7 @@ limitations under the License.
 package healthcheck
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -45,7 +46,7 @@ type NodeConditionCheck struct {
 }
 
 // Check checks the node health, returns false if the node is unhealthy.
-func (check *NodeConditionCheck) Check(node NodeInfo, controller NodeController) bool {
+func (check *NodeConditionCheck) Check(ctx context.Context, node NodeInfo, controller NodeController) bool {
 	nodeName := node.KubeNode.Name
 
 	for _, cond := range node.KubeNode.Status.Conditions {

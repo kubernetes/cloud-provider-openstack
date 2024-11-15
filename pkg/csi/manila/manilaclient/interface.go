@@ -17,6 +17,8 @@ limitations under the License.
 package manilaclient
 
 import (
+	"context"
+
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/messages"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/sharetypes"
@@ -28,31 +30,31 @@ type Interface interface {
 	GetMicroversion() string
 	SetMicroversion(version string)
 
-	GetShareByID(shareID string) (*shares.Share, error)
-	GetShareByName(shareName string) (*shares.Share, error)
-	CreateShare(opts shares.CreateOptsBuilder) (*shares.Share, error)
-	DeleteShare(shareID string) error
-	ExtendShare(shareID string, opts shares.ExtendOptsBuilder) error
+	GetShareByID(ctx context.Context, shareID string) (*shares.Share, error)
+	GetShareByName(ctx context.Context, shareName string) (*shares.Share, error)
+	CreateShare(ctx context.Context, opts shares.CreateOptsBuilder) (*shares.Share, error)
+	DeleteShare(ctx context.Context, shareID string) error
+	ExtendShare(ctx context.Context, shareID string, opts shares.ExtendOptsBuilder) error
 
-	GetExportLocations(shareID string) ([]shares.ExportLocation, error)
+	GetExportLocations(ctx context.Context, shareID string) ([]shares.ExportLocation, error)
 
-	SetShareMetadata(shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error)
+	SetShareMetadata(ctx context.Context, shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error)
 
-	GetAccessRights(shareID string) ([]shares.AccessRight, error)
-	GrantAccess(shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error)
+	GetAccessRights(ctx context.Context, shareID string) ([]shares.AccessRight, error)
+	GrantAccess(ctx context.Context, shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error)
 
-	GetSnapshotByID(snapID string) (*snapshots.Snapshot, error)
-	GetSnapshotByName(snapName string) (*snapshots.Snapshot, error)
-	CreateSnapshot(opts snapshots.CreateOptsBuilder) (*snapshots.Snapshot, error)
-	DeleteSnapshot(snapID string) error
+	GetSnapshotByID(ctx context.Context, snapID string) (*snapshots.Snapshot, error)
+	GetSnapshotByName(ctx context.Context, snapName string) (*snapshots.Snapshot, error)
+	CreateSnapshot(ctx context.Context, opts snapshots.CreateOptsBuilder) (*snapshots.Snapshot, error)
+	DeleteSnapshot(ctx context.Context, snapID string) error
 
-	GetExtraSpecs(shareTypeID string) (sharetypes.ExtraSpecs, error)
-	GetShareTypes() ([]sharetypes.ShareType, error)
-	GetShareTypeIDFromName(shareTypeName string) (string, error)
+	GetExtraSpecs(ctx context.Context, shareTypeID string) (sharetypes.ExtraSpecs, error)
+	GetShareTypes(ctx context.Context) ([]sharetypes.ShareType, error)
+	GetShareTypeIDFromName(ctx context.Context, shareTypeName string) (string, error)
 
-	GetUserMessages(opts messages.ListOptsBuilder) ([]messages.Message, error)
+	GetUserMessages(ctx context.Context, opts messages.ListOptsBuilder) ([]messages.Message, error)
 }
 
 type Builder interface {
-	New(o *client.AuthOpts) (Interface, error)
+	New(ctx context.Context, o *client.AuthOpts) (Interface, error)
 }

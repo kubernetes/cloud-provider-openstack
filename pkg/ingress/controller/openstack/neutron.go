@@ -35,8 +35,8 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/ingress/utils"
 )
 
-func (os *OpenStack) getFloatingIPs(listOpts floatingips.ListOpts) ([]floatingips.FloatingIP, error) {
-	allPages, err := floatingips.List(os.neutron, listOpts).AllPages(context.TODO())
+func (os *OpenStack) getFloatingIPs(ctx context.Context, listOpts floatingips.ListOpts) ([]floatingips.FloatingIP, error) {
+	allPages, err := floatingips.List(os.neutron, listOpts).AllPages(ctx)
 	if err != nil {
 		return []floatingips.FloatingIP{}, err
 	}
@@ -48,36 +48,36 @@ func (os *OpenStack) getFloatingIPs(listOpts floatingips.ListOpts) ([]floatingip
 	return allFIPs, nil
 }
 
-func (os *OpenStack) createFloatingIP(portID string, floatingNetworkID string, description string) (*floatingips.FloatingIP, error) {
+func (os *OpenStack) createFloatingIP(ctx context.Context, portID string, floatingNetworkID string, description string) (*floatingips.FloatingIP, error) {
 	floatIPOpts := floatingips.CreateOpts{
 		PortID:            portID,
 		FloatingNetworkID: floatingNetworkID,
 		Description:       description,
 	}
-	return floatingips.Create(context.TODO(), os.neutron, floatIPOpts).Extract()
+	return floatingips.Create(ctx, os.neutron, floatIPOpts).Extract()
 }
 
 // associateFloatingIP associate an unused floating IP to a given Port
-func (os *OpenStack) associateFloatingIP(fip *floatingips.FloatingIP, portID string, description string) (*floatingips.FloatingIP, error) {
+func (os *OpenStack) associateFloatingIP(ctx context.Context, fip *floatingips.FloatingIP, portID string, description string) (*floatingips.FloatingIP, error) {
 	updateOpts := floatingips.UpdateOpts{
 		PortID:      &portID,
 		Description: &description,
 	}
-	return floatingips.Update(context.TODO(), os.neutron, fip.ID, updateOpts).Extract()
+	return floatingips.Update(ctx, os.neutron, fip.ID, updateOpts).Extract()
 }
 
 // disassociateFloatingIP disassociate a floating IP from a port
-func (os *OpenStack) disassociateFloatingIP(fip *floatingips.FloatingIP, description string) (*floatingips.FloatingIP, error) {
+func (os *OpenStack) disassociateFloatingIP(ctx context.Context, fip *floatingips.FloatingIP, description string) (*floatingips.FloatingIP, error) {
 	updateDisassociateOpts := floatingips.UpdateOpts{
 		PortID:      new(string),
 		Description: &description,
 	}
-	return floatingips.Update(context.TODO(), os.neutron, fip.ID, updateDisassociateOpts).Extract()
+	return floatingips.Update(ctx, os.neutron, fip.ID, updateDisassociateOpts).Extract()
 }
 
 // GetSubnet get a subnet by the given ID.
-func (os *OpenStack) GetSubnet(subnetID string) (*subnets.Subnet, error) {
-	subnet, err := subnets.Get(context.TODO(), os.neutron, subnetID).Extract()
+func (os *OpenStack) GetSubnet(ctx context.Context, subnetID string) (*subnets.Subnet, error) {
+	subnet, err := subnets.Get(ctx, os.neutron, subnetID).Extract()
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +85,8 @@ func (os *OpenStack) GetSubnet(subnetID string) (*subnets.Subnet, error) {
 }
 
 // getPorts gets all the filtered ports.
-func (os *OpenStack) getPorts(listOpts ports.ListOpts) ([]ports.Port, error) {
-	allPages, err := ports.List(os.neutron, listOpts).AllPages(context.TODO())
+func (os *OpenStack) getPorts(ctx context.Context, listOpts ports.ListOpts) ([]ports.Port, error) {
+	allPages, err := ports.List(os.neutron, listOpts).AllPages(ctx)
 	if err != nil {
 		return []ports.Port{}, err
 	}
@@ -99,9 +99,9 @@ func (os *OpenStack) getPorts(listOpts ports.ListOpts) ([]ports.Port, error) {
 }
 
 // EnsureFloatingIP makes sure a floating IP is allocated for the port
-func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfloatingIP string, floatingIPNetwork string, description string) (string, error) {
+func (os *OpenStack) EnsureFloatingIP(ctx context.Context, needDelete bool, portID string, existingfloatingIP string, floatingIPNetwork string, description string) (string, error) {
 	listOpts := floatingips.ListOpts{PortID: portID}
-	fips, err := os.getFloatingIPs(listOpts)
+	fips, err := os.getFloatingIPs(ctx, listOpts)
 	if err != nil {
 		return "", fmt.Errorf("unable to get floating ips: %w", err)
 	}
@@ -109,7 +109,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 	// If needed, delete the floating IPs and return.
 	if needDelete {
 		for _, fip := range fips {
-			if err := floatingips.Delete(context.TODO(), os.neutron, fip.ID).ExtractErr(); err != nil {
+			if err := floatingips.Delete(ctx, os.neutron, fip.ID).ExtractErr(); err != nil {
 				return "", err
 			}
 		}
@@ -127,7 +127,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 		if len(fips) == 1 {
 			fip = &fips[0]
 		} else {
-			fip, err = os.createFloatingIP(portID, floatingIPNetwork, description)
+			fip, err = os.createFloatingIP(ctx, portID, floatingIPNetwork, description)
 			if err != nil {
 				return "", err
 			}
@@ -139,7 +139,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 			FloatingIP:        existingfloatingIP,
 			FloatingNetworkID: floatingIPNetwork,
 		}
-		osFips, err := os.getFloatingIPs(opts)
+		osFips, err := os.getFloatingIPs(ctx, opts)
 		if err != nil {
 			return "", err
 		}
@@ -158,7 +158,7 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 
 		// if port don't have fip
 		if len(fips) == 0 {
-			fip, err = os.associateFloatingIP(&osFips[0], portID, description)
+			fip, err = os.associateFloatingIP(ctx, &osFips[0], portID, description)
 			if err != nil {
 				return "", err
 			}
@@ -168,12 +168,12 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 			// "Cannot associate floating IP with port using fixed
 			//  IP, as that fixed IP already has a floating IP on
 			//  external network"
-			_, err = os.disassociateFloatingIP(&fips[0], "")
+			_, err = os.disassociateFloatingIP(ctx, &fips[0], "")
 			if err != nil {
 				return "", err
 			}
 			// associate new fip
-			fip, err = os.associateFloatingIP(&osFips[0], portID, description)
+			fip, err = os.associateFloatingIP(ctx, &osFips[0], portID, description)
 			if err != nil {
 				return "", err
 			}
@@ -186,8 +186,8 @@ func (os *OpenStack) EnsureFloatingIP(needDelete bool, portID string, existingfl
 }
 
 // GetSecurityGroups gets all the filtered security groups.
-func (os *OpenStack) GetSecurityGroups(listOpts groups.ListOpts) ([]groups.SecGroup, error) {
-	allPages, err := groups.List(os.neutron, listOpts).AllPages(context.TODO())
+func (os *OpenStack) GetSecurityGroups(ctx context.Context, listOpts groups.ListOpts) ([]groups.SecGroup, error) {
+	allPages, err := groups.List(os.neutron, listOpts).AllPages(ctx)
 	if err != nil {
 		return []groups.SecGroup{}, err
 	}
@@ -201,10 +201,10 @@ func (os *OpenStack) GetSecurityGroups(listOpts groups.ListOpts) ([]groups.SecGr
 
 // EnsureSecurityGroup make sure the security group with given tags exists or not according to need_delete param.
 // Make sure the EnsurePortSecurityGroup function is called before EnsureSecurityGroup if you want to delete the security group.
-func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, description string, tags []string) (string, error) {
+func (os *OpenStack) EnsureSecurityGroup(ctx context.Context, needDelete bool, name string, description string, tags []string) (string, error) {
 	tagsString := strings.Join(tags, ",")
 	listOpts := groups.ListOpts{Tags: tagsString}
-	allGroups, err := os.GetSecurityGroups(listOpts)
+	allGroups, err := os.GetSecurityGroups(ctx, listOpts)
 	if err != nil {
 		return "", err
 	}
@@ -212,7 +212,7 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 	// If needed, delete the security groups and return.
 	if needDelete {
 		for _, group := range allGroups {
-			if err := groups.Delete(context.TODO(), os.neutron, group.ID).ExtractErr(); err != nil {
+			if err := groups.Delete(ctx, os.neutron, group.ID).ExtractErr(); err != nil {
 				return "", err
 			}
 		}
@@ -230,7 +230,7 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 			Name:        name,
 			Description: description,
 		}
-		group, err = groups.Create(context.TODO(), os.neutron, createOpts).Extract()
+		group, err = groups.Create(ctx, os.neutron, createOpts).Extract()
 		if err != nil {
 			return "", err
 		}
@@ -242,7 +242,7 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 		//}
 
 		for _, t := range tags {
-			if err := neutrontags.Add(context.TODO(), os.neutron, "security_groups", group.ID, t).ExtractErr(); err != nil {
+			if err := neutrontags.Add(ctx, os.neutron, "security_groups", group.ID, t).ExtractErr(); err != nil {
 				return "", fmt.Errorf("failed to add tag %s to security group %s: %v", t, group.ID, err)
 			}
 		}
@@ -254,13 +254,13 @@ func (os *OpenStack) EnsureSecurityGroup(needDelete bool, name string, descripti
 }
 
 // EnsureSecurityGroupRules ensures the only dstPorts are allowed in the given security group.
-func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstPorts []int) error {
+func (os *OpenStack) EnsureSecurityGroupRules(ctx context.Context, sgID string, sourceIP string, dstPorts []int) error {
 	listOpts := rules.ListOpts{
 		Protocol:       "tcp",
 		SecGroupID:     sgID,
 		RemoteIPPrefix: sourceIP,
 	}
-	allPages, err := rules.List(os.neutron, listOpts).AllPages(context.TODO())
+	allPages, err := rules.List(os.neutron, listOpts).AllPages(ctx)
 	if err != nil {
 		return err
 	}
@@ -273,7 +273,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 		// Delete all the rules and return.
 
 		for _, rule := range allRules {
-			if err := rules.Delete(context.TODO(), os.neutron, rule.ID).ExtractErr(); err != nil {
+			if err := rules.Delete(ctx, os.neutron, rule.ID).ExtractErr(); err != nil {
 				return err
 			}
 		}
@@ -292,7 +292,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 	for _, rule := range allRules {
 		if !dstPortsSet.Has(strconv.Itoa(rule.PortRangeMin)) {
 			// Delete the rule
-			if err := rules.Delete(context.TODO(), os.neutron, rule.ID).ExtractErr(); err != nil {
+			if err := rules.Delete(ctx, os.neutron, rule.ID).ExtractErr(); err != nil {
 				return err
 			}
 		} else {
@@ -316,7 +316,7 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 			RemoteIPPrefix: sourceIP,
 			SecGroupID:     sgID,
 		}
-		if _, err := rules.Create(context.TODO(), os.neutron, createOpts).Extract(); err != nil {
+		if _, err := rules.Create(ctx, os.neutron, createOpts).Extract(); err != nil {
 			return err
 		}
 	}
@@ -326,14 +326,14 @@ func (os *OpenStack) EnsureSecurityGroupRules(sgID string, sourceIP string, dstP
 
 // EnsurePortSecurityGroup ensures the security group is attached to all the node ports or detached from all the ports
 // according to needDelete param.
-func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes []*v1.Node) error {
+func (os *OpenStack) EnsurePortSecurityGroup(ctx context.Context, needDelete bool, sgID string, nodes []*v1.Node) error {
 	for _, node := range nodes {
 		instanceID, err := utils.GetNodeID(node)
 		if err != nil {
 			return err
 		}
 		listOpts := ports.ListOpts{DeviceID: instanceID}
-		allPorts, err := os.getPorts(listOpts)
+		allPorts, err := os.getPorts(ctx, listOpts)
 		if err != nil {
 			return err
 		}
@@ -346,7 +346,7 @@ func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes
 				sgSet.Delete(sgID)
 				newSGs := sets.List(sgSet)
 				updateOpts := ports.UpdateOpts{SecurityGroups: &newSGs}
-				if _, err := ports.Update(context.TODO(), os.neutron, port.ID, updateOpts).Extract(); err != nil {
+				if _, err := ports.Update(ctx, os.neutron, port.ID, updateOpts).Extract(); err != nil {
 					return err
 				}
 
@@ -358,7 +358,7 @@ func (os *OpenStack) EnsurePortSecurityGroup(needDelete bool, sgID string, nodes
 				sgSet.Insert(sgID)
 				newSGs := sets.List(sgSet)
 				updateOpts := ports.UpdateOpts{SecurityGroups: &newSGs}
-				if _, err := ports.Update(context.TODO(), os.neutron, port.ID, updateOpts).Extract(); err != nil {
+				if _, err := ports.Update(ctx, os.neutron, port.ID, updateOpts).Extract(); err != nil {
 					return err
 				}
 

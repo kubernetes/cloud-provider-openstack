@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -47,12 +48,13 @@ var rootCmd = &cobra.Command{
 	Long:  `Ingress controller for OpenStack`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		osIngress := controller.NewController(conf)
-		osIngress.Start()
+		osIngress.Start(ctx)
 
 		sigterm := make(chan os.Signal, 1)
-		signal.Notify(sigterm, syscall.SIGTERM)
-		signal.Notify(sigterm, syscall.SIGINT)
+		signal.Notify(sigterm, syscall.SIGTERM, syscall.SIGINT)
 		<-sigterm
 	},
 	Version: version.Version,

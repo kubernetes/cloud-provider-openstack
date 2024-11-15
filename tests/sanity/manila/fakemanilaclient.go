@@ -17,6 +17,7 @@ limitations under the License.
 package sanity
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -41,7 +42,7 @@ var (
 
 type fakeManilaClientBuilder struct{}
 
-func (b fakeManilaClientBuilder) New(o *client.AuthOpts) (manilaclient.Interface, error) {
+func (b fakeManilaClientBuilder) New(ctx context.Context, o *client.AuthOpts) (manilaclient.Interface, error) {
 	return &fakeManilaClient{}, nil
 }
 
@@ -73,7 +74,7 @@ func (c fakeManilaClient) GetMicroversion() string {
 func (c fakeManilaClient) SetMicroversion(_ string) {
 }
 
-func (c fakeManilaClient) GetShareByID(shareID string) (*shares.Share, error) {
+func (c fakeManilaClient) GetShareByID(_ context.Context, shareID string) (*shares.Share, error) {
 	s, ok := fakeShares[strToInt(shareID)]
 	if !ok {
 		return nil, gophercloud.ErrResourceNotFound{}
@@ -82,7 +83,7 @@ func (c fakeManilaClient) GetShareByID(shareID string) (*shares.Share, error) {
 	return s, nil
 }
 
-func (c fakeManilaClient) GetShareByName(shareName string) (*shares.Share, error) {
+func (c fakeManilaClient) GetShareByName(ctx context.Context, shareName string) (*shares.Share, error) {
 	var shareID string
 	for _, share := range fakeShares {
 		if share.Name == shareName {
@@ -95,10 +96,10 @@ func (c fakeManilaClient) GetShareByName(shareName string) (*shares.Share, error
 		return nil, gophercloud.ErrResourceNotFound{}
 	}
 
-	return c.GetShareByID(shareID)
+	return c.GetShareByID(ctx, shareID)
 }
 
-func (c fakeManilaClient) CreateShare(opts shares.CreateOptsBuilder) (*shares.Share, error) {
+func (c fakeManilaClient) CreateShare(_ context.Context, opts shares.CreateOptsBuilder) (*shares.Share, error) {
 	var res shares.CreateResult
 	res.Body = opts
 
@@ -118,7 +119,7 @@ func (c fakeManilaClient) CreateShare(opts shares.CreateOptsBuilder) (*shares.Sh
 	return share, nil
 }
 
-func (c fakeManilaClient) DeleteShare(shareID string) error {
+func (c fakeManilaClient) DeleteShare(_ context.Context, shareID string) error {
 	id := strToInt(shareID)
 	if _, ok := fakeShares[id]; !ok {
 		return gophercloud.ErrResourceNotFound{}
@@ -128,8 +129,8 @@ func (c fakeManilaClient) DeleteShare(shareID string) error {
 	return nil
 }
 
-func (c fakeManilaClient) ExtendShare(shareID string, opts shares.ExtendOptsBuilder) error {
-	share, err := c.GetShareByID(shareID)
+func (c fakeManilaClient) ExtendShare(ctx context.Context, shareID string, opts shares.ExtendOptsBuilder) error {
+	share, err := c.GetShareByID(ctx, shareID)
 	if err != nil {
 		return err
 	}
@@ -151,7 +152,7 @@ func (c fakeManilaClient) ExtendShare(shareID string, opts shares.ExtendOptsBuil
 	return nil
 }
 
-func (c fakeManilaClient) GetExportLocations(shareID string) ([]shares.ExportLocation, error) {
+func (c fakeManilaClient) GetExportLocations(_ context.Context, shareID string) ([]shares.ExportLocation, error) {
 	if !shareExists(shareID) {
 		return nil, gophercloud.ErrResourceNotFound{}
 	}
@@ -159,15 +160,15 @@ func (c fakeManilaClient) GetExportLocations(shareID string) ([]shares.ExportLoc
 	return []shares.ExportLocation{{Path: "fake-server:/fake-path"}}, nil
 }
 
-func (c fakeManilaClient) SetShareMetadata(shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error) {
+func (c fakeManilaClient) SetShareMetadata(_ context.Context, shareID string, opts shares.SetMetadataOptsBuilder) (map[string]string, error) {
 	return nil, nil
 }
 
-func (c fakeManilaClient) GetExtraSpecs(shareTypeID string) (sharetypes.ExtraSpecs, error) {
+func (c fakeManilaClient) GetExtraSpecs(_ context.Context, shareTypeID string) (sharetypes.ExtraSpecs, error) {
 	return map[string]interface{}{"snapshot_support": "True", "create_share_from_snapshot_support": "True"}, nil
 }
 
-func (c fakeManilaClient) GetShareTypes() ([]sharetypes.ShareType, error) {
+func (c fakeManilaClient) GetShareTypes(_ context.Context) ([]sharetypes.ShareType, error) {
 	return []sharetypes.ShareType{
 		{
 			ID:                 "914dbaad-7242-4c34-a9ee-aa3831189972",
@@ -179,11 +180,11 @@ func (c fakeManilaClient) GetShareTypes() ([]sharetypes.ShareType, error) {
 	}, nil
 }
 
-func (c fakeManilaClient) GetShareTypeIDFromName(shareTypeName string) (string, error) {
+func (c fakeManilaClient) GetShareTypeIDFromName(_ context.Context, shareTypeName string) (string, error) {
 	return "", nil
 }
 
-func (c fakeManilaClient) GetAccessRights(shareID string) ([]shares.AccessRight, error) {
+func (c fakeManilaClient) GetAccessRights(_ context.Context, shareID string) ([]shares.AccessRight, error) {
 	if !shareExists(shareID) {
 		return nil, gophercloud.ErrResourceNotFound{}
 	}
@@ -198,7 +199,7 @@ func (c fakeManilaClient) GetAccessRights(shareID string) ([]shares.AccessRight,
 	return accessRights, nil
 }
 
-func (c fakeManilaClient) GrantAccess(shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error) {
+func (c fakeManilaClient) GrantAccess(_ context.Context, shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error) {
 	if !shareExists(shareID) {
 		return nil, gophercloud.ErrResourceNotFound{}
 	}
@@ -221,7 +222,7 @@ func (c fakeManilaClient) GrantAccess(shareID string, opts shares.GrantAccessOpt
 	return accessRight, nil
 }
 
-func (c fakeManilaClient) GetSnapshotByID(snapID string) (*snapshots.Snapshot, error) {
+func (c fakeManilaClient) GetSnapshotByID(_ context.Context, snapID string) (*snapshots.Snapshot, error) {
 	s, ok := fakeSnapshots[strToInt(snapID)]
 	if !ok {
 		return nil, gophercloud.ErrUnexpectedResponseCode{Actual: 404}
@@ -230,7 +231,7 @@ func (c fakeManilaClient) GetSnapshotByID(snapID string) (*snapshots.Snapshot, e
 	return s, nil
 }
 
-func (c fakeManilaClient) GetSnapshotByName(snapName string) (*snapshots.Snapshot, error) {
+func (c fakeManilaClient) GetSnapshotByName(ctx context.Context, snapName string) (*snapshots.Snapshot, error) {
 	var snapID string
 	for _, snap := range fakeSnapshots {
 		if snap.Name == snapName {
@@ -243,10 +244,10 @@ func (c fakeManilaClient) GetSnapshotByName(snapName string) (*snapshots.Snapsho
 		return nil, gophercloud.ErrResourceNotFound{Name: snapName, ResourceType: "snapshot"}
 	}
 
-	return c.GetSnapshotByID(snapID)
+	return c.GetSnapshotByID(ctx, snapID)
 }
 
-func (c fakeManilaClient) CreateSnapshot(opts snapshots.CreateOptsBuilder) (*snapshots.Snapshot, error) {
+func (c fakeManilaClient) CreateSnapshot(_ context.Context, opts snapshots.CreateOptsBuilder) (*snapshots.Snapshot, error) {
 	var res snapshots.CreateResult
 	res.Body = opts
 
@@ -268,7 +269,7 @@ func (c fakeManilaClient) CreateSnapshot(opts snapshots.CreateOptsBuilder) (*sna
 	return snap, nil
 }
 
-func (c fakeManilaClient) DeleteSnapshot(snapID string) error {
+func (c fakeManilaClient) DeleteSnapshot(_ context.Context, snapID string) error {
 	id := strToInt(snapID)
 	if _, ok := fakeSnapshots[id]; !ok {
 		return gophercloud.ErrResourceNotFound{}
@@ -278,6 +279,6 @@ func (c fakeManilaClient) DeleteSnapshot(snapID string) error {
 	return nil
 }
 
-func (c fakeManilaClient) GetUserMessages(opts messages.ListOptsBuilder) ([]messages.Message, error) {
+func (c fakeManilaClient) GetUserMessages(_ context.Context, opts messages.ListOptsBuilder) ([]messages.Message, error) {
 	return nil, nil
 }

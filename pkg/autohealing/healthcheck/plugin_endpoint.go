@@ -17,6 +17,7 @@ limitations under the License.
 package healthcheck
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -78,12 +79,12 @@ func (check *EndpointCheck) IsWorkerSupported() bool {
 }
 
 // checkDuration checks if the node should be marked as healthy or not.
-func (check *EndpointCheck) checkDuration(node NodeInfo, controller NodeController, checkRet bool) bool {
+func (check *EndpointCheck) checkDuration(ctx context.Context, node NodeInfo, controller NodeController, checkRet bool) bool {
 	name := node.KubeNode.Name
 
 	if checkRet {
 		// Remove the annotation
-		if err := controller.UpdateNodeAnnotation(node, check.UnhealthyAnnotation, ""); err != nil {
+		if err := controller.UpdateNodeAnnotation(ctx, node, check.UnhealthyAnnotation, ""); err != nil {
 			log.Errorf("Failed to remove the node annotation(will skip the check) for %s, error: %v", name, err)
 		}
 		return true
@@ -106,7 +107,7 @@ func (check *EndpointCheck) checkDuration(node NodeInfo, controller NodeControll
 
 	if unhealthyStartTime == nil {
 		// Set the annotation value
-		if err := controller.UpdateNodeAnnotation(node, check.UnhealthyAnnotation, now.Format(TimeLayout)); err != nil {
+		if err := controller.UpdateNodeAnnotation(ctx, node, check.UnhealthyAnnotation, now.Format(TimeLayout)); err != nil {
 			log.Errorf("Failed to set the node annotation(will skip the check) for %s, error: %v", name, err)
 		}
 		return true
@@ -121,7 +122,7 @@ func (check *EndpointCheck) checkDuration(node NodeInfo, controller NodeControll
 }
 
 // Check checks the node health, returns false if the node is unhealthy. Update the node cache accordingly.
-func (check *EndpointCheck) Check(node NodeInfo, controller NodeController) bool {
+func (check *EndpointCheck) Check(ctx context.Context, node NodeInfo, controller NodeController) bool {
 	nodeName := node.KubeNode.Name
 	ip := ""
 	for _, addr := range node.KubeNode.Status.Addresses {
@@ -152,7 +153,7 @@ func (check *EndpointCheck) Check(node NodeInfo, controller NodeController) bool
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			log.Errorf("Node %s, failed to get request %s, error: %v", nodeName, url, err)
-			return check.checkDuration(node, controller, false)
+			return check.checkDuration(ctx, node, controller, false)
 		}
 
 		if check.RequireToken {
@@ -171,17 +172,17 @@ func (check *EndpointCheck) Check(node NodeInfo, controller NodeController) bool
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Errorf("Node %s, failed to read response for url %s, error: %v", nodeName, url, err)
-			return check.checkDuration(node, controller, false)
+			return check.checkDuration(ctx, node, controller, false)
 		}
 		resp.Body.Close()
 
 		if !utils.ContainsInt(check.OKCodes, resp.StatusCode) {
 			log.V(4).Infof("Node %s, return code for url %s is %d, expected: %d", nodeName, url, resp.StatusCode, check.OKCodes)
-			return check.checkDuration(node, controller, false)
+			return check.checkDuration(ctx, node, controller, false)
 		}
 	}
 
-	return check.checkDuration(node, controller, true)
+	return check.checkDuration(ctx, node, controller, true)
 }
 
 func NewEndpointCheck(config interface{}) (HealthCheck, error) {

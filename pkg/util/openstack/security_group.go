@@ -24,9 +24,9 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 )
 
-func GetSecurityGroupRules(client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
+func GetSecurityGroupRules(ctx context.Context, client *gophercloud.ServiceClient, opts rules.ListOpts) ([]rules.SecGroupRule, error) {
 	mc := metrics.NewMetricContext("security_group_rule", "list")
-	page, err := rules.List(client, opts).AllPages(context.TODO())
+	page, err := rules.List(client, opts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
