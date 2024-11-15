@@ -122,6 +122,15 @@ MANILA_DEFAULT_SHARE_TYPE_EXTRA_SPECS='snapshot_support=True create_share_from_s
 MANILA_CONFIGURE_DEFAULT_TYPES=True
 {% endif %}
 
+# Add a pre-install script to upgrade pip and setuptools
+[[local|pre-install]]
+# Activate the virtual environment and upgrade pip and setuptools
+if [ -f /opt/stack/data/venv/bin/activate ]; then
+    source /opt/stack/data/venv/bin/activate
+    pip install --upgrade pip setuptools
+    deactivate
+fi
+
 {% if "glance" in enable_services %}
 [[post-config|$GLANCE_API_CONF]]
 [glance_store]
