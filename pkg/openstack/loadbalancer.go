@@ -1236,19 +1236,6 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
 	}
 
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
-	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
-
-	// Get service node-selector annotations
-	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
-	for key, value := range svcConf.nodeSelectors {
-		if value == "" {
-			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
-		} else {
-			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
-		}
-	}
-
 	// Find subnet ID for creating members
 	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
@@ -1280,26 +1267,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 			}
 		}
 	}
-
-	// This affects the protocol of listener and pool
-	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
-	useProxyProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
-	if useProxyProtocol && keepClientIP {
-		return fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
-	}
-	svcConf.keepClientIP = keepClientIP
-	svcConf.enableProxyProtocol = useProxyProtocol
-
-	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
-	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
-	if svcConf.enableMonitor && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
-		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
-	}
-	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
-	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
-	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
-	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
-	return nil
+	return lbaas.makeSvcConf(serviceName, service, svcConf)
 }
 
 func (lbaas *LbaasV2) checkServiceDelete(service *corev1.Service, svcConf *serviceConfig) error {
@@ -1329,19 +1297,6 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		// Since OCCM does not support multiple load-balancers per service yet,
 		// the first IP family will determine the IP family of the load-balancer
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
-	}
-
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
-	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
-
-	// Get service node-selector annotations
-	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
-	for key, value := range svcConf.nodeSelectors {
-		if value == "" {
-			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
-		} else {
-			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
-		}
 	}
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
@@ -1387,8 +1342,6 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 			}
 		}
 	}
-
-	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 
 	lbNetworkID, err := lbaas.getNetworkID(service, svcConf)
 	if err != nil {
@@ -1508,6 +1461,23 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 	} else {
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
+	return lbaas.makeSvcConf(serviceName, service, svcConf)
+}
+
+func (lbaas *LbaasV2) makeSvcConf(serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
+	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
+	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
+
+	// Get service node-selector annotations
+	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
+	for key, value := range svcConf.nodeSelectors {
+		if value == "" {
+			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
+		} else {
+			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
+		}
+	}
 
 	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
 	useProxyProtocol := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerProxyEnabled, false)
@@ -1553,6 +1523,7 @@ func (lbaas *LbaasV2) checkService(service *corev1.Service, nodes []*corev1.Node
 		klog.Warningf(msg, serviceName)
 	}
 
+	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
 	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
 	if svcConf.enableMonitor && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
