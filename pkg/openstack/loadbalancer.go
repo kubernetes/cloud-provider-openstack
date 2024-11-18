@@ -387,22 +387,22 @@ func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (str
 	}
 
 	allowedAddrTypes := []corev1.NodeAddressType{corev1.NodeInternalIP, corev1.NodeExternalIP}
-	for _, addr := range addrs {
-		if !slices.Contains(allowedAddrTypes, addr.Type) {
-			// Skip the address type that is not allowed
-			continue
-		}
-		switch preferredIPFamily {
-		case corev1.IPv4Protocol:
-			if netutils.IsIPv4String(addr.Address) {
-				return addr.Address, nil
+	for _, allowedAddrType := range allowedAddrTypes {
+		for _, addr := range addrs {
+			if addr.Type == allowedAddrType {
+				switch preferredIPFamily {
+				case corev1.IPv4Protocol:
+					if netutils.IsIPv4String(addr.Address) {
+						return addr.Address, nil
+					}
+				case corev1.IPv6Protocol:
+					if netutils.IsIPv6String(addr.Address) {
+						return addr.Address, nil
+					}
+				default:
+					return addr.Address, nil
+				}
 			}
-		case corev1.IPv6Protocol:
-			if netutils.IsIPv6String(addr.Address) {
-				return addr.Address, nil
-			}
-		default:
-			return addr.Address, nil
 		}
 	}
 
