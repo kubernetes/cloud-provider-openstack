@@ -1524,12 +1524,12 @@ func Test_nodeAddressForLB(t *testing.T) {
 					Status: corev1.NodeStatus{
 						Addresses: []corev1.NodeAddress{
 							{
-								Type:    corev1.NodeInternalIP,
-								Address: "192.168.1.1",
-							},
-							{
 								Type:    corev1.NodeExternalIP,
 								Address: "192.168.1.2",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
 							},
 						},
 					},
@@ -1546,12 +1546,12 @@ func Test_nodeAddressForLB(t *testing.T) {
 					Status: corev1.NodeStatus{
 						Addresses: []corev1.NodeAddress{
 							{
-								Type:    corev1.NodeInternalIP,
-								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-							},
-							{
 								Type:    corev1.NodeExternalIP,
 								Address: "2001:0db8:85a3:3333:1111:8a2e:9999:8888",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 							},
 						},
 					},
