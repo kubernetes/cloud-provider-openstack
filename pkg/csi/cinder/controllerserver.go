@@ -51,6 +51,15 @@ const (
 	antiAffinityKey       = "cinder.csi.openstack.org/anti-affinity"
 )
 
+func (cs *controllerServer) validateVolumeCapabilities(req []*csi.VolumeCapability) error {
+	for _, volCap := range req {
+		if volCap.GetAccessMode().GetMode() != cs.Driver.vcap[0].GetMode() {
+			return fmt.Errorf("volume access mode %s not supported", volCap.GetAccessMode().GetMode().String())
+		}
+	}
+	return nil
+}
+
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*req))
 
@@ -72,6 +81,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	if volCapabilities == nil {
 		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume capability")
+	}
+
+	if err := cs.validateVolumeCapabilities(volCapabilities); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	// Volume Size - Default is 1 GiB
