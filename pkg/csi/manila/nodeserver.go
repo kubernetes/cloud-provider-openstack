@@ -108,18 +108,6 @@ func (ns *nodeServer) buildVolumeContext(ctx context.Context, volID volumeID, sh
 		return nil, nil, status.Errorf(codes.Internal, "failed to list access rights for volume %s: %v", volID, err)
 	}
 
-	for i := range accessRights {
-		if accessRights[i].ID == shareOpts.ShareAccessID {
-			accessRight = &accessRights[i]
-			break
-		}
-	}
-
-	if accessRight == nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot find access right %s for volume %s",
-			shareOpts.ShareAccessID, volID)
-	}
-
 	// Retrieve list of all export locations for this share.
 	// Share adapter will try to choose the correct one for mounting.
 
@@ -131,6 +119,7 @@ func (ns *nodeServer) buildVolumeContext(ctx context.Context, volID volumeID, sh
 	// Build volume context for fwd plugin
 
 	sa := getShareAdapter(ns.d.shareProto)
+	accessRight = getAccessRightBasedOnShareAdapter(sa, accessRights, shareOpts)
 	opts := &shareadapters.VolumeContextArgs{
 		Locations: availableExportLocations,
 		Share:     share,

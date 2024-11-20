@@ -46,10 +46,11 @@ type SecretArgs struct {
 }
 
 type ShareAdapter interface {
-	// GetOrGrantAccess first tries to retrieve an access right for args.Share.
-	// An access right is created for the share in case it doesn't exist yet.
+	// GetOrGrantAccesses first tries to retrieve the list of access rights for args.Share.
+	// It iterates over the list of access clients that should have access to the share considering nfs-shareClient or cephfs-clientID.
+	// The access right is created for the share in case it doesn't exist yet.
 	// Returns an existing or new access right for args.Share.
-	GetOrGrantAccess(ctx context.Context, args *GrantAccessArgs) (accessRight *shares.AccessRight, err error)
+	GetOrGrantAccesses(ctx context.Context, args *GrantAccessArgs) (accessRights []shares.AccessRight, err error)
 
 	// BuildVolumeContext builds a volume context map that's passed to NodeStageVolumeRequest and NodePublishVolumeRequest
 	BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error)
