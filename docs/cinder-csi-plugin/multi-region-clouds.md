@@ -162,7 +162,7 @@ spec:
       - name: liveness-probe
         ...
       - name: cinder-csi-plugin
-        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.1
+        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.2
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
@@ -212,7 +212,7 @@ spec:
       - name: liveness-probe
         ...
       - name: cinder-csi-plugin
-        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.1
+        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.2
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
@@ -278,7 +278,7 @@ spec:
         - Topology=true
         ...
       - name: cinder-csi-plugin
-        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.1
+        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.2
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
