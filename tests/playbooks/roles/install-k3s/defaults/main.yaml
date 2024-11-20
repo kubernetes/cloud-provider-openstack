@@ -1,11 +1,11 @@
 ---
-k3s_release: v1.31.0+k3s1
+k3s_release: v1.31.2+k3s1
 worker_node_count: 1
 cluster_token: "K1039d1cf76d1f8b0e8b0d48e7c60d9c4a43c2e7a56de5d86f346f2288a2677f1d7::server:2acba4e60918c0e2d1f1d1a7c4e81e7b"
 devstack_workdir: "{{ ansible_user_dir }}/devstack"
 flavor_name: "ds2G"
 sg_name: "k3s_sg"
 keypair_name: "k3s_keypair"
-image_url: "https://cloud-images.ubuntu.com/releases/jammy/release/ubuntu-22.04-server-cloudimg-amd64.img"
-image_name: "ubuntu-jammy"
+image_url: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
+image_name: "ubuntu-noble"
 master_port_name: "k3s_master"
