@@ -68,6 +68,7 @@ const (
 	ServiceAnnotationLoadBalancerClass                = "loadbalancer.openstack.org/class"
 	ServiceAnnotationLoadBalancerKeepFloatingIP       = "loadbalancer.openstack.org/keep-floatingip"
 	ServiceAnnotationLoadBalancerPortID               = "loadbalancer.openstack.org/port-id"
+	ServiceAnnotationLoadBalancerLbMethod             = "loadbalancer.openstack.org/lb-method"
 	ServiceAnnotationLoadBalancerProxyEnabled         = "loadbalancer.openstack.org/proxy-protocol"
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
@@ -125,6 +126,7 @@ type serviceConfig struct {
 	lbPublicSubnetSpec          *floatingSubnetSpec
 	nodeSelectors               map[string]string
 	keepClientIP                bool
+	poolLbMethod                string
 	proxyProtocolVersion        *v2pools.Protocol
 	timeoutClientData           int
 	timeoutMemberConnect        int
@@ -900,6 +902,27 @@ func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *list
 		pool = nil
 	}
 
+	// If LBMethod changes, update the Pool with the new value
+	var poolLbMethod string
+	if svcConf.poolLbMethod != "" {
+		poolLbMethod = svcConf.poolLbMethod
+	} else {
+		// if LBMethod is not defined, fallback on default OCCM's default method
+		poolLbMethod = lbaas.opts.LBMethod
+	}
+	if pool != nil && pool.LBMethod != poolLbMethod {
+		klog.InfoS("Updating LoadBalancer LBMethod", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
+		err = openstackutil.UpdatePool(lbaas.lb, lbID, pool.ID, v2pools.UpdateOpts{LBMethod: v2pools.LBMethod(poolLbMethod)})
+		if err != nil {
+			err = PreserveGopherError(err)
+			msg := fmt.Sprintf("Error updating LB method for LoadBalancer: %v", err)
+			klog.Errorf(msg, "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
+		} else {
+			pool.LBMethod = poolLbMethod
+		}
+	}
+
 	if pool == nil {
 		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf, name)
 		createOpt.ListenerID = listener.ID
@@ -972,11 +995,18 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 		persistence = &v2pools.SessionPersistence{Type: "SOURCE_IP"}
 	}
 
-	lbmethod := v2pools.LBMethod(lbaas.opts.LBMethod)
+	var lbMethod v2pools.LBMethod
+	if svcConf.poolLbMethod != "" {
+		lbMethod = v2pools.LBMethod(svcConf.poolLbMethod)
+	} else {
+		// if LBMethod is not defined, fallback on default OCCM's default method
+		lbMethod = v2pools.LBMethod(lbaas.opts.LBMethod)
+	}
+
 	return v2pools.CreateOpts{
 		Name:        name,
 		Protocol:    poolProto,
-		LBMethod:    lbmethod,
+		LBMethod:    lbMethod,
 		Persistence: persistence,
 	}
 }
@@ -1509,6 +1539,7 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 func (lbaas *LbaasV2) makeSvcConf(serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	svcConf.poolLbMethod = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLbMethod, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Get service node-selector annotations
