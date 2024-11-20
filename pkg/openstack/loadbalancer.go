@@ -72,6 +72,9 @@ const (
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
 	ServiceAnnotationLoadBalancerMemberSubnetID       = "loadbalancer.openstack.org/member-subnet-id"
+	ServiceAnnotationLoadBalancerMetricsEnabled       = "loadbalancer.openstack.org/metrics-enable"
+	ServiceAnnotationLoadBalancerMetricsPort          = "loadbalancer.openstack.org/metrics-port"
+	ServiceAnnotationLoadBalancerMetricsAllowCidrs    = "loadbalancer.openstack.org/metrics-allow-cidrs"
 	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
 	ServiceAnnotationLoadBalancerTimeoutMemberConnect = "loadbalancer.openstack.org/timeout-member-connect"
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
@@ -88,6 +91,7 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown = "loadbalancer.openstack.org/health-monitor-max-retries-down"
 	ServiceAnnotationLoadBalancerLoadbalancerHostname        = "loadbalancer.openstack.org/hostname"
 	ServiceAnnotationLoadBalancerAddress                     = "loadbalancer.openstack.org/load-balancer-address"
+	ServiceAnnotationLoadBalancerVIPAddress                  = "loadbalancer.openstack.org/load-balancer-vip-address"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -96,14 +100,15 @@ const (
 	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
 
 	// Octavia resources name formats
-	servicePrefix  = "kube_service_"
-	lbFormat       = "%s%s_%s_%s"
-	listenerPrefix = "listener_"
-	listenerFormat = listenerPrefix + "%d_%s"
-	poolPrefix     = "pool_"
-	poolFormat     = poolPrefix + "%d_%s"
-	monitorPrefix  = "monitor_"
-	monitorFormat  = monitorPrefix + "%d_%s"
+	servicePrefix        = "kube_service_"
+	lbFormat             = "%s%s_%s_%s"
+	listenerPrefix       = "listener_"
+	listenerFormat       = listenerPrefix + "%d_%s"
+	listenerFormatMetric = listenerPrefix + "metric_%s"
+	poolPrefix           = "pool_"
+	poolFormat           = poolPrefix + "%d_%s"
+	monitorPrefix        = "monitor_"
+	monitorFormat        = monitorPrefix + "%d_%s"
 )
 
 // LbaasV2 is a LoadBalancer implementation based on Octavia
@@ -143,6 +148,9 @@ type serviceConfig struct {
 	healthMonitorTimeout        int
 	healthMonitorMaxRetries     int
 	healthMonitorMaxRetriesDown int
+	metricAllowedCIDRs          []string
+	metricEnabled               bool
+	metricPort                  int
 	preferredIPFamily           corev1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
 }
 
@@ -448,6 +456,20 @@ func getIntFromServiceAnnotation(service *corev1.Service, annotationKey string, 
 		return returnValue
 	}
 	klog.V(4).Infof("Could not find a Service Annotation; falling back to default setting: %v = %v", annotationKey, defaultSetting)
+	return defaultSetting
+}
+
+// getStringArrayFromServiceAnnotationSeparatedByComma  searches a given v1.Service for a specific annotationKey
+// and either returns the annotation's string array value (using comma as separator), or the specified defaultSetting.
+// Each value of the array is TrimSpaced. After the trim, if the string is empty, remove it.
+func getStringArrayFromServiceAnnotationSeparatedByComma(service *corev1.Service, annotationKey string, defaultSetting []string) []string {
+	klog.V(4).Infof("getStringArrayFromServiceAnnotationSeparatedByComma(%s/%s, %v, %q)", service.Namespace, service.Name, annotationKey, defaultSetting)
+	if annotationValue, ok := service.Annotations[annotationKey]; ok {
+		returnValue := cpoutil.SplitTrim(annotationValue, ',')
+		klog.V(4).Infof("Found a Service Annotation: %v = %q", annotationKey, returnValue)
+		return returnValue
+	}
+	klog.V(4).Infof("Could not find a Service Annotation; falling back to default setting: %v = %q", annotationKey, defaultSetting)
 	return defaultSetting
 }
 
@@ -1046,16 +1068,39 @@ func (lbaas *LbaasV2) buildCreateMemberOpts(port corev1.ServicePort, nodes []*co
 }
 
 // Make sure the listener is created for Service
-func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig) (*listeners.Listener, error) {
-	listener, isPresent := curListenerMapping[listenerKey{
-		Protocol: getListenerProtocol(port.Protocol, svcConf),
-		Port:     int(port.Port),
-	}]
-	if !isPresent {
-		listenerCreateOpt := lbaas.buildListenerCreateOpt(port, svcConf, name)
-		listenerCreateOpt.LoadbalancerID = lbID
+func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListenerMapping map[listenerKey]*listeners.Listener, port corev1.ServicePort, svcConf *serviceConfig, isMetricListener bool) (*listeners.Listener, error) {
+	var listener *listeners.Listener
+	var isListenerPresent bool
 
-		klog.V(2).Infof("Creating listener for port %d using protocol %s", int(port.Port), listenerCreateOpt.Protocol)
+	if isMetricListener {
+		listener, isListenerPresent = curListenerMapping[listenerKey{
+			Protocol: listeners.ProtocolPrometheus,
+			Port:     svcConf.metricPort,
+		}]
+	} else {
+		listener, isListenerPresent = curListenerMapping[listenerKey{
+			Protocol: getListenerProtocol(port.Protocol, svcConf),
+			Port:     int(port.Port),
+		}]
+	}
+
+	if !isListenerPresent {
+		var listenerCreateOpt listeners.CreateOpts
+		if isMetricListener {
+			listenerCreateOpt = listeners.CreateOpts{
+				Name:           name,
+				Protocol:       listeners.ProtocolPrometheus,
+				ProtocolPort:   svcConf.metricPort,
+				AllowedCIDRs:   svcConf.metricAllowedCIDRs,
+				LoadbalancerID: lbID,
+				Tags:           []string{svcConf.lbName},
+			}
+		} else {
+			listenerCreateOpt = lbaas.buildListenerCreateOpt(port, svcConf, name)
+			listenerCreateOpt.LoadbalancerID = lbID
+		}
+
+		klog.V(2).Infof("Creating listener for port %d using protocol %s", listenerCreateOpt.ProtocolPort, listenerCreateOpt.Protocol)
 
 		var err error
 		listener, err = openstackutil.CreateListener(lbaas.lb, lbID, listenerCreateOpt)
@@ -1078,50 +1123,57 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListene
 			}
 		}
 
-		if svcConf.connLimit != listener.ConnLimit {
-			updateOpts.ConnLimit = &svcConf.connLimit
-			listenerChanged = true
-		}
+		if isMetricListener {
+			if !cpoutil.StringListEqual(svcConf.metricAllowedCIDRs, listener.AllowedCIDRs) {
+				updateOpts.AllowedCIDRs = &svcConf.metricAllowedCIDRs
+				listenerChanged = true
+			}
+		} else {
+			if svcConf.connLimit != listener.ConnLimit {
+				updateOpts.ConnLimit = &svcConf.connLimit
+				listenerChanged = true
+			}
 
-		listenerKeepClientIP := listener.InsertHeaders[annotationXForwardedFor] == "true"
-		if svcConf.keepClientIP != listenerKeepClientIP {
-			updateOpts.InsertHeaders = &listener.InsertHeaders
-			if svcConf.keepClientIP {
-				if *updateOpts.InsertHeaders == nil {
-					*updateOpts.InsertHeaders = make(map[string]string)
+			listenerKeepClientIP := listener.InsertHeaders[annotationXForwardedFor] == "true"
+			if svcConf.keepClientIP != listenerKeepClientIP {
+				updateOpts.InsertHeaders = &listener.InsertHeaders
+				if svcConf.keepClientIP {
+					if *updateOpts.InsertHeaders == nil {
+						*updateOpts.InsertHeaders = make(map[string]string)
+					}
+					(*updateOpts.InsertHeaders)[annotationXForwardedFor] = "true"
+				} else {
+					delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
 				}
-				(*updateOpts.InsertHeaders)[annotationXForwardedFor] = "true"
-			} else {
-				delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
-			}
-			listenerChanged = true
-		}
-		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
-			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
-			listenerChanged = true
-		}
-		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
-			if svcConf.timeoutClientData != listener.TimeoutClientData {
-				updateOpts.TimeoutClientData = &svcConf.timeoutClientData
 				listenerChanged = true
 			}
-			if svcConf.timeoutMemberConnect != listener.TimeoutMemberConnect {
-				updateOpts.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
+			if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
+				updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
 				listenerChanged = true
 			}
-			if svcConf.timeoutMemberData != listener.TimeoutMemberData {
-				updateOpts.TimeoutMemberData = &svcConf.timeoutMemberData
-				listenerChanged = true
+			if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
+				if svcConf.timeoutClientData != listener.TimeoutClientData {
+					updateOpts.TimeoutClientData = &svcConf.timeoutClientData
+					listenerChanged = true
+				}
+				if svcConf.timeoutMemberConnect != listener.TimeoutMemberConnect {
+					updateOpts.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
+					listenerChanged = true
+				}
+				if svcConf.timeoutMemberData != listener.TimeoutMemberData {
+					updateOpts.TimeoutMemberData = &svcConf.timeoutMemberData
+					listenerChanged = true
+				}
+				if svcConf.timeoutTCPInspect != listener.TimeoutTCPInspect {
+					updateOpts.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
+					listenerChanged = true
+				}
 			}
-			if svcConf.timeoutTCPInspect != listener.TimeoutTCPInspect {
-				updateOpts.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
-				listenerChanged = true
-			}
-		}
-		if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
-			if !cpoutil.StringListEqual(svcConf.allowedCIDR, listener.AllowedCIDRs) {
-				updateOpts.AllowedCIDRs = &svcConf.allowedCIDR
-				listenerChanged = true
+			if openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
+				if !cpoutil.StringListEqual(svcConf.allowedCIDR, listener.AllowedCIDRs) {
+					updateOpts.AllowedCIDRs = &svcConf.allowedCIDR
+					listenerChanged = true
+				}
 			}
 		}
 
@@ -1752,7 +1804,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 
 		for portIndex, port := range service.Spec.Ports {
-			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cpoutil.Sprintf255(listenerFormat, portIndex, lbName), curListenerMapping, port, svcConf)
+			listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cpoutil.Sprintf255(listenerFormat, portIndex, lbName), curListenerMapping, port, svcConf, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1772,6 +1824,25 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			curListeners = popListener(curListeners, listener.ID)
 		}
 
+		// Check if we need to expose the metric endpoint
+		svcConf.metricEnabled = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerMetricsEnabled, false)
+		if svcConf.metricEnabled && openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeaturePrometheusListener, lbaas.opts.LBProvider) {
+			// Only a LB owner can add the prometheus listener (to avoid conflict with a shared loadbalancer)
+			if isLBOwner {
+				svcConf.metricPort = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerMetricsPort, 9100)
+				lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerMetricsPort, strconv.Itoa(svcConf.metricPort))
+				svcConf.metricAllowedCIDRs = getStringArrayFromServiceAnnotationSeparatedByComma(service, ServiceAnnotationLoadBalancerMetricsAllowCidrs, []string{})
+				listener, err := lbaas.ensureOctaviaListener(loadbalancer.ID, cpoutil.Sprintf255(listenerFormatMetric, lbName), curListenerMapping, corev1.ServicePort{}, svcConf, true)
+				if err != nil {
+					return nil, err
+				}
+				curListeners = popListener(curListeners, listener.ID)
+			} else {
+				msg := "Metric Listener cannot be deployed on Service %s, only owner Service can do that"
+				lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBMetricListenerIgnored, msg, serviceName)
+				klog.Warningf(msg, serviceName)
+			}
+		}
 		// Deal with the remaining listeners, delete the listener if it was created by this Service previously.
 		if err := lbaas.deleteOctaviaListeners(loadbalancer.ID, curListeners, isLBOwner, lbName); err != nil {
 			return nil, err
@@ -1791,8 +1862,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	// save address into the annotation
+	// save addresses into the annotations
 	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
+	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerVIPAddress, loadbalancer.VipAddress)
 
 	// add LB name to load balancer tags.
 	if svcConf.supportLBTags {
