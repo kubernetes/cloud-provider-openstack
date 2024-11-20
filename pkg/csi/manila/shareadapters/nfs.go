@@ -32,7 +32,7 @@ type NFS struct{}
 
 var _ ShareAdapter = &NFS{}
 
-func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
+func (NFS) GetOrGrantAccesses(args *GrantAccessArgs) ([]shares.AccessRight, error) {
 	// First, check if the access right exists or needs to be created
 
 	rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
@@ -42,22 +42,43 @@ func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) 
 		}
 	}
 
-	// Try to find the access right
+	accessToList := strings.Split(args.Options.NFSShareClient, ",")
 
-	for _, r := range rights {
-		if r.AccessTo == args.Options.NFSShareClient && r.AccessType == "ip" && r.AccessLevel == "rw" {
-			klog.V(4).Infof("IP access right for share %s already exists", args.Share.Name)
-			return &r, nil
+	created := false
+	for _, at := range accessToList {
+		// Try to find the access right
+		found := false
+		for _, r := range rights {
+			if r.AccessTo == at && r.AccessType == "ip" && r.AccessLevel == "rw" {
+				klog.V(4).Infof("IP access right %s for share %s already exists", at, args.Share.Name)
+				found = true
+				break
+			}
+		}
+		// Not found, create it
+		if !found {
+			_, err = args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
+				AccessType:  "ip",
+				AccessLevel: "rw",
+				AccessTo:    at,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to grant access right: %v", err)
+			}
+			created = true
 		}
 	}
 
-	// Not found, create it
-
-	return args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
-		AccessType:  "ip",
-		AccessLevel: "rw",
-		AccessTo:    args.Options.NFSShareClient,
-	})
+	// Search again because access rights have changed
+	if created {
+		rights, err = args.ManilaClient.GetAccessRights(args.Share.ID)
+		if err != nil {
+			if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
+				return nil, fmt.Errorf("failed to list access rights: %v", err)
+			}
+		}
+	}
+	return rights, nil
 }
 
 func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {

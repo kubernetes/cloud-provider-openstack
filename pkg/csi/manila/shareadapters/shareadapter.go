@@ -44,7 +44,7 @@ type ShareAdapter interface {
 	// GetOrGrantAccess first tries to retrieve an access right for args.Share.
 	// An access right is created for the share in case it doesn't exist yet.
 	// Returns an existing or new access right for args.Share.
-	GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.AccessRight, err error)
+	GetOrGrantAccesses(args *GrantAccessArgs) (accessRights []shares.AccessRight, err error)
 
 	// BuildVolumeContext builds a volume context map that's passed to NodeStageVolumeRequest and NodePublishVolumeRequest
 	BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error)

@@ -18,6 +18,7 @@ package shareadapters
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -31,82 +32,81 @@ type Cephfs struct{}
 
 var _ ShareAdapter = &Cephfs{}
 
-func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.AccessRight, err error) {
+func (Cephfs) GetOrGrantAccesses(args *GrantAccessArgs) ([]shares.AccessRight, error) {
 	// First, check if the access right exists or needs to be created
 
-	var rights []shares.AccessRight
-
-	accessTo := args.Options.CephfsClientID
-	if accessTo == "" {
-		accessTo = args.Share.Name
-	}
-
-	rights, err = args.ManilaClient.GetAccessRights(args.Share.ID)
+	rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
 			return nil, fmt.Errorf("failed to list access rights: %v", err)
 		}
-	} else {
+	}
+
+	accessToList := []string{args.Share.Name}
+	if args.Options.CephfsClientID != "" {
+		accessToList = strings.Split(args.Options.CephfsClientID, ",")
+	}
+
+	created := false
+	for _, at := range accessToList {
 		// Try to find the access right
-
+		found := false
 		for _, r := range rights {
-			if r.AccessTo == accessTo && r.AccessType == "cephx" && r.AccessLevel == "rw" {
+			if r.AccessTo == at && r.AccessType == "cephx" && r.AccessLevel == "rw" {
 				klog.V(4).Infof("cephx access right for share %s already exists", args.Share.Name)
-
-				accessRight = &r
+				found = true
 				break
 			}
 		}
-	}
 
-	if accessRight == nil {
 		// Not found, create it
-
-		accessRight, err = args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
-			AccessType:  "cephx",
-			AccessLevel: "rw",
-			AccessTo:    accessTo,
-		})
-
-		if err != nil {
-			return
+		if !found {
+			result, err := args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
+				AccessType:  "cephx",
+				AccessLevel: "rw",
+				AccessTo:    at,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to grant access right: %v", err)
+			}
+			if result.AccessKey == "" {
+				// Wait till a ceph key is assigned to the access right
+				backoff := wait.Backoff{
+					Duration: time.Second * 5,
+					Factor:   1.2,
+					Steps:    10,
+				}
+				wait.ExponentialBackoff(backoff, func() (bool, error) {
+					rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
+					if err != nil {
+						return false, fmt.Errorf("error get access rights for share %s: %v", args.Share.ID, err)
+					}
+					if len(rights) == 0 {
+						return false, fmt.Errorf("cannot find the access right we've just created")
+					}
+					for _, r := range rights {
+						if r.AccessTo == at && r.AccessKey != "" {
+							return true, nil
+						}
+					}
+					klog.V(4).Infof("Access key for %s is not set yet, retrying...", at)
+					return false, nil
+				})
+			}
+			created = true
 		}
 	}
 
-	if accessRight.AccessKey != "" {
-		// The access right is ready
-		return
-	}
-
-	// Wait till a ceph key is assigned to the access right
-
-	backoff := wait.Backoff{
-		Duration: time.Second * 5,
-		Factor:   1.2,
-		Steps:    10,
-	}
-
-	return accessRight, wait.ExponentialBackoff(backoff, func() (bool, error) {
-		rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
+	// Search again because access rights have changed
+	if created {
+		rights, err = args.ManilaClient.GetAccessRights(args.Share.ID)
 		if err != nil {
-			return false, err
-		}
-
-		var accessRight *shares.AccessRight
-
-		for i := range rights {
-			if rights[i].AccessTo == accessTo {
-				accessRight = &rights[i]
-				break
+			if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
+				return nil, fmt.Errorf("failed to list access rights: %v", err)
 			}
 		}
-
-		if accessRight == nil {
-			return false, fmt.Errorf("cannot find the access right we've just created")
-		}
-
-		return accessRight.AccessKey != "", nil
-	})
+	}
+	return rights, nil
 }
 
 func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {
