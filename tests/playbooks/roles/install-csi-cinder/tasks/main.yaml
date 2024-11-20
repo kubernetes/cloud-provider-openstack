@@ -195,7 +195,7 @@
         -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
   ignore_errors: true
-  async: 9000 # wait 2h30m then fail and fetch the logs
+  async: 5400 # wait 1h30m then fail and fetch the logs
   poll: 15
 
 - name: Collect pod logs for debug purpose
