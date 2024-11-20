@@ -129,7 +129,7 @@ func handle() {
 	}
 
 	if provideNodeService {
-		//Initialize mount
+		// Initialize mount
 		mount := mount.GetMountProvider()
 
 		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
@@ -138,7 +138,7 @@ func handle() {
 			return
 		}
 
-		//Initialize Metadata
+		// Initialize Metadata
 		metadata := metadata.GetMetadataProvider(cfg.Metadata.SearchOrder)
 
 		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies)

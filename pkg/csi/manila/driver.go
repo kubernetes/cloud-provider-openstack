@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
 )
@@ -182,11 +183,7 @@ func (d *Driver) SetupControllerService() error {
 	return nil
 }
 
-func (d *Driver) SetupNodeService() error {
-	if err := argNotEmpty(d.nodeID, "node ID"); err != nil {
-		return err
-	}
-
+func (d *Driver) SetupNodeService(metadata metadata.IMetadata) error {
 	klog.Info("Providing node service")
 
 	var supportsNodeStage bool
@@ -206,7 +203,12 @@ func (d *Driver) SetupNodeService() error {
 
 	d.addNodeServiceCapabilities(nscaps)
 
-	d.ns = &nodeServer{d: d, supportsNodeStage: supportsNodeStage, nodeStageCache: make(map[volumeID]stageCacheEntry)}
+	d.ns = &nodeServer{
+		d:                 d,
+		metadata:          metadata,
+		supportsNodeStage: supportsNodeStage,
+		nodeStageCache:    make(map[volumeID]stageCacheEntry),
+	}
 	return nil
 }
 

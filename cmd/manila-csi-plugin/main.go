@@ -27,6 +27,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
@@ -108,7 +109,10 @@ func main() {
 			}
 
 			if provideNodeService {
-				err = d.SetupNodeService()
+				// Initialize metadata
+				metadata := metadata.GetMetadataProvider("")
+
+				err = d.SetupNodeService(metadata)
 				if err != nil {
 					klog.Fatalf("Driver node service initialization failed: %v", err)
 				}
