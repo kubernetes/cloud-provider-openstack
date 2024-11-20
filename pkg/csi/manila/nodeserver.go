@@ -109,15 +109,15 @@ func (ns *nodeServer) buildVolumeContext(ctx context.Context, volID volumeID, sh
 	}
 
 	for i := range accessRights {
-		if accessRights[i].ID == shareOpts.ShareAccessID {
+		if accessRights[i].ID == shareOpts.ShareAccessIDs {
 			accessRight = &accessRights[i]
 			break
 		}
 	}
 
 	if accessRight == nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot find access right %s for volume %s",
-			shareOpts.ShareAccessID, volID)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot find access rights %s for volume %s",
+			shareOpts.ShareAccessIDs, volID)
 	}
 
 	// Retrieve list of all export locations for this share.
