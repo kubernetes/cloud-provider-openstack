@@ -25,13 +25,11 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
-	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/portsecurity"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/trunk_details"
 	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
@@ -45,7 +43,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
-	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
@@ -379,77 +376,9 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 }
 
 // Zones indicates that we support zones
+// DEPRECATED: Zones is deprecated in favor of retrieving zone/region information from InstancesV2.
 func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
-	klog.V(1).Info("Claiming to support Zones")
-	return os, true
-}
-
-// GetZone returns the current zone
-func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	md, err := metadata.Get(os.metadataOpts.SearchOrder)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: md.AvailabilityZone,
-		Region:        os.epOpts.Region,
-	}
-	klog.V(4).Infof("Current zone is %v", zone)
-	return zone, nil
-}
-
-// GetZoneByProviderID implements Zones.GetZoneByProviderID
-// This is particularly useful in external cloud providers where the kubelet
-// does not initialize node data.
-func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string) (cloudprovider.Zone, error) {
-	instanceID, _, err := instanceIDFromProviderID(providerID)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(ctx, compute, instanceID).Extract()
-	if mc.ObserveRequest(err) != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: server.AvailabilityZone,
-		Region:        os.epOpts.Region,
-	}
-	klog.V(4).Infof("The instance %s in zone %v", server.Name, zone)
-	return zone, nil
-}
-
-// GetZoneByNodeName implements Zones.GetZoneByNodeName
-// This is particularly useful in external cloud providers where the kubelet
-// does not initialize node data.
-func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeName) (cloudprovider.Zone, error) {
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	srv, err := getServerByName(ctx, compute, string(nodeName))
-	if err != nil {
-		if err == errors.ErrNotFound {
-			return cloudprovider.Zone{}, cloudprovider.InstanceNotFound
-		}
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: srv.AvailabilityZone,
-		Region:        os.epOpts.Region,
-	}
-	klog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)
-	return zone, nil
+	return nil, false
 }
 
 // Routes initializes routes support
