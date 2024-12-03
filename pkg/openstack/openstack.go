@@ -63,7 +63,7 @@ const (
 var userAgentData []string
 
 // supportedLBProvider map is used to define LoadBalancer providers that we support
-var supportedLBProvider = []string{"amphora", "octavia", "ovn"}
+var supportedLBProvider = []string{"amphora", "octavia", "ovn", "f5"}
 
 // supportedContainerStore map is used to define supported tls-container-ref store
 var supportedContainerStore = []string{"barbican", "external"}
