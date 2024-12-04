@@ -335,8 +335,6 @@ Run sanity tests for cinder CSI driver using:
 $ make test-cinder-csi-sanity
 ```
 
-Optionally, to test the driver csc tool could be used. please refer, [usage guide](./csc-tool.md) for more info.
-
 ## In-tree Cinder provisioner to cinder CSI Migration
 
 Starting from Kubernetes 1.21, OpenStack Cinder CSI migration is supported as beta feature and is `ON` by default. Cinder CSI driver must be installed on clusters on OpenStack for Cinder volumes to work. If you have persistence volumes that are created with in-tree `kubernetes.io/cinder` plugin, you could migrate to use `cinder.csi.openstack.org` Container Storage Interface (CSI) Driver.
