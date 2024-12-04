@@ -37,31 +37,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type DriverOpts struct {
-	DriverName   string
-	NodeID       string
-	NodeAZ       string
-	WithTopology bool
-	ShareProto   string
-	ClusterID    string
-
-	ServerCSIEndpoint string
-	FwdCSIEndpoint    string
-
-	ManilaClientBuilder manilaclient.Builder
-	CSIClientBuilder    csiclient.Builder
-
-	PVCLister v1.PersistentVolumeClaimLister
-}
-
 type Driver struct {
-	nodeID       string
-	nodeAZ       string
+	name       string
+	fqVersion  string // Fully qualified version in format {driverVersion}@{CPO version}
+	shareProto string
+	clusterID  string
+
 	withTopology bool
-	name         string
-	fqVersion    string // Fully qualified version in format {driverVersion}@{CPO version}
-	shareProto   string
-	clusterID    string
 
 	serverEndpoint string
 	fwdEndpoint    string
@@ -78,6 +60,22 @@ type Driver struct {
 	csiClientBuilder    csiclient.Builder
 
 	pvcLister v1.PersistentVolumeClaimLister
+}
+
+type DriverOpts struct {
+	DriverName string
+	ShareProto string
+	ClusterID  string
+
+	WithTopology bool
+
+	ServerCSIEndpoint string
+	FwdCSIEndpoint    string
+
+	ManilaClientBuilder manilaclient.Builder
+	CSIClientBuilder    csiclient.Builder
+
+	PVCLister v1.PersistentVolumeClaimLister
 }
 
 type nonBlockingGRPCServer struct {
@@ -118,8 +116,6 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 
 	d := &Driver{
 		fqVersion:           fmt.Sprintf("%s@%s", driverVersion, version.Version),
-		nodeID:              o.NodeID,
-		nodeAZ:              o.NodeAZ,
 		withTopology:        o.WithTopology,
 		name:                o.DriverName,
 		serverEndpoint:      o.ServerCSIEndpoint,
@@ -139,7 +135,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	klog.Infof("Operating on %s shares", d.shareProto)
 
 	if d.withTopology {
-		klog.Infof("Topology awareness enabled, node availability zone: %s", d.nodeAZ)
+		klog.Infof("Topology awareness enabled")
 	} else {
 		klog.Info("Topology awareness disabled")
 	}
