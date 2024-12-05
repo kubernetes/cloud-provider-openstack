@@ -175,11 +175,3 @@
   until: result.stdout == (worker_node_count + 1)|string
   retries: 12
   delay: 10
-
-- name: Set kubeconfig env
-  set_fact:
-    kubeconfig: "{{ ansible_user_dir }}/.kube/config"
-
-- name: Merge KUBECONFIG env vars into global env
-  set_fact:
-    global_env: "{{ global_env | combine({'KUBECONFIG': kubeconfig}) }}"

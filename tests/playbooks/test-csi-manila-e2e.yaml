@@ -5,7 +5,6 @@
 
   vars:
     user: stack
-    global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
 
   roles:
@@ -25,4 +24,3 @@
       run_e2e: false
     - role: install-helm
     - role: install-csi-manila
-      environment: "{{ global_env }}"
