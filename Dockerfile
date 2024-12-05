@@ -48,7 +48,6 @@ RUN apk add --no-cache ca-certificates
 # builder itself is always amd64
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
 
-ARG GOPROXY=https://goproxy.io,direct
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION
