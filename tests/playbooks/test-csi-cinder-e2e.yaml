@@ -6,7 +6,6 @@
   vars:
     e2e_test_version: v1.29.9
     user: stack
-    global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
 
   roles:
@@ -24,6 +23,4 @@
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'
     - role: install-cpo-occm
       run_e2e: false
-      environment: "{{ global_env }}"
     - role: install-csi-cinder
-      environment: "{{ global_env }}"
