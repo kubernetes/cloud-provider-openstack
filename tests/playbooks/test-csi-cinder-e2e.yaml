@@ -24,3 +24,7 @@
     - role: install-cpo-occm
       run_e2e: false
     - role: install-csi-cinder
+      environment:
+        GOPATH: '{{ ansible_user_dir }}'
+        PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
+        KUBECONFIG: '{{ ansible_user_dir }}/.kube/config'
