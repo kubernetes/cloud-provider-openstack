@@ -1,18 +1,18 @@
 ---
-- name: Ensure CPO source folder
+- name: Ensure CPO source folder is present
   shell:
     executable: /bin/bash
     cmd: |
-      if [ ! -d $GOPATH/src/k8s.io/cloud-provider-openstack ]; then
-        mkdir -p $GOPATH/src/k8s.io; cd $_
-        git clone https://github.com/kubernetes/cloud-provider-openstack
+      if [ ! -d "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack" ]; then
+        echo "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack should exist but does not"
+        exit 1
       fi
 
 - name: Build and upload openstack-cloud-controller-manager image
   shell:
     executable: /bin/bash
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
       VERSION="v0.0.99" # Fake version, but in proper format.
 
       make push-multiarch-image-openstack-cloud-controller-manager \
@@ -71,7 +71,7 @@
     cmd: |
       VERSION="v0.0.99" # Fake version, but in proper format.
 
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
       # replace image with built image
       sed -i "s#registry.k8s.io/provider-os/openstack-cloud-controller-manager:[^'\"]\+#{{ remote_registry_host }}/openstack-cloud-controller-manager:${VERSION}#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
       sed -i "s#node-role.kubernetes.io/control-plane: \"\"#node-role.kubernetes.io/control-plane: \"true\"#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
@@ -82,7 +82,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
       kubectl apply -f manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
       kubectl apply -f manifests/controller-manager/cloud-controller-manager-roles.yaml
@@ -133,7 +133,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
       # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
