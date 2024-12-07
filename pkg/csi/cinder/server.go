@@ -73,19 +73,22 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 
 	proto, addr, err := ParseEndpoint(endpoint)
 	if err != nil {
-		klog.Fatal(err.Error())
+		klog.ErrorS(err, "Failed to parse endpoint", "endpoint", endpoint)
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	if proto == "unix" {
 		addr = "/" + addr
 		if err := os.Remove(addr); err != nil && !os.IsNotExist(err) {
-			klog.Fatalf("Failed to remove %s, error: %v", addr, err)
+			klog.ErrorS(err, "Failed to remove unix socket file", "address", addr)
+			klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 		}
 	}
 
 	listener, err := net.Listen(proto, addr)
 	if err != nil {
-		klog.Fatalf("Failed to listen: %v", err)
+		klog.ErrorS(err, "Failed to listen address", "address", addr)
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
 	}
 
 	opts := []grpc.ServerOption{
@@ -104,10 +107,10 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 		csi.RegisterNodeServer(server, ns)
 	}
 
-	klog.Infof("Listening for connections on address: %#v", listener.Addr())
+	klog.InfoS("Listening for connections on address", "address", listener.Addr())
 
 	if err := server.Serve(listener); err != nil {
-		klog.Infof("Server stopped with: %v", err)
+		klog.ErrorS(err, "Server stopped with error")
 		return
 	}
 }
