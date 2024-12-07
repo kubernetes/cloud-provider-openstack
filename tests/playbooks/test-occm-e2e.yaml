@@ -5,7 +5,6 @@
 
   vars:
     user: stack
-    global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
     octavia_provider: ""
 
@@ -28,4 +27,3 @@
     - role: install-cpo-occm
       run_e2e: "{{ run_e2e }}"
       octavia_provider: "{{ octavia_provider }}"
-      environment: "{{ global_env }}"
