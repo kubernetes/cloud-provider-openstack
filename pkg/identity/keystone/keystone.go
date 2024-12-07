@@ -247,6 +247,7 @@ func (k *Auth) processItem(key string) error {
 
 // Handler serves the http requests
 func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.TODO()
 	var data map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -266,12 +267,12 @@ func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
 
 	if kind == "TokenReview" {
 		var token = data["spec"].(map[string]interface{})["token"].(string)
-		userInfo := k.authenticateToken(w, r, token, data)
+		userInfo := k.authenticateToken(ctx, w, r, token, data)
 
 		// Do synchronization
 		// In the case of unscoped tokens, when project id is not defined, we have to skip this part
 		if k.syncer.syncConfig != nil && len(k.syncer.syncConfig.DataTypesToSync) > 0 && userInfo != nil && len(userInfo.Extra[ProjectID]) != 0 {
-			err = k.syncer.syncData(userInfo)
+			err = k.syncer.syncData(ctx, userInfo)
 			if err != nil {
 				klog.Errorf("an error occurred during data synchronization: %v", err)
 			}
@@ -283,8 +284,8 @@ func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (k *Auth) authenticateToken(w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
-	user, authenticated, err := k.authn.AuthenticateToken(token)
+func (k *Auth) authenticateToken(ctx context.Context, w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
+	user, authenticated, err := k.authn.AuthenticateToken(ctx, token)
 	klog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
 
 	if !authenticated {
@@ -405,8 +406,8 @@ func (k *Auth) authorizeToken(w http.ResponseWriter, r *http.Request, data map[s
 }
 
 // NewKeystoneAuth returns a new KeystoneAuth controller
-func NewKeystoneAuth(c *Config) (*Auth, error) {
-	keystoneClient, err := createKeystoneClient(c.KeystoneURL, c.KeystoneCA)
+func NewKeystoneAuth(ctx context.Context, c *Config) (*Auth, error) {
+	keystoneClient, err := createKeystoneClient(ctx, c.KeystoneURL, c.KeystoneCA)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize keystone client: %v", err)
 	}
@@ -424,7 +425,7 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 	// is possible that both are not provided, in this case, the keystone webhook authorization will always return deny.
 	var policy policyList
 	if c.PolicyConfigMapName != "" {
-		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(context.TODO(), c.PolicyConfigMapName, metav1.GetOptions{})
+		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(ctx, c.PolicyConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.PolicyConfigMapName, err)
 		}
@@ -454,7 +455,7 @@ func NewKeystoneAuth(c *Config) (*Auth, error) {
 	// is possible that both are not provided, in this case, the keystone webhook authenticator will not synchronize data.
 	var sc *syncConfig
 	if c.SyncConfigMapName != "" {
-		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(context.TODO(), c.SyncConfigMapName, metav1.GetOptions{})
+		cm, err := k8sClient.CoreV1().ConfigMaps(cmNamespace).Get(ctx, c.SyncConfigMapName, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("configmap get err   #%v ", err)
 			return nil, fmt.Errorf("failed to get configmap %s: %v", c.SyncConfigMapName, err)
@@ -529,7 +530,7 @@ func getField(data map[string]interface{}, name string) string {
 }
 
 // Construct a Keystone v3 client, bail out if we cannot find the v3 API endpoint
-func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.RoundTripper) (*gophercloud.ProviderClient, error) {
+func createIdentityV3Provider(ctx context.Context, options gophercloud.AuthOptions, transport http.RoundTripper) (*gophercloud.ProviderClient, error) {
 	client, err := openstack.NewClient(options.IdentityEndpoint)
 	if err != nil {
 		return nil, err
@@ -542,7 +543,7 @@ func createIdentityV3Provider(options gophercloud.AuthOptions, transport http.Ro
 	versions := []*utils.Version{
 		{ID: "v3", Priority: 30, Suffix: "/v3/"},
 	}
-	chosen, _, err := utils.ChooseVersion(context.TODO(), client, versions)
+	chosen, _, err := utils.ChooseVersion(ctx, client, versions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find identity API v3 version : %v", err)
 	}
@@ -578,7 +579,7 @@ func createKubernetesClient(kubeConfig string) (*kubernetes.Clientset, error) {
 	return client, nil
 }
 
-func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceClient, error) {
+func createKeystoneClient(ctx context.Context, authURL string, caFile string) (*gophercloud.ServiceClient, error) {
 	// FIXME: Enable this check later
 	//if !strings.HasPrefix(authURL, "https") {
 	//	return nil, errors.New("Auth URL should be secure and start with https")
@@ -597,7 +598,7 @@ func createKeystoneClient(authURL string, caFile string) (*gophercloud.ServiceCl
 		transport = netutil.SetOldTransportDefaults(&http.Transport{TLSClientConfig: config})
 	}
 	opts := gophercloud.AuthOptions{IdentityEndpoint: authURL}
-	provider, err := createIdentityV3Provider(opts, transport)
+	provider, err := createIdentityV3Provider(ctx, opts, transport)
 	if err != nil {
 		return nil, err
 	}

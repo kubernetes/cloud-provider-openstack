@@ -8,9 +8,9 @@ import (
 )
 
 // GetInstanceByID returns server with specified instanceID
-func (os *OpenStack) GetInstanceByID(instanceID string) (*servers.Server, error) {
+func (os *OpenStack) GetInstanceByID(ctx context.Context, instanceID string) (*servers.Server, error) {
 	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(context.TODO(), os.compute, instanceID).Extract()
+	server, err := servers.Get(ctx, os.compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}

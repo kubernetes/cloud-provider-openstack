@@ -17,6 +17,8 @@ limitations under the License.
 package shareadapters
 
 import (
+	"context"
+
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
@@ -44,7 +46,7 @@ type ShareAdapter interface {
 	// GetOrGrantAccess first tries to retrieve an access right for args.Share.
 	// An access right is created for the share in case it doesn't exist yet.
 	// Returns an existing or new access right for args.Share.
-	GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.AccessRight, err error)
+	GetOrGrantAccess(ctx context.Context, args *GrantAccessArgs) (accessRight *shares.AccessRight, err error)
 
 	// BuildVolumeContext builds a volume context map that's passed to NodeStageVolumeRequest and NodePublishVolumeRequest
 	BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error)
