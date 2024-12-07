@@ -76,7 +76,7 @@ func main() {
 	csi.AddPVCFlags(cmd)
 
 	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "node id")
-	if err := cmd.PersistentFlags().MarkDeprecated("nodeid", "This flag would be removed in future. Currently, the value is ignored by the driver"); err != nil {
+	if err := cmd.PersistentFlags().MarkDeprecated("nodeid", "This option is now ignored by the driver. It will be removed in a future release."); err != nil {
 		klog.Fatalf("Unable to mark flag nodeid to be deprecated: %v", err)
 	}
 
@@ -129,7 +129,7 @@ func handle() {
 	}
 
 	if provideNodeService {
-		//Initialize mount
+		// Initialize mount
 		mount := mount.GetMountProvider()
 
 		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
@@ -138,7 +138,7 @@ func handle() {
 			return
 		}
 
-		//Initialize Metadata
+		// Initialize Metadata
 		metadata := metadata.GetMetadataProvider(cfg.Metadata.SearchOrder)
 
 		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies)

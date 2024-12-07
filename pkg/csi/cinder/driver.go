@@ -66,16 +66,17 @@ type Driver struct {
 	name      string
 	fqVersion string //Fully qualified version in format {Version}@{CPO version}
 	endpoint  string
-	cluster   string
+	clusterID string
 
-	ids       *identityServer
-	cs        *controllerServer
-	ns        *nodeServer
-	pvcLister v1.PersistentVolumeClaimLister
+	ids *identityServer
+	cs  *controllerServer
+	ns  *nodeServer
 
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
 	nscap []*csi.NodeServiceCapability
+
+	pvcLister v1.PersistentVolumeClaimLister
 }
 
 type DriverOpts struct {
@@ -89,7 +90,7 @@ func NewDriver(o *DriverOpts) *Driver {
 		name:      driverName,
 		fqVersion: fmt.Sprintf("%s@%s", Version, version.Version),
 		endpoint:  o.Endpoint,
-		cluster:   o.ClusterID,
+		clusterID: o.ClusterID,
 		pvcLister: o.PVCLister,
 	}
 

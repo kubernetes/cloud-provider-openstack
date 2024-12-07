@@ -34,8 +34,8 @@ Option | Default value | Description
 -------|---------------|------------
 `--endpoint` | `unix:///tmp/csi.sock` | CSI Manila's CSI endpoint
 `--drivername` | `manila.csi.openstack.org` | Name of this driver
-`--nodeid` | _none_ | ID of this node
-`--nodeaz` | _none_ | Availability zone of this node
+`--nodeid` | _none_ | **DEPRECATED** ID of this node. This value is now automatically retrieved from the metadata service.
+`--nodeaz` | _none_ | **DEPRECATED** Availability zone of this node. This value is now automatically retrieved from the metadata service.
 `--runtime-config-file` | _none_ | Path to the [runtime configuration file](#runtime-configuration-file)
 `--with-topology` | _none_ | CSI Manila is topology-aware. See [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning) for more info
 `--share-protocol-selector` | _none_ | Specifies which Manila share protocol to use for this instance of the driver. See [supported protocols](#share-protocol-support-matrix) for valid values.
@@ -103,7 +103,7 @@ With topology awareness enabled, administrators can specify the mapping between 
 Doing so will instruct the CO scheduler to place the workloads+shares only on nodes that are able to reach the underlying storage.
 
 CSI Manila uses `topology.manila.csi.openstack.org/zone` _topology key_ to identify node's affinity to a certain compute availability zone.
-Each node of the cluster then gets labeled with a key/value pair of `topology.manila.csi.openstack.org/zone` / value of [`--nodeaz`](#command-line-arguments) cmd arg.
+Each node of the cluster then gets labeled with the `topology.manila.csi.openstack.org/zone` where the value is the value of the AZ retrieved from the Nova metadata service.
 
 This label may be used as a node selector when defining topology constraints for dynamic provisioning.
 Administrators are also free to pass arbitrary labels, and as long as they are valid node selectors, they will be honored by the scheduler.
@@ -258,11 +258,10 @@ To test the deployment further, see `examples/csi-manila-plugin`.
 
 If you're deploying CSI Manila with Helm:
 1. Set `csimanila.topologyAwarenessEnabled` to `true`
-2. Set `csimanila.nodeAZ`. This value will be sourced into the [`--nodeaz`](#command-line-arguments) cmd flag. Bash expressions are also allowed.
 
 If you're deploying CSI Manila manually:
 1. Run the [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) with `--feature-gates=Topology=true` cmd flag.
-2. Run CSI Manila with [`--with-topology`](#command-line-arguments) and set [`--nodeaz`](#command-line-arguments) to node's availability zone. For Nova, the zone may be retrieved via the Metadata service like so: `--nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)`
+2. Run CSI Manila with [`--with-topology`](#command-line-arguments).
 
 See `examples/csi-manila-plugin/nfs/topology-aware` for examples on defining topology constraints.
 
