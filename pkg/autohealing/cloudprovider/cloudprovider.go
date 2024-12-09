@@ -17,6 +17,8 @@ limitations under the License.
 package cloudprovider
 
 import (
+	"context"
+
 	"k8s.io/client-go/kubernetes"
 	log "k8s.io/klog/v2"
 
@@ -34,17 +36,17 @@ type CloudProvider interface {
 	GetName() string
 
 	// Update cluster health status.
-	UpdateHealthStatus([]healthcheck.NodeInfo, []healthcheck.NodeInfo) error
+	UpdateHealthStatus(context.Context, []healthcheck.NodeInfo, []healthcheck.NodeInfo) error
 
 	// Repair triggers the node repair process in the cloud.
-	Repair([]healthcheck.NodeInfo) error
+	Repair(context.Context, []healthcheck.NodeInfo) error
 
 	// Enabled decides if the repair should be triggered.
 	// It's recommended that the `Enabled()` function of the cloud provider doesn't allow to re-trigger when the repair
 	// is in place, e.g. before the repair process is finished, `Enabled()` should return false so that we won't
 	// re-trigger the repair process in the subsequent checks.
 	// This function also provides the cluster admin the capability to disable the cluster auto healing on the fly.
-	Enabled() bool
+	Enabled(context.Context) bool
 }
 
 type RegisterFunc func(config config.Config, client kubernetes.Interface) (CloudProvider, error)
