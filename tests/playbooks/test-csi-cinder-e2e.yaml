@@ -6,7 +6,6 @@
   vars:
     e2e_test_version: v1.30.5
     user: stack
-    global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
 
   roles:
@@ -24,6 +23,8 @@
       worker_node_count: 0
     - role: install-cpo-occm
       run_e2e: false
-      environment: "{{ global_env }}"
     - role: install-csi-cinder
-      environment: "{{ global_env }}"
+      environment:
+        GOPATH: '{{ ansible_user_dir }}'
+        PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
+        KUBECONFIG: '{{ ansible_user_dir }}/.kube/config'

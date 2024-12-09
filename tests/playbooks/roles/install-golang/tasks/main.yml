@@ -26,12 +26,16 @@
   when:
     - curr_go_version.stdout != go_version
 
-- name: Set golang env vars
-  set_fact:
-    golang_env:
-      GOPATH: '{{ ansible_user_dir }}'
-      PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
+- name: Set GOPATH
+  lineinfile:
+    path: ~/.bashrc
+    line: 'export GOPATH=$HOME'
+    create: true
+    state: present
 
-- name: Merge golang env vars into global env
-  set_fact:
-    global_env: '{{ global_env | combine(golang_env) }}'
+- name: Add go binary path to PATH
+  lineinfile:
+    path: ~/.bashrc
+    line: 'export PATH=/usr/local/go/bin:{{ ansible_user_dir }}/bin:$PATH'
+    create: true
+    state: present
