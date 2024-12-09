@@ -26,7 +26,9 @@
     cmd: |
       kubectl -n kube-system get secret cloud-config >/dev/null 2>&1
       if [ $? -eq 0 ]; then
-        exit 0
+        kubectl -n kube-system get secrets cloud-config -o json | jq -r '.data."cloud.conf"' | base64 -d
+        # replacing a cloud-config, created by the OCCM role
+        kubectl -n kube-system delete secret cloud-config
       fi
 
       set -ex
@@ -43,9 +45,12 @@
       tenant-id=$tenant_id
       domain-id=default
 
+      [LoadBalancer]
+      enabled=false
       EOF
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
+      kubectl -n kube-system get secrets cloud-config -o json | jq -r '.data."cloud.conf"' | base64 -d
 
 - name: Replace manifests
   shell:
@@ -139,11 +144,21 @@
           set -x
           set -e
 
+          mkdir -p /var/log/csi-pod
           kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin
           kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin
 
           kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
-          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log 
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
+
+    - name: Show openstack-cloud-controller-manager pod logs
+      shell:
+        executable: /bin/bash
+        cmd: |
+          kubectl -n kube-system logs ds/openstack-cloud-controller-manager
+
+          kubectl -n kube-system logs ds/openstack-cloud-controller-manager > /var/log/csi-pod/occm.log
+
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
       fail:
         msg: *failmsg
