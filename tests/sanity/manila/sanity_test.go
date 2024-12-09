@@ -35,9 +35,7 @@ func TestDriver(t *testing.T) {
 	d, err := manila.NewDriver(
 		&manila.DriverOpts{
 			DriverName:          "fake.manila.csi.openstack.org",
-			NodeID:              "node",
 			WithTopology:        true,
-			NodeAZ:              "fake-az",
 			ShareProto:          "NFS",
 			ServerCSIEndpoint:   endpoint,
 			FwdCSIEndpoint:      fwdEndpoint,
@@ -54,7 +52,9 @@ func TestDriver(t *testing.T) {
 		t.Fatalf("Failed to initialize CSI Manila controller service: %v", err)
 	}
 
-	err = d.SetupNodeService()
+	fakemeta := &fakemetadata{}
+
+	err = d.SetupNodeService(fakemeta)
 	if err != nil {
 		t.Fatalf("Failed to initialize CSI Manila node service: %v", err)
 	}

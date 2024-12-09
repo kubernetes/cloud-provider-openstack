@@ -27,6 +27,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/component-base/cli"
 	"k8s.io/klog/v2"
@@ -90,11 +91,6 @@ func main() {
 				PVCLister:           csi.GetPVCLister(),
 			}
 
-			if provideNodeService {
-				opts.NodeID = nodeID
-				opts.NodeAZ = nodeAZ
-			}
-
 			d, err := manila.NewDriver(opts)
 			if err != nil {
 				klog.Fatalf("Driver initialization failed: %v", err)
@@ -108,7 +104,10 @@ func main() {
 			}
 
 			if provideNodeService {
-				err = d.SetupNodeService()
+				// Initialize metadata
+				metadata := metadata.GetMetadataProvider("")
+
+				err = d.SetupNodeService(metadata)
 				if err != nil {
 					klog.Fatalf("Driver node service initialization failed: %v", err)
 				}
@@ -127,9 +126,15 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
 
-	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID. This value is required if the node service is provided by this CSI driver instance.")
+	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
+	if err := cmd.PersistentFlags().MarkDeprecated("nodeid", "This option is now ignored by the driver. It will be removed in a future release."); err != nil {
+		klog.Fatalf("Unable to mark flag nodeid to be deprecated: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
+	if err := cmd.PersistentFlags().MarkDeprecated("nodeaz", "This option is now ignored by the driver. It will be removed in a future release."); err != nil {
+		klog.Fatalf("Unable to mark flag nodeaz to be deprecated: %v", err)
+	}
 
 	cmd.PersistentFlags().StringVar(&runtimeConfigFile, "runtime-config-file", "", "path to the runtime configuration file")
 

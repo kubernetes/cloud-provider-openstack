@@ -121,7 +121,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	// Volume Create
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
 	//Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
 	for _, mKey := range sharedcsi.RecognizedCSIProvisionerParams {
 		if v, ok := req.Parameters[mKey]; ok {
@@ -764,7 +764,7 @@ func (cs *controllerServer) createSnapshot(cloud openstack.IOpenStack, name stri
 	}
 
 	// Add cluster ID to the snapshot metadata
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
 
 	// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
 	// Also, we don't want to tag every param but we still want to send the
@@ -790,7 +790,7 @@ func (cs *controllerServer) createSnapshot(cloud openstack.IOpenStack, name stri
 
 func (cs *controllerServer) createBackup(cloud openstack.IOpenStack, name string, volumeID string, snap *snapshots.Snapshot, parameters map[string]string) (*backups.Backup, error) {
 	// Add cluster ID to the snapshot metadata
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
 
 	// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
 	// Also, we don't want to tag every param but we still want to send the

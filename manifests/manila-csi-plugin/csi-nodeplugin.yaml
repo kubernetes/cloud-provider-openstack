@@ -53,15 +53,13 @@ spec:
           image: registry.k8s.io/provider-os/manila-csi-plugin:v1.31.2
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
-            --nodeid=$(NODE_ID)
             --endpoint=$(CSI_ENDPOINT)
             --drivername=$(DRIVER_NAME)
             --share-protocol-selector=$(MANILA_SHARE_PROTO)
             --fwdendpoint=$(FWD_CSI_ENDPOINT)'
-            # To enable topology awareness and retrieve compute node AZs from the OpenStack Metadata Service, add the following flags:
+            # To enable topology awareness and retrieve compute node AZs from the OpenStack Metadata Service, add the following flag:
             # --with-topology
-            # --nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)
-            # Those flags need to be added to csi-controllerplugin.yaml as well.
+            # This flag needs to be added to csi-controllerplugin.yaml as well.
           ]
           env:
             - name: DRIVER_NAME
