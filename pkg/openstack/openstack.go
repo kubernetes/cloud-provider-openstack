@@ -91,6 +91,7 @@ type LoadBalancer struct {
 	opts          LoadBalancerOpts
 	kclient       kubernetes.Interface
 	eventRecorder record.EventRecorder
+	netExtensions map[string]bool
 }
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
@@ -375,7 +376,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder}}, true
+	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder, map[string]bool{}}}, true
 }
 
 // Zones indicates that we support zones
