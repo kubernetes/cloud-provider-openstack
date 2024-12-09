@@ -149,7 +149,8 @@ type NetworkingOpts struct {
 
 // RouterOpts is used for Neutron routes
 type RouterOpts struct {
-	RouterID string `gcfg:"router-id"`
+	RouterID                string `gcfg:"router-id"`
+	AutoConfigSecurityGroup bool   `gcfg:"auto-config-node-security-group"`
 }
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -230,6 +231,7 @@ func ReadConfig(config io.Reader) (Config, error) {
 	cfg.LoadBalancer.ContainerStore = "barbican"
 	cfg.LoadBalancer.MaxSharedLB = 2
 	cfg.LoadBalancer.ProviderRequiresSerialAPICalls = false
+	cfg.Route.AutoConfigSecurityGroup = false
 
 	err := gcfg.FatalOnly(gcfg.ReadInto(&cfg, config))
 	if err != nil {
