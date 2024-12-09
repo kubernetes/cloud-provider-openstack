@@ -1,18 +1,18 @@
 ---
-- name: Ensure CPO source folder
+- name: Ensure CPO source folder is present
   shell:
     executable: /bin/bash
     cmd: |
-      if [ ! -d $GOPATH/src/k8s.io/cloud-provider-openstack ]; then
-        mkdir -p $GOPATH/src/k8s.io; cd $_
-        git clone https://github.com/kubernetes/cloud-provider-openstack
+      if [ ! -d "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack" ]; then
+        echo "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack should exist but does not"
+        exit 1
       fi
 
 - name: Build and upload cinder-csi-plugin image
   shell:
     executable: /bin/bash
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
       VERSION="v0.0.99" # Fake version, but in proper format.
 
       make push-multiarch-image-cinder-csi-plugin \
@@ -54,7 +54,7 @@
       # replace manifest cloud secret file
 
       b64data=`cat {{ ansible_user_dir }}/cloud.conf | base64 -w 0`
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
 
       sed -i "/cloud\.conf/c\  cloud.conf: $b64data" manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml
 
@@ -69,7 +69,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
       kubectl apply -f manifests/cinder-csi-plugin
   ignore_errors: true
 
@@ -165,7 +165,7 @@
       set -e
       set -o pipefail
 
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
       mkdir -p /var/log/csi-pod
       # TODO(chrigl): No idea why both tests fail in CI. On a real OpenStack both pass.
       /tmp/kubernetes/test/bin/e2e.test \
