@@ -53,7 +53,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "create", "delete"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "update"]
@@ -181,4 +181,3 @@ roleRef:
   kind: ClusterRole
   name: csi-resizer-role
   apiGroup: rbac.authorization.k8s.io
-
