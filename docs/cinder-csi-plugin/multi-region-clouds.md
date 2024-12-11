@@ -17,7 +17,7 @@ stringData:
     [BlockStorage]
     bs-version=v3
     ignore-volume-az=True
-    
+
     [Global]
     auth-url="https://auth.cloud.openstackcluster.region-default.local/v3"
     username="region-default-username"
@@ -26,7 +26,7 @@ stringData:
     tenant-id="region-default-tenant-id"
     tenant-name="region-default-tenant-name"
     domain-name="Default"
-    
+
     [Global "region-one"]
     auth-url="https://auth.cloud.openstackcluster.region-one.local/v3"
     username="region-one-username"
@@ -35,7 +35,7 @@ stringData:
     tenant-id="region-one-tenant-id"
     tenant-name="region-one-tenant-name"
     domain-name="Default"
-    
+
     [Global "region-two"]
     auth-url="https://auth.cloud.openstackcluster.region-two.local/v3"
     username="region-two-username"
@@ -101,6 +101,8 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-one
   csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-one
+  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
@@ -127,6 +129,8 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-two
   csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-two
+  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
