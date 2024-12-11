@@ -56,10 +56,11 @@ type CinderDriver = Driver
 //revive:enable:exported
 
 type Driver struct {
-	name      string
-	fqVersion string //Fully qualified version in format {Version}@{CPO version}
-	endpoint  string
-	cluster   string
+	name         string
+	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
+	endpoint     string
+	cluster      string
+	withTopology bool
 
 	ids *identityServer
 	cs  *controllerServer
@@ -71,8 +72,9 @@ type Driver struct {
 }
 
 type DriverOpts struct {
-	ClusterID string
-	Endpoint  string
+	ClusterID    string
+	Endpoint     string
+	WithTopology bool
 }
 
 func NewDriver(o *DriverOpts) *Driver {
@@ -81,10 +83,12 @@ func NewDriver(o *DriverOpts) *Driver {
 	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
 	d.endpoint = o.Endpoint
 	d.cluster = o.ClusterID
+	d.withTopology = o.WithTopology
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI Spec version: ", specVersion)
+	klog.Infof("Topology awareness: %T", d.withTopology)
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{

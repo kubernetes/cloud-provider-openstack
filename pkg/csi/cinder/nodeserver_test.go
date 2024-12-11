@@ -40,7 +40,7 @@ var omock *openstack.OpenStackMock
 func init() {
 	if fakeNs == nil {
 
-		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
+		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true})
 
 		// mock MountMock
 		mmock = new(mount.MountMock)

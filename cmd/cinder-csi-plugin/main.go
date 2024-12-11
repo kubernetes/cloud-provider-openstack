@@ -41,6 +41,7 @@ var (
 	provideControllerService bool
 	provideNodeService       bool
 	noClient                 bool
+	withTopology             bool
 )
 
 func main() {
@@ -68,6 +69,8 @@ func main() {
 		klog.Fatalf("Unable to mark flag cloud-config to be required: %v", err)
 	}
 
+	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", true, "cluster is topology-aware")
+
 	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
 	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
 
@@ -86,7 +89,11 @@ func main() {
 
 func handle() {
 	// Initialize cloud
-	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
+	d := cinder.NewDriver(&cinder.DriverOpts{
+		Endpoint:     endpoint,
+		ClusterID:    cluster,
+		WithTopology: withTopology,
+	})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
 

@@ -359,10 +359,19 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-
 	nodeID, err := ns.Metadata.GetInstanceID()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] unable to retrieve instance id of node %v", err)
+	}
+
+	maxVolume := ns.Cloud.GetMaxVolLimit()
+	nodeInfo := &csi.NodeGetInfoResponse{
+		NodeId:            nodeID,
+		MaxVolumesPerNode: maxVolume,
+	}
+
+	if !ns.Driver.withTopology {
+		return nodeInfo, nil
 	}
 
 	zone, err := ns.Metadata.GetAvailabilityZone()
@@ -374,15 +383,9 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	for k, v := range ns.Topologies {
 		topologyMap[k] = v
 	}
-	topology := &csi.Topology{Segments: topologyMap}
+	nodeInfo.AccessibleTopology = &csi.Topology{Segments: topologyMap}
 
-	maxVolume := ns.Cloud.GetMaxVolLimit()
-
-	return &csi.NodeGetInfoResponse{
-		NodeId:             nodeID,
-		AccessibleTopology: topology,
-		MaxVolumesPerNode:  maxVolume,
-	}, nil
+	return nodeInfo, nil
 }
 
 func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
