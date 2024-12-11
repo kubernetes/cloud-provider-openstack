@@ -84,13 +84,17 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := volParams["type"]
 
-	// First check if volAvailability is already specified, if not get preferred from Topology
-	// Required, incase vol AZ is different from node AZ
-	volAvailability := volParams["availability"]
-	if volAvailability == "" {
-		// Check from Topology
-		if req.GetAccessibilityRequirements() != nil {
-			volAvailability = sharedcsi.GetAZFromTopology(topologyKey, req.GetAccessibilityRequirements())
+	var volAvailability string
+	if cs.Driver.withTopology {
+		// First check if volAvailability is already specified, if not get preferred from Topology
+		// Required, incase vol AZ is different from node AZ
+		volAvailability = volParams["availability"]
+		if volAvailability == "" {
+			accessibleTopologyReq := req.GetAccessibilityRequirements()
+			// Check from Topology
+			if accessibleTopologyReq != nil {
+				volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+			}
 		}
 	}
 
