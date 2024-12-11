@@ -335,15 +335,17 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 		NodeId: nodeID,
 	}
 
-	if ns.d.withTopology {
-		zone, err := ns.metadata.GetAvailabilityZone()
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "[NodeGetInfo] Unable to retrieve availability zone of node %v", err)
-		}
+	if !ns.d.withTopology {
+		return nodeInfo, nil
+	}
 
-		nodeInfo.AccessibleTopology = &csi.Topology{
-			Segments: map[string]string{topologyKey: zone},
-		}
+	zone, err := ns.metadata.GetAvailabilityZone()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] Unable to retrieve availability zone of node %v", err)
+	}
+
+	nodeInfo.AccessibleTopology = &csi.Topology{
+		Segments: map[string]string{topologyKey: zone},
 	}
 
 	return nodeInfo, nil
