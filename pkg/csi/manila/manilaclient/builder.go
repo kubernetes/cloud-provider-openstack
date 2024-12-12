@@ -42,11 +42,11 @@ type ClientBuilder struct {
 	ExtraUserAgentData []string
 }
 
-func (cb *ClientBuilder) New(o *client.AuthOpts) (Interface, error) {
-	return New(o, cb.UserAgent, cb.ExtraUserAgentData)
+func (cb *ClientBuilder) New(ctx context.Context, o *client.AuthOpts) (Interface, error) {
+	return New(ctx, o, cb.UserAgent, cb.ExtraUserAgentData)
 }
 
-func New(o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
+func New(ctx context.Context, o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
 	// Authenticate and create Manila v2 client
 	provider, err := client.NewOpenStackClient(o, userAgent, extraUserAgentData...)
 	if err != nil {
@@ -64,7 +64,7 @@ func New(o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Cl
 	// Check client's and server's versions for compatibility
 
 	client.Microversion = minimumManilaVersion
-	if err = validateManilaClient(client); err != nil {
+	if err = validateManilaClient(ctx, client); err != nil {
 		return nil, fmt.Errorf("Manila v2 client validation failed: %v", err)
 	}
 
@@ -98,8 +98,8 @@ func compareManilaVersionsLessThan(a, b string) bool {
 	return aMaj < bMaj || (aMaj == bMaj && aMin < bMin)
 }
 
-func validateManilaClient(c *gophercloud.ServiceClient) error {
-	serverVersion, err := apiversions.Get(context.TODO(), c, "v2").Extract()
+func validateManilaClient(ctx context.Context, c *gophercloud.ServiceClient) error {
+	serverVersion, err := apiversions.Get(ctx, c, "v2").Extract()
 	if err != nil {
 		return fmt.Errorf("failed to get Manila v2 API microversions: %v", err)
 	}

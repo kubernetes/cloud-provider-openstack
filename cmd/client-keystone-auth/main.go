@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -156,7 +157,7 @@ func main() {
 		Use:   "client-keystone-auth",
 		Short: "Keystone client credential plugin for Kubernetes",
 		Run: func(cmd *cobra.Command, args []string) {
-			handle()
+			handle(context.Background())
 		},
 		Version: version.Version,
 	}
@@ -177,7 +178,7 @@ func main() {
 	os.Exit(code)
 }
 
-func handle() {
+func handle(ctx context.Context) {
 	// Generate Gophercloud Auth Options based on input data from stdin
 	// if IsTerminal returns "true", or from env variables otherwise.
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
@@ -214,7 +215,7 @@ func handle() {
 	options.ClientKeyPath = clientKeyPath
 	options.ClientCAPath = clientCAPath
 
-	token, err := keystone.GetToken(options)
+	token, err := keystone.GetToken(ctx, options)
 	if err != nil {
 		if gophercloud.ResponseCodeIs(err, http.StatusUnauthorized) {
 			fmt.Println(errRespTemplate)

@@ -1988,7 +1988,7 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			lbaas := &LbaasV2{}
-			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(tc.port, tc.nodes, tc.svcConf)
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(context.TODO(), tc.port, tc.nodes, tc.svcConf)
 			assert.Len(t, members, tc.expectedLen)
 			assert.NoError(t, err)
 
@@ -2362,7 +2362,7 @@ func Test_buildMonitorCreateOpts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.testArg.lbaas.buildMonitorCreateOpts(tt.testArg.svcConf, tt.testArg.port, tt.name)
+			result := tt.testArg.lbaas.buildMonitorCreateOpts(context.TODO(), tt.testArg.svcConf, tt.testArg.port, tt.name)
 			assert.Equal(t, tt.want, result)
 		})
 	}
@@ -2500,7 +2500,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 					},
 				},
 			}
-			createOpt := lbaas.buildListenerCreateOpt(tc.port, tc.svcConf, tc.name)
+			createOpt := lbaas.buildListenerCreateOpt(context.TODO(), tc.port, tc.svcConf, tc.name)
 			assert.Equal(t, tc.expectedCreateOpt, createOpt)
 
 		})

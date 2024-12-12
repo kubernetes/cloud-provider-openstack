@@ -44,7 +44,7 @@ const (
 
 // CreateBackup issues a request to create a Backup from the specified Snapshot with the corresponding ID and
 // returns the resultant gophercloud Backup Item upon success.
-func (os *OpenStack) CreateBackup(name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error) {
+func (os *OpenStack) CreateBackup(ctx context.Context, name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error) {
 	blockstorageServiceClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
 	if err != nil {
 		return &backups.Backup{}, err
@@ -79,7 +79,7 @@ func (os *OpenStack) CreateBackup(name, volID, snapshotID, availabilityZone stri
 
 	// TODO: Do some check before really call openstack API on the input
 	mc := metrics.NewMetricContext("backup", "create")
-	backup, err := backups.Create(context.TODO(), blockstorageServiceClient, opts).Extract()
+	backup, err := backups.Create(ctx, blockstorageServiceClient, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return &backups.Backup{}, err
 	}
@@ -92,7 +92,7 @@ func (os *OpenStack) CreateBackup(name, volID, snapshotID, availabilityZone stri
 // provide the ability to provide limit and offset to enable the consumer to provide accurate pagination.
 // In addition the filters argument provides a mechanism for passing in valid filter strings to the list
 // operation.  Valid filter keys are:  Name, Status, VolumeID, Limit, Marker (TenantID has no effect).
-func (os *OpenStack) ListBackups(filters map[string]string) ([]backups.Backup, error) {
+func (os *OpenStack) ListBackups(ctx context.Context, filters map[string]string) ([]backups.Backup, error) {
 	var allBackups []backups.Backup
 
 	// Build the Opts
@@ -115,7 +115,7 @@ func (os *OpenStack) ListBackups(filters map[string]string) ([]backups.Backup, e
 	}
 	mc := metrics.NewMetricContext("backup", "list")
 
-	allPages, err := backups.List(os.blockstorage, opts).AllPages(context.TODO())
+	allPages, err := backups.List(os.blockstorage, opts).AllPages(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +132,9 @@ func (os *OpenStack) ListBackups(filters map[string]string) ([]backups.Backup, e
 }
 
 // DeleteBackup issues a request to delete the Backup with the specified ID from the Cinder backend.
-func (os *OpenStack) DeleteBackup(backupID string) error {
+func (os *OpenStack) DeleteBackup(ctx context.Context, backupID string) error {
 	mc := metrics.NewMetricContext("backup", "delete")
-	err := backups.Delete(context.TODO(), os.blockstorage, backupID).ExtractErr()
+	err := backups.Delete(ctx, os.blockstorage, backupID).ExtractErr()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to delete backup: %v", err)
 	}
@@ -142,9 +142,9 @@ func (os *OpenStack) DeleteBackup(backupID string) error {
 }
 
 // GetBackupByID returns backup details by id.
-func (os *OpenStack) GetBackupByID(backupID string) (*backups.Backup, error) {
+func (os *OpenStack) GetBackupByID(ctx context.Context, backupID string) (*backups.Backup, error) {
 	mc := metrics.NewMetricContext("backup", "get")
-	backup, err := backups.Get(context.TODO(), os.blockstorage, backupID).Extract()
+	backup, err := backups.Get(ctx, os.blockstorage, backupID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to get backup: %v", err)
 		return nil, err
@@ -159,7 +159,7 @@ func (os *OpenStack) BackupsAreEnabled() (bool, error) {
 
 // WaitBackupReady waits until backup is ready. It waits longer depending on
 // the size of the corresponding snapshot.
-func (os *OpenStack) WaitBackupReady(backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error) {
+func (os *OpenStack) WaitBackupReady(ctx context.Context, backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error) {
 	var err error
 
 	duration := time.Duration(backupMaxDurationSecondsPerGB*snapshotSize + backupBaseDurationSeconds)
@@ -169,7 +169,7 @@ func (os *OpenStack) WaitBackupReady(backupID string, snapshotSize int, backupMa
 		err = fmt.Errorf("timeout, Backup %s is still not Ready: %v", backupID, err)
 	}
 
-	back, _ := os.GetBackupByID(backupID)
+	back, _ := os.GetBackupByID(ctx, backupID)
 
 	if back != nil {
 		return back.Status, err
@@ -191,7 +191,7 @@ func (os *OpenStack) waitBackupReadyWithContext(backupID string, duration time.D
 	for {
 		select {
 		case <-ticker.C:
-			done, err = os.backupIsReady(backupID)
+			done, err = os.backupIsReady(ctx, backupID)
 			if err != nil {
 				return err
 			}
@@ -208,8 +208,8 @@ func (os *OpenStack) waitBackupReadyWithContext(backupID string, duration time.D
 
 // Supporting function for waitBackupReadyWithContext().
 // Returns true when the backup is ready.
-func (os *OpenStack) backupIsReady(backupID string) (bool, error) {
-	backup, err := os.GetBackupByID(backupID)
+func (os *OpenStack) backupIsReady(ctx context.Context, backupID string) (bool, error) {
+	backup, err := os.GetBackupByID(ctx, backupID)
 	if err != nil {
 		return false, err
 	}
