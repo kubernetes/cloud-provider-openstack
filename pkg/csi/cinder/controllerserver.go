@@ -61,6 +61,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Name
 	volName := req.GetName()
 	volCapabilities := req.GetVolumeCapabilities()
+	volParams := req.GetParameters()
 
 	if len(volName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume Name")
@@ -80,13 +81,17 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := req.GetParameters()["type"]
 
-	// First check if volAvailability is already specified, if not get preferred from Topology
-	// Required, incase vol AZ is different from node AZ
-	volAvailability := req.GetParameters()["availability"]
-	if volAvailability == "" {
-		// Check from Topology
-		if req.GetAccessibilityRequirements() != nil {
-			volAvailability = util.GetAZFromTopology(topologyKey, req.GetAccessibilityRequirements())
+	var volAvailability string
+	if cs.Driver.withTopology {
+		// First check if volAvailability is already specified, if not get preferred from Topology
+		// Required, incase vol AZ is different from node AZ
+		volAvailability = volParams["availability"]
+		if volAvailability == "" {
+			accessibleTopologyReq := req.GetAccessibilityRequirements()
+			// Check from Topology
+			if accessibleTopologyReq != nil {
+				volAvailability = util.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+			}
 		}
 	}
 

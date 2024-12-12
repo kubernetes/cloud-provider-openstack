@@ -69,6 +69,13 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
   The manifests default this to `unix://csi/csi.sock`, which is supplied via the `CSI_ENDPOINT` environment variable.
   </dd>
 
+  <dt>--with-topology &lt;enabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver reports topology information and the controller respects it.
+
+  Defaults to `true` (enabled).
+  </dd>
+
   <dt>--cloud-config &lt;config file&gt; [--cloud-config &lt;config file&gt; ...]</dt>
   <dd>
   This argument must be given at least once.
@@ -100,23 +107,23 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   <dt>--provide-controller-service &lt;enabled&gt;</dt>
   <dd>
-  If set to true then the CSI driver does provide the controller service.
+  If set to true then the CSI driver provides the controller service.
 
-  The default is to provide the controller service.
+  Defaults to `true` (enabled).
   </dd>
 
   <dt>--provide-node-service &lt;enabled&gt;</dt>
   <dd>
-  If set to true then the CSI driver does provide the node service.
+  If set to true then the CSI driver provides the node service.
 
-  The default is to provide the node service.
+  Defaults to `true` (enabled).
   </dd>
 
   <dt>--node-service-no-os-client &lt;disabled&gt;</dt>
   <dd>
   If set to true then the CSI driver does not provide the OpenStack client in the node service.
 
-  The default is to provide the OpenStack client in the node service.
+  Defaults to `false` (disabled).
   </dd>
 </dl>
 
