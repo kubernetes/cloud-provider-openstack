@@ -21,6 +21,26 @@ TARGET_BRANCH={{ branch }}
 
 ENABLED_SERVICES=rabbit,mysql,key
 
+# Host tuning
+# From: https://opendev.org/openstack/devstack/src/commit/05f7d302cfa2da73b2887afcde92ef65b1001194/.zuul.yaml#L645-L662
+# Tune the host to optimize memory usage and hide io latency
+# these setting will configure the kernel to treat the host page
+# cache and swap with equal priority, and prefer deferring writes
+# changing the default swappiness, dirty_ratio and
+# the vfs_cache_pressure
+ENABLE_SYSCTL_MEM_TUNING=true
+# The net tuning optimizes ipv4 tcp fast open and config the default
+# qdisk policy to pfifo_fast which effectively disable all qos.
+# this minimizes the cpu load of the host network stack
+ENABLE_SYSCTL_NET_TUNING=true
+# zswap allows the kernel to compress pages in memory before swapping
+# them to disk. this can reduce the amount of swap used and improve
+# performance. effectivly this trades a small amount of cpu for an
+# increase in swap performance by reducing the amount of data
+# written to disk. the overall speedup is porportional to the
+# compression ratio and the speed of the swap device.
+ENABLE_ZSWAP=true
+
 {% if "nova" in enable_services %}
 # Nova
 enable_service n-api
