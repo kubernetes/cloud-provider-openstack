@@ -28,12 +28,12 @@ import (
 )
 
 // EnsureSecret creates a secret if it doesn't exist.
-func EnsureSecret(client *gophercloud.ServiceClient, name string, secretType string, payload string) (string, error) {
-	secret, err := GetSecret(client, name)
+func EnsureSecret(ctx context.Context, client *gophercloud.ServiceClient, name string, secretType string, payload string) (string, error) {
+	secret, err := GetSecret(ctx, client, name)
 	if err != nil {
 		if err == cpoerrors.ErrNotFound {
 			// Create a new one
-			return CreateSecret(client, name, secretType, payload)
+			return CreateSecret(ctx, client, name, secretType, payload)
 		}
 
 		return "", err
@@ -43,12 +43,12 @@ func EnsureSecret(client *gophercloud.ServiceClient, name string, secretType str
 }
 
 // GetSecret returns the secret by name
-func GetSecret(client *gophercloud.ServiceClient, name string) (*secrets.Secret, error) {
+func GetSecret(ctx context.Context, client *gophercloud.ServiceClient, name string) (*secrets.Secret, error) {
 	listOpts := secrets.ListOpts{
 		Name: name,
 	}
 	mc := metrics.NewMetricContext("secret", "list")
-	allPages, err := secrets.List(client, listOpts).AllPages(context.TODO())
+	allPages, err := secrets.List(client, listOpts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func GetSecret(client *gophercloud.ServiceClient, name string) (*secrets.Secret,
 }
 
 // CreateSecret creates a secret in Barbican, returns the secret url.
-func CreateSecret(client *gophercloud.ServiceClient, name string, secretType string, payload string) (string, error) {
+func CreateSecret(ctx context.Context, client *gophercloud.ServiceClient, name string, secretType string, payload string) (string, error) {
 	createOpts := secrets.CreateOpts{
 		Name:                   name,
 		Algorithm:              "aes",
@@ -80,7 +80,7 @@ func CreateSecret(client *gophercloud.ServiceClient, name string, secretType str
 		SecretType:             secrets.OpaqueSecret,
 	}
 	mc := metrics.NewMetricContext("secret", "create")
-	secret, err := secrets.Create(context.TODO(), client, createOpts).Extract()
+	secret, err := secrets.Create(ctx, client, createOpts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return "", err
 	}
@@ -98,12 +98,12 @@ func ParseSecretID(ref string) (string, error) {
 }
 
 // DeleteSecrets deletes all the secrets that including the name string.
-func DeleteSecrets(client *gophercloud.ServiceClient, partName string) error {
+func DeleteSecrets(ctx context.Context, client *gophercloud.ServiceClient, partName string) error {
 	listOpts := secrets.ListOpts{
 		SecretType: secrets.OpaqueSecret,
 	}
 	mc := metrics.NewMetricContext("secret", "list")
-	allPages, err := secrets.List(client, listOpts).AllPages(context.TODO())
+	allPages, err := secrets.List(client, listOpts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func DeleteSecrets(client *gophercloud.ServiceClient, partName string) error {
 				return err
 			}
 			mc := metrics.NewMetricContext("secret", "delete")
-			err = secrets.Delete(context.TODO(), client, secretID).ExtractErr()
+			err = secrets.Delete(ctx, client, secretID).ExtractErr()
 			if mc.ObserveRequest(err) != nil && !cpoerrors.IsNotFound(err) {
 				return err
 			}
