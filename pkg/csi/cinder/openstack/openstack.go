@@ -126,7 +126,7 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 		}
 	}
 
-	for _, global := range cfg.Global {
+	for idx, global := range cfg.Global {
 		// Update the config with data from clouds.yaml if UseClouds is enabled
 		if global.UseClouds {
 			if global.CloudsFile != "" {
@@ -137,6 +137,10 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 				return cfg, err
 			}
 			klog.V(5).Infof("Credentials are loaded from %s:", global.CloudsFile)
+		}
+
+		if len(global.Regions) == 0 {
+			cfg.Global[idx].Regions = []string{global.Region}
 		}
 	}
 
