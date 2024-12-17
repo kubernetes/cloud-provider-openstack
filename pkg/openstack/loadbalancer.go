@@ -1630,7 +1630,11 @@ func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, key, valu
 	if service.ObjectMeta.Annotations == nil {
 		service.ObjectMeta.Annotations = map[string]string{}
 	}
-	service.ObjectMeta.Annotations[key] = value
+	if value == "" {
+		delete(service.ObjectMeta.Annotations, key)
+	} else {
+		service.ObjectMeta.Annotations[key] = value
+	}
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -1686,12 +1690,20 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	isLBOwner := false
 	createNewLB := false
 
-	// Check the load balancer in the Service annotation.
 	if svcConf.lbID != "" {
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(lbaas.lb, svcConf.lbID)
-		if err != nil {
+		// The referenced LB doesn't exist anymore. Clean up annotations and proceed as if no LB were set.
+		if err != nil && cpoerrors.IsNotFound(err) {
+			svcConf.lbID = ""
+			lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+			lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, "")
+		} else if err != nil {
 			return nil, fmt.Errorf("failed to get load balancer %s: %v", svcConf.lbID, err)
 		}
+	}
+
+	// Check the load balancer in the Service annotation.
+	if svcConf.lbID != "" {
 
 		// Here we test for a clusterName that could have had changed in the deployment.
 		if lbHasOldClusterName(loadbalancer, clusterName) {
@@ -2182,7 +2194,10 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		return err
 	}
 
-	return nil
+	patcher := newServicePatcher(lbaas.kclient, service)
+	lbaas.updateServiceAnnotation(patcher.updated, ServiceAnnotationLoadBalancerID, "")
+	lbaas.updateServiceAnnotation(patcher.updated, ServiceAnnotationLoadBalancerAddress, "")
+	return patcher.Patch(ctx, err)
 }
 
 // GetLoadBalancerSourceRanges first try to parse and verify LoadBalancerSourceRanges field from a service.
