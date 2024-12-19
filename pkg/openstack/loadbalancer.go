@@ -33,6 +33,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
 	v2pools "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
+	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/attributestags"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	corev1 "k8s.io/api/core/v1"
@@ -620,6 +621,43 @@ func (lbaas *LbaasV2) updateFloatingIP(ctx context.Context, floatingip *floating
 	return floatingip, nil
 }
 
+func (lbaas *LbaasV2) updateFloatingIPTag(ctx context.Context, fip *floatingips.FloatingIP, Tag string, del bool) error {
+	if enabled, ok := lbaas.netExtensions["standard-attr-tag"]; !ok || !enabled {
+		return nil
+	}
+	if Tag == "" {
+		return fmt.Errorf("Error input tag argument ")
+	}
+	tags, err := attributestags.List(ctx, lbaas.network, "floatingips", fip.ID).Extract()
+	if err != nil {
+		klog.V(3).Infof("Cannot get floatIP tags for floating %s", fip.ID)
+		return err
+	}
+
+	found := slices.Contains(tags, Tag)
+
+	if (found && !del) || (!found && del) {
+		return nil
+	}
+
+	if found && del {
+		err = attributestags.Delete(ctx, lbaas.network, "floatingips", fip.ID, Tag).ExtractErr()
+		if err != nil {
+			klog.V(2).ErrorS(err, "Cannot update floating IP tag %s for floating %s", Tag, fip.ID)
+		}
+		return err
+	}
+
+	if !found && !del {
+		err = attributestags.Add(ctx, lbaas.network, "floatingips", fip.ID, Tag).ExtractErr()
+		if err != nil {
+			klog.V(2).ErrorS(err, "Cannot update floating IP tag %s for floating %s", Tag, fip.ID)
+		}
+		return err
+	}
+	return nil
+}
+
 // ensureFloatingIP manages a FIP for a Service and returns the address that should be advertised in the
 // .Status.LoadBalancer. In particular it will:
 //  1. Lookup if any FIP is already attached to the VIP port of the LB.
@@ -665,6 +703,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(ctx context.Context, clusterName string, 
 				if err != nil {
 					return "", err
 				}
+				_ = lbaas.updateFloatingIPTag(ctx, floatIP, svcConf.lbName, true)
 			}
 		}
 		return lb.VipAddress, nil
@@ -764,6 +803,7 @@ func (lbaas *LbaasV2) ensureFloatingIP(ctx context.Context, clusterName string, 
 	}
 
 	if floatIP != nil {
+		_ = lbaas.updateFloatingIPTag(ctx, floatIP, svcConf.lbName, false)
 		return floatIP.FloatingIP, nil
 	}
 
@@ -1762,6 +1802,13 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	loadbalancer.Listeners, err = openstackutil.GetListenersByLoadBalancerID(lbaas.lb, loadbalancer.ID)
 	if err != nil {
 		return nil, err
+	}
+	extensions, err := openstackutil.GetNetworkExtensions(ctx, lbaas.network)
+	if err == nil {
+		klog.V(2).ErrorS(err, "cannot get network extensions")
+		lbaas.netExtensions = extensions
+	} else {
+		lbaas.netExtensions = map[string]bool{}
 	}
 
 	klog.V(4).InfoS("Load balancer ensured", "lbID", loadbalancer.ID, "isLBOwner", isLBOwner, "createNewLB", createNewLB)
