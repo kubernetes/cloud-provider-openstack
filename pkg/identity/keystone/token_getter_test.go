@@ -14,6 +14,7 @@ limitations under the License.
 package keystone
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -89,7 +90,7 @@ func TestTokenGetter(t *testing.T) {
 		},
 	}
 
-	token, err := GetToken(options)
+	token, err := GetToken(context.TODO(), options)
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, "0123456789", token.ID)
 	th.AssertEquals(t, "2015-11-09 01:42:57.527363 +0000 UTC", token.ExpiresAt.String())
@@ -97,7 +98,7 @@ func TestTokenGetter(t *testing.T) {
 	// Incorrect password
 	options.AuthOptions.Password = "wrongpw"
 
-	_, err = GetToken(options)
+	_, err = GetToken(context.TODO(), options)
 	if !gophercloud.ResponseCodeIs(err, http.StatusUnauthorized) {
 		t.FailNow()
 	}
@@ -105,6 +106,6 @@ func TestTokenGetter(t *testing.T) {
 	// Invalid auth data
 	options.AuthOptions.Password = ""
 
-	_, err = GetToken(options)
+	_, err = GetToken(context.TODO(), options)
 	th.AssertEquals(t, "You must provide a password to authenticate", err.Error())
 }

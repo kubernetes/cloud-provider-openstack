@@ -17,6 +17,7 @@ limitations under the License.
 package shareadapters
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -32,10 +33,10 @@ type NFS struct{}
 
 var _ ShareAdapter = &NFS{}
 
-func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) {
+func (NFS) GetOrGrantAccess(ctx context.Context, args *GrantAccessArgs) (*shares.AccessRight, error) {
 	// First, check if the access right exists or needs to be created
 
-	rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
+	rights, err := args.ManilaClient.GetAccessRights(ctx, args.Share.ID)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
 			return nil, fmt.Errorf("failed to list access rights: %v", err)
@@ -53,7 +54,7 @@ func (NFS) GetOrGrantAccess(args *GrantAccessArgs) (*shares.AccessRight, error) 
 
 	// Not found, create it
 
-	return args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
+	return args.ManilaClient.GrantAccess(ctx, args.Share.ID, shares.GrantAccessOpts{
 		AccessType:  "ip",
 		AccessLevel: "rw",
 		AccessTo:    args.Options.NFSShareClient,
