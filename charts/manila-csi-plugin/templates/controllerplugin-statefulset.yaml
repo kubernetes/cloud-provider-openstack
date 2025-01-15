@@ -15,6 +15,7 @@ spec:
       labels:
         {{- include "openstack-manila-csi.controllerplugin.labels" .  | nindent 8 }}
     spec:
+      securityContext: {{ toYaml .Values.controllerplugin.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "openstack-manila-csi.serviceAccountName.controllerplugin" . }}
       containers:
         {{- range .Values.shareProtocols }}
