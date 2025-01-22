@@ -42,8 +42,7 @@ func TestRoutes(t *testing.T) {
 	}
 
 	vms := getServers(os)
-	_, err = os.InstanceID()
-	if err != nil || len(vms) == 0 {
+	if len(vms) == 0 {
 		t.Skipf("Please run this test in an OpenStack vm or create at least one VM in OpenStack before you run this test.")
 	}
 

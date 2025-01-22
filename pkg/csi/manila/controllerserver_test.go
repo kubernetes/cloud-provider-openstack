@@ -16,6 +16,8 @@ package manila
 import (
 	"fmt"
 	"testing"
+
+	"k8s.io/cloud-provider-openstack/pkg/csi"
 )
 
 func TestPrepareShareMetadata(t *testing.T) {
@@ -76,15 +78,15 @@ func TestPrepareShareMetadata(t *testing.T) {
 		{
 			// csi-provisioner PV/PVC metadata
 			allVolumeParams: map[string]string{
-				"csi.storage.k8s.io/pvc/name":      "pvc-name",
-				"csi.storage.k8s.io/pvc/namespace": "pvc-namespace",
-				"csi.storage.k8s.io/pv/name":       "pv-name",
+				csi.PvcNameKey:      "pvc-name",
+				csi.PvcNamespaceKey: "pvc-namespace",
+				csi.PvNameKey:       "pv-name",
 			},
 			cluster: "",
 			expectedResult: map[string]string{
-				"csi.storage.k8s.io/pvc/name":      "pvc-name",
-				"csi.storage.k8s.io/pvc/namespace": "pvc-namespace",
-				"csi.storage.k8s.io/pv/name":       "pv-name",
+				csi.PvcNameKey:      "pvc-name",
+				csi.PvcNamespaceKey: "pvc-namespace",
+				csi.PvNameKey:       "pv-name",
 			},
 			appendShareMetadata: "",
 			expectedError:       false,
@@ -92,18 +94,18 @@ func TestPrepareShareMetadata(t *testing.T) {
 		{
 			// csi-provisioner PV/PVC metadata with conflicting appendShareMetadata
 			allVolumeParams: map[string]string{
-				"csi.storage.k8s.io/pvc/name":      "pvc-name",
-				"csi.storage.k8s.io/pvc/namespace": "pvc-namespace",
-				"csi.storage.k8s.io/pv/name":       "pv-name",
-				"appendShareMetadata":              `{"csi.storage.k8s.io/pvc/name": "SomeValue", "keyX": "valueX"}`,
+				csi.PvcNameKey:        "pvc-name",
+				csi.PvcNamespaceKey:   "pvc-namespace",
+				csi.PvNameKey:         "pv-name",
+				"appendShareMetadata": `{"` + csi.PvcNameKey + `": "SomeValue", "keyX": "valueX"}`,
 			},
-			appendShareMetadata: `{"csi.storage.k8s.io/pvc/name": "SomeValue", "keyX": "valueX"}`,
+			appendShareMetadata: `{"` + csi.PvcNameKey + `": "SomeValue", "keyX": "valueX"}`,
 			cluster:             "",
 			expectedResult: map[string]string{
-				"csi.storage.k8s.io/pvc/name":      "pvc-name",
-				"csi.storage.k8s.io/pvc/namespace": "pvc-namespace",
-				"csi.storage.k8s.io/pv/name":       "pv-name",
-				"keyX":                             "valueX",
+				csi.PvcNameKey:      "pvc-name",
+				csi.PvcNamespaceKey: "pvc-namespace",
+				csi.PvNameKey:       "pv-name",
+				"keyX":              "valueX",
 			},
 			expectedError: false,
 		},

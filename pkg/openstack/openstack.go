@@ -21,17 +21,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
+	"slices"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
-	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/portsecurity"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/trunk_details"
 	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
@@ -45,7 +43,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
-	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
@@ -63,7 +60,7 @@ const (
 var userAgentData []string
 
 // supportedLBProvider map is used to define LoadBalancer providers that we support
-var supportedLBProvider = []string{"amphora", "octavia", "ovn"}
+var supportedLBProvider = []string{"amphora", "octavia", "ovn", "f5"}
 
 // supportedContainerStore map is used to define supported tls-container-ref store
 var supportedContainerStore = []string{"barbican", "external"}
@@ -154,16 +151,13 @@ type RouterOpts struct {
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
 type OpenStack struct {
-	provider       *gophercloud.ProviderClient
-	epOpts         *gophercloud.EndpointOpts
-	lbOpts         LoadBalancerOpts
-	routeOpts      RouterOpts
-	metadataOpts   metadata.Opts
-	networkingOpts NetworkingOpts
-	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID       string
+	provider              *gophercloud.ProviderClient
+	epOpts                *gophercloud.EndpointOpts
+	lbOpts                LoadBalancerOpts
+	routeOpts             RouterOpts
+	metadataOpts          metadata.Opts
+	networkingOpts        NetworkingOpts
 	kclient               kubernetes.Interface
-	useV1Instances        bool // TODO: v1 instance apis can be deleted after the v2 is verified enough
 	nodeInformer          coreinformers.NodeInformer
 	nodeInformerHasSynced func() bool
 
@@ -258,11 +252,11 @@ func ReadConfig(config io.Reader) (Config, error) {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
 	}
 
-	if !util.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
+	if !slices.Contains(supportedLBProvider, cfg.LoadBalancer.LBProvider) {
 		klog.Warningf("Unsupported LoadBalancer Provider: %s", cfg.LoadBalancer.LBProvider)
 	}
 
-	if !util.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
+	if !slices.Contains(supportedContainerStore, cfg.LoadBalancer.ContainerStore) {
 		klog.Warningf("Unsupported Container Store: %s", cfg.LoadBalancer.ContainerStore)
 	}
 
@@ -298,12 +292,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 	provider.HTTPClient.Timeout = cfg.Metadata.RequestTimeout.Duration
 
-	useV1Instances := false
-	v1instances := os.Getenv("OS_V1_INSTANCES")
-	if strings.ToLower(v1instances) == "true" {
-		useV1Instances = true
-	}
-
 	os := OpenStack{
 		provider: provider,
 		epOpts: &gophercloud.EndpointOpts{
@@ -314,7 +302,6 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 		routeOpts:      cfg.Route,
 		metadataOpts:   cfg.Metadata,
 		networkingOpts: cfg.Networking,
-		useV1Instances: useV1Instances,
 	}
 
 	// ini file doesn't support maps so we are reusing top level sub sections
@@ -327,6 +314,11 @@ func NewOpenStack(cfg Config) (*OpenStack, error) {
 	}
 
 	return &os, nil
+}
+
+// Instances v1 is no longer supported
+func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
+	return nil, false
 }
 
 // Clusters is a no-op
@@ -354,13 +346,13 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
-		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
+		klog.Fatalf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
 	lb, err := client.NewLoadBalancerV2(os.provider, os.epOpts)
 	if err != nil {
-		klog.Errorf("Failed to create an OpenStack LoadBalancer client: %v", err)
+		klog.Fatalf("Failed to create an OpenStack LoadBalancer client: %v", err)
 		return nil, false
 	}
 
@@ -374,7 +366,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	// Currently kubernetes OpenStack cloud provider just support LBaaS v2.
 	lbVersion := os.lbOpts.LBVersion
 	if lbVersion != "" && lbVersion != "v2" {
-		klog.Warningf("Config error: currently only support LBaaS v2, unrecognised lb-version \"%v\"", lbVersion)
+		klog.Fatalf("Config error: currently only support LBaaS v2, unrecognised lb-version \"%v\"", lbVersion)
 		return nil, false
 	}
 
@@ -384,90 +376,23 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 }
 
 // Zones indicates that we support zones
+// DEPRECATED: Zones is deprecated in favor of retrieving zone/region information from InstancesV2.
 func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
-	klog.V(1).Info("Claiming to support Zones")
-	return os, true
-}
-
-// GetZone returns the current zone
-func (os *OpenStack) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	md, err := metadata.Get(os.metadataOpts.SearchOrder)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: md.AvailabilityZone,
-		Region:        os.epOpts.Region,
-	}
-	klog.V(4).Infof("Current zone is %v", zone)
-	return zone, nil
-}
-
-// GetZoneByProviderID implements Zones.GetZoneByProviderID
-// This is particularly useful in external cloud providers where the kubelet
-// does not initialize node data.
-func (os *OpenStack) GetZoneByProviderID(ctx context.Context, providerID string) (cloudprovider.Zone, error) {
-	instanceID, _, err := instanceIDFromProviderID(providerID)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	mc := metrics.NewMetricContext("server", "get")
-	server, err := servers.Get(ctx, compute, instanceID).Extract()
-	if mc.ObserveRequest(err) != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: server.AvailabilityZone,
-		Region:        os.epOpts.Region,
-	}
-	klog.V(4).Infof("The instance %s in zone %v", server.Name, zone)
-	return zone, nil
-}
-
-// GetZoneByNodeName implements Zones.GetZoneByNodeName
-// This is particularly useful in external cloud providers where the kubelet
-// does not initialize node data.
-func (os *OpenStack) GetZoneByNodeName(ctx context.Context, nodeName types.NodeName) (cloudprovider.Zone, error) {
-	compute, err := client.NewComputeV2(os.provider, os.epOpts)
-	if err != nil {
-		return cloudprovider.Zone{}, err
-	}
-
-	srv, err := getServerByName(compute, nodeName)
-	if err != nil {
-		if err == errors.ErrNotFound {
-			return cloudprovider.Zone{}, cloudprovider.InstanceNotFound
-		}
-		return cloudprovider.Zone{}, err
-	}
-
-	zone := cloudprovider.Zone{
-		FailureDomain: srv.AvailabilityZone,
-		Region:        os.epOpts.Region,
-	}
-	klog.V(4).Infof("The instance %s in zone %v", srv.Name, zone)
-	return zone, nil
+	return nil, false
 }
 
 // Routes initializes routes support
 func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 	klog.V(4).Info("openstack.Routes() called")
 
+	ctx := context.TODO()
 	network, err := client.NewNetworkV2(os.provider, os.epOpts)
 	if err != nil {
 		klog.Errorf("Failed to create an OpenStack Network client: %v", err)
 		return nil, false
 	}
 
-	netExts, err := openstackutil.GetNetworkExtensions(network)
+	netExts, err := openstackutil.GetNetworkExtensions(ctx, network)
 	if err != nil {
 		klog.Warningf("Failed to list neutron extensions: %v", err)
 		return nil, false

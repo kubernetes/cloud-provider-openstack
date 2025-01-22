@@ -103,7 +103,7 @@ func runTag(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, expec
 }
 
 func runMatch(t *testing.T, subnet *subnets.Subnet, spec floatingSubnetSpec, expected bool) {
-	m, err := spec.Matcher(true)
+	m, err := spec.matcher(true)
 	assert.NoError(t, err)
 	assert.Equal(t, m(subnet), expected)
 }

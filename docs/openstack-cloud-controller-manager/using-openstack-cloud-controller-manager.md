@@ -211,7 +211,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   If `lb-provider` is set to "ovn" the value must be set to `SOURCE_IP_PORT`.
 
 * `lb-provider`
-  Optional. Used to specify the provider of the load balancer, e.g. "amphora" (default), "octavia" (deprecated alias for "amphora"), or "ovn". Only the "amphora", "octavia", and "ovn" providers are officially tested, other providers will cause a warning log.
+  Optional. Used to specify the provider of the load balancer, e.g. "amphora" (default), "octavia" (deprecated alias for "amphora"), "ovn" or "f5". Only the "amphora", "octavia", "ovn" and "f5" providers are officially tested, other providers will cause a warning log.
 
 * `lb-version`
   Optional. If specified, only "v2" is supported.

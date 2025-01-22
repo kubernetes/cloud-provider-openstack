@@ -18,6 +18,7 @@ package manila
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
@@ -25,6 +26,7 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog/v2"
 )
@@ -196,4 +198,39 @@ func waitForShareStatus(manilaClient manilaclient.Interface, shareID string, val
 
 		return false, fmt.Errorf("share %s is in an unexpected state: wanted either %v or %s, got %s", shareID, validTransientStates, desiredStatus, share.Status)
 	})
+}
+
+func resolveShareListToUUIDs(manilaClient manilaclient.Interface, affinityList string) (string, error) {
+	list := util.SplitTrim(affinityList, ',')
+	if len(list) == 0 {
+		return "", nil
+	}
+
+	affinityUUIDs := make([]string, 0, len(list))
+	for _, v := range list {
+		var share *shares.Share
+		var err error
+
+		if id, e := util.UUID(v); e == nil {
+			// First try to get share by ID
+			share, err = manilaClient.GetShareByID(id)
+			if err != nil && clouderrors.IsNotFound(err) {
+				// If not found by ID, try to get share by ID as name
+				share, err = manilaClient.GetShareByName(v)
+			}
+		} else {
+			// If not a UUID, try to get share by name
+			share, err = manilaClient.GetShareByName(v)
+		}
+		if err != nil {
+			if clouderrors.IsNotFound(err) {
+				return "", status.Errorf(codes.NotFound, "referenced share %s not found: %v", v, err)
+			}
+			return "", status.Errorf(codes.Internal, "failed to resolve share %s: %v", v, err)
+		}
+
+		affinityUUIDs = append(affinityUUIDs, share.ID)
+	}
+
+	return strings.Join(affinityUUIDs, ","), nil
 }

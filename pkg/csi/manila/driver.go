@@ -29,35 +29,21 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
 )
 
-type DriverOpts struct {
-	DriverName   string
-	NodeID       string
-	NodeAZ       string
-	WithTopology bool
-	ShareProto   string
-	ClusterID    string
-
-	ServerCSIEndpoint string
-	FwdCSIEndpoint    string
-
-	ManilaClientBuilder manilaclient.Builder
-	CSIClientBuilder    csiclient.Builder
-}
-
 type Driver struct {
-	nodeID       string
-	nodeAZ       string
+	name       string
+	fqVersion  string // Fully qualified version in format {driverVersion}@{CPO version}
+	shareProto string
+	clusterID  string
+
 	withTopology bool
-	name         string
-	fqVersion    string // Fully qualified version in format {driverVersion}@{CPO version}
-	shareProto   string
-	clusterID    string
 
 	serverEndpoint string
 	fwdEndpoint    string
@@ -72,6 +58,24 @@ type Driver struct {
 
 	manilaClientBuilder manilaclient.Builder
 	csiClientBuilder    csiclient.Builder
+
+	pvcLister v1.PersistentVolumeClaimLister
+}
+
+type DriverOpts struct {
+	DriverName string
+	ShareProto string
+	ClusterID  string
+
+	WithTopology bool
+
+	ServerCSIEndpoint string
+	FwdCSIEndpoint    string
+
+	ManilaClientBuilder manilaclient.Builder
+	CSIClientBuilder    csiclient.Builder
+
+	PVCLister v1.PersistentVolumeClaimLister
 }
 
 type nonBlockingGRPCServer struct {
@@ -112,8 +116,6 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 
 	d := &Driver{
 		fqVersion:           fmt.Sprintf("%s@%s", driverVersion, version.Version),
-		nodeID:              o.NodeID,
-		nodeAZ:              o.NodeAZ,
 		withTopology:        o.WithTopology,
 		name:                o.DriverName,
 		serverEndpoint:      o.ServerCSIEndpoint,
@@ -122,20 +124,16 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 		manilaClientBuilder: o.ManilaClientBuilder,
 		csiClientBuilder:    o.CSIClientBuilder,
 		clusterID:           o.ClusterID,
+		pvcLister:           o.PVCLister,
 	}
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI spec version: ", specVersion)
+	klog.Infof("Topology awareness: %T", d.withTopology)
 
 	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
 	klog.Infof("Operating on %s shares", d.shareProto)
-
-	if d.withTopology {
-		klog.Infof("Topology awareness enabled, node availability zone: %s", d.nodeAZ)
-	} else {
-		klog.Info("Topology awareness disabled")
-	}
 
 	serverProto, serverAddr, err := parseGRPCEndpoint(o.ServerCSIEndpoint)
 	if err != nil {
@@ -176,11 +174,7 @@ func (d *Driver) SetupControllerService() error {
 	return nil
 }
 
-func (d *Driver) SetupNodeService() error {
-	if err := argNotEmpty(d.nodeID, "node ID"); err != nil {
-		return err
-	}
-
+func (d *Driver) SetupNodeService(metadata metadata.IMetadata) error {
 	klog.Info("Providing node service")
 
 	var supportsNodeStage bool
@@ -200,7 +194,12 @@ func (d *Driver) SetupNodeService() error {
 
 	d.addNodeServiceCapabilities(nscaps)
 
-	d.ns = &nodeServer{d: d, supportsNodeStage: supportsNodeStage, nodeStageCache: make(map[volumeID]stageCacheEntry)}
+	d.ns = &nodeServer{
+		d:                 d,
+		metadata:          metadata,
+		supportsNodeStage: supportsNodeStage,
+		nodeStageCache:    make(map[volumeID]stageCacheEntry),
+	}
 	return nil
 }
 

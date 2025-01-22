@@ -45,10 +45,13 @@
   retries: 12
   delay: 10
 
-- name: Set kubeconfig env
-  set_fact:
-    kubeconfig: "/etc/rancher/k3s/k3s.yaml"
+- name: Create ~/.kube directory
+  ansible.builtin.file:
+    path: ~/.kube
+    state: directory
 
-- name: Merge KUBECONFIG env vars into global env
-  set_fact:
-    global_env: "{{ global_env | combine({'KUBECONFIG': kubeconfig}) }}"
+- name: Copy kubeconfig to ~/.kube
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: ~/.kube/config
+    remote_src: true

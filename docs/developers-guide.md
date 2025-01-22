@@ -43,7 +43,7 @@ Choose the one you are familiar with and easy to customize. Config the cluster w
 Using kubeadm, openstack-cloud-controller-manager can be deployed easily with predefined manifests, see the [deployment guide with kubeadm](openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#deploy-a-kubernetes-cluster-with-openstack-cloud-controller-manager-using-kubeadm).
 
 ### DevStack-based testing environment
-You can also use our CI scripts to setup a simple development environment based on DevStack and k3s. To do so you need a fresh VM with Ubuntu 22.04. We've tested this with 4 vCPUs and 16 GB of RAM and that's recommended, but we never tested the lower bound, so feel free to try with less resources.
+You can also use our CI scripts to setup a simple development environment based on DevStack and k3s. To do so you need a fresh VM with Ubuntu 24.04. We've tested this with 4 vCPUs and 16 GB of RAM and that's recommended, but we never tested the lower bound, so feel free to try with less resources.
 
 Once the VM is up make sure your SSH keys allow logging in as `ubuntu` user and from your PC and cloud-provider-openstack directory run:
 
@@ -133,11 +133,11 @@ make unit
 
 End-to-end or _e2e_ tests are more complex to run as they require a functioning OpenStack cloud and Kubernetes (well, k3s) deployment. Fortunately, you can rely on the infrastructure used for CI to run this on your own machines.
 
-For example, to run the Cinder CSI e2e tests, the CI calls the `tests/ci-csi-cinder-e2e.sh` script. Inspecting this, you'll note that a lot of the commands in here are simply provisioning an instance on GCE, using [Boskos](https://github.com/kubernetes-sigs/boskos) to manage static resources (projects, in this case) if needed. If you have a set of GCE credentials, then in theory you could run this script as-is. However, all you need is a VM with sufficient resources and network connectivity running the correct image (Ubuntu 20.04 cloud image as of writing - check `tests/scripts/create-gce-vm.sh` for the latest info). For example, using OpenStack:
+For example, to run the Cinder CSI e2e tests, the CI calls the `tests/ci-csi-cinder-e2e.sh` script. Inspecting this, you'll note that a lot of the commands in here are simply provisioning an instance on GCE, using [Boskos](https://github.com/kubernetes-sigs/boskos) to manage static resources (projects, in this case) if needed. If you have a set of GCE credentials, then in theory you could run this script as-is. However, all you need is a VM with sufficient resources and network connectivity running the correct image (Ubuntu 24.04 cloud image as of writing - check `tests/scripts/create-gce-vm.sh` for the latest info). For example, using OpenStack:
 
 ```
 openstack server create \
-  --image ubuntu2004 \
+  --image ubuntu2404 \
   --flavor m1.large \
   --key-name <key-name> \
   --network <network> \

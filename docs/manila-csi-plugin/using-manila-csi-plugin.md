@@ -15,6 +15,7 @@
       - [Verifying the deployment](#verifying-the-deployment)
       - [Enabling topology awareness](#enabling-topology-awareness)
   - [Share protocol support matrix](#share-protocol-support-matrix)
+  - [Supported PVC annotations](#supported-pvc-annotations)
   - [For developers](#for-developers)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -33,8 +34,8 @@ Option | Default value | Description
 -------|---------------|------------
 `--endpoint` | `unix:///tmp/csi.sock` | CSI Manila's CSI endpoint
 `--drivername` | `manila.csi.openstack.org` | Name of this driver
-`--nodeid` | _none_ | ID of this node
-`--nodeaz` | _none_ | Availability zone of this node
+`--nodeid` | _none_ | **DEPRECATED** ID of this node. This value is now automatically retrieved from the metadata service.
+`--nodeaz` | _none_ | **DEPRECATED** Availability zone of this node. This value is now automatically retrieved from the metadata service.
 `--runtime-config-file` | _none_ | Path to the [runtime configuration file](#runtime-configuration-file)
 `--with-topology` | _none_ | CSI Manila is topology-aware. See [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning) for more info
 `--share-protocol-selector` | _none_ | Specifies which Manila share protocol to use for this instance of the driver. See [supported protocols](#share-protocol-support-matrix) for valid values.
@@ -42,6 +43,7 @@ Option | Default value | Description
 `--cluster-id` | _none_ | The identifier of the cluster that the plugin is running in. If set then the plugin will add "manila.csi.openstack.org/cluster: \<clusterID\>" to metadata of created shares.
 `--provide-controller-service` | `true` | If set to true then the CSI driver does provide the controller service.
 `--provide-node-service` | `true` | If set to true then the CSI driver does provide the node service.
+`--pvc-annotations` | `false` | If set to true then the CSI driver will use PVC annotations as an additional information when creating shares. See [Supported PVC annotations](#supported-pvc-annotations) for more info.
 
 ### Controller Service volume parameters
 
@@ -53,6 +55,7 @@ Parameter | Required | Description
 `shareNetworkID` | _no_ | Manila [share network ID](https://wiki.openstack.org/wiki/Manila/Concepts#share_network)
 `availability` | _no_ | Manila availability zone of the provisioned share. If none is provided, the default Manila zone will be used. Note that this parameter is opaque to the CO and does not influence placement of workloads that will consume this share, meaning they may be scheduled onto any node of the cluster. If the specified Manila AZ is not equally accessible from all compute nodes of the cluster, use [Topology-aware dynamic provisioning](#topology-aware-dynamic-provisioning).
 `autoTopology` | _no_ | When set to "true" and the `availability` parameter is empty, the Manila CSI controller will map the Manila availability zone to the target compute node availability zone.
+`groupID` | _no_ | The UUID of the share group to which the provisioned share belongs. If not empty, the share will be created in the specified share group. The share group must be created in advance before the PVC is created.
 `appendShareMetadata` | _no_ | Append user-defined metadata to the provisioned share. If not empty, this field must be a string with a valid JSON object. The object must consist of key-value pairs of type string. Example: `"{..., \"key\": \"value\"}"`.
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-kernelMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS kernel client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
@@ -100,7 +103,7 @@ With topology awareness enabled, administrators can specify the mapping between 
 Doing so will instruct the CO scheduler to place the workloads+shares only on nodes that are able to reach the underlying storage.
 
 CSI Manila uses `topology.manila.csi.openstack.org/zone` _topology key_ to identify node's affinity to a certain compute availability zone.
-Each node of the cluster then gets labeled with a key/value pair of `topology.manila.csi.openstack.org/zone` / value of [`--nodeaz`](#command-line-arguments) cmd arg.
+Each node of the cluster then gets labeled with the `topology.manila.csi.openstack.org/zone` where the value is the value of the AZ retrieved from the Nova metadata service.
 
 This label may be used as a node selector when defining topology constraints for dynamic provisioning.
 Administrators are also free to pass arbitrary labels, and as long as they are valid node selectors, they will be honored by the scheduler.
@@ -255,11 +258,10 @@ To test the deployment further, see `examples/csi-manila-plugin`.
 
 If you're deploying CSI Manila with Helm:
 1. Set `csimanila.topologyAwarenessEnabled` to `true`
-2. Set `csimanila.nodeAZ`. This value will be sourced into the [`--nodeaz`](#command-line-arguments) cmd flag. Bash expressions are also allowed.
 
 If you're deploying CSI Manila manually:
 1. Run the [external-provisioner](https://github.com/kubernetes-csi/external-provisioner) with `--feature-gates=Topology=true` cmd flag.
-2. Run CSI Manila with [`--with-topology`](#command-line-arguments) and set [`--nodeaz`](#command-line-arguments) to node's availability zone. For Nova, the zone may be retrieved via the Metadata service like so: `--nodeaz=$(curl http://169.254.169.254/openstack/latest/meta_data.json | jq -r .availability_zone)`
+2. Run CSI Manila with [`--with-topology`](#command-line-arguments).
 
 See `examples/csi-manila-plugin/nfs/topology-aware` for examples on defining topology constraints.
 
@@ -272,7 +274,30 @@ Manila share protocol | CSI Node Plugin
 `CEPHFS` | [CSI CephFS](https://github.com/ceph/ceph-csi) : v1.0.0
 `NFS` | [CSI NFS](https://github.com/kubernetes-csi/csi-driver-nfs) : v1.0.0
 
+## Supported PVC Annotations
+
+The PVC annotations support must be enabled in the Manila CSI controller with
+the `--pvc-annotations` flag. The PVC annotations take effect only when the PVC
+is created. The scheduler hints are not updated when the PVC is updated. The
+minimum Manila API microversion required for scheduler hints is 2.65. Make sure
+that the Manila API microversion is supported by the Manila backend. The
+following PVC annotations are supported:
+
+| Annotation Name            | Description      | Example |
+|-------------------------   |-----------------|----------|
+| `manila.csi.openstack.org/affinity` | Share affinity to existing share or shares names/UUIDs. The value should be a comma-separated list of share names or UUIDs. | `manila.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
+| `manila.csi.openstack.org/anti-affinity` | Share anti-affinity to existing share or shares names/UUIDs. The value should be a comma-separated list of share names/UUIDs. | `manila.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,pv-default-50c5a3b3-e0b5-48d6-a163-4e68956aeb54"` |
+| `manila.csi.openstack.org/group-id` | The UUID of the share group to which the provisioned share must belong. The share group must be created before the PVC is created. | `manila.csi.openstack.org/group-id: "1b4e28ba-2fa1-11ec-8d3d-0242ac130006"` |
+
+If the PVC annotation is set, the share will be created according to the
+existing share names/UUIDs placements, i.e. on the same host as the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130003` share and not on the same host as the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
+`pv-default-50c5a3b3-e0b5-48d6-a163-4e68956aeb54` shares.
+
+The `manila.csi.openstack.org/group-id` annotation value overrides the storage
+class `groupID` parameter if both are set.
+
 ## For developers
 
 If you'd like to contribute to CSI Manila, check out `docs/manila-csi-plugin/developers-csi-manila.md` to get you started.
-

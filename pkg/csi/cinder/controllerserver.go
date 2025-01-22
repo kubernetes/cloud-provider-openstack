@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -46,6 +47,8 @@ type controllerServer struct {
 
 const (
 	cinderCSIClusterIDKey = "cinder.csi.openstack.org/cluster"
+	affinityKey           = "cinder.csi.openstack.org/affinity"
+	antiAffinityKey       = "cinder.csi.openstack.org/anti-affinity"
 )
 
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
@@ -61,6 +64,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Name
 	volName := req.GetName()
 	volCapabilities := req.GetVolumeCapabilities()
+	volParams := req.GetParameters()
 
 	if len(volName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume Name")
@@ -78,43 +82,52 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
 	// Volume Type
-	volType := req.GetParameters()["type"]
+	volType := volParams["type"]
 
-	// First check if volAvailability is already specified, if not get preferred from Topology
-	// Required, incase vol AZ is different from node AZ
-	volAvailability := req.GetParameters()["availability"]
-	if volAvailability == "" {
-		// Check from Topology
-		if req.GetAccessibilityRequirements() != nil {
-			volAvailability = util.GetAZFromTopology(topologyKey, req.GetAccessibilityRequirements())
+	var volAvailability string
+	if cs.Driver.withTopology {
+		// First check if volAvailability is already specified, if not get preferred from Topology
+		// Required, incase vol AZ is different from node AZ
+		volAvailability = volParams["availability"]
+		if volAvailability == "" {
+			accessibleTopologyReq := req.GetAccessibilityRequirements()
+			// Check from Topology
+			if accessibleTopologyReq != nil {
+				volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+			}
 		}
 	}
 
 	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
 
+	// get the PVC annotation
+	pvcAnnotations := sharedcsi.GetPVCAnnotations(cs.Driver.pvcLister, volParams)
+	for k, v := range pvcAnnotations {
+		klog.V(4).Infof("CreateVolume: retrieved %q pvc annotation: %s: %s", k, v, volName)
+	}
+
 	// Verify a volume with the provided name doesn't already exist for this tenant
-	volumes, err := cloud.GetVolumesByName(volName)
+	vols, err := cloud.GetVolumesByName(volName)
 	if err != nil {
 		klog.Errorf("Failed to query for existing Volume during CreateVolume: %v", err)
 		return nil, status.Errorf(codes.Internal, "Failed to get volumes: %v", err)
 	}
 
-	if len(volumes) == 1 {
-		if volSizeGB != volumes[0].Size {
+	if len(vols) == 1 {
+		if volSizeGB != vols[0].Size {
 			return nil, status.Error(codes.AlreadyExists, "Volume Already exists with same name and different capacity")
 		}
-		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", volumes[0].ID, volumes[0].AvailabilityZone, volumes[0].Size)
-		return getCreateVolumeResponse(&volumes[0], ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
-	} else if len(volumes) > 1 {
+		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", vols[0].ID, vols[0].AvailabilityZone, vols[0].Size)
+		return getCreateVolumeResponse(&vols[0], nil, ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
+	} else if len(vols) > 1 {
 		klog.V(3).Infof("found multiple existing volumes with selected name (%s) during create", volName)
 		return nil, status.Error(codes.Internal, "Multiple volumes reported by Cinder with same name")
-
 	}
 
 	// Volume Create
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
 	//Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
-	for _, mKey := range []string{"csi.storage.k8s.io/pvc/name", "csi.storage.k8s.io/pvc/namespace", "csi.storage.k8s.io/pv/name"} {
+	for _, mKey := range sharedcsi.RecognizedCSIProvisionerParams {
 		if v, ok := req.Parameters[mKey]; ok {
 			properties[mKey] = v
 		}
@@ -177,20 +190,59 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 	}
 
-	vol, err := cloud.CreateVolume(volName, volSizeGB, volType, volAvailability, snapshotID, sourceVolID, sourceBackupID, properties)
-	// When creating a volume from a backup, the response does not include the backupID.
-	if sourceBackupID != "" {
-		vol.BackupID = &sourceBackupID
+	opts := &volumes.CreateOpts{
+		Name:             volName,
+		Size:             volSizeGB,
+		VolumeType:       volType,
+		AvailabilityZone: volAvailability,
+		SnapshotID:       snapshotID,
+		SourceVolID:      sourceVolID,
+		BackupID:         sourceBackupID,
+		Metadata:         properties,
 	}
 
+	// Set scheduler hints if affinity or anti-affinity is set in PVC annotations
+	var schedulerHints volumes.SchedulerHintOptsBuilder
+	var volCtx map[string]string
+	affinity := pvcAnnotations[affinityKey]
+	antiAffinity := pvcAnnotations[antiAffinityKey]
+	if affinity != "" || antiAffinity != "" {
+		klog.V(4).Infof("CreateVolume: Getting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
+
+		// resolve volume names to UUIDs
+		affinity, err = cloud.ResolveVolumeListToUUIDs(affinity)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve affinity volume UUIDs: %v", err)
+		}
+		antiAffinity, err = cloud.ResolveVolumeListToUUIDs(antiAffinity)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity volume UUIDs: %v", err)
+		}
+
+		volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", affinity)
+		volCtx = util.SetMapIfNotEmpty(volCtx, "anti-affinity", antiAffinity)
+		schedulerHints = &volumes.SchedulerHintOpts{
+			SameHost:      util.SplitTrim(affinity, ','),
+			DifferentHost: util.SplitTrim(antiAffinity, ','),
+		}
+
+		klog.V(4).Infof("CreateVolume: Resolved scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
+	}
+
+	vol, err := cloud.CreateVolume(opts, schedulerHints)
 	if err != nil {
 		klog.Errorf("Failed to CreateVolume: %v", err)
 		return nil, status.Errorf(codes.Internal, "CreateVolume failed with error %v", err)
 	}
 
+	// When creating a volume from a backup, the response does not include the backupID.
+	if sourceBackupID != "" {
+		vol.BackupID = &sourceBackupID
+	}
+
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
-	return getCreateVolumeResponse(vol, ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
+	return getCreateVolumeResponse(vol, volCtx, ignoreVolumeAZ, req.GetAccessibilityRequirements()), nil
 }
 
 func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
@@ -686,7 +738,6 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 }
 
 func (cs *controllerServer) createSnapshot(cloud openstack.IOpenStack, name string, volumeID string, parameters map[string]string) (snap *snapshots.Snapshot, err error) {
-
 	filters := map[string]string{}
 	filters["Name"] = name
 
@@ -717,13 +768,13 @@ func (cs *controllerServer) createSnapshot(cloud openstack.IOpenStack, name stri
 	}
 
 	// Add cluster ID to the snapshot metadata
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
 
 	// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
 	// Also, we don't want to tag every param but we still want to send the
 	// 'force-create' flag to openstack layer so that we will honor the
 	// force create functions
-	for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name", openstack.SnapshotForceCreate} {
+	for _, mKey := range append(sharedcsi.RecognizedCSISnapshotterParams, openstack.SnapshotForceCreate) {
 		if v, ok := parameters[mKey]; ok {
 			properties[mKey] = v
 		}
@@ -742,15 +793,14 @@ func (cs *controllerServer) createSnapshot(cloud openstack.IOpenStack, name stri
 }
 
 func (cs *controllerServer) createBackup(cloud openstack.IOpenStack, name string, volumeID string, snap *snapshots.Snapshot, parameters map[string]string) (*backups.Backup, error) {
-
 	// Add cluster ID to the snapshot metadata
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
 
 	// see https://github.com/kubernetes-csi/external-snapshotter/pull/375/
 	// Also, we don't want to tag every param but we still want to send the
 	// 'force-create' flag to openstack layer so that we will honor the
 	// force create functions
-	for _, mKey := range []string{"csi.storage.k8s.io/volumesnapshot/name", "csi.storage.k8s.io/volumesnapshot/namespace", "csi.storage.k8s.io/volumesnapshotcontent/name", openstack.SnapshotForceCreate, openstack.SnapshotType} {
+	for _, mKey := range append(sharedcsi.RecognizedCSISnapshotterParams, openstack.SnapshotForceCreate, openstack.SnapshotType) {
 		if v, ok := parameters[mKey]; ok {
 			properties[mKey] = v
 		}
@@ -806,7 +856,6 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 }
 
 func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
 	cloud, cloudExist := cs.Clouds[volCloud]
@@ -901,7 +950,6 @@ func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
 	cloud, cloudExist := cs.Clouds[volCloud]
@@ -1058,11 +1106,13 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 	}, nil
 }
 
-func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
-
+func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
 	var volsrc *csi.VolumeContentSource
+	volCnx := map[string]string{}
 
 	if vol.SnapshotID != "" {
+		volCnx[ResizeRequired] = "true"
+
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
@@ -1073,6 +1123,8 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 	}
 
 	if vol.SourceVolID != "" {
+		volCnx[ResizeRequired] = "true"
+
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Volume{
 				Volume: &csi.VolumeContentSource_VolumeSource{
@@ -1083,6 +1135,8 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 	}
 
 	if vol.BackupID != nil && *vol.BackupID != "" {
+		volCnx[ResizeRequired] = "true"
+
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
@@ -1113,9 +1167,9 @@ func getCreateVolumeResponse(vol *volumes.Volume, ignoreVolumeAZ bool, accessibl
 			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: accessibleTopology,
 			ContentSource:      volsrc,
+			VolumeContext:      volCnx,
 		},
 	}
 
 	return resp
-
 }

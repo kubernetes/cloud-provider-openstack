@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
@@ -388,7 +387,7 @@ func TestNodeAddresses(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -468,7 +467,7 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -546,7 +545,7 @@ func TestNodeAddressesCustomPublicNetworkWithIntersectingFixedIP(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -631,7 +630,7 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -716,7 +715,7 @@ func TestNodeAddressesOneInternalNetwork(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -793,7 +792,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -875,7 +874,7 @@ func TestNodeAddressesWithAddressSortOrderOptions(t *testing.T) {
 	},
 	}
 
-	addrs, err := nodeAddresses(&srv, ports, nil, networkingOpts)
+	addrs, err := nodeAddresses(context.TODO(), &srv, ports, nil, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -935,45 +934,6 @@ func TestLoadBalancer(t *testing.T) {
 		if exists {
 			t.Fatalf("GetLoadBalancer(\"noexist\") returned exists")
 		}
-	}
-}
-
-var FakeMetadata = metadata.Metadata{
-	UUID:             "83679162-1378-4288-a2d4-70e13ec132aa",
-	Name:             "test",
-	AvailabilityZone: "nova",
-}
-
-func TestZones(t *testing.T) {
-	metadata.Set(&FakeMetadata)
-	defer metadata.Clear()
-
-	os := OpenStack{
-		provider: &gophercloud.ProviderClient{
-			IdentityBase: "http://auth.url/",
-		},
-		epOpts: &gophercloud.EndpointOpts{
-			Region:       "myRegion",
-			Availability: gophercloud.AvailabilityPublic,
-		},
-	}
-
-	z, ok := os.Zones()
-	if !ok {
-		t.Fatalf("Zones() returned false")
-	}
-
-	zone, err := z.GetZone(context.TODO())
-	if err != nil {
-		t.Fatalf("GetZone() returned error: %v", err)
-	}
-
-	if zone.Region != "myRegion" {
-		t.Fatalf("GetZone() returned wrong region (%s)", zone.Region)
-	}
-
-	if zone.FailureDomain != "nova" {
-		t.Fatalf("GetZone() returned wrong failure domain (%s)", zone.FailureDomain)
 	}
 }
 

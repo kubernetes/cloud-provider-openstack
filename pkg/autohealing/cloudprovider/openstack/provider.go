@@ -34,7 +34,6 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/orchestration/v1/stackresources"
 	"github.com/gophercloud/gophercloud/v2/openstack/orchestration/v1/stacks"
 	"github.com/gophercloud/gophercloud/v2/pagination"
-	uuid "github.com/pborman/uuid"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -47,6 +46,7 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/config"
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/healthcheck"
 	"k8s.io/cloud-provider-openstack/pkg/client"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 )
 
 const (
@@ -383,12 +383,11 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 	if isWorkerNode {
 		for _, n := range nodes {
 			nodesToReplace := sets.NewString()
-			machineID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
-			if machineID == nil {
-				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
+			serverID, err := util.UUID(n.KubeNode.Status.NodeInfo.MachineID)
+			if err != nil {
+				log.Warningf("Failed to get the correct server ID for server %s: %v", n.KubeNode.Name, err)
 				continue
 			}
-			serverID := machineID.String()
 
 			if processed, err := provider.firstTimeRepair(n, serverID, firstTimeRebootNodes); err != nil {
 				log.Warningf("Failed to process if the node %s is in first time repair , error: %v", serverID, err)
@@ -451,12 +450,11 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 		}
 
 		for _, n := range nodes {
-			machineID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID)
-			if machineID == nil {
-				log.Warningf("Failed to get the correct server ID for server %s", n.KubeNode.Name)
+			serverID, err := util.UUID(n.KubeNode.Status.NodeInfo.MachineID)
+			if err != nil {
+				log.Warningf("Failed to get the correct server ID for server %s: %v", n.KubeNode.Name, err)
 				continue
 			}
-			serverID := machineID.String()
 
 			if processed, err := provider.firstTimeRepair(n, serverID, firstTimeRebootNodes); err != nil {
 				log.Warningf("Failed to process if the node %s is in first time repair , error: %v", serverID, err)
@@ -507,7 +505,11 @@ func (provider CloudProvider) Repair(nodes []healthcheck.NodeInfo) error {
 
 	// Remove the broken nodes from the cluster
 	for _, n := range nodes {
-		serverID := uuid.Parse(n.KubeNode.Status.NodeInfo.MachineID).String()
+		serverID, err := util.UUID(n.KubeNode.Status.NodeInfo.MachineID)
+		if err != nil {
+			log.Warningf("Failed to get the correct server ID for server %s: %v", n.KubeNode.Name, err)
+			continue
+		}
 		if _, found := firstTimeRebootNodes[serverID]; found {
 			log.Infof("Skip node delete for %s because it's repaired by reboot", serverID)
 			continue

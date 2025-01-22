@@ -17,6 +17,7 @@
   - [Supported Features](#supported-features)
   - [Sidecar Compatibility](#sidecar-compatibility)
   - [Supported Parameters](#supported-parameters)
+  - [Supported PVC Annotations](#supported-pvc-annotations)
   - [Local Development](#local-development)
     - [Build](#build)
     - [Testing](#testing)
@@ -55,7 +56,7 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 <dl>
   <dt>--nodeid &lt;node id&gt;</dt>
   <dd>
-  This argument is deprecated, will be removed in future.
+  This argument is deprecated. It will be removed in future.
 
   An identifier for the current node which will be used in OpenStack API calls.  This can be either the UUID or name of the OpenStack server, but note that if using name it must be unique.
   </dd>
@@ -67,6 +68,13 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
   The endpoint of the gRPC server agents will use to connect to this CSI plugin, typically a local unix socket.
 
   The manifests default this to `unix://csi/csi.sock`, which is supplied via the `CSI_ENDPOINT` environment variable.
+  </dd>
+
+  <dt>--with-topology &lt;enabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver reports topology information and the controller respects it.
+
+  Defaults to `true` (enabled).
   </dd>
 
   <dt>--cloud-config &lt;config file&gt; [--cloud-config &lt;config file&gt; ...]</dt>
@@ -100,23 +108,25 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   <dt>--provide-controller-service &lt;enabled&gt;</dt>
   <dd>
-  If set to true then the CSI driver does provide the controller service.
+  If set to true then the CSI driver provides the controller service.
 
-  The default is to provide the controller service.
+  Defaults to `true` (enabled).
   </dd>
 
   <dt>--provide-node-service &lt;enabled&gt;</dt>
   <dd>
-  If set to true then the CSI driver does provide the node service.
+  If set to true then the CSI driver provides the node service.
 
-  The default is to provide the node service.
+  Defaults to `true` (enabled).
   </dd>
 
-  <dt>--node-service-no-os-client &lt;disabled&gt;</dt>
+  <dt>--pvc-annotations &lt;disabled&gt;</dt>
   <dd>
-  If set to true then the CSI driver does not provide the OpenStack client in the node service.
+  If set to true then the CSI driver will use PVC annotations to provide volume
+  scheduler hints. See [Supported PVC Annotations](#supported-pvc-annotations)
+  for more information.
 
-  The default is to provide the OpenStack client in the node service.
+  Defaults to `false` (disabled).
   </dd>
 </dl>
 
@@ -277,8 +287,26 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 | VolumeSnapshotClass `parameters` | `type`            | Empty String    | `snapshot` creates a VolumeSnapshot object linked to a Cinder volume snapshot. `backup` creates a VolumeSnapshot object linked to a cinder volume backup. Defaults to `snapshot` if not defined |
 | VolumeSnapshotClass `parameters` | `backup-max-duration-seconds-per-gb`  | `20`    | Defines the amount of time to wait for a backup to complete in seconds per GB of volume size |
 | VolumeSnapshotClass `parameters`  | `availability`          | Same as volume | String. Backup Availability Zone |
-| Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes| 
+| Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes|
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |
+
+## Supported PVC Annotations
+
+The PVC annotations support must be enabled in the Cinder CSI controller with
+the `--pvc-annotations` flag. The PVC annotations take effect only when the PVC
+is created. The scheduler hints are not updated when the PVC is updated. The
+following PVC annotations are supported:
+
+| Annotation Name            | Description      | Example |
+|-------------------------   |-----------------|----------|
+| `cinder.csi.openstack.org/affinity` | Volume affinity to existing volume or volumes names/UUIDs. The value should be a comma-separated list of volume names/UUIDs. | `cinder.csi.openstack.org/affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130003"` |
+| `cinder.csi.openstack.org/anti-affinity` | Volume anti-affinity to existing volume or volumes names/UUIDs. The value should be a comma-separated list of volume names/UUIDs. | `cinder.csi.openstack.org/anti-affinity: "1b4e28ba-2fa1-11ec-8d3d-0242ac130004,pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644"` |
+
+If the PVC annotation is set, the volume will be created according to the
+existing volume names/UUIDs placements, i.e. on the same host as the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130003` volume and not on the same host as the
+`1b4e28ba-2fa1-11ec-8d3d-0242ac130004` and
+`pv-k8s--cluster-1b5f47bf-0119-442e-8529-254c36e43644` volumes.
 
 ## Local Development
 
@@ -314,8 +342,6 @@ Run sanity tests for cinder CSI driver using:
 ```
 $ make test-cinder-csi-sanity
 ```
-
-Optionally, to test the driver csc tool could be used. please refer, [usage guide](./csc-tool.md) for more info.
 
 ## In-tree Cinder provisioner to cinder CSI Migration
 

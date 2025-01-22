@@ -22,6 +22,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
@@ -32,6 +33,12 @@ import (
 const (
 	driverName  = "cinder.csi.openstack.org"
 	topologyKey = "topology." + driverName + "/zone"
+
+	// maxVolumesPerNode is the maximum number of volumes that can be attached to a node
+	maxVolumesPerNode = 256
+
+	// ResizeRequired parameter, if set to true, will trigger a resize on mount operation
+	ResizeRequired = driverName + "/resizeRequired"
 )
 
 var (
@@ -56,10 +63,11 @@ type CinderDriver = Driver
 //revive:enable:exported
 
 type Driver struct {
-	name      string
-	fqVersion string //Fully qualified version in format {Version}@{CPO version}
-	endpoint  string
-	cluster   string
+	name         string
+	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
+	endpoint     string
+	clusterID    string
+	withTopology bool
 
 	ids *identityServer
 	cs  *controllerServer
@@ -68,23 +76,32 @@ type Driver struct {
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
 	nscap []*csi.NodeServiceCapability
+
+	pvcLister v1.PersistentVolumeClaimLister
 }
 
 type DriverOpts struct {
-	ClusterID string
-	Endpoint  string
+	ClusterID    string
+	Endpoint     string
+	WithTopology bool
+
+	PVCLister v1.PersistentVolumeClaimLister
 }
 
 func NewDriver(o *DriverOpts) *Driver {
-	d := &Driver{}
-	d.name = driverName
-	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
-	d.endpoint = o.Endpoint
-	d.cluster = o.ClusterID
+	d := &Driver{
+		name:         driverName,
+		fqVersion:    fmt.Sprintf("%s@%s", Version, version.Version),
+		endpoint:     o.Endpoint,
+		clusterID:    o.ClusterID,
+		withTopology: o.WithTopology,
+		pvcLister:    o.PVCLister,
+	}
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI Spec version: ", specVersion)
+	klog.Infof("Topology awareness: %T", d.withTopology)
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{
@@ -177,9 +194,9 @@ func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack) 
 	d.cs = NewControllerServer(d, clouds)
 }
 
-func (d *Driver) SetupNodeService(cloud openstack.IOpenStack, mount mount.IMount, metadata metadata.IMetadata, topologies map[string]string) {
+func (d *Driver) SetupNodeService(mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string) {
 	klog.Info("Providing node service")
-	d.ns = NewNodeServer(d, mount, metadata, cloud, topologies)
+	d.ns = NewNodeServer(d, mount, metadata, opts, topologies)
 }
 
 func (d *Driver) Run() {

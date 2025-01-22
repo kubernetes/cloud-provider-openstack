@@ -61,6 +61,12 @@ tolerations:
   - key: node-role.kubernetes.io/control-plane
     effect: NoSchedule
 
+# Optional additional annotations to add to the controller Pods.
+podAnnotations: {}
+
+# Optional additional labels to add to the controller Pods.
+podLabels: {}
+
 # Set security settings for the controller pods
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
 podSecurityContext:

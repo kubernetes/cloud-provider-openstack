@@ -29,12 +29,14 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	clouderrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/klog/v2"
 )
 
 type nodeServer struct {
 	d *Driver
 
+	metadata          metadata.IMetadata
 	supportsNodeStage bool
 	// The result of NodeStageVolume is stashed away for NodePublishVolume(s) that will follow
 	nodeStageCache    map[volumeID]stageCacheEntry
@@ -324,14 +326,26 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 }
 
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-	nodeInfo := &csi.NodeGetInfoResponse{
-		NodeId: ns.d.nodeID,
+	nodeID, err := ns.metadata.GetInstanceID()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] unable to retrieve instance id of node %v", err)
 	}
 
-	if ns.d.withTopology {
-		nodeInfo.AccessibleTopology = &csi.Topology{
-			Segments: map[string]string{topologyKey: ns.d.nodeAZ},
-		}
+	nodeInfo := &csi.NodeGetInfoResponse{
+		NodeId: nodeID,
+	}
+
+	if !ns.d.withTopology {
+		return nodeInfo, nil
+	}
+
+	zone, err := ns.metadata.GetAvailabilityZone()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] Unable to retrieve availability zone of node %v", err)
+	}
+
+	nodeInfo.AccessibleTopology = &csi.Topology{
+		Segments: map[string]string{topologyKey: zone},
 	}
 
 	return nodeInfo, nil

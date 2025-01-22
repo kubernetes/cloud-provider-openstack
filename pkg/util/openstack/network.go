@@ -33,12 +33,12 @@ import (
 )
 
 // GetNetworkExtensions returns an extension map.
-func GetNetworkExtensions(client *gophercloud.ServiceClient) (map[string]bool, error) {
+func GetNetworkExtensions(ctx context.Context, client *gophercloud.ServiceClient) (map[string]bool, error) {
 	seen := make(map[string]bool)
 
 	mc := metrics.NewMetricContext("network_extension", "list")
 	pager := extensions.List(client)
-	err := pager.EachPage(context.TODO(), func(_ context.Context, page pagination.Page) (bool, error) {
+	err := pager.EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
 		exts, err := extensions.ExtractExtensions(page)
 		if err != nil {
 			return false, err
@@ -53,11 +53,11 @@ func GetNetworkExtensions(client *gophercloud.ServiceClient) (map[string]bool, e
 }
 
 // GetFloatingIPs returns all the filtered floating IPs
-func GetFloatingIPs(client *gophercloud.ServiceClient, opts floatingips.ListOpts) ([]floatingips.FloatingIP, error) {
+func GetFloatingIPs(ctx context.Context, client *gophercloud.ServiceClient, opts floatingips.ListOpts) ([]floatingips.FloatingIP, error) {
 	var floatingIPList []floatingips.FloatingIP
 
 	mc := metrics.NewMetricContext("floating_ip", "list")
-	allPages, err := floatingips.List(client, opts).AllPages(context.TODO())
+	allPages, err := floatingips.List(client, opts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return floatingIPList, err
 	}
@@ -70,11 +70,11 @@ func GetFloatingIPs(client *gophercloud.ServiceClient, opts floatingips.ListOpts
 }
 
 // GetFloatingIPByPortID get the floating IP of the given port.
-func GetFloatingIPByPortID(client *gophercloud.ServiceClient, portID string) (*floatingips.FloatingIP, error) {
+func GetFloatingIPByPortID(ctx context.Context, client *gophercloud.ServiceClient, portID string) (*floatingips.FloatingIP, error) {
 	opt := floatingips.ListOpts{
 		PortID: portID,
 	}
-	ips, err := GetFloatingIPs(client, opt)
+	ips, err := GetFloatingIPs(ctx, client, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func GetFloatingIPByPortID(client *gophercloud.ServiceClient, portID string) (*f
 }
 
 // GetFloatingNetworkID returns a floating network ID.
-func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
+func GetFloatingNetworkID(ctx context.Context, client *gophercloud.ServiceClient) (string, error) {
 	type NetworkWithExternalExt struct {
 		networks.Network
 		external.NetworkExternalExt
@@ -95,7 +95,7 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 	var allNetworks []NetworkWithExternalExt
 
 	mc := metrics.NewMetricContext("network", "list")
-	page, err := networks.List(client, networks.ListOpts{}).AllPages(context.TODO())
+	page, err := networks.List(client, networks.ListOpts{}).AllPages(ctx)
 	if err != nil {
 		return "", mc.ObserveRequest(err)
 	}
@@ -108,7 +108,7 @@ func GetFloatingNetworkID(client *gophercloud.ServiceClient) (string, error) {
 	for _, network := range allNetworks {
 		if network.External && len(network.Subnets) > 0 {
 			mc := metrics.NewMetricContext("subnet", "list")
-			page, err := subnets.List(client, subnets.ListOpts{NetworkID: network.ID}).AllPages(context.TODO())
+			page, err := subnets.List(client, subnets.ListOpts{NetworkID: network.ID}).AllPages(ctx)
 			if err != nil {
 				return "", mc.ObserveRequest(err)
 			}
@@ -142,9 +142,9 @@ func getSubnet(networkSubnet string, subnetList []subnets.Subnet) *subnets.Subne
 }
 
 // GetPorts gets all the filtered ports.
-func GetPorts[PortType interface{}](client *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]PortType, error) {
+func GetPorts[PortType interface{}](ctx context.Context, client *gophercloud.ServiceClient, listOpts neutronports.ListOpts) ([]PortType, error) {
 	mc := metrics.NewMetricContext("port", "list")
-	allPages, err := neutronports.List(client, listOpts).AllPages(context.TODO())
+	allPages, err := neutronports.List(client, listOpts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return []PortType{}, err
 	}

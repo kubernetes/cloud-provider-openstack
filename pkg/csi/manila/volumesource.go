@@ -17,7 +17,6 @@ limitations under the License.
 package manila
 
 import (
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,21 +27,33 @@ import (
 )
 
 type volumeCreator interface {
-	create(manilaClient manilaclient.Interface, req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error)
+	create(manilaClient manilaclient.Interface, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error)
 }
 
-type blankVolume struct{}
-
-func (blankVolume) create(manilaClient manilaclient.Interface, req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
+func create(manilaClient manilaclient.Interface, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string, snapshotID string) (*shares.Share, error) {
 	createOpts := &shares.CreateOpts{
 		AvailabilityZone: shareOpts.AvailabilityZone,
 		ShareProto:       shareOpts.Protocol,
 		ShareType:        shareOpts.Type,
 		ShareNetworkID:   shareOpts.ShareNetworkID,
+		ShareGroupID:     shareOpts.GroupID,
 		Name:             shareName,
 		Description:      shareDescription,
 		Size:             sizeInGiB,
 		Metadata:         shareMetadata,
+		SnapshotID:       snapshotID,
+	}
+
+	// Set scheduler hints if affinity or anti-affinity is set in PVC annotations
+	if shareOpts.Affinity != "" || shareOpts.AntiAffinity != "" {
+		// Set microversion to 2.65 to use scheduler hints
+		v := manilaClient.GetMicroversion()
+		manilaClient.SetMicroversion("2.65")
+		defer manilaClient.SetMicroversion(v)
+		createOpts.SchedulerHints = &shares.SchedulerHints{
+			DifferentHost: shareOpts.AntiAffinity,
+			SameHost:      shareOpts.Affinity,
+		}
 	}
 
 	share, manilaErrCode, err := getOrCreateShare(manilaClient, shareName, createOpts)
@@ -56,28 +67,37 @@ func (blankVolume) create(manilaClient manilaclient.Interface, req *csi.CreateVo
 			tryDeleteShare(manilaClient, share)
 		}
 
+		if snapshotID != "" {
+			return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to restore snapshot %s into volume %s: %v", snapshotID, shareName, err)
+		}
 		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to create volume %s: %v", shareName, err)
 	}
 
 	return share, err
 }
 
-type volumeFromSnapshot struct{}
+type blankVolume struct{}
 
-func (volumeFromSnapshot) create(manilaClient manilaclient.Interface, req *csi.CreateVolumeRequest, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
-	snapshotSource := req.GetVolumeContentSource().GetSnapshot()
+func (blankVolume) create(manilaClient manilaclient.Interface, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
+	return create(manilaClient, shareName, sizeInGiB, shareOpts, shareMetadata, "")
+}
 
-	if snapshotSource.GetSnapshotId() == "" {
+type volumeFromSnapshot struct {
+	snapshotID string
+}
+
+func (v volumeFromSnapshot) create(manilaClient manilaclient.Interface, shareName string, sizeInGiB int, shareOpts *options.ControllerVolumeContext, shareMetadata map[string]string) (*shares.Share, error) {
+	if v.snapshotID == "" {
 		return nil, status.Error(codes.InvalidArgument, "snapshot ID cannot be empty")
 	}
 
-	snapshot, err := manilaClient.GetSnapshotByID(snapshotSource.GetSnapshotId())
+	snapshot, err := manilaClient.GetSnapshotByID(v.snapshotID)
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "source snapshot %s not found: %v", snapshotSource.GetSnapshotId(), err)
+			return nil, status.Errorf(codes.NotFound, "source snapshot %s not found: %v", v.snapshotID, err)
 		}
 
-		return nil, status.Errorf(codes.Internal, "failed to retrieve snapshot %s: %v", snapshotSource.GetSnapshotId(), err)
+		return nil, status.Errorf(codes.Internal, "failed to retrieve snapshot %s: %v", v.snapshotID, err)
 	}
 
 	if snapshot.Status != snapshotAvailable {
@@ -88,31 +108,5 @@ func (volumeFromSnapshot) create(manilaClient manilaclient.Interface, req *csi.C
 		return nil, status.Errorf(codes.FailedPrecondition, "snapshot %s is in invalid state: expected 'available', got '%s'", snapshot.ID, snapshot.Status)
 	}
 
-	createOpts := &shares.CreateOpts{
-		AvailabilityZone: shareOpts.AvailabilityZone,
-		SnapshotID:       snapshot.ID,
-		ShareProto:       shareOpts.Protocol,
-		ShareType:        shareOpts.Type,
-		ShareNetworkID:   shareOpts.ShareNetworkID,
-		Name:             shareName,
-		Description:      shareDescription,
-		Size:             sizeInGiB,
-		Metadata:         shareMetadata,
-	}
-
-	share, manilaErrCode, err := getOrCreateShare(manilaClient, shareName, createOpts)
-	if err != nil {
-		if wait.Interrupted(err) {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume %s to become available", share.Name)
-		}
-
-		if manilaErrCode != 0 {
-			// An error has occurred, try to roll-back the share
-			tryDeleteShare(manilaClient, share)
-		}
-
-		return nil, status.Errorf(manilaErrCode.toRPCErrorCode(), "failed to restore snapshot %s into volume %s: %v", snapshotSource.GetSnapshotId(), shareName, err)
-	}
-
-	return share, err
+	return create(manilaClient, shareName, sizeInGiB, shareOpts, shareMetadata, snapshot.ID)
 }

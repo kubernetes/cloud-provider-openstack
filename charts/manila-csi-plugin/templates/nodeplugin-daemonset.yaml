@@ -50,13 +50,11 @@ spec:
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             -v={{ $.Values.logVerbosityLevel }}
-            --nodeid=$(NODE_ID)
             {{- if $.Values.csimanila.runtimeConfig.enabled }}
             --runtime-config-file=/runtimeconfig/runtimeconfig.json
             {{- end }}
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             --with-topology
-            --nodeaz={{ $.Values.csimanila.nodeAZ }}
             {{- end }}
             --endpoint=$(CSI_ENDPOINT)
             --drivername=$(DRIVER_NAME)
@@ -67,10 +65,6 @@ spec:
           env:
             - name: DRIVER_NAME
               value: {{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}
-            - name: NODE_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi.sock"
             - name: FWD_CSI_ENDPOINT

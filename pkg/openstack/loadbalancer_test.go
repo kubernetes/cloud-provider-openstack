@@ -1155,6 +1155,29 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
 			},
 		},
+		{
+			name: "test for loadbalancing method",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					poolLbMethod: "ROUND_ROBIN",
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{},
+			},
+			want: pools.CreateOpts{
+				Name:     "test for loadbalancing method",
+				Protocol: pools.ProtocolTCP,
+				LBMethod: "ROUND_ROBIN",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1524,12 +1547,12 @@ func Test_nodeAddressForLB(t *testing.T) {
 					Status: corev1.NodeStatus{
 						Addresses: []corev1.NodeAddress{
 							{
-								Type:    corev1.NodeInternalIP,
-								Address: "192.168.1.1",
-							},
-							{
 								Type:    corev1.NodeExternalIP,
 								Address: "192.168.1.2",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
 							},
 						},
 					},
@@ -1546,12 +1569,12 @@ func Test_nodeAddressForLB(t *testing.T) {
 					Status: corev1.NodeStatus{
 						Addresses: []corev1.NodeAddress{
 							{
-								Type:    corev1.NodeInternalIP,
-								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-							},
-							{
 								Type:    corev1.NodeExternalIP,
 								Address: "2001:0db8:85a3:3333:1111:8a2e:9999:8888",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 							},
 						},
 					},

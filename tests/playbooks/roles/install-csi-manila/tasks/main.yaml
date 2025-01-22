@@ -1,18 +1,18 @@
 ---
-- name: Ensure CPO source folder
+- name: Ensure CPO source folder is present
   shell:
     executable: /bin/bash
     cmd: |
-      if [ ! -d $GOPATH/src/k8s.io/cloud-provider-openstack ]; then
-        mkdir -p $GOPATH/src/k8s.io; cd $_
-        git clone https://github.com/kubernetes/cloud-provider-openstack
+      if [ ! -d "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack" ]; then
+        echo "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack should exist but does not"
+        exit 1
       fi
 
 - name: Build and upload manila-csi-plugin image
   shell:
     executable: /bin/bash
     cmd: |
-      cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
       VERSION="v0.0.99" # Fake version, but in proper format.
 
       make push-multiarch-image-manila-csi-plugin \
@@ -26,7 +26,9 @@
     cmd: |
       kubectl -n kube-system get secret cloud-config >/dev/null 2>&1
       if [ $? -eq 0 ]; then
-        exit 0
+        kubectl -n kube-system get secrets cloud-config -o json | jq -r '.data."cloud.conf"' | base64 -d
+        # replacing a cloud-config, created by the OCCM role
+        kubectl -n kube-system delete secret cloud-config
       fi
 
       set -ex
@@ -42,9 +44,13 @@
       region=${OS_REGION_NAME}
       tenant-id=$tenant_id
       domain-id=default
+
+      [LoadBalancer]
+      enabled=false
       EOF
 
       kubectl create secret -n kube-system generic cloud-config --from-file={{ ansible_user_dir }}/cloud.conf
+      kubectl -n kube-system get secrets cloud-config -o json | jq -r '.data."cloud.conf"' | base64 -d
 
 - name: Deploy Kubernetes VolumeSnapshot CRDs and snapshot controller
   shell:
@@ -170,6 +176,12 @@
           kubectl describe pod -l app=openstack-manila-csi,component=nodeplugin
       register: describe_csi
       changed_when: false
+
+    - name: Show openstack-cloud-controller-manager pod logs
+      shell:
+        executable: /bin/bash
+        cmd: |
+          kubectl -n kube-system logs ds/openstack-cloud-controller-manager
 
     - name: Log failed manila-csi-plugin deployment
       debug:
