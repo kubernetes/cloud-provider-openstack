@@ -154,7 +154,7 @@ type Syncer struct {
 	mu         sync.Mutex
 }
 
-func (s *Syncer) syncData(u *userInfo) error {
+func (s *Syncer) syncData(ctx context.Context, u *userInfo) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -185,7 +185,7 @@ func (s *Syncer) syncData(u *userInfo) error {
 	// sync project data first
 	for _, dataType := range s.syncConfig.DataTypesToSync {
 		if dataType == Projects {
-			err := s.syncProjectData(u, namespaceName)
+			err := s.syncProjectData(ctx, u, namespaceName)
 			if err != nil {
 				return err
 			}
@@ -194,7 +194,7 @@ func (s *Syncer) syncData(u *userInfo) error {
 
 	for _, dataType := range s.syncConfig.DataTypesToSync {
 		if dataType == RoleAssignments {
-			err := s.syncRoleAssignmentsData(u, namespaceName)
+			err := s.syncRoleAssignmentsData(ctx, u, namespaceName)
 			if err != nil {
 				return err
 			}
@@ -204,8 +204,8 @@ func (s *Syncer) syncData(u *userInfo) error {
 	return nil
 }
 
-func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
-	_, err := s.k8sClient.CoreV1().Namespaces().Get(context.TODO(), namespaceName, metav1.GetOptions{})
+func (s *Syncer) syncProjectData(ctx context.Context, u *userInfo, namespaceName string) error {
+	_, err := s.k8sClient.CoreV1().Namespaces().Get(ctx, namespaceName, metav1.GetOptions{})
 
 	if k8serrors.IsNotFound(err) {
 		// The required namespace is not found. Create it then.
@@ -214,7 +214,7 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 				Name: namespaceName,
 			},
 		}
-		_, err := s.k8sClient.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
+		_, err := s.k8sClient.CoreV1().Namespaces().Create(ctx, namespace, metav1.CreateOptions{})
 		if err != nil {
 			klog.Warningf("Cannot create a namespace for the user: %v", err)
 			return errors.New("internal server error")
@@ -228,9 +228,9 @@ func (s *Syncer) syncProjectData(u *userInfo, namespaceName string) error {
 	return nil
 }
 
-func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) error {
+func (s *Syncer) syncRoleAssignmentsData(ctx context.Context, u *userInfo, namespaceName string) error {
 	// TODO(mfedosin): add a field separator to filter out unnecessary roles bindings at an early stage
-	roleBindings, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).List(context.TODO(), metav1.ListOptions{})
+	roleBindings, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		klog.Warningf("Cannot get a list of role bindings from the server: %v", err)
 		return errors.New("internal server error")
@@ -253,7 +253,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 			}
 		}
 		if !keepRoleBinding {
-			err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Delete(context.TODO(), roleBinding.Name, metav1.DeleteOptions{})
+			err = s.k8sClient.RbacV1().RoleBindings(namespaceName).Delete(ctx, roleBinding.Name, metav1.DeleteOptions{})
 			if err != nil {
 				klog.Warningf("Cannot delete a role binding from the server: %v", err)
 				return errors.New("internal server error")
@@ -295,7 +295,7 @@ func (s *Syncer) syncRoleAssignmentsData(u *userInfo, namespaceName string) erro
 				Name:     roleName,
 			},
 		}
-		_, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
+		_, err := s.k8sClient.RbacV1().RoleBindings(namespaceName).Create(ctx, roleBinding, metav1.CreateOptions{})
 		if err != nil {
 			klog.Warningf("Cannot create a role binding for the user: %v", err)
 			return errors.New("internal server error")

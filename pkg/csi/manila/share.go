@@ -17,6 +17,7 @@ limitations under the License.
 package manila
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -62,7 +63,7 @@ func isShareInErrorState(s string) bool {
 
 // getOrCreateShare first retrieves an existing share with name=shareName, or creates a new one if it doesn't exist yet.
 // Once the share is created, an exponential back-off is used to wait till the status of the share is "available".
-func getOrCreateShare(manilaClient manilaclient.Interface, shareName string, createOpts *shares.CreateOpts) (*shares.Share, manilaError, error) {
+func getOrCreateShare(ctx context.Context, manilaClient manilaclient.Interface, shareName string, createOpts *shares.CreateOpts) (*shares.Share, manilaError, error) {
 	var (
 		share *shares.Share
 		err   error
@@ -70,12 +71,12 @@ func getOrCreateShare(manilaClient manilaclient.Interface, shareName string, cre
 
 	// First, check if the share already exists or needs to be created
 
-	if share, err = manilaClient.GetShareByName(shareName); err != nil {
+	if share, err = manilaClient.GetShareByName(ctx, shareName); err != nil {
 		if clouderrors.IsNotFound(err) {
 			// It doesn't exist, create it
 
 			var createErr error
-			if share, createErr = manilaClient.CreateShare(createOpts); createErr != nil {
+			if share, createErr = manilaClient.CreateShare(ctx, createOpts); createErr != nil {
 				return nil, 0, createErr
 			}
 		} else {
@@ -92,11 +93,11 @@ func getOrCreateShare(manilaClient manilaclient.Interface, shareName string, cre
 		return share, 0, nil
 	}
 
-	return waitForShareStatus(manilaClient, share.ID, []string{shareCreating, shareCreatingFromSnapshot}, shareAvailable, false)
+	return waitForShareStatus(ctx, manilaClient, share.ID, []string{shareCreating, shareCreatingFromSnapshot}, shareAvailable, false)
 }
 
-func deleteShare(manilaClient manilaclient.Interface, shareID string) error {
-	if err := manilaClient.DeleteShare(shareID); err != nil {
+func deleteShare(ctx context.Context, manilaClient manilaclient.Interface, shareID string) error {
+	if err := manilaClient.DeleteShare(ctx, shareID); err != nil {
 		if clouderrors.IsNotFound(err) {
 			klog.V(4).Infof("volume with share ID %s not found, assuming it to be already deleted", shareID)
 		} else {
@@ -107,33 +108,33 @@ func deleteShare(manilaClient manilaclient.Interface, shareID string) error {
 	return nil
 }
 
-func tryDeleteShare(manilaClient manilaclient.Interface, share *shares.Share) {
+func tryDeleteShare(ctx context.Context, manilaClient manilaclient.Interface, share *shares.Share) {
 	if share == nil {
 		return
 	}
 
-	if err := manilaClient.DeleteShare(share.ID); err != nil {
+	if err := manilaClient.DeleteShare(ctx, share.ID); err != nil {
 		// TODO failure to delete a share in an error state needs proper monitoring support
 		klog.Errorf("couldn't delete volume %s in a roll-back procedure: %v", share.Name, err)
 		return
 	}
 
-	_, _, err := waitForShareStatus(manilaClient, share.ID, []string{shareDeleting}, "", true)
+	_, _, err := waitForShareStatus(ctx, manilaClient, share.ID, []string{shareDeleting}, "", true)
 	if err != nil && !wait.Interrupted(err) {
 		klog.Errorf("couldn't retrieve volume %s in a roll-back procedure: %v", share.Name, err)
 	}
 }
 
-func extendShare(manilaClient manilaclient.Interface, shareID string, newSizeInGiB int) (*shares.Share, error) {
+func extendShare(ctx context.Context, manilaClient manilaclient.Interface, shareID string, newSizeInGiB int) (*shares.Share, error) {
 	opts := shares.ExtendOpts{
 		NewSize: newSizeInGiB,
 	}
 
-	if err := manilaClient.ExtendShare(shareID, opts); err != nil {
+	if err := manilaClient.ExtendShare(ctx, shareID, opts); err != nil {
 		return nil, err
 	}
 
-	share, manilaErrCode, err := waitForShareStatus(manilaClient, shareID, []string{shareExtending}, shareAvailable, false)
+	share, manilaErrCode, err := waitForShareStatus(ctx, manilaClient, shareID, []string{shareExtending}, shareAvailable, false)
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for volume ID %s to become available", share.Name)
@@ -145,7 +146,7 @@ func extendShare(manilaClient manilaclient.Interface, shareID string, newSizeInG
 	return share, nil
 }
 
-func waitForShareStatus(manilaClient manilaclient.Interface, shareID string, validTransientStates []string, desiredStatus string, successOnNotFound bool) (*shares.Share, manilaError, error) {
+func waitForShareStatus(ctx context.Context, manilaClient manilaclient.Interface, shareID string, validTransientStates []string, desiredStatus string, successOnNotFound bool) (*shares.Share, manilaError, error) {
 	var (
 		backoff = wait.Backoff{
 			Duration: time.Second * waitForAvailableShareTimeout,
@@ -168,7 +169,7 @@ func waitForShareStatus(manilaClient manilaclient.Interface, shareID string, val
 	}
 
 	return share, manilaErrCode, wait.ExponentialBackoff(backoff, func() (bool, error) {
-		share, err = manilaClient.GetShareByID(shareID)
+		share, err = manilaClient.GetShareByID(ctx, shareID)
 
 		if err != nil {
 			if clouderrors.IsNotFound(err) && successOnNotFound {
@@ -187,7 +188,7 @@ func waitForShareStatus(manilaClient manilaclient.Interface, shareID string, val
 		}
 
 		if isShareInErrorState(share.Status) {
-			manilaErrMsg, err := lastResourceError(manilaClient, shareID)
+			manilaErrMsg, err := lastResourceError(ctx, manilaClient, shareID)
 			if err != nil {
 				return false, fmt.Errorf("share %s is in error state, error description could not be retrieved: %v", shareID, err)
 			}
@@ -200,7 +201,7 @@ func waitForShareStatus(manilaClient manilaclient.Interface, shareID string, val
 	})
 }
 
-func resolveShareListToUUIDs(manilaClient manilaclient.Interface, affinityList string) (string, error) {
+func resolveShareListToUUIDs(ctx context.Context, manilaClient manilaclient.Interface, affinityList string) (string, error) {
 	list := util.SplitTrim(affinityList, ',')
 	if len(list) == 0 {
 		return "", nil
@@ -213,14 +214,14 @@ func resolveShareListToUUIDs(manilaClient manilaclient.Interface, affinityList s
 
 		if id, e := util.UUID(v); e == nil {
 			// First try to get share by ID
-			share, err = manilaClient.GetShareByID(id)
+			share, err = manilaClient.GetShareByID(ctx, id)
 			if err != nil && clouderrors.IsNotFound(err) {
 				// If not found by ID, try to get share by ID as name
-				share, err = manilaClient.GetShareByName(v)
+				share, err = manilaClient.GetShareByName(ctx, v)
 			}
 		} else {
 			// If not a UUID, try to get share by name
-			share, err = manilaClient.GetShareByName(v)
+			share, err = manilaClient.GetShareByName(ctx, v)
 		}
 		if err != nil {
 			if clouderrors.IsNotFound(err) {

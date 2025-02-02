@@ -256,7 +256,7 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 		cidrs = svcConf.allowedCIDR
 	}
 
-	existingRules, err := openstackutil.GetSecurityGroupRules(lbaas.network, rules.ListOpts{SecGroupID: lbSecGroupID})
+	existingRules, err := openstackutil.GetSecurityGroupRules(ctx, lbaas.network, rules.ListOpts{SecGroupID: lbSecGroupID})
 	if err != nil {
 		return fmt.Errorf(
 			"failed to find security group rules in %s: %v", lbSecGroupID, err)

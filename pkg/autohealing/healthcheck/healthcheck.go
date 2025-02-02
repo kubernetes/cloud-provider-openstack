@@ -17,6 +17,7 @@ limitations under the License.
 package healthcheck
 
 import (
+	"context"
 	"time"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -40,7 +41,7 @@ type NodeInfo struct {
 
 type HealthCheck interface {
 	// Check checks the node health, returns false if the node is unhealthy. The plugin should deal with any error happened.
-	Check(node NodeInfo, controller NodeController) bool
+	Check(ctx context.Context, node NodeInfo, controller NodeController) bool
 
 	// IsMasterSupported checks if the health check plugin supports master node.
 	IsMasterSupported() bool
@@ -56,7 +57,7 @@ type HealthCheck interface {
 type NodeController interface {
 	// UpdateNodeAnnotation updates the specified node annotation, if value equals empty string, the annotation will be
 	// removed.
-	UpdateNodeAnnotation(node NodeInfo, annotation string, value string) error
+	UpdateNodeAnnotation(ctx context.Context, node NodeInfo, annotation string, value string) error
 }
 
 func RegisterHealthCheck(name string, register registerPlugin) {
@@ -77,13 +78,13 @@ func GetHealthChecker(name string, config interface{}) (HealthCheck, error) {
 }
 
 // CheckNodes goes through the health checkers, returns the unhealthy nodes.
-func CheckNodes(checkers []HealthCheck, nodes []NodeInfo, controller NodeController) []NodeInfo {
+func CheckNodes(ctx context.Context, checkers []HealthCheck, nodes []NodeInfo, controller NodeController) []NodeInfo {
 	var unhealthyNodes []NodeInfo
 
 	// Check the health for each node.
 	for _, node := range nodes {
 		for _, checker := range checkers {
-			if !checker.Check(node, controller) {
+			if !checker.Check(ctx, node, controller) {
 				node.FailedCheck = checker.GetName()
 				node.FoundAt = time.Now()
 				unhealthyNodes = append(unhealthyNodes, node)

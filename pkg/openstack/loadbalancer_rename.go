@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -76,8 +77,8 @@ func replaceClusterName(oldClusterName, clusterName, objectName string) string {
 
 // renameLoadBalancer renames all the children and then the LB itself to match new lbName.
 // The purpose is handling a change of clusterName.
-func renameLoadBalancer(client *gophercloud.ServiceClient, loadbalancer *loadbalancers.LoadBalancer, lbName, clusterName string) (*loadbalancers.LoadBalancer, error) {
-	lbListeners, err := openstackutil.GetListenersByLoadBalancerID(client, loadbalancer.ID)
+func renameLoadBalancer(ctx context.Context, client *gophercloud.ServiceClient, loadbalancer *loadbalancers.LoadBalancer, lbName, clusterName string) (*loadbalancers.LoadBalancer, error) {
+	lbListeners, err := openstackutil.GetListenersByLoadBalancerID(ctx, client, loadbalancer.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func renameLoadBalancer(client *gophercloud.ServiceClient, loadbalancer *loadbal
 
 		if oldClusterName != clusterName {
 			// First let's handle pool which we assume is a child of the listener. Only one pool per one listener.
-			lbPool, err := openstackutil.GetPoolByListener(client, loadbalancer.ID, listener.ID)
+			lbPool, err := openstackutil.GetPoolByListener(ctx, client, loadbalancer.ID, listener.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -99,14 +100,14 @@ func renameLoadBalancer(client *gophercloud.ServiceClient, loadbalancer *loadbal
 			if oldClusterName != clusterName {
 				if lbPool.MonitorID != "" {
 					// If monitor exists, let's handle it first, as we treat it as child of the pool.
-					monitor, err := openstackutil.GetHealthMonitor(client, lbPool.MonitorID)
+					monitor, err := openstackutil.GetHealthMonitor(ctx, client, lbPool.MonitorID)
 					if err != nil {
 						return nil, err
 					}
 					oldClusterName := getClusterName(fmt.Sprintf("%s[0-9]+_", monitorPrefix), monitor.Name)
 					if oldClusterName != clusterName {
 						monitor.Name = replaceClusterName(oldClusterName, clusterName, monitor.Name)
-						err = openstackutil.UpdateHealthMonitor(client, monitor.ID, monitors.UpdateOpts{Name: &monitor.Name}, loadbalancer.ID)
+						err = openstackutil.UpdateHealthMonitor(ctx, client, monitor.ID, monitors.UpdateOpts{Name: &monitor.Name}, loadbalancer.ID)
 						if err != nil {
 							return nil, err
 						}
@@ -115,7 +116,7 @@ func renameLoadBalancer(client *gophercloud.ServiceClient, loadbalancer *loadbal
 
 				// Monitor is handled, let's rename the pool.
 				lbPool.Name = replaceClusterName(oldClusterName, clusterName, lbPool.Name)
-				err = openstackutil.UpdatePool(client, loadbalancer.ID, lbPool.ID, pools.UpdateOpts{Name: &lbPool.Name})
+				err = openstackutil.UpdatePool(ctx, client, loadbalancer.ID, lbPool.ID, pools.UpdateOpts{Name: &lbPool.Name})
 				if err != nil {
 					return nil, err
 				}
@@ -129,7 +130,7 @@ func renameLoadBalancer(client *gophercloud.ServiceClient, loadbalancer *loadbal
 				}
 			}
 			listener.Name = replaceClusterName(oldClusterName, clusterName, listener.Name)
-			err = openstackutil.UpdateListener(client, loadbalancer.ID, listener.ID, listeners.UpdateOpts{Name: &listener.Name, Tags: &listener.Tags})
+			err = openstackutil.UpdateListener(ctx, client, loadbalancer.ID, listener.ID, listeners.UpdateOpts{Name: &listener.Name, Tags: &listener.Tags})
 			if err != nil {
 				return nil, err
 			}
@@ -145,5 +146,5 @@ func renameLoadBalancer(client *gophercloud.ServiceClient, loadbalancer *loadbal
 			loadbalancer.Tags[i] = replaceClusterName(oldClusterNameTag, clusterName, tag)
 		}
 	}
-	return openstackutil.UpdateLoadBalancer(client, loadbalancer.ID, loadbalancers.UpdateOpts{Name: &lbName, Tags: &loadbalancer.Tags})
+	return openstackutil.UpdateLoadBalancer(ctx, client, loadbalancer.ID, loadbalancers.UpdateOpts{Name: &lbName, Tags: &loadbalancer.Tags})
 }
