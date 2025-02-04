@@ -24,8 +24,9 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
-	openstack "k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 )
 
 var fakeCs *controllerServer
@@ -473,7 +474,7 @@ func TestListVolumes(t *testing.T) {
 }
 
 type ListVolumeTestOSMock struct {
-	//name           string
+	// name           string
 	mockCloud      *openstack.OpenStackMock
 	mockMaxEntries int
 	mockVolumes    []volumes.Volume
@@ -481,6 +482,7 @@ type ListVolumeTestOSMock struct {
 	mockTokenCall  string
 }
 type ListVolumesTest struct {
+	name          string
 	volumeSet     map[string]ListVolumeTestOSMock
 	maxEntries    int
 	StartingToken string
@@ -492,12 +494,12 @@ type ListVolumesTestResult struct {
 }
 
 func TestGlobalListVolumesMultipleClouds(t *testing.T) {
-	//osmock.On("ListVolumes", 2, "").Return([]volumes.Volume{FakeVol1}, "", nil)
-	//osmockRegionX.On("ListVolumes", 1, "").Return([]volumes.Volume{FakeVol2}, FakeVol2.ID, nil)
+	// osmock.On("ListVolumes", 2, "").Return([]volumes.Volume{FakeVol1}, "", nil)
+	// osmockRegionX.On("ListVolumes", 1, "").Return([]volumes.Volume{FakeVol2}, FakeVol2.ID, nil)
 
 	tests := []*ListVolumesTest{
 		{
-			// no pagination, no clouds has volumes
+			name:          "no pagination, no clouds has volumes",
 			maxEntries:    0,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -524,7 +526,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// no pagination, all clouds has volumes
+			name:          "no pagination, all clouds has volumes",
 			maxEntries:    0,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -553,9 +555,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -568,7 +568,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// no pagination, only first cloud have volumes
+			name:          "no pagination, only first cloud have volumes",
 			maxEntries:    0,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -593,9 +593,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -605,7 +603,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// no pagination, first cloud without volumes
+			name:          "no pagination, first cloud without volumes",
 			maxEntries:    0,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -630,9 +628,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -643,7 +639,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 		},
 		// PAGINATION
 		{
-			// no volmues
+			name:          "no volumes",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -663,14 +659,12 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{}),
+				ExpectedToken: CloudsStartingToken{},
+				Entries:       genFakeVolumeEntries([]volumes.Volume{}),
 			},
 		},
 		{
-			// cloud1: 1 volume, cloud2: 0 volume
+			name:          "cloud1: 1 volume, cloud2: 0 volume",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -692,16 +686,14 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 				}),
 			},
 		},
 		{
-			// cloud1: 0 volume, cloud2: 1 volume
+			name:          "cloud1: 0 volume, cloud2: 1 volume",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -723,16 +715,14 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 				}),
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 0 volume
+			name:          "cloud1: 2 volume, cloud2: 0 volume",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -755,9 +745,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -765,7 +753,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 0 volume, cloud2: 2 volume
+			name:          "cloud1: 0 volume, cloud2: 2 volume",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -788,9 +776,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			Result: ListVolumesTestResult{
-				ExpectedToken: CloudsStartingToken{
-					isEmpty: true,
-				},
+				ExpectedToken: CloudsStartingToken{},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -798,7 +784,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 1 volume : 1st call
+			name:          "cloud1: 2 volume, cloud2: 1 volume : 1st call",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -835,7 +821,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 1 volume : 2nd call
+			name:          "cloud1: 2 volume, cloud2: 1 volume : 2nd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"\",\"token\":\"\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -869,7 +855,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 1 volume, cloud2: 2 volume : 1st call
+			name:          "cloud1: 1 volume, cloud2: 2 volume : 1st call",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -938,7 +924,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 2 volume : 1st call
+			name:          "cloud1: 2 volume, cloud2: 2 volume : 1st call",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -975,7 +961,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 2 volume : 2nd call
+			name:          "cloud1: 2 volume, cloud2: 2 volume : 2nd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"\",\"token\":\"\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1013,7 +999,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 3 volume, cloud2: 2 volume : 1st call
+			name:          "cloud1: 3 volume, cloud2: 2 volume : 1st call",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1051,7 +1037,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 3 volume, cloud2: 2 volume : 2nd call
+			name:          "cloud1: 3 volume, cloud2: 2 volume : 2nd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"\",\"token\":\"vol2\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1087,7 +1073,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 3 volume, cloud2: 2 volume : 3rd call
+			name:          "cloud1: 3 volume, cloud2: 2 volume : 3rd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"region-x\",\"token\":\"vol4\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1122,7 +1108,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 3 volume : 1st call
+			name:          "cloud1: 2 volume, cloud2: 3 volume : 1st call",
 			maxEntries:    2,
 			StartingToken: "",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1159,7 +1145,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 3 volume, cloud2: 2 volume : 2nd call
+			name:          "cloud1: 3 volume, cloud2: 2 volume : 2nd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"\",\"token\":\"\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1196,7 +1182,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 2 volume, cloud2: 3 volume : 3rd call
+			name:          "cloud1: 2 volume, cloud2: 3 volume : 3rd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"region-x\",\"token\":\"vol4\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1231,7 +1217,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			// cloud1: 3 volume, cloud2: 1 volume : 2rd call
+			name:          "cloud1: 3 volume, cloud2: 1 volume : 2rd call",
 			maxEntries:    2,
 			StartingToken: "{\"cloud\":\"\",\"token\":\"vol2\"}",
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -1266,52 +1252,54 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 		},
 	}
 
-	// Init assert
-	assert := assert.New(t)
 	for _, test := range tests {
-		// Setup Mock
-		for _, volumeSet := range test.volumeSet {
-			cloud := volumeSet.mockCloud
-			cloud.On(
-				"ListVolumes",
-				volumeSet.mockMaxEntries,
-				volumeSet.mockTokenCall,
-			).Return(
-				volumeSet.mockVolumes,
-				volumeSet.mockToken,
-				nil,
-			).Once()
-		}
-		fakeReq := &csi.ListVolumesRequest{MaxEntries: int32(test.maxEntries), StartingToken: test.StartingToken}
-		expectedToken, _ := json.Marshal(test.Result.ExpectedToken)
-		if test.Result.ExpectedToken.isEmpty {
-			expectedToken = []byte("")
-		}
-		expectedRes := &csi.ListVolumesResponse{
-			Entries:   test.Result.Entries,
-			NextToken: string(expectedToken),
-		}
-		// Invoke ListVolumes
-		actualRes, err := fakeCsMultipleClouds.ListVolumes(FakeCtx, fakeReq)
-		if err != nil {
-			t.Errorf("failed to ListVolumes: %v", err)
-		}
-		// Assert
-		assert.Equal(expectedRes, actualRes)
+		t.Run(test.name, func(t *testing.T) {
+			// Init assert
+			assert := assert.New(t)
+			// Setup Mock
+			for _, volumeSet := range test.volumeSet {
+				cloud := volumeSet.mockCloud
+				cloud.On(
+					"ListVolumes",
+					volumeSet.mockMaxEntries,
+					volumeSet.mockTokenCall,
+				).Return(
+					volumeSet.mockVolumes,
+					volumeSet.mockToken,
+					nil,
+				).Once()
+			}
+			fakeReq := &csi.ListVolumesRequest{MaxEntries: int32(test.maxEntries), StartingToken: test.StartingToken}
+			expectedToken, _ := json.Marshal(test.Result.ExpectedToken)
+			if test.Result.ExpectedToken.isEmpty {
+				expectedToken = []byte("")
+			}
+			expectedRes := &csi.ListVolumesResponse{
+				Entries:   test.Result.Entries,
+				NextToken: string(expectedToken),
+			}
+			// Invoke ListVolumes
+			actualRes, err := fakeCsMultipleClouds.ListVolumes(FakeCtx, fakeReq)
+			if err != nil {
+				t.Errorf("failed to ListVolumes: %v", err)
+			}
+			// Assert
+			assert.Equal(expectedRes, actualRes)
 
-		// Unset Mock
-		for _, volumeSet := range test.volumeSet {
-			cloud := volumeSet.mockCloud
-			cloud.On(
-				"ListVolumes",
-				volumeSet.mockMaxEntries,
-				volumeSet.mockTokenCall,
-			).Return(
-				volumeSet.mockVolumes,
-				volumeSet.mockToken,
-				nil,
-			).Unset()
-		}
+			// Unset Mock
+			for _, volumeSet := range test.volumeSet {
+				cloud := volumeSet.mockCloud
+				cloud.On(
+					"ListVolumes",
+					volumeSet.mockMaxEntries,
+					volumeSet.mockTokenCall,
+				).Return(
+					volumeSet.mockVolumes,
+					volumeSet.mockToken,
+					nil,
+				).Unset()
+			}
+		})
 	}
 }
 

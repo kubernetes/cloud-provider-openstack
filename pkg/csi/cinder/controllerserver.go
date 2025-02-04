@@ -33,11 +33,12 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"k8s.io/klog/v2"
+
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
-	"k8s.io/klog/v2"
 )
 
 type controllerServer struct {
@@ -126,7 +127,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Volume Create
 	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
-	//Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
+	// Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
 	for _, mKey := range sharedcsi.RecognizedCSIProvisionerParams {
 		if v, ok := req.Parameters[mKey]; ok {
 			properties[mKey] = v
@@ -161,7 +162,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			var back *backups.Backup
 			back, err = cloud.GetBackupByID(ctx, snapshotID)
 			if err != nil {
-				//If there is an error getting the backup as well, fail.
+				// If there is an error getting the backup as well, fail.
 				return nil, status.Errorf(codes.NotFound, "VolumeContentSource Snapshot or Backup with ID %s not found", snapshotID)
 			}
 			if back.Status != "available" {
@@ -444,7 +445,6 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	var cloudsToken = CloudsStartingToken{
 		CloudName: "",
 		Token:     "",
-		isEmpty:   len(req.StartingToken) == 0,
 	}
 
 	cloudsNames := maps.Keys(cs.Clouds)
@@ -458,104 +458,55 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		}
 		currentCloudName = cloudsToken.CloudName
 	}
-
 	startingToken := cloudsToken.Token
-	var cloudsVentries []*csi.ListVolumesResponse_Entry
-	var vlist []volumes.Volume
-	var nextPageToken string
 
-	if !cloudsToken.isEmpty && startingToken == "" {
-		// previous call ended on last volumes from "currentCloudName" we should pass to next one
-		for i := range cloudsNames {
-			if cloudsNames[i] == currentCloudName {
-				currentCloudName = cloudsNames[i+1]
-				break
-			}
-		}
-	}
-
-	startIdx := 0
+	idx := 0
 	for _, cloudName := range cloudsNames {
 		if cloudName == currentCloudName {
 			break
 		}
-		startIdx++
+		idx++
 	}
-	for idx := startIdx; idx < len(cloudsNames); idx++ {
-		if maxEntries > 0 {
-			vlist, nextPageToken, err = cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries-len(cloudsVentries), startingToken)
-		} else {
-			vlist, nextPageToken, err = cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, startingToken)
+	volumeList, nextPageToken, err := cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, startingToken)
+	if err != nil {
+		klog.Errorf("Failed to ListVolumes: %v", err)
+		if cpoerrors.IsInvalidError(err) {
+			return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: %v", err)
 		}
-		startingToken = nextPageToken
-		if err != nil {
-			klog.Errorf("Failed to ListVolumes: %v", err)
-			if cpoerrors.IsInvalidError(err) {
-				return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: %v", err)
-			}
-			return nil, status.Errorf(codes.Internal, "ListVolumes failed with error %v", err)
-		}
+		return nil, status.Errorf(codes.Internal, "ListVolumes failed with error %v", err)
+	}
+	volumeEntries := cs.createVolumeEntries(volumeList)
+	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), nextPageToken, cloudsNames[idx])
 
-		ventries := cs.createVolumeEntries(vlist)
-		klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(ventries), nextPageToken, cloudsNames[idx])
-
-		cloudsVentries = append(cloudsVentries, ventries...)
-
-		// Reach maxEntries setup nextToken with cloud identifier if needed
-		sendEmptyToken := false
-		if maxEntries > 0 && len(cloudsVentries) == maxEntries {
-			if nextPageToken == "" {
-				if idx+1 == len(cloudsNames) {
-					// no more entries and no more clouds
-					// send no token its finished
-					klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(cloudsVentries), "")
-					return &csi.ListVolumesResponse{
-						Entries:   cloudsVentries,
-						NextToken: "",
-					}, nil
-				} else {
-					// still clouds to process
-					// set token to next non empty cloud
-					i := 0
-					for i = idx + 1; i < len(cloudsNames); i++ {
-						vlistTmp, _, err := cs.Clouds[cloudsNames[i]].ListVolumes(ctx, 1, "")
-						if err != nil {
-							klog.Errorf("Failed to ListVolumes: %v", err)
-							if cpoerrors.IsInvalidError(err) {
-								return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: %v", err)
-							}
-							return nil, status.Errorf(codes.Internal, "ListVolumes failed with error %v", err)
-						}
-						if len(vlistTmp) > 0 {
-							cloudsToken.CloudName = cloudsNames[i]
-							cloudsToken.isEmpty = false
-							break
-						}
-					}
-					if i == len(cloudsNames) {
-						sendEmptyToken = true
-					}
-				}
-			}
-			cloudsToken.CloudName = cloudsNames[idx]
-			cloudsToken.Token = nextPageToken
-			var data []byte
-			data, _ = json.Marshal(cloudsToken)
-			if sendEmptyToken {
-				data = []byte("")
-			}
-			klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(cloudsVentries), string(data))
-			return &csi.ListVolumesResponse{
-				Entries:   cloudsVentries,
-				NextToken: string(data),
-			}, nil
-		}
+	cloudsToken.Token = nextPageToken
+	switch {
+	// if we have not finished listing all volumes from this cloud, we will continue on next call.
+	case nextPageToken != "":
+		cloudsToken.CloudName = currentCloudName
+		// if we listed all volumes from this cloud but more clouds exist, return a token of the next cloud.
+	case idx+1 < len(cloudsNames):
+		cloudsToken.CloudName = cloudsNames[idx+1]
+	default:
+		// work is done.
+		cloudsToken.CloudName = ""
 	}
 
-	klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(cloudsVentries), "")
+	if cloudsToken.Token == "" && cloudsToken.CloudName == "" {
+		klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(volumeEntries), "")
+		return &csi.ListVolumesResponse{
+			Entries:   volumeEntries,
+			NextToken: "",
+		}, nil
+	}
+
+	data, err := json.Marshal(cloudsToken)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[ListVolumes] failed to marshall response token: %v", err)
+	}
+	klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(volumeEntries), string(data))
 	return &csi.ListVolumesResponse{
-		Entries:   cloudsVentries,
-		NextToken: "",
+		Entries:   volumeEntries,
+		NextToken: string(data),
 	}, nil
 }
 
