@@ -406,7 +406,6 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 type CloudsStartingToken struct {
 	CloudName string `json:"cloud"`
 	Token     string `json:"token"`
-	isEmpty   bool
 }
 
 func (cs *controllerServer) extractNodeIDs(attachments []volumes.Attachment) []string {
@@ -482,16 +481,11 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	switch {
 	// if we have not finished listing all volumes from this cloud, we will continue on next call.
 	case nextPageToken != "":
-		cloudsToken.CloudName = currentCloudName
 		// if we listed all volumes from this cloud but more clouds exist, return a token of the next cloud.
 	case idx+1 < len(cloudsNames):
 		cloudsToken.CloudName = cloudsNames[idx+1]
 	default:
 		// work is done.
-		cloudsToken.CloudName = ""
-	}
-
-	if cloudsToken.Token == "" && cloudsToken.CloudName == "" {
 		klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(volumeEntries), "")
 		return &csi.ListVolumesResponse{
 			Entries:   volumeEntries,
