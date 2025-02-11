@@ -17,6 +17,7 @@ limitations under the License.
 package manila
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -129,8 +130,8 @@ func bytesToGiB(sizeInBytes int64) int {
 	return sizeInGiB
 }
 
-func lastResourceError(manilaClient manilaclient.Interface, resourceID string) (manilaErrorMessage, error) {
-	msgs, err := manilaClient.GetUserMessages(&messages.ListOpts{
+func lastResourceError(ctx context.Context, manilaClient manilaclient.Interface, resourceID string) (manilaErrorMessage, error) {
+	msgs, err := manilaClient.GetUserMessages(ctx, &messages.ListOpts{
 		ResourceID:   resourceID,
 		MessageLevel: "ERROR",
 		Limit:        1,

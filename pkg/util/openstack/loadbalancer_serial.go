@@ -49,9 +49,9 @@ func getNodeAddressForLB(node *apiv1.Node) (string, error) {
 	return addrs[0].Address, nil
 }
 
-func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools.Pool, nodePort int, lbID string, nodes []*apiv1.Node) error {
+func SeriallyReconcilePoolMembers(ctx context.Context, client *gophercloud.ServiceClient, pool *pools.Pool, nodePort int, lbID string, nodes []*apiv1.Node) error {
 
-	members, err := GetMembersbyPool(client, pool.ID)
+	members, err := GetMembersbyPool(ctx, client, pool.ID)
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf("error getting pool members %s: %v", pool.ID, err)
 	}
@@ -69,7 +69,7 @@ func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools
 		}
 		if !memberExists(members, addr, nodePort) {
 			klog.V(2).Infof("Creating member for pool %s", pool.ID)
-			_, err := pools.CreateMember(context.TODO(), client, pool.ID, pools.CreateMemberOpts{
+			_, err := pools.CreateMember(ctx, client, pool.ID, pools.CreateMemberOpts{
 				Name:         cpoutil.CutString255(fmt.Sprintf("member_%s_%s_%d", node.Name, addr, nodePort)),
 				ProtocolPort: nodePort,
 				Address:      addr,
@@ -77,7 +77,7 @@ func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools
 			if err != nil {
 				return fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
 			}
-			if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
+			if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
 				return err
 			}
 		} else {
@@ -88,11 +88,11 @@ func SeriallyReconcilePoolMembers(client *gophercloud.ServiceClient, pool *pools
 	}
 	for _, member := range members {
 		klog.V(2).Infof("Deleting obsolete member %s for pool %s address %s", member.ID, pool.ID, member.Address)
-		err := pools.DeleteMember(context.TODO(), client, pool.ID, member.ID).ExtractErr()
+		err := pools.DeleteMember(ctx, client, pool.ID, member.ID).ExtractErr()
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			return fmt.Errorf("error deleting obsolete member %s for pool %s address %s: %v", member.ID, pool.ID, member.Address, err)
 		}
-		if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
+		if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
 			return err
 		}
 	}

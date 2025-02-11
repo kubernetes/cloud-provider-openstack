@@ -38,8 +38,8 @@ type tokenInfo struct {
 }
 
 type IKeystone interface {
-	GetTokenInfo(string) (*tokenInfo, error)
-	GetGroups(string, string) ([]string, error)
+	GetTokenInfo(context.Context, string) (*tokenInfo, error)
+	GetGroups(context.Context, string, string) ([]string, error)
 }
 
 type Keystoner struct {
@@ -53,9 +53,9 @@ func NewKeystoner(client *gophercloud.ServiceClient) *Keystoner {
 }
 
 // revive:disable:unexported-return
-func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
+func (k *Keystoner) GetTokenInfo(ctx context.Context, token string) (*tokenInfo, error) {
 	k.client.ProviderClient.SetToken(token)
-	ret := tokens.Get(context.TODO(), k.client, token)
+	ret := tokens.Get(ctx, k.client, token)
 
 	tokenUser, err := ret.ExtractUser()
 	if err != nil {
@@ -90,9 +90,9 @@ func (k *Keystoner) GetTokenInfo(token string) (*tokenInfo, error) {
 
 // revive:enable:unexported-return
 
-func (k *Keystoner) GetGroups(token string, userID string) ([]string, error) {
+func (k *Keystoner) GetGroups(ctx context.Context, token string, userID string) ([]string, error) {
 	k.client.ProviderClient.SetToken(token)
-	allGroupPages, err := users.ListGroups(k.client, userID).AllPages(context.TODO())
+	allGroupPages, err := users.ListGroups(k.client, userID).AllPages(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user groups from Keystone: %v", err)
 	}
@@ -116,13 +116,13 @@ type Authenticator struct {
 }
 
 // AuthenticateToken checks the token via Keystone call
-func (a *Authenticator) AuthenticateToken(token string) (user.Info, bool, error) {
-	tokenInfo, err := a.keystoner.GetTokenInfo(token)
+func (a *Authenticator) AuthenticateToken(ctx context.Context, token string) (user.Info, bool, error) {
+	tokenInfo, err := a.keystoner.GetTokenInfo(ctx, token)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
-	userGroups, err := a.keystoner.GetGroups(token, tokenInfo.userID)
+	userGroups, err := a.keystoner.GetGroups(ctx, token, tokenInfo.userID)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to authenticate: %v", err)
 	}

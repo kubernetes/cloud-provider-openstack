@@ -17,6 +17,7 @@ limitations under the License.
 package shareadapters
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ type Cephfs struct{}
 
 var _ ShareAdapter = &Cephfs{}
 
-func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.AccessRight, err error) {
+func (Cephfs) GetOrGrantAccess(ctx context.Context, args *GrantAccessArgs) (accessRight *shares.AccessRight, err error) {
 	// First, check if the access right exists or needs to be created
 
 	var rights []shares.AccessRight
@@ -41,7 +42,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 		accessTo = args.Share.Name
 	}
 
-	rights, err = args.ManilaClient.GetAccessRights(args.Share.ID)
+	rights, err = args.ManilaClient.GetAccessRights(ctx, args.Share.ID)
 	if err != nil {
 		if _, ok := err.(gophercloud.ErrResourceNotFound); !ok {
 			return nil, fmt.Errorf("failed to list access rights: %v", err)
@@ -62,7 +63,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 	if accessRight == nil {
 		// Not found, create it
 
-		accessRight, err = args.ManilaClient.GrantAccess(args.Share.ID, shares.GrantAccessOpts{
+		accessRight, err = args.ManilaClient.GrantAccess(ctx, args.Share.ID, shares.GrantAccessOpts{
 			AccessType:  "cephx",
 			AccessLevel: "rw",
 			AccessTo:    accessTo,
@@ -87,7 +88,7 @@ func (Cephfs) GetOrGrantAccess(args *GrantAccessArgs) (accessRight *shares.Acces
 	}
 
 	return accessRight, wait.ExponentialBackoff(backoff, func() (bool, error) {
-		rights, err := args.ManilaClient.GetAccessRights(args.Share.ID)
+		rights, err := args.ManilaClient.GetAccessRights(ctx, args.Share.ID)
 		if err != nil {
 			return false, err
 		}

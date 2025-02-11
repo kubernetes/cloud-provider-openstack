@@ -41,7 +41,7 @@ type Options struct {
 }
 
 // GetToken creates a token by authenticate with keystone.
-func GetToken(options Options) (*tokens3.Token, error) {
+func GetToken(ctx context.Context, options Options) (*tokens3.Token, error) {
 	var token *tokens3.Token
 	var setTransport bool
 
@@ -113,7 +113,7 @@ func GetToken(options Options) (*tokens3.Token, error) {
 	}
 
 	// Issue new unscoped token
-	result := tokens3.Create(context.TODO(), v3Client, &options.AuthOptions)
+	result := tokens3.Create(ctx, v3Client, &options.AuthOptions)
 	if result.Err != nil {
 		return token, result.Err
 	}

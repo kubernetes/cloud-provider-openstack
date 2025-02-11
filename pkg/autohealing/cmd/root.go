@@ -50,10 +50,11 @@ var rootCmd = &cobra.Command{
 		"OpenStack is supported by default.",
 
 	Run: func(cmd *cobra.Command, args []string) {
+		ctx := context.TODO()
 		autohealer := controller.NewController(conf)
 
 		if !conf.LeaderElect {
-			autohealer.Start(context.TODO())
+			autohealer.Start(ctx)
 			panic("unreachable")
 		}
 
@@ -63,7 +64,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Try and become the leader and start autohealing loops
-		leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
+		leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 			Lock:          lock,
 			LeaseDuration: 20 * time.Second,
 			RenewDeadline: 15 * time.Second,
