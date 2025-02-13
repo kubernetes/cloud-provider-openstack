@@ -350,3 +350,7 @@ Refer to [Metrics for openstack-cloud-controller-manager](../metrics.md)
 ### OpenStack availability zone must not contain blank
 
 `topology.kubernetes.io/zone` is used to label node and its value comes from availability zone of the node, according to [label spec](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set) it does not support blank (' ') but OpenStack availability zone supports blank. So your OpenStack availability zone must not contain blank otherwise it will lead to node that belongs to this availability zone register failure, see [#1379](https://github.com/kubernetes/cloud-provider-openstack/issues/1379) for further information.
+
+### OpenStack HostID label
+
+`topology.openstack.org/host-id` is used to label node and its value comes from the host ID. The host ID represents the physical host your server runs on. This is a hashed value so will not actually look like a hostname, and is hashed with data from the project_id, so the same physical host as seen by two different project_ids, will be different. It is useful when within the same project you need to determine if two instances are on the same or different physical hosts for the purposes of availability or performance. Please be aware that real host ID can change in time, e.g. due to live migrations of the nodes, so take this label as only the "initial" host ID because it won't be reconciled.
