@@ -75,6 +75,7 @@ nodeplugin:
   priorityClassName: ""
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
+  podSecurityContext: {}
 
 # StatefulSet deployment
 controllerplugin:
@@ -119,6 +120,7 @@ controllerplugin:
   #     - "keystone.hostname.com"
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
+  podSecurityContext: {}
 
 # Log verbosity level.
 # See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
