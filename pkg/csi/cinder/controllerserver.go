@@ -32,18 +32,24 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"k8s.io/klog/v2"
-
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
+	"k8s.io/klog/v2"
 )
 
 type controllerServer struct {
 	Driver *Driver
 	Clouds map[string]openstack.IOpenStack
+}
+
+type cloudsStartingToken struct {
+	// CloudName is the cloud that we have to list next.
+	CloudName string `json:"cloud"`
+	// Token is the pagination token returned by the last Cinder list volume operation. If empty, we will list all volumes
+	// from the beginning.
+	Token string `json:"token"`
 }
 
 const (
@@ -403,11 +409,6 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
-type CloudsStartingToken struct {
-	CloudName string `json:"cloud"`
-	Token     string `json:"token"`
-}
-
 func (cs *controllerServer) extractNodeIDs(attachments []volumes.Attachment) []string {
 	nodeIDs := make([]string, len(attachments))
 	for i, attachment := range attachments {
@@ -441,10 +442,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	maxEntries := int(req.MaxEntries)
 
 	var err error
-	var cloudsToken = CloudsStartingToken{
-		CloudName: "",
-		Token:     "",
-	}
+	var cloudsToken = cloudsStartingToken{}
 
 	cloudsNames := maps.Keys(cs.Clouds)
 	sort.Strings(cloudsNames)
@@ -466,7 +464,9 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		}
 		idx++
 	}
-	volumeList, nextPageToken, err := cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, startingToken)
+
+	var volumeList []volumes.Volume
+	volumeList, cloudsToken.Token, err = cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, startingToken)
 	if err != nil {
 		klog.Errorf("Failed to ListVolumes: %v", err)
 		if cpoerrors.IsInvalidError(err) {
@@ -475,12 +475,11 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		return nil, status.Errorf(codes.Internal, "ListVolumes failed with error %v", err)
 	}
 	volumeEntries := cs.createVolumeEntries(volumeList)
-	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), nextPageToken, cloudsNames[idx])
+	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), cloudsToken.Token, cloudsNames[idx])
 
-	cloudsToken.Token = nextPageToken
 	switch {
 	// if we have not finished listing all volumes from this cloud, we will continue on next call.
-	case nextPageToken != "":
+	case cloudsToken.Token != "":
 		// if we listed all volumes from this cloud but more clouds exist, return a token of the next cloud.
 	case idx+1 < len(cloudsNames):
 		cloudsToken.CloudName = cloudsNames[idx+1]

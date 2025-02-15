@@ -438,7 +438,7 @@ func genFakeVolumeEntry(fakeVol volumes.Volume) *csi.ListVolumesResponse_Entry {
 	}
 }
 func genFakeVolumeEntries(fakeVolumes []volumes.Volume) []*csi.ListVolumesResponse_Entry {
-	entries := make([]*csi.ListVolumesResponse_Entry, 0)
+	entries := make([]*csi.ListVolumesResponse_Entry, 0, len(fakeVolumes))
 	for _, fakeVol := range fakeVolumes {
 		entries = append(entries, genFakeVolumeEntry(fakeVol))
 	}
@@ -450,7 +450,7 @@ func TestListVolumes(t *testing.T) {
 
 	// Init assert
 	assert := assert.New(t)
-	token := CloudsStartingToken{
+	token := cloudsStartingToken{
 		CloudName: "",
 		Token:     FakeVolID,
 	}
@@ -476,7 +476,7 @@ func TestListVolumes(t *testing.T) {
 type ListVolumesTest struct {
 	name          string
 	maxEntries    int
-	startingToken *CloudsStartingToken
+	startingToken *cloudsStartingToken
 	volumeSet     map[string]ListVolumeTestOSMock
 	result        ListVolumesTestResult
 }
@@ -489,11 +489,11 @@ type ListVolumeTestOSMock struct {
 }
 
 type ListVolumesTestRequest struct {
-	StartingToken CloudsStartingToken
+	StartingToken cloudsStartingToken
 }
 
 type ListVolumesTestResult struct {
-	ExpectedToken *CloudsStartingToken
+	ExpectedToken *cloudsStartingToken
 	Entries       []*csi.ListVolumesResponse_Entry
 }
 
@@ -531,7 +531,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					Token: "vol2",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
@@ -586,7 +586,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "region-x",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{}),
@@ -594,7 +594,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 		},
 		{
 			name: "cloud2_no_pagination_no_volumes",
-			startingToken: &CloudsStartingToken{
+			startingToken: &cloudsStartingToken{
 				CloudName: "region-x",
 			},
 			maxEntries: 0,
@@ -645,7 +645,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "region-x",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
@@ -659,7 +659,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 		{
 			name:       "cloud2_no_pagination_has_volumes",
 			maxEntries: 0,
-			startingToken: &CloudsStartingToken{
+			startingToken: &cloudsStartingToken{
 				CloudName: "region-x",
 			},
 			volumeSet: map[string]ListVolumeTestOSMock{
@@ -713,7 +713,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "region-x",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{}),
@@ -739,7 +739,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "region-x",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
@@ -767,7 +767,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "region-x",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{}),
@@ -794,7 +794,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "region-x",
 				},
 				Entries: genFakeVolumeEntries([]volumes.Volume{
@@ -826,7 +826,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &CloudsStartingToken{
+				ExpectedToken: &cloudsStartingToken{
 					CloudName: "",
 					Token:     "vol2",
 				},
@@ -839,7 +839,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 		{
 			name:       "cloud1_3volume_cloud2_1volume_2st_call",
 			maxEntries: 2,
-			startingToken: &CloudsStartingToken{
+			startingToken: &cloudsStartingToken{
 				CloudName: "region-x",
 				Token:     "",
 			},
