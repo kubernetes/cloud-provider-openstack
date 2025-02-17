@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/util/wait"
-
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -84,9 +83,8 @@ func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken s
 	var vols []volumes.Volume
 
 	mc := metrics.NewMetricContext("volume", "list")
-	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	if limit == 0 {
-		page, err := volumes.List(os.blockstorage, opts).AllPages(ctx)
+		page, err := volumes.List(os.blockstorage, nil).AllPages(ctx)
 		if err != nil {
 			return nil, "", err
 		}
@@ -95,6 +93,8 @@ func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken s
 			return vols, "", err
 		}
 	}
+
+	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	err := volumes.List(os.blockstorage, opts).EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
 		var err error
 
