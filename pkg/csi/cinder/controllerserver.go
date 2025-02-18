@@ -18,8 +18,8 @@ package cinder
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -43,14 +43,6 @@ import (
 type controllerServer struct {
 	Driver *Driver
 	Clouds map[string]openstack.IOpenStack
-}
-
-type cloudsStartingToken struct {
-	// CloudName is the cloud that we have to list next.
-	CloudName string `json:"cloud"`
-	// Token is the pagination token returned by the last Cinder list volume operation. If empty, we will list all volumes
-	// from the beginning.
-	Token string `json:"token"`
 }
 
 const (
@@ -441,33 +433,26 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		return nil, status.Errorf(codes.InvalidArgument, "[ListVolumes] Invalid max entries request %v, must not be negative ", req.MaxEntries)
 	}
 	maxEntries := int(req.MaxEntries)
-
 	var err error
-	var cloudsToken = cloudsStartingToken{}
 
 	cloudsNames := maps.Keys(cs.Clouds)
 	sort.Strings(cloudsNames)
 
-	currentCloudName := cloudsNames[0]
+	var (
+		token     string
+		idx       int
+		cloudName = cloudsNames[0]
+	)
 	if req.StartingToken != "" {
-		err = json.Unmarshal([]byte(req.StartingToken), &cloudsToken)
-		if err != nil {
-			return nil, status.Errorf(codes.Aborted, "[ListVolumes] Invalid request: Token invalid")
+		token, cloudName = splitToken(req.StartingToken)
+		idx = slices.Index(cloudsNames, cloudName)
+		if idx < 0 {
+			return nil, status.Errorf(codes.Internal, "[ListVolumes] Invalid request: %s", fmt.Errorf("unknown cloud specified in the request: %v", cloudName))
 		}
-		currentCloudName = cloudsToken.CloudName
-	}
-	startingToken := cloudsToken.Token
-
-	idx := 0
-	for _, cloudName := range cloudsNames {
-		if cloudName == currentCloudName {
-			break
-		}
-		idx++
 	}
 
 	var volumeList []volumes.Volume
-	volumeList, cloudsToken.Token, err = cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, startingToken)
+	volumeList, token, err = cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, token)
 	if err != nil {
 		klog.Errorf("Failed to ListVolumes: %v", err)
 		if cpoerrors.IsInvalidError(err) {
@@ -476,14 +461,14 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		return nil, status.Errorf(codes.Internal, "ListVolumes failed with error %v", err)
 	}
 	volumeEntries := cs.createVolumeEntries(volumeList)
-	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), cloudsToken.Token, cloudsNames[idx])
+	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), token, cloudsNames[idx])
 
 	switch {
 	// if we have not finished listing all volumes from this cloud, we will continue on next call.
-	case cloudsToken.Token != "":
+	case token != "":
 		// if we listed all volumes from this cloud but more clouds exist, return a token of the next cloud.
 	case idx+1 < len(cloudsNames):
-		cloudsToken.CloudName = cloudsNames[idx+1]
+		cloudName = cloudsNames[idx+1]
 	default:
 		// work is done.
 		klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(volumeEntries), "")
@@ -493,14 +478,11 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		}, nil
 	}
 
-	data, err := json.Marshal(cloudsToken)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "[ListVolumes] failed to marshall response token: %v", err)
-	}
-	klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(volumeEntries), string(data))
+	nextToken := joinToken(token, cloudName)
+	klog.V(4).Infof("ListVolumes: completed with %d entries and %q next token", len(volumeEntries), nextToken)
 	return &csi.ListVolumesResponse{
 		Entries:   volumeEntries,
-		NextToken: string(data),
+		NextToken: nextToken,
 	}, nil
 }
 

@@ -17,7 +17,6 @@ limitations under the License.
 package cinder
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -450,12 +449,7 @@ func TestListVolumes(t *testing.T) {
 
 	// Init assert
 	assert := assert.New(t)
-	token := cloudsStartingToken{
-		CloudName: "",
-		Token:     FakeVolID,
-	}
-	data, _ := json.Marshal(token)
-	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: string(data)}
+	fakeReq := &csi.ListVolumesRequest{MaxEntries: 2, StartingToken: FakeVolID}
 
 	// Expected result
 	expectedRes := &csi.ListVolumesResponse{
@@ -476,7 +470,7 @@ func TestListVolumes(t *testing.T) {
 type ListVolumesTest struct {
 	name          string
 	maxEntries    int
-	startingToken *cloudsStartingToken
+	startingToken string
 	volumeSet     map[string]ListVolumeTestOSMock
 	result        ListVolumesTestResult
 }
@@ -488,35 +482,28 @@ type ListVolumeTestOSMock struct {
 	mockTokenRes   string
 }
 
-type ListVolumesTestRequest struct {
-	StartingToken cloudsStartingToken
-}
-
 type ListVolumesTestResult struct {
-	ExpectedToken *cloudsStartingToken
+	ExpectedToken string
 	Entries       []*csi.ListVolumesResponse_Entry
 }
 
 func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 	tests := []*ListVolumesTest{
 		{
-			name:       "single_cloud_no_volumes",
+			name:       "Single cloud, no volume",
 			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
 					mockCloud:      osmock,
 					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: nil,
-				Entries:       genFakeVolumeEntries([]volumes.Volume{}),
+				Entries: genFakeVolumeEntries([]volumes.Volume{}),
 			},
 		},
 		{
-			name:       "single_cloud_no_pagination__has_volumes_with_token",
+			name:       "Single cloud, with token",
 			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
@@ -526,14 +513,11 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 						{ID: "vol2"},
 					},
 					mockTokenRes: "vol2",
-					mockTokenReq: "",
 				},
 			},
 
 			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					Token: "vol2",
-				},
+				ExpectedToken: "vol2",
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -541,7 +525,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			name:       "single_cloud_has_volumes",
+			name:       "Single cloud, no token",
 			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
@@ -552,13 +536,10 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 						{ID: "vol3"},
 						{ID: "vol4"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
 				},
 			},
 
 			result: ListVolumesTestResult{
-				ExpectedToken: nil,
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -568,59 +549,44 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			name:          "cloud1_no_pagination_no_volumes",
-			startingToken: nil,
-			maxEntries:    0,
-			volumeSet: map[string]ListVolumeTestOSMock{
-				"": {
-					mockCloud:      osmock,
-					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
-				},
-				"region-x": {
-					mockCloud:      osmockRegionX,
-					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
-				},
-			},
-			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "region-x",
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{}),
-			},
-		},
-		{
-			name: "cloud2_no_pagination_no_volumes",
-			startingToken: &cloudsStartingToken{
-				CloudName: "region-x",
-			},
+			name:       "Multiple clouds, no volumes",
 			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
 					mockCloud:      osmock,
 					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
 				},
 				"region-x": {
 					mockCloud:      osmockRegionX,
 					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: nil,
+				ExpectedToken: ":region-x",
 				Entries:       genFakeVolumeEntries([]volumes.Volume{}),
 			},
 		},
 		{
-			name:          "cloud1_no_pagination_has_volumes",
+			name:          "Multiple clouds, no volumes, 2nd request",
+			startingToken: ":region-x",
 			maxEntries:    0,
-			startingToken: nil,
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud:      osmock,
+					mockVolumesRes: []volumes.Volume{},
+				},
+				"region-x": {
+					mockCloud:      osmockRegionX,
+					mockVolumesRes: []volumes.Volume{},
+				},
+			},
+			result: ListVolumesTestResult{
+				Entries: genFakeVolumeEntries([]volumes.Volume{}),
+			},
+		},
+		{
+			name:       "Multiple clouds",
+			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
 					mockCloud: osmock,
@@ -630,8 +596,6 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 						{ID: "vol3"},
 						{ID: "vol4"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
 				},
 				"region-x": {
 					mockCloud: osmockRegionX,
@@ -640,14 +604,10 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 						{ID: "vol6"},
 						{ID: "vol7"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "region-x",
-				},
+				ExpectedToken: ":region-x",
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol1"},
 					{ID: "vol2"},
@@ -657,11 +617,9 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			},
 		},
 		{
-			name:       "cloud2_no_pagination_has_volumes",
-			maxEntries: 0,
-			startingToken: &cloudsStartingToken{
-				CloudName: "region-x",
-			},
+			name:          "Multiple clouds, 2nd request",
+			maxEntries:    0,
+			startingToken: ":region-x",
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
 					mockCloud: osmock,
@@ -671,8 +629,6 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 						{ID: "vol3"},
 						{ID: "vol4"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
 				},
 				"region-x": {
 					mockCloud: osmockRegionX,
@@ -681,12 +637,9 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 						{ID: "vol6"},
 						{ID: "vol7"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: nil,
 				Entries: genFakeVolumeEntries([]volumes.Volume{
 					{ID: "vol5"},
 					{ID: "vol6"},
@@ -696,177 +649,103 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 		},
 		// PAGINATION
 		{
-			name:       "no_volumes",
+			name:       "Pagination, no volumes",
 			maxEntries: 2,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
 					mockCloud:      osmock,
 					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
 				},
 				"region-x": {
 					mockCloud:      osmockRegionX,
 					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "region-x",
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{}),
+				ExpectedToken: ":region-x",
+				Entries:       genFakeVolumeEntries([]volumes.Volume{}),
 			},
 		},
 		{
-			name:       "cloud1: 1 volume, cloud2: 0 volume",
+			name:       "Pagination",
 			maxEntries: 2,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
 					mockCloud: osmock,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol1"},
+						{ID: "vol2"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
-				},
-				"region-x": {
-					mockCloud:      osmockRegionX,
-					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
-				},
-			},
-			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "region-x",
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{
-					{ID: "vol1"},
-				}),
-			},
-		},
-		{
-			name:       "cloud1: 0 volume, cloud2: 1 volume",
-			maxEntries: 2,
-			volumeSet: map[string]ListVolumeTestOSMock{
-				"": {
-					mockCloud:      osmock,
-					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
 				},
 				"region-x": {
 					mockCloud: osmockRegionX,
 					mockVolumesRes: []volumes.Volume{
-						{ID: "vol1"},
-					},
-					mockTokenRes: "",
-					mockTokenReq: "",
-				},
-			},
-			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "region-x",
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{}),
-			},
-		},
-		{
-			name:       "cloud1: 2 volume, cloud2: 0 volume",
-			maxEntries: 2,
-			volumeSet: map[string]ListVolumeTestOSMock{
-				"": {
-					mockCloud: osmock,
-					mockVolumesRes: []volumes.Volume{
-						{ID: "vol1"},
-						{ID: "vol2"},
-					},
-					mockTokenRes: "",
-					mockTokenReq: "",
-				},
-				"region-x": {
-					mockCloud:      osmockRegionX,
-					mockVolumesRes: []volumes.Volume{},
-					mockTokenRes:   "",
-					mockTokenReq:   "",
-				},
-			},
-			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "region-x",
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{
-					{ID: "vol1"},
-					{ID: "vol2"},
-				}),
-			},
-		},
-		{
-			name:       "cloud1_3volume_cloud2_1volume_1st_call",
-			maxEntries: 2,
-			volumeSet: map[string]ListVolumeTestOSMock{
-				"": {
-					mockCloud: osmock,
-					mockVolumesRes: []volumes.Volume{
-						{ID: "vol1"},
-						{ID: "vol2"},
-					},
-					mockTokenRes: "vol2",
-					mockTokenReq: "",
-				},
-				"region-x": {
-					mockCloud: osmockRegionX,
-					mockVolumesRes: []volumes.Volume{
-						{ID: "vol1"},
-					},
-					mockTokenRes: "",
-					mockTokenReq: "",
-				},
-			},
-			result: ListVolumesTestResult{
-				ExpectedToken: &cloudsStartingToken{
-					CloudName: "",
-					Token:     "vol2",
-				},
-				Entries: genFakeVolumeEntries([]volumes.Volume{
-					{ID: "vol1"},
-					{ID: "vol2"},
-				}),
-			},
-		},
-		{
-			name:       "cloud1_3volume_cloud2_1volume_2st_call",
-			maxEntries: 2,
-			startingToken: &cloudsStartingToken{
-				CloudName: "region-x",
-				Token:     "",
-			},
-			volumeSet: map[string]ListVolumeTestOSMock{
-				"": {
-					mockCloud: osmock,
-					mockVolumesRes: []volumes.Volume{
-						{ID: "vol1"},
-						{ID: "vol2"},
 						{ID: "vol3"},
+						{ID: "vol4"},
+						{ID: "vol5"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
+				},
+			},
+			result: ListVolumesTestResult{
+				ExpectedToken: ":region-x",
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol1"},
+					{ID: "vol2"},
+				}),
+			},
+		},
+		{
+			name:          "Pagination, 2nd request",
+			maxEntries:    2,
+			startingToken: ":region-x",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud: osmock,
+					mockVolumesRes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
 				},
 				"region-x": {
 					mockCloud: osmockRegionX,
 					mockVolumesRes: []volumes.Volume{
-						{ID: "vol1"},
+						{ID: "vol3"},
+						{ID: "vol4"},
 					},
-					mockTokenRes: "",
-					mockTokenReq: "",
+					mockTokenRes: "vol4",
 				},
 			},
 			result: ListVolumesTestResult{
-				ExpectedToken: nil,
+				ExpectedToken: "vol4:region-x",
 				Entries: genFakeVolumeEntries([]volumes.Volume{
-					{ID: "vol1"},
+					{ID: "vol3"},
+					{ID: "vol4"},
+				}),
+			},
+		},
+		{
+			name:          "Pagination, 3rd request",
+			maxEntries:    2,
+			startingToken: "vol4:region-x",
+			volumeSet: map[string]ListVolumeTestOSMock{
+				"": {
+					mockCloud: osmock,
+					mockVolumesRes: []volumes.Volume{
+						{ID: "vol1"},
+						{ID: "vol2"},
+					},
+				},
+				"region-x": {
+					mockCloud:    osmockRegionX,
+					mockTokenReq: "vol4",
+					mockVolumesRes: []volumes.Volume{
+						{ID: "vol5"},
+					},
+				},
+			},
+			result: ListVolumesTestResult{
+				Entries: genFakeVolumeEntries([]volumes.Volume{
+					{ID: "vol5"},
 				}),
 			},
 		},
@@ -898,22 +777,11 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 					nil,
 				).Unset()
 			}
-			var startingTokenBytes []byte
 			var err error
-			if test.startingToken != nil {
-				startingTokenBytes, err = json.Marshal(*test.startingToken)
-				assert.Nil(err)
-			}
-			var expectedTokenBytes []byte
-			if test.result.ExpectedToken != nil {
-				expectedTokenBytes, err = json.Marshal(test.result.ExpectedToken)
-				assert.Nil(err)
-			}
-
-			fakeReq := &csi.ListVolumesRequest{MaxEntries: int32(test.maxEntries), StartingToken: string(startingTokenBytes)}
+			fakeReq := &csi.ListVolumesRequest{MaxEntries: int32(test.maxEntries), StartingToken: test.startingToken}
 			expectedRes := &csi.ListVolumesResponse{
 				Entries:   test.result.Entries,
-				NextToken: string(expectedTokenBytes),
+				NextToken: test.result.ExpectedToken,
 			}
 			// Invoke ListVolumes
 			cs := fakeCs
