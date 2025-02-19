@@ -7,7 +7,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gophercloud/gophercloud/v2 v2.0.0
 	github.com/gophercloud/utils/v2 v2.0.0-20240701101423-2401526caee5
-	github.com/hashicorp/go-version v1.6.0
+	github.com/hashicorp/go-version v1.7.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
 	github.com/kubernetes-csi/csi-test/v5 v5.0.0
 	github.com/mitchellh/go-homedir v1.1.0
