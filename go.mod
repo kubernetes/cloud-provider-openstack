@@ -3,13 +3,13 @@ module k8s.io/cloud-provider-openstack
 go 1.22.0
 
 require (
-	github.com/container-storage-interface/spec v1.8.0
+	github.com/container-storage-interface/spec v1.10.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gophercloud/gophercloud v1.6.0
 	github.com/gophercloud/utils v0.0.0-20230330070308-5bd5e1d608f8
 	github.com/hashicorp/go-version v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
-	github.com/kubernetes-csi/csi-test/v5 v5.0.0
+	github.com/kubernetes-csi/csi-test/v5 v5.3.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.15.0
@@ -21,11 +21,11 @@ require (
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/goleak v1.3.0
-	golang.org/x/net v0.23.0
-	golang.org/x/sys v0.18.0
-	golang.org/x/term v0.18.0
-	google.golang.org/grpc v1.58.3
-	google.golang.org/protobuf v1.33.0
+	golang.org/x/net v0.25.0
+	golang.org/x/sys v0.20.0
+	golang.org/x/term v0.20.0
+	google.golang.org/grpc v1.65.0
+	google.golang.org/protobuf v1.34.1
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/yaml.v2 v2.4.0
@@ -35,7 +35,7 @@ require (
 	k8s.io/client-go v0.30.7
 	k8s.io/cloud-provider v0.30.7
 	k8s.io/component-base v0.30.7
-	k8s.io/klog/v2 v2.120.1
+	k8s.io/klog/v2 v2.130.1
 	k8s.io/kms v0.30.7
 	k8s.io/kubernetes v1.30.7
 	k8s.io/mount-utils v0.30.7
@@ -65,7 +65,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -82,13 +82,14 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/cel-go v0.17.8 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
@@ -137,17 +138,15 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
-	golang.org/x/oauth2 v0.10.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/oauth2 v0.20.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.18.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230803162519-f966b187b2e5 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230726155614-23370e0ffb3e // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
