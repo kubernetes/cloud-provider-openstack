@@ -7,29 +7,50 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     groups:
-      k8s.io:
+      # disable, since dependabot doesn't support update of the "replace" directive
+      # k8s.io:
+      #   patterns:
+      #   - "k8s.io/*"
+      k8s-sigs:
         patterns:
-        - "k8s.io/*"
+          - "sigs.k8s.io/*"
+      k8s-csi:
+        - "github.com/kubernetes-csi/*"
+        - "github.com/container-storage-interface/*"
+      system:
+        patterns:
+          - "golang.org/x/*"
+      gopkg:
+        patterns:
+          - "gopkg.in/*"
+      google:
+        patterns:
+          - "google.golang.org/*"
+          - "github.com/google/*"
+      sfp13:
+        patterns:
+          - "github.com/spf13/*"
+      openapi:
+        patterns:
+          - "github.com/go-openapi/*"
+      containerd:
+        patterns:
+          - "github.com/containerd/*"
+      other:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "k8s.io/*"
+          - "golang.org/x/*"
+          - "gopkg.in/*"
+          - "google.golang.org/*"
+          - "github.com/google/*"
+          - "sigs.k8s.io/*"
+          - "github.com/kubernetes-csi/*"
+          - "github.com/container-storage-interface/*"
+          - "github.com/spf13/*"
+          - "github.com/go-openapi/*"
+          - "github.com/containerd/*"
     open-pull-requests-limit: 10
     schedule:
       interval: "daily"
-  - package-ecosystem: "gomod"
-    directory: "/"
-    groups:
-      k8s.io:
-        patterns:
-        - "k8s.io/*"
-    open-pull-requests-limit: 10
-    schedule:
-      interval: "daily"
-    target-branch: release-1.31
-  - package-ecosystem: "gomod"
-    directory: "/"
-    groups:
-      k8s.io:
-        patterns:
-        - "k8s.io/*"
-    open-pull-requests-limit: 10
-    schedule:
-      interval: "daily"
-    target-branch: release-1.30
