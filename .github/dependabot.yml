@@ -9,3 +9,19 @@ updates:
         patterns:
         - "k8s.io/*"
     open-pull-requests-limit: 10
+  - package-ecosystem: "gomod"
+    directory: "/"
+    groups:
+      k8s.io:
+        patterns:
+        - "k8s.io/*"
+    open-pull-requests-limit: 10
+    target-branch: release-1.31
+  - package-ecosystem: "gomod"
+    directory: "/"
+    groups:
+      k8s.io:
+        patterns:
+        - "k8s.io/*"
+    open-pull-requests-limit: 10
+    target-branch: release-1.30
