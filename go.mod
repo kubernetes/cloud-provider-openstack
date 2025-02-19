@@ -31,14 +31,14 @@ require (
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.32.1
-	k8s.io/apimachinery v0.32.1
-	k8s.io/apiserver v0.32.1
-	k8s.io/client-go v0.32.1
+	k8s.io/api v0.32.2
+	k8s.io/apimachinery v0.32.2
+	k8s.io/apiserver v0.32.2
+	k8s.io/client-go v0.32.2
 	k8s.io/cloud-provider v0.32.1
-	k8s.io/component-base v0.32.1
+	k8s.io/component-base v0.32.2
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kms v0.32.1
+	k8s.io/kms v0.32.2
 	k8s.io/kubernetes v1.32.1
 	k8s.io/mount-utils v0.32.1
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
