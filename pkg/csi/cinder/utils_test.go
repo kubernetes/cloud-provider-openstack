@@ -146,3 +146,25 @@ func TestLogGRPC(t *testing.T) {
 		})
 	}
 }
+func TestSplitToken(t *testing.T) {
+	tests := []struct {
+		input string
+		token string
+		cloud string
+	}{
+		{input: "", token: "", cloud: ""},
+		{input: "foo", token: "foo", cloud: ""},
+		{input: "foo:", token: "foo", cloud: ""},
+		{input: ":bar", token: "", cloud: "bar"},
+		{input: "foo:bar", token: "foo", cloud: "bar"},
+		{input: "foo:bar:baz", token: "foo", cloud: "bar:baz"},
+	}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			token, cloud := splitToken(test.input)
+
+			assert.Equal(t, test.token, token)
+			assert.Equal(t, test.cloud, cloud)
+		})
+	}
+}
