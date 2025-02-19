@@ -3,7 +3,7 @@ module k8s.io/cloud-provider-openstack
 go 1.22.0
 
 require (
-	github.com/container-storage-interface/spec v1.9.0
+	github.com/container-storage-interface/spec v1.11.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gophercloud/gophercloud/v2 v2.0.0
 	github.com/gophercloud/utils/v2 v2.0.0-20240701101423-2401526caee5
