@@ -152,9 +152,11 @@ func TestSplitToken(t *testing.T) {
 		token string
 		cloud string
 	}{
-		{input: "foo:bar", token: "foo", cloud: "bar"},
+		{input: "", token: "", cloud: ""},
 		{input: "foo", token: "foo", cloud: ""},
+		{input: "foo:", token: "foo", cloud: ""},
 		{input: ":bar", token: "", cloud: "bar"},
+		{input: "foo:bar", token: "foo", cloud: "bar"},
 		{input: "foo:bar:baz", token: "foo", cloud: "bar:baz"},
 	}
 	for _, test := range tests {

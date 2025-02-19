@@ -452,7 +452,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	}
 
 	var volumeList []volumes.Volume
-	volumeList, token, err = cs.Clouds[cloudsNames[idx]].ListVolumes(ctx, maxEntries, token)
+	volumeList, token, err = cs.Clouds[cloudName].ListVolumes(ctx, maxEntries, token)
 	if err != nil {
 		klog.Errorf("Failed to ListVolumes: %v", err)
 		if cpoerrors.IsInvalidError(err) {
@@ -461,7 +461,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 		return nil, status.Errorf(codes.Internal, "ListVolumes failed with error %v", err)
 	}
 	volumeEntries := cs.createVolumeEntries(volumeList)
-	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), token, cloudsNames[idx])
+	klog.V(4).Infof("ListVolumes: retrieved %d entries and %q next token from cloud %q", len(volumeEntries), token, cloudName)
 
 	switch {
 	// if we have not finished listing all volumes from this cloud, we will continue on next call.
