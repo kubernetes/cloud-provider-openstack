@@ -99,3 +99,19 @@ func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, h
 
 	return resp, err
 }
+
+func splitToken(str string) (string, string) {
+	i := strings.Index(str, ":")
+	if i == -1 {
+		return str, ""
+	}
+
+	return str[:i], str[i+1:]
+}
+
+func joinToken(str1, str2 string) string {
+	if str2 == "" {
+		return str1
+	}
+	return str1 + ":" + str2
+}
