@@ -56,17 +56,29 @@ const (
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] specified cloud undefined")
-	}
-
 	// Volume Name
 	volName := req.GetName()
 	volCapabilities := req.GetVolumeCapabilities()
 	volParams := req.GetParameters()
+
+	// Volume Type
+	volType := volParams["type"]
+
+	var volAvailability string
+	var volCloudAvailability string
+	if cs.Driver.withTopology {
+		// First check if volAvailability is already specified, if not get preferred from Topology
+		// Required, incase vol AZ is different from node AZ
+		volAvailability = volParams["availability"]
+		if volAvailability == "" {
+			accessibleTopologyReq := req.GetAccessibilityRequirements()
+			// Check from Topology
+			if accessibleTopologyReq != nil {
+				volCloudAvailability = sharedcsi.GetAZFromTopology(withTopologyKey, accessibleTopologyReq) // = region defined from the node label topology.kubernetes.io/region=region
+				volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)          // = nova defined from Openstack
+			}
+		}
+	}
 
 	if len(volName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[CreateVolume] missing Volume Name")
@@ -83,21 +95,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
-	// Volume Type
-	volType := volParams["type"]
-
-	var volAvailability string
-	if cs.Driver.withTopology {
-		// First check if volAvailability is already specified, if not get preferred from Topology
-		// Required, incase vol AZ is different from node AZ
-		volAvailability = volParams["availability"]
-		if volAvailability == "" {
-			accessibleTopologyReq := req.GetAccessibilityRequirements()
-			// Check from Topology
-			if accessibleTopologyReq != nil {
-				volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
-			}
-		}
+	// Volume cloud
+	cloud, cloudExist := cs.Clouds[volCloudAvailability]
+	if !cloudExist {
+		// return nil, status.Error(codes.InvalidArgument, "[CreateVolume] specified cloud undefined")
+		return nil, status.Errorf(codes.InvalidArgument, "[CreateVolume] specified cloud undefined the error came from here %v", volAvailability)
 	}
 
 	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
@@ -257,19 +259,24 @@ func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
+	// Get VolumeID to be deleted
+	volID := req.GetVolumeId()
+	if len(volID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
+	}
+
 	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
+	volCloud, err := GetRegionFromVolumID(cs, ctx, volID)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromVolumID called with args %+v", err)
+	}
+
 	cloud, cloudExist := cs.Clouds[volCloud]
 	if !cloudExist {
 		return nil, status.Errorf(codes.InvalidArgument, "[DeleteVolume] specified cloud \"%s\" undefined", volCloud)
 	}
 
-	// Volume Delete
-	volID := req.GetVolumeId()
-	if len(volID) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "DeleteVolume Volume ID must be provided")
-	}
-	err := cloud.DeleteVolume(ctx, volID)
+	err = cloud.DeleteVolume(ctx, volID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			klog.V(3).Infof("Volume %s is already deleted.", volID)
@@ -287,13 +294,6 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] specified cloud undefined")
-	}
-
 	// Volume Attach
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
@@ -309,7 +309,17 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume capability must be provided")
 	}
 
-	_, err := cloud.GetVolume(ctx, volumeID)
+	volCloud, err := GetRegionFromVolumID(cs, ctx, volumeID)
+	if err != nil {
+		klog.V(4).Infof("Cannot get volCloud called with args %+v", err)
+	}
+
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] specified cloud undefined")
+	}
+
+	_, err = cloud.GetVolume(ctx, volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Volume %s not found", volumeID)
@@ -358,13 +368,6 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] specified cloud undefined")
-	}
-
 	// Volume Detach
 	instanceID := req.GetNodeId()
 	volumeID := req.GetVolumeId()
@@ -372,7 +375,19 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] Volume ID must be provided")
 	}
-	_, err := cloud.GetInstanceByID(ctx, instanceID)
+
+	volCloud, err := GetRegionFromVolumID(cs, ctx, volumeID)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromVolumID: called with args %+v", err)
+	}
+
+	// Volume cloud
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] specified cloud undefined")
+	}
+
+	_, err = cloud.GetInstanceByID(ctx, instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because node %s does not exist", volumeID, instanceID)
@@ -493,13 +508,6 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(req))
 
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[CreateSnapshot] specified cloud undefined")
-	}
-
 	name := req.Name
 	volumeID := req.GetSourceVolumeId()
 	snapshotType := req.Parameters[openstack.SnapshotType]
@@ -534,6 +542,18 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	if snapshotType != "snapshot" && snapshotType != "backup" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot type must be 'backup', 'snapshot' or not defined")
 	}
+
+	// Volume cloud
+	volCloud, err := GetRegionFromVolumID(cs, ctx, volumeID)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromVolumID: called with args %+v", err)
+	}
+
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[CreateSnapshot] specified cloud undefined")
+	}
+
 	var backupsAreEnabled bool
 	backupsAreEnabled, err = cloud.BackupsAreEnabled()
 	klog.V(4).Infof("Backups enabled: %v", backupsAreEnabled)
@@ -749,19 +769,23 @@ func (cs *controllerServer) createBackup(ctx context.Context, cloud openstack.IO
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	klog.V(4).Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(req))
 
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[DeleteSnapshot] specified cloud undefined")
-	}
-
 	id := req.GetSnapshotId()
 
 	if id == "" {
 		return nil, status.Error(codes.InvalidArgument, "Snapshot ID must be provided in DeleteSnapshot request")
 	}
 
+	// Volume cloud
+	volCloud, err := GetRegionFromSnapshotID(cs, ctx, id)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromSnapshotID: called with args %+v", err)
+	}
+
+	// Volume cloud
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[DeleteSnapshot] specified cloud undefined")
+	}
 	// If volumeSnapshot object was linked to a cinder backup, delete the backup.
 	back, err := cloud.GetBackupByID(ctx, id)
 	if err == nil && back != nil {
@@ -786,14 +810,19 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 }
 
 func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[DeleteSnapshot] specified cloud undefined")
-	}
 
 	snapshotID := req.GetSnapshotId()
+	// Volume cloud
+	volCloud, err := GetRegionFromSnapshotID(cs, ctx, snapshotID)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromSnapshotID called with args %+v", err)
+	}
+
+	// Volume cloud
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[ListSnapshots] specified cloud undefined")
+	}
 	if len(snapshotID) != 0 {
 		snap, err := cloud.GetSnapshotByID(ctx, snapshotID)
 		if err != nil {
@@ -826,7 +855,6 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 	filters := map[string]string{}
 
 	var slist []snapshots.Snapshot
-	var err error
 	var nextPageToken string
 
 	// Add the filters
@@ -879,12 +907,6 @@ func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *
 }
 
 func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[ValidateVolumeCapabilities] specified cloud undefined")
-	}
 
 	reqVolCap := req.GetVolumeCapabilities()
 
@@ -897,7 +919,18 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		return nil, status.Error(codes.InvalidArgument, "ValidateVolumeCapabilities Volume ID must be provided")
 	}
 
-	_, err := cloud.GetVolume(ctx, volumeID)
+	volCloud, err := GetRegionFromVolumID(cs, ctx, volumeID)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromVolumID: called with args %+v", err)
+	}
+
+	// Volume cloud
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] specified cloud undefined")
+	}
+
+	_, err = cloud.GetVolume(ctx, volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "ValidateVolumeCapabilities Volume %s not found", volumeID)
@@ -973,13 +1006,6 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
-	// Volume cloud
-	volCloud := req.GetSecrets()["cloud"]
-	cloud, cloudExist := cs.Clouds[volCloud]
-	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[ControllerExpandVolume] specified cloud undefined")
-	}
-
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
@@ -995,6 +1021,17 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 
 	if maxVolSize > 0 && maxVolSize < volSizeBytes {
 		return nil, status.Error(codes.OutOfRange, "After round-up, volume size exceeds the limit specified")
+	}
+
+	volCloud, err := GetRegionFromVolumID(cs, ctx, volumeID)
+	if err != nil {
+		klog.V(4).Infof("GetRegionFromVolumID: called with args %+v", err)
+	}
+
+	// Volume cloud
+	cloud, cloudExist := cs.Clouds[volCloud]
+	if !cloudExist {
+		return nil, status.Error(codes.InvalidArgument, "[ControllerExpandVolume] specified cloud undefined")
 	}
 
 	volume, err := cloud.GetVolume(ctx, volumeID)
@@ -1085,7 +1122,11 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 	} else {
 		accessibleTopology = []*csi.Topology{
 			{
-				Segments: map[string]string{topologyKey: vol.AvailabilityZone},
+				Segments: map[string]string{
+					topologyKey: vol.AvailabilityZone,
+					// add region label for nodeAffinity in the topology for the volume
+					withTopologyKey: sharedcsi.GetAZFromTopology(withTopologyKey, accessibleTopologyReq),
+				},
 			},
 		}
 	}
@@ -1101,4 +1142,37 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 	}
 
 	return resp
+}
+
+func GetRegionFromID(cs *controllerServer, ctx context.Context, id string, fetchFunc func(cloud openstack.IOpenStack, ctx context.Context, id string) (interface{}, error), resourceType string) (string, error) {
+	klog.V(4).Infof("GetRegionFromID: called with args %+v", id)
+
+	defer func() { klog.V(1).Infof("detected Region from the %s ID: %s", resourceType, id) }()
+
+	for volCloud, cloud := range cs.Clouds {
+		resource, err := fetchFunc(cloud, ctx, id)
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				continue
+			}
+			return "", status.Errorf(codes.Internal, "GetRegionFromID failed with error %v", err)
+		}
+
+		if resource != nil {
+			return volCloud, nil
+		}
+	}
+	return "", status.Errorf(codes.NotFound, "%s %s not found in any cloud", resourceType, id)
+}
+
+func GetRegionFromVolumID(cs *controllerServer, ctx context.Context, volumeID string) (string, error) {
+	return GetRegionFromID(cs, ctx, volumeID, func(cloud openstack.IOpenStack, ctx context.Context, id string) (interface{}, error) {
+		return cloud.GetVolume(ctx, id)
+	}, "volume")
+}
+
+func GetRegionFromSnapshotID(cs *controllerServer, ctx context.Context, snapshotID string) (string, error) {
+	return GetRegionFromID(cs, ctx, snapshotID, func(cloud openstack.IOpenStack, ctx context.Context, id string) (interface{}, error) {
+		return cloud.GetSnapshotByID(ctx, id)
+	}, "snapshot")
 }
