@@ -44,6 +44,7 @@ const (
 
 type controllerServer struct {
 	d *Driver
+	csi.UnimplementedControllerServer
 }
 
 var (

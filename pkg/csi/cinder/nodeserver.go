@@ -44,6 +44,7 @@ type nodeServer struct {
 	Metadata   metadata.IMetadata
 	Opts       openstack.BlockStorageOpts
 	Topologies map[string]string
+	csi.UnimplementedNodeServer
 }
 
 func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {

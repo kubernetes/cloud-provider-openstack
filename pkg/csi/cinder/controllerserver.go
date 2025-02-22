@@ -43,6 +43,7 @@ import (
 type controllerServer struct {
 	Driver *Driver
 	Clouds map[string]openstack.IOpenStack
+	csi.UnimplementedControllerServer
 }
 
 const (
