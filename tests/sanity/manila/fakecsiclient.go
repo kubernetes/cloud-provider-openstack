@@ -48,7 +48,9 @@ func (c fakeIdentitySvcClient) GetPluginInfo(context.Context) (*csi.GetPluginInf
 	}, nil
 }
 
-func (c fakeIdentitySvcClient) ProbeForever(*grpc.ClientConn, time.Duration) error { return nil }
+func (c fakeIdentitySvcClient) ProbeForever(context.Context, *grpc.ClientConn, time.Duration) error {
+	return nil
+}
 
 type fakeNodeSvcClient struct{}
 
@@ -80,7 +82,7 @@ func (c fakeNodeSvcClient) UnstageVolume(context.Context, *csi.NodeUnstageVolume
 
 func (c fakeNodeSvcClient) PublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	// sanity-csi test checks for existence of target_path directory.
-	if err := os.MkdirAll(req.GetTargetPath(), 0700); err != nil {
+	if err := os.MkdirAll(req.GetTargetPath(), 0o700); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
