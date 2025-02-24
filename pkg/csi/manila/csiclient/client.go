@@ -66,8 +66,8 @@ func (c IdentitySvcClient) Probe(ctx context.Context, req *csi.ProbeRequest) (*c
 	return c.cl.Probe(ctx, req)
 }
 
-func (c IdentitySvcClient) ProbeForever(conn *grpc.ClientConn, singleProbeTimeout time.Duration) error {
-	return rpc.ProbeForever(conn, singleProbeTimeout)
+func (c IdentitySvcClient) ProbeForever(ctx context.Context, conn *grpc.ClientConn, singleProbeTimeout time.Duration) error {
+	return rpc.ProbeForever(ctx, conn, singleProbeTimeout)
 }
 
 func (c IdentitySvcClient) GetPluginInfo(ctx context.Context) (*csi.GetPluginInfoResponse, error) {

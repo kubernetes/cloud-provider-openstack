@@ -43,6 +43,7 @@ import (
 type controllerServer struct {
 	Driver *Driver
 	Clouds map[string]openstack.IOpenStack
+	csi.UnimplementedControllerServer
 }
 
 const (
@@ -52,7 +53,7 @@ const (
 )
 
 func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("CreateVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
@@ -246,12 +247,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 }
 
 func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerModifyVolume: called", "args", *req)
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("DeleteVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
@@ -281,7 +281,7 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 }
 
 func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
@@ -352,7 +352,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
@@ -487,7 +487,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 }
 
 func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("CreateSnapshot: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
@@ -744,7 +744,7 @@ func (cs *controllerServer) createBackup(ctx context.Context, cloud openstack.IO
 }
 
 func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	klog.V(4).Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("DeleteSnapshot: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
@@ -928,7 +928,7 @@ func (cs *controllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacit
 }
 
 func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
-	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("ControllerGetVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
 	volumeID := req.GetVolumeId()
 
@@ -969,7 +969,7 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 }
 
 func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(*req))
+	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(req))
 
 	// Volume cloud
 	volCloud := req.GetSecrets()["cloud"]
