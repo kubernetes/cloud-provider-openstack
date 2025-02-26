@@ -50,6 +50,22 @@ entries:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-2.32.0-alpha.0/openstack-cinder-csi-2.32.0-alpha.0.tgz
     version: 2.32.0-alpha.0
   - apiVersion: v1
+    appVersion: v1.31.3
+    created: "2025-02-26T15:54:48.649280258Z"
+    description: Cinder CSI Chart for OpenStack
+    digest: 7321d7ae1a4cb3d14086cf1ff698d5cf51f565d9e7eb9d4565a937a9812e9c83
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: mnasiadka@gmail.com
+      name: mnasiadka
+    - email: matt@stackhpc.com
+      name: mkjpryor
+    name: openstack-cinder-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-2.31.7/openstack-cinder-csi-2.31.7.tgz
+    version: 2.31.7
+  - apiVersion: v1
     appVersion: v1.31.0
     created: "2024-10-14T18:46:35.132522737Z"
     description: Cinder CSI Chart for OpenStack
@@ -735,6 +751,25 @@ entries:
     urls:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-2.32.0-alpha.0/openstack-cloud-controller-manager-2.32.0-alpha.0.tgz
     version: 2.32.0-alpha.0
+  - apiVersion: v2
+    appVersion: v1.31.3
+    created: "2025-02-26T15:54:48.800722188Z"
+    dependencies:
+    - name: common
+      repository: https://charts.bitnami.com/bitnami
+      version: 2.14.1
+    description: Openstack Cloud Controller Manager Helm Chart
+    digest: 214236f4f964b3b4c368b2b6cdd0c916eaadba74dc5668caa50bb00678a752fe
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://object-storage-ca-ymq-1.vexxhost.net/swift/v1/6e4619c416ff4bd19e1c087f27a43eea/www-images-prod/openstack-logo/OpenStack-Logo-Vertical.png
+    maintainers:
+    - email: f.kloeker@telekom.de
+      name: eumel8
+      url: https://www.telekom.com
+    name: openstack-cloud-controller-manager
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-2.31.3/openstack-cloud-controller-manager-2.31.3.tgz
+    version: 2.31.3
   - apiVersion: v2
     appVersion: v1.31.1
     created: "2024-09-19T14:11:37.373161835Z"
@@ -1611,6 +1646,22 @@ entries:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-2.31.4/openstack-manila-csi-2.31.4.tgz
     version: 2.31.4
   - apiVersion: v1
+    appVersion: v1.31.3
+    created: "2025-02-26T15:54:48.977063631Z"
+    description: Manila CSI Chart for OpenStack
+    digest: d7d4ed09472450e4db8a28271301823a250b8276ffa6d9965c308084226df878
+    home: http://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: mnasiadka@gmail.com
+      name: mnasiadka
+    - email: matt@stackhpc.com
+      name: mkjpryor
+    name: openstack-manila-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-2.31.3/openstack-manila-csi-2.31.3.tgz
+    version: 2.31.3
+  - apiVersion: v1
     appVersion: v1.31.1
     created: "2024-09-19T14:11:37.505548082Z"
     description: Manila CSI Chart for OpenStack
@@ -2096,4 +2147,4 @@ entries:
     urls:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-0.2.1/openstack-manila-csi-0.2.1.tgz
     version: 0.2.1
-generated: "2025-02-26T11:58:54.421247034Z"
+generated: "2025-02-26T15:54:48.977887593Z"
