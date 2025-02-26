@@ -698,7 +698,7 @@ func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretNam
 		caCerts = append(caCerts, cb[1:]...)
 	}
 
-	pfxData, err := pkcs12.Encode(rand.Reader, pk, cb[0], caCerts, "")
+	pfxData, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(pk, cb[0], caCerts, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create PKCS#12 bundle: %v", err)
 	}
