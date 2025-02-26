@@ -22,38 +22,38 @@ require (
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20230515195305-f3d0a9c9a5cc
-	golang.org/x/sys v0.28.0
-	golang.org/x/term v0.27.0
+	golang.org/x/sys v0.30.0
+	golang.org/x/term v0.29.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.31.3
-	k8s.io/apimachinery v0.31.3
-	k8s.io/apiserver v0.31.3
-	k8s.io/client-go v0.31.3
-	k8s.io/cloud-provider v0.31.3
-	k8s.io/component-base v0.31.3
+	k8s.io/api v0.31.6
+	k8s.io/apimachinery v0.31.6
+	k8s.io/apiserver v0.31.6
+	k8s.io/client-go v0.31.6
+	k8s.io/cloud-provider v0.31.6
+	k8s.io/component-base v0.31.6
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kms v0.31.3
-	k8s.io/kubernetes v1.31.3
-	k8s.io/mount-utils v0.31.3
-	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
-	software.sslmate.com/src/go-pkcs12 v0.2.0
+	k8s.io/kms v0.31.6
+	k8s.io/kubernetes v1.31.6
+	k8s.io/mount-utils v0.31.6
+	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
 // the below fixes the "go list -m all" execution
 replace (
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.31.3
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.31.3
-	k8s.io/endpointslice => k8s.io/endpointslice v0.31.3
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.31.3
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.31.3
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.31.3
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.31.3
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.31.3
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.31.3
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.31.6
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.31.6
+	k8s.io/endpointslice => k8s.io/endpointslice v0.31.6
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.31.6
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.31.6
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.31.6
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.31.6
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.31.6
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.31.6
 )
 
 require (
@@ -141,13 +141,13 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
@@ -156,14 +156,14 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.31.3 // indirect
-	k8s.io/component-helpers v0.31.3 // indirect
-	k8s.io/controller-manager v0.31.3 // indirect
-	k8s.io/csi-translation-lib v0.31.3 // indirect
+	k8s.io/apiextensions-apiserver v0.31.6 // indirect
+	k8s.io/component-helpers v0.31.6 // indirect
+	k8s.io/controller-manager v0.31.6 // indirect
+	k8s.io/csi-translation-lib v0.31.6 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/kubectl v0.31.3 // indirect
-	k8s.io/kubelet v0.31.3 // indirect
-	k8s.io/pod-security-admission v0.31.3 // indirect
+	k8s.io/kubectl v0.31.6 // indirect
+	k8s.io/kubelet v0.31.6 // indirect
+	k8s.io/pod-security-admission v0.31.6 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
