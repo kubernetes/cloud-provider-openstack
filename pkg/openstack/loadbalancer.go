@@ -1156,63 +1156,64 @@ func (lbaas *LbaasV2) ensureOctaviaListener(ctx context.Context, lbID string, na
 		if isMetricListener {
 			if !cpoutil.StringListEqual(svcConf.metricAllowedCIDRs, listener.AllowedCIDRs) {
 				updateOpts.AllowedCIDRs = &svcConf.metricAllowedCIDRs
-				listenerChanged = true
-			}
-		} else {
-			if svcConf.connLimit != listener.ConnLimit {
-				updateOpts.ConnLimit = &svcConf.connLimit
-				listenerChanged = true
-			}
 
-			listenerKeepClientIP := listener.InsertHeaders[annotationXForwardedFor] == "true"
-			if svcConf.keepClientIP != listenerKeepClientIP {
-				updateOpts.InsertHeaders = &listener.InsertHeaders
-				if svcConf.keepClientIP {
-					if *updateOpts.InsertHeaders == nil {
-						*updateOpts.InsertHeaders = make(map[string]string)
-					}
-					(*updateOpts.InsertHeaders)[annotationXForwardedFor] = "true"
-				} else {
-					delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
-				}
-				listenerChanged = true
+				return listener, nil
 			}
-			if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
-				updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
-				listenerChanged = true
-			}
-			if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
-				if svcConf.timeoutClientData != listener.TimeoutClientData {
-					updateOpts.TimeoutClientData = &svcConf.timeoutClientData
-					listenerChanged = true
-				}
-				if svcConf.timeoutMemberConnect != listener.TimeoutMemberConnect {
-					updateOpts.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
-					listenerChanged = true
-				}
-				if svcConf.timeoutMemberData != listener.TimeoutMemberData {
-					updateOpts.TimeoutMemberData = &svcConf.timeoutMemberData
-					listenerChanged = true
-				}
-				if svcConf.timeoutTCPInspect != listener.TimeoutTCPInspect {
-					updateOpts.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
-					listenerChanged = true
-				}
-			}
-			if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
-				if !cpoutil.StringListEqual(svcConf.allowedCIDR, listener.AllowedCIDRs) {
-					updateOpts.AllowedCIDRs = &svcConf.allowedCIDR
-					listenerChanged = true
-				}
-			}
+		}
 
-			if listenerChanged {
-				klog.InfoS("Updating listener", "listenerID", listener.ID, "lbID", lbID, "updateOpts", updateOpts)
-				if err := openstackutil.UpdateListener(ctx, lbaas.lb, lbID, listener.ID, updateOpts); err != nil {
-					return nil, fmt.Errorf("failed to update listener %s of loadbalancer %s: %v", listener.ID, lbID, err)
+		if svcConf.connLimit != listener.ConnLimit {
+			updateOpts.ConnLimit = &svcConf.connLimit
+			listenerChanged = true
+		}
+
+		listenerKeepClientIP := listener.InsertHeaders[annotationXForwardedFor] == "true"
+		if svcConf.keepClientIP != listenerKeepClientIP {
+			updateOpts.InsertHeaders = &listener.InsertHeaders
+			if svcConf.keepClientIP {
+				if *updateOpts.InsertHeaders == nil {
+					*updateOpts.InsertHeaders = make(map[string]string)
 				}
-				klog.InfoS("Updated listener", "listenerID", listener.ID, "lbID", lbID)
+				(*updateOpts.InsertHeaders)[annotationXForwardedFor] = "true"
+			} else {
+				delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
 			}
+			listenerChanged = true
+		}
+		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
+			updateOpts.DefaultTlsContainerRef = &svcConf.tlsContainerRef
+			listenerChanged = true
+		}
+		if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
+			if svcConf.timeoutClientData != listener.TimeoutClientData {
+				updateOpts.TimeoutClientData = &svcConf.timeoutClientData
+				listenerChanged = true
+			}
+			if svcConf.timeoutMemberConnect != listener.TimeoutMemberConnect {
+				updateOpts.TimeoutMemberConnect = &svcConf.timeoutMemberConnect
+				listenerChanged = true
+			}
+			if svcConf.timeoutMemberData != listener.TimeoutMemberData {
+				updateOpts.TimeoutMemberData = &svcConf.timeoutMemberData
+				listenerChanged = true
+			}
+			if svcConf.timeoutTCPInspect != listener.TimeoutTCPInspect {
+				updateOpts.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
+				listenerChanged = true
+			}
+		}
+		if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
+			if !cpoutil.StringListEqual(svcConf.allowedCIDR, listener.AllowedCIDRs) {
+				updateOpts.AllowedCIDRs = &svcConf.allowedCIDR
+				listenerChanged = true
+			}
+		}
+
+		if listenerChanged {
+			klog.InfoS("Updating listener", "listenerID", listener.ID, "lbID", lbID, "updateOpts", updateOpts)
+			if err := openstackutil.UpdateListener(ctx, lbaas.lb, lbID, listener.ID, updateOpts); err != nil {
+				return nil, fmt.Errorf("failed to update listener %s of loadbalancer %s: %v", listener.ID, lbID, err)
+			}
+			klog.InfoS("Updated listener", "listenerID", listener.ID, "lbID", lbID)
 		}
 	}
 	return listener, nil
