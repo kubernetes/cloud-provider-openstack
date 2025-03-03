@@ -82,8 +82,17 @@ func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken s
 	var nextPageToken string
 	var vols []volumes.Volume
 
-	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	mc := metrics.NewMetricContext("volume", "list")
+	if limit == 0 {
+		page, err := volumes.List(os.blockstorage, nil).AllPages(ctx)
+		if err != nil {
+			return nil, "", err
+		}
+		vols, err = volumes.ExtractVolumes(page)
+		return vols, "", mc.ObserveRequest(err)
+	}
+
+	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	err := volumes.List(os.blockstorage, opts).EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
 		var err error
 
@@ -107,11 +116,8 @@ func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken s
 
 		return false, nil
 	})
-	if mc.ObserveRequest(err) != nil {
-		return nil, nextPageToken, err
-	}
 
-	return vols, nextPageToken, nil
+	return vols, nextPageToken, mc.ObserveRequest(err)
 }
 
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
