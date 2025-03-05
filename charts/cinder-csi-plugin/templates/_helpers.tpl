@@ -35,9 +35,7 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "cinder-csi.labels" -}}
-app.kubernetes.io/name: {{ include "cinder-csi.name" . }}
 helm.sh/chart: {{ include "cinder-csi.chart" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -60,13 +58,13 @@ Create the name of the service account to use
 Create unified labels for cinder-csi components
 */}}
 {{- define "cinder-csi.common.matchLabels" -}}
-app: {{ template "cinder-csi.name" . }}
-release: {{ .Release.Name }}
+app.kubernetes.io/name: {{ include "cinder-csi.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "cinder-csi.common.metaLabels" -}}
-chart: {{ template "cinder-csi.chart" . }}
-heritage: {{ .Release.Service }}
+helm.sh/chart: {{ template "cinder-csi.chart" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if .Values.extraLabels }}
 {{ toYaml .Values.extraLabels -}}
 {{- end }}
@@ -79,7 +77,7 @@ component: controllerplugin
 
 {{- define "cinder-csi.controllerplugin.labels" -}}
 {{ include "cinder-csi.controllerplugin.matchLabels" . }}
-{{ include "cinder-csi.common.metaLabels" . }}
+{{ include "cinder-csi.labels" . }}
 {{- end -}}
 
 {{- define "cinder-csi.controllerplugin.podLabels" -}}
@@ -96,7 +94,7 @@ component: nodeplugin
 
 {{- define "cinder-csi.nodeplugin.labels" -}}
 {{ include "cinder-csi.nodeplugin.matchLabels" . }}
-{{ include "cinder-csi.common.metaLabels" . }}
+{{ include "cinder-csi.labels" . }}
 {{- end -}}
 
 {{- define "cinder-csi.nodeplugin.podLabels" -}}

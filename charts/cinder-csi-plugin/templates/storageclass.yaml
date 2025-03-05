@@ -7,6 +7,8 @@ metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
   {{- end }}
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 allowVolumeExpansion: {{ .Values.storageClass.delete.allowVolumeExpansion }}
