@@ -1,3 +1,12 @@
+---
+name: Feature report
+about: Feature report
+title: ''
+labels: ''
+assignees: ''
+
+---
+
 <!--
 Please add the affected binary name in the title unless multiple binaries are affected, e.g.
 [cinder-csi-plugin] Cannot delete PV
@@ -14,12 +23,7 @@ All the currently maintained binaries are:
 * barbican-kms-plugin
 -->
 
-**Is this a BUG REPORT or FEATURE REQUEST?**:
-
-> Uncomment only one, leave it on its own line: 
->
-> /kind bug
-> /kind feature
+/kind feature
 
 **What happened**:
 
