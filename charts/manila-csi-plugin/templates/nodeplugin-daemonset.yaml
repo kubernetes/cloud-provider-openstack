@@ -2,6 +2,7 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: {{ include "openstack-manila-csi.nodeplugin.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "openstack-manila-csi.nodeplugin.labels" .  | nindent 4 }}
 spec:

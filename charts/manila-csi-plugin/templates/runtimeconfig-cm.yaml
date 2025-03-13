@@ -3,6 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: manila-csi-runtimeconf-cm
+  namespace: {{ .Release.Namespace }}
 data:
   runtimeconfig.json: |-
 {{ .Values.csimanila.runtimeConfig.jsonData | indent 4 }}
