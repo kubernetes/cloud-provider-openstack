@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -53,6 +54,7 @@ type AuthOpts struct {
 	UserDomainID     string                   `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
 	UserDomainName   string                   `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
 	Region           string                   `name:"os-region"`
+	Regions          []string                 `name:"os-regions" value:"optional"`
 	EndpointType     gophercloud.Availability `gcfg:"os-endpoint-type" mapstructure:"os-endpoint-type" name:"os-endpointType" value:"optional"`
 	CAFile           string                   `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 	TLSInsecure      string                   `gcfg:"tls-insecure" mapstructure:"tls-insecure" name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
@@ -87,6 +89,7 @@ func LogCfg(authOpts AuthOpts) {
 	klog.V(5).Infof("UserDomainID: %s", authOpts.UserDomainID)
 	klog.V(5).Infof("UserDomainName: %s", authOpts.UserDomainName)
 	klog.V(5).Infof("Region: %s", authOpts.Region)
+	klog.V(5).Infof("Regions: %s", authOpts.Regions)
 	klog.V(5).Infof("EndpointType: %s", authOpts.EndpointType)
 	klog.V(5).Infof("CAFile: %s", authOpts.CAFile)
 	klog.V(5).Infof("CertFile: %s", authOpts.CertFile)
@@ -231,6 +234,20 @@ func ReadClouds(authOpts *AuthOpts) error {
 	authOpts.ApplicationCredentialID = replaceEmpty(authOpts.ApplicationCredentialID, cloud.AuthInfo.ApplicationCredentialID)
 	authOpts.ApplicationCredentialName = replaceEmpty(authOpts.ApplicationCredentialName, cloud.AuthInfo.ApplicationCredentialName)
 	authOpts.ApplicationCredentialSecret = replaceEmpty(authOpts.ApplicationCredentialSecret, cloud.AuthInfo.ApplicationCredentialSecret)
+
+	regions := strings.Split(authOpts.Region, ",")
+	if len(regions) > 1 {
+		authOpts.Region = regions[0]
+	}
+
+	for _, r := range cloud.Regions {
+		// Support only single auth section in clouds.yaml
+		if r.Values.AuthInfo == nil && r.Name != authOpts.Region && !slices.Contains(regions, r.Name) {
+			regions = append(regions, r.Name)
+		}
+	}
+
+	authOpts.Regions = regions
 
 	return nil
 }
