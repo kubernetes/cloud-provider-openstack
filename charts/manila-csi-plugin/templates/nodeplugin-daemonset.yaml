@@ -13,6 +13,7 @@ spec:
       labels:
         {{- include "openstack-manila-csi.nodeplugin.labels" .  | nindent 8 }}
     spec:
+      securityContext: {{ toYaml .Values.nodeplugin.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "openstack-manila-csi.serviceAccountName.nodeplugin" . }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
