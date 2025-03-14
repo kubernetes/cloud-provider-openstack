@@ -23,6 +23,9 @@ import (
 	"github.com/gophercloud/gophercloud/v2"
 )
 
+// ErrQuotaExceeded is used when openstack runs in to quota limits
+var ErrQuotaExceeded = errors.New("quota exceeded")
+
 // ErrNotFound is used to inform that the object is missing
 var ErrNotFound = errors.New("failed to find object")
 

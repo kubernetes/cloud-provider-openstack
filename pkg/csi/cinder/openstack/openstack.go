@@ -146,8 +146,10 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 
 const defaultMaxVolAttachLimit int64 = 256
 
-var OsInstances map[string]IOpenStack
-var configFiles = []string{"/etc/cloud.conf"}
+var (
+	OsInstances map[string]IOpenStack
+	configFiles = []string{"/etc/cloud.conf"}
+)
 
 func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 	OsInstances = make(map[string]IOpenStack)
