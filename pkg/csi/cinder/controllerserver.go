@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -233,6 +234,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	vol, err := cloud.CreateVolume(ctx, opts, schedulerHints)
 	if err != nil {
 		klog.Errorf("Failed to CreateVolume: %v", err)
+		quotaErr := openstack.ErrQuotaExceeded{}
+		if errors.As(err, &quotaErr) {
+			return nil, status.Errorf(codes.ResourceExhausted, "CreateVolume failed due to exceeded quota %v", quotaErr)
+		}
 		return nil, status.Errorf(codes.Internal, "CreateVolume failed with error %v", err)
 	}
 
@@ -661,7 +666,6 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			ReadyToUse:     true,
 		},
 	}, nil
-
 }
 
 func (cs *controllerServer) createSnapshot(ctx context.Context, cloud openstack.IOpenStack, name string, volumeID string, parameters map[string]string) (snap *snapshots.Snapshot, err error) {
@@ -863,7 +867,6 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		Entries:   sentries,
 		NextToken: nextPageToken,
 	}, nil
-
 }
 
 // ControllerGetCapabilities implements the default GRPC callout.
