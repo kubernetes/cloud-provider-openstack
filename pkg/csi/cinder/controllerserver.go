@@ -1080,7 +1080,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 		if accessibleTopologyReq != nil {
 			accessibleTopology = accessibleTopologyReq.GetPreferred()
 		}
-	} else {
+	} else if vol.AvailabilityZone != "" {
 		accessibleTopology = []*csi.Topology{
 			{
 				Segments: map[string]string{topologyKey: vol.AvailabilityZone},
