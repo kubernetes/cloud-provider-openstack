@@ -41,6 +41,7 @@ type nodeServer struct {
 	// The result of NodeStageVolume is stashed away for NodePublishVolume(s) that will follow
 	nodeStageCache    map[volumeID]stageCacheEntry
 	nodeStageCacheMtx sync.RWMutex
+	csi.UnimplementedNodeServer
 }
 
 type stageCacheEntry struct {

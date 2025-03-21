@@ -44,6 +44,7 @@ const (
 
 type controllerServer struct {
 	d *Driver
+	csi.UnimplementedControllerServer
 }
 
 var (
@@ -221,7 +222,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 }
 
 func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerModifyVolume: called", "args", *req)
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
