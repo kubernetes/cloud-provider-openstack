@@ -204,7 +204,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Set scheduler hints if affinity or anti-affinity is set in PVC annotations
 	var schedulerHints volumes.SchedulerHintOptsBuilder
-	var volCtx map[string]string
+	volCtx := map[string]string{}
 	affinity := pvcAnnotations[affinityKey]
 	antiAffinity := pvcAnnotations[antiAffinityKey]
 	if affinity != "" || antiAffinity != "" {
@@ -1035,10 +1035,9 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 
 func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
 	var volsrc *csi.VolumeContentSource
-	volCnx := map[string]string{}
 
 	if vol.SnapshotID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
@@ -1050,7 +1049,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 	}
 
 	if vol.SourceVolID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Volume{
@@ -1062,7 +1061,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 	}
 
 	if vol.BackupID != nil && *vol.BackupID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
 		volsrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
@@ -1094,7 +1093,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: accessibleTopology,
 			ContentSource:      volsrc,
-			VolumeContext:      volCnx,
+			VolumeContext:      volCtx,
 		},
 	}
 
