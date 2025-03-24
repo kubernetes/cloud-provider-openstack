@@ -220,8 +220,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity volume UUIDs: %v", err)
 		}
 
-		volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", affinity)
-		volCtx = util.SetMapIfNotEmpty(volCtx, "anti-affinity", antiAffinity)
+		volCtx[affinityKey] = affinity
+		volCtx[antiAffinityKey] = antiAffinity
 		schedulerHints = &volumes.SchedulerHintOpts{
 			SameHost:      util.SplitTrim(affinity, ','),
 			DifferentHost: util.SplitTrim(antiAffinity, ','),
