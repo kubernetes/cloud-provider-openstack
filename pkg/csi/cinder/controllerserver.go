@@ -1061,12 +1061,12 @@ func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, with
 }
 
 func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, accessibleTopology []*csi.Topology) *csi.CreateVolumeResponse {
-	var volsrc *csi.VolumeContentSource
+	var volSrc *csi.VolumeContentSource
 
 	if vol.SnapshotID != "" {
 		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: vol.SnapshotID,
@@ -1078,7 +1078,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 	if vol.SourceVolID != "" {
 		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Volume{
 				Volume: &csi.VolumeContentSource_VolumeSource{
 					VolumeId: vol.SourceVolID,
@@ -1090,7 +1090,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 	if vol.BackupID != nil && *vol.BackupID != "" {
 		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: *vol.BackupID,
@@ -1104,7 +1104,7 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 			VolumeId:           vol.ID,
 			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: accessibleTopology,
-			ContentSource:      volsrc,
+			ContentSource:      volSrc,
 			VolumeContext:      volCtx,
 		},
 	}
