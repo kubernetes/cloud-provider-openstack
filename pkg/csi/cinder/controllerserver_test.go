@@ -260,6 +260,80 @@ func TestCreateVolumeWithIgnoreVolumeAZ(t *testing.T) {
 	assert.Equal("foo", actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
 }
 
+// Test CreateVolume with --with-topology=false flag
+func TestCreateVolumeWithTopologyDisabled(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name                string
+		volumeParams        map[string]string
+		expectedVolumeAZ    string
+		expectedCSITopology string
+	}{
+		{
+			name:             "empty paramters",
+			volumeParams:     nil,
+			expectedVolumeAZ: "",
+			// FIXME(stephenfin): This should be unset
+			expectedCSITopology: "nova",
+		},
+		{
+			name: "availability parameter",
+			volumeParams: map[string]string{
+				"availability": "cinder",
+			},
+			// FIXME(stephenfin): This should be "cinder" per the parameter
+			expectedVolumeAZ: "",
+			// ...and this should be unset
+			expectedCSITopology: "nova",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeCs, osmock := fakeControllerServer()
+			fakeCs.Driver.withTopology = false
+
+			properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
+			osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, tt.expectedVolumeAZ, "", "", "", properties).Return(&FakeVol, nil)
+			osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+			osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+			// Fake request
+			fakeReq := &csi.CreateVolumeRequest{
+				Name: FakeVolName,
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{
+						AccessMode: &csi.VolumeCapability_AccessMode{
+							Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+						},
+					},
+				},
+
+				Parameters: tt.volumeParams,
+
+				AccessibilityRequirements: nil,
+			}
+
+			// Invoke CreateVolume
+			actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+			if err != nil {
+				t.Errorf("failed to CreateVolume: %v", err)
+			}
+
+			// Assert
+			assert.NotNil(actualRes.Volume)
+			assert.NotNil(actualRes.Volume.CapacityBytes)
+			assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
+			if tt.expectedCSITopology == "" {
+				assert.Nil(actualRes.Volume.AccessibleTopology)
+			} else {
+				assert.GreaterOrEqual(len(actualRes.Volume.AccessibleTopology), 1)
+				assert.Equal(tt.expectedCSITopology, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
+			}
+		})
+	}
+}
+
 func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
