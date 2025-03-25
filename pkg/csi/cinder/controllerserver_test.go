@@ -265,27 +265,21 @@ func TestCreateVolumeWithTopologyDisabled(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
-		name                string
-		volumeParams        map[string]string
-		expectedVolumeAZ    string
-		expectedCSITopology string
+		name             string
+		volumeParams     map[string]string
+		expectedVolumeAZ string
 	}{
 		{
 			name:             "empty paramters",
 			volumeParams:     nil,
 			expectedVolumeAZ: "",
-			// FIXME(stephenfin): This should be unset
-			expectedCSITopology: "nova",
 		},
 		{
 			name: "availability parameter",
 			volumeParams: map[string]string{
 				"availability": "cinder",
 			},
-			// FIXME(stephenfin): This should be "cinder" per the parameter
-			expectedVolumeAZ: "",
-			// ...and this should be unset
-			expectedCSITopology: "nova",
+			expectedVolumeAZ: "cinder",
 		},
 	}
 	for _, tt := range tests {
@@ -324,12 +318,8 @@ func TestCreateVolumeWithTopologyDisabled(t *testing.T) {
 			assert.NotNil(actualRes.Volume)
 			assert.NotNil(actualRes.Volume.CapacityBytes)
 			assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
-			if tt.expectedCSITopology == "" {
-				assert.Nil(actualRes.Volume.AccessibleTopology)
-			} else {
-				assert.GreaterOrEqual(len(actualRes.Volume.AccessibleTopology), 1)
-				assert.Equal(tt.expectedCSITopology, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
-			}
+			// This should always be nil if --with-topology=false
+			assert.Nil(actualRes.Volume.AccessibleTopology)
 		})
 	}
 }

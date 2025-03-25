@@ -94,12 +94,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, in case vol AZ is different from node AZ
 	var volAvailability string
-	if cs.Driver.withTopology {
-		if volParams["availability"] != "" {
-			volAvailability = volParams["availability"]
-		} else if accessibleTopologyReq != nil {
-			volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
-		}
+	if volParams["availability"] != "" {
+		volAvailability = volParams["availability"]
+	} else if cs.Driver.withTopology && accessibleTopologyReq != nil {
+		volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
 	}
 
 	// get the PVC annotation
@@ -120,7 +118,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Error(codes.AlreadyExists, "Volume Already exists with same name and different capacity")
 		}
 		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", vols[0].ID, vols[0].AvailabilityZone, vols[0].Size)
-		accessibleTopology := getTopology(&vols[0], accessibleTopologyReq, ignoreVolumeAZ)
+		accessibleTopology := getTopology(&vols[0], accessibleTopologyReq, cs.Driver.withTopology, ignoreVolumeAZ)
 		return getCreateVolumeResponse(&vols[0], nil, accessibleTopology), nil
 	}
 
@@ -250,7 +248,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
-	accessibleTopology := getTopology(vol, accessibleTopologyReq, ignoreVolumeAZ)
+	accessibleTopology := getTopology(vol, accessibleTopologyReq, cs.Driver.withTopology, ignoreVolumeAZ)
 
 	return getCreateVolumeResponse(vol, volCtx, accessibleTopology), nil
 }
@@ -1040,8 +1038,12 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 	}, nil
 }
 
-func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, ignoreVolumeAZ bool) []*csi.Topology {
+func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, withTopology bool, ignoreVolumeAZ bool) []*csi.Topology {
 	var accessibleTopology []*csi.Topology
+	if !withTopology {
+		return accessibleTopology
+	}
+
 	if ignoreVolumeAZ {
 		if topologyReq != nil {
 			accessibleTopology = topologyReq.GetPreferred()
