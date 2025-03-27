@@ -1515,9 +1515,9 @@ func (lbaas *LbaasV2) makeSvcConf(serviceName string, service *corev1.Service, s
 	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
 	for key, value := range svcConf.nodeSelectors {
 		if value == "" {
-			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
+			klog.V(3).Infof("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
 		} else {
-			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
+			klog.V(3).Infof("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
 		}
 	}
 
