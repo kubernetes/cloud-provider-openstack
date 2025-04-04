@@ -2,6 +2,7 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "openstack-manila-csi.nodeplugin.fullname" . }}-rules
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "openstack-manila-csi.nodeplugin.labels" .  | nindent 4 }}
     rbac.manila.csi.openstack.org/aggregate-to-nodeplugin-{{ include "openstack-manila-csi.name" . }}: "true"
