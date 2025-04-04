@@ -101,7 +101,7 @@ func NewDriver(o *DriverOpts) *Driver {
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI Spec version: ", specVersion)
-	klog.Infof("Topology awareness: %T", d.withTopology)
+	klog.Infof("Topology awareness: %t", d.withTopology)
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{
