@@ -262,7 +262,6 @@ func TestBooleanField(t *testing.T) {
 	if err == nil {
 		t.Errorf("Populate with 'foo': expected an error, but got nil")
 	}
-
 }
 
 func TestAvailabilityField(t *testing.T) {
