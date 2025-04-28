@@ -66,6 +66,9 @@ func (k *Keystoner) GetTokenInfo(ctx context.Context, token string) (*tokenInfo,
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract project information from Keystone response: %v", err)
 	}
+	if project == nil {
+		return nil, fmt.Errorf("failed to extract project information from Keystone response")
+	}
 
 	roles, err := ret.ExtractRoles()
 	if err != nil {
