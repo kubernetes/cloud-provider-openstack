@@ -130,7 +130,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI spec version: ", specVersion)
-	klog.Infof("Topology awareness: %T", d.withTopology)
+	klog.Infof("Topology awareness: %t", d.withTopology)
 
 	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
 	klog.Infof("Operating on %s shares", d.shareProto)
