@@ -62,6 +62,10 @@ else
   mkdir -p ${DEST}/lib64 && cp -Lv /lib64/ld-linux-*.so.* ${DEST}/lib64/
 fi
 
+# Copy POSIX shell
+copy_deps /bin/dash
+copy_deps /bin/sh
+
 # To collect dmesg logs
 copy_deps /usr/bin/dmesg || true
 copy_deps /bin/dmesg || true
