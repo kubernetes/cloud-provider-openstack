@@ -68,6 +68,7 @@ tenant-id=` + fakeTenantID + `
 domain-id=` + fakeDomainID + `
 ca-file=` + fakeCAfile + `
 region=` + fakeRegion + `
+regions=` + fakeRegion + `
 [Global "cloud2"]
 username=` + fakeUserName_cloud2 + `
 password=` + fakePassword_cloud2 + `
@@ -76,6 +77,8 @@ tenant-id=` + fakeTenantID_cloud2 + `
 domain-id=` + fakeDomainID_cloud2 + `
 ca-file=` + fakeCAfile_cloud2 + `
 region=` + fakeRegion_cloud2 + `
+regions=` + fakeRegion_cloud2 + `
+regions=` + fakeRegion_cloud2 + `
 [Global "cloud3"]
 username=` + fakeUserName_cloud3 + `
 password=` + fakePassword_cloud3 + `
@@ -112,6 +115,7 @@ rescan-on-resize=true`
 		CAFile:   fakeCAfile,
 		TenantID: fakeTenantID,
 		Region:   fakeRegion,
+		Regions:  []string{fakeRegion},
 	}
 	expectedOpts.Global["cloud2"] = &client.AuthOpts{
 		Username: fakeUserName_cloud2,
@@ -121,6 +125,7 @@ rescan-on-resize=true`
 		CAFile:   fakeCAfile_cloud2,
 		TenantID: fakeTenantID_cloud2,
 		Region:   fakeRegion_cloud2,
+		Regions:  []string{fakeRegion_cloud2},
 	}
 	expectedOpts.Global["cloud3"] = &client.AuthOpts{
 		Username: fakeUserName_cloud3,
@@ -130,6 +135,7 @@ rescan-on-resize=true`
 		CAFile:   fakeCAfile_cloud3,
 		TenantID: fakeTenantID_cloud3,
 		Region:   fakeRegion_cloud3,
+		Regions:  []string{fakeRegion_cloud3},
 	}
 
 	expectedOpts.BlockStorage.RescanOnResize = true
@@ -224,6 +230,7 @@ rescan-on-resize=true`
 		CAFile:       fakeCAfile,
 		TenantID:     fakeTenantID,
 		Region:       fakeRegion,
+		Regions:      []string{fakeRegion},
 		EndpointType: gophercloud.AvailabilityPublic,
 		UseClouds:    true,
 		CloudsFile:   wd + "/fixtures/clouds.yaml",
@@ -237,6 +244,7 @@ rescan-on-resize=true`
 		CAFile:       fakeCAfile_cloud2,
 		TenantID:     fakeTenantID_cloud2,
 		Region:       fakeRegion_cloud2,
+		Regions:      []string{fakeRegion_cloud2},
 		EndpointType: gophercloud.AvailabilityPublic,
 		UseClouds:    true,
 		CloudsFile:   wd + "/fixtures/clouds.yaml",
@@ -250,6 +258,7 @@ rescan-on-resize=true`
 		CAFile:       fakeCAfile_cloud3,
 		TenantID:     fakeTenantID_cloud3,
 		Region:       fakeRegion_cloud3,
+		Regions:      []string{fakeRegion_cloud3},
 		EndpointType: gophercloud.AvailabilityPublic,
 		UseClouds:    true,
 		CloudsFile:   wd + "/fixtures/clouds.yaml",
