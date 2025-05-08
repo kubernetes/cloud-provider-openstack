@@ -41,6 +41,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Install Ansible from Trixie (Debian Testing) to allow us to talk to a host
+# running Python 3.12 like Ubuntu 24.04
+#
+# https://woju.eu/blog/2025/03/ansible-bookworm/
+cat << EOF > /etc/apt/sources.list.d/trixie.list
+deb https://deb.debian.org/debian trixie main
+EOF
+
+cat << EOF > /etc/apt/preferences.d/ansible.pref
+Package: *
+Pin: release n=trixie
+Pin-Priority: -10
+
+Package: ansible* python3-netaddr
+Pin: release n=trixie
+Pin-Priority: 990
+EOF
+
 apt-get update
 apt-get install -y python3-requests ansible
 
