@@ -48,6 +48,14 @@ func (cb *ClientBuilder) New(ctx context.Context, o *client.AuthOpts) (Interface
 
 func New(ctx context.Context, o *client.AuthOpts, userAgent string, extraUserAgentData []string) (*Client, error) {
 	// Authenticate and create Manila v2 client
+	// If UseClouds is set, read clouds.yaml file
+	if o.UseClouds {
+		err := client.ReadClouds(o)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read clouds.yaml: %v", err)
+		}
+	}
+
 	provider, err := client.NewOpenStackClient(o, userAgent, extraUserAgentData...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
