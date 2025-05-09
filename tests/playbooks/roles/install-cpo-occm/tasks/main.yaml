@@ -128,7 +128,7 @@
         msg: *failmsg
 
 - name: Run functional tests for openstack-cloud-controller-manager
-  when: run_e2e
+  when: run_e2e | bool
   register: run_tests
   shell:
     executable: /bin/bash
@@ -145,7 +145,7 @@
 
 - name: Print logs for debugging
   when:
-    - run_e2e
+    - run_e2e | bool
     - run_tests.failed
   block:
   - name: Show openstack-cloud-controller-manager pod logs
