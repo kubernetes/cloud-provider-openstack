@@ -91,17 +91,18 @@ main() {
 
   case "${FLAVOR}" in
   "default")
-    if ! gcloud compute disks describe devstack-${FLAVOR} --zone "${GCP_ZONE}" > /dev/null 2>&1;
+    local disk_name="devstack-${FLAVOR}-ubuntu2404"
+    if ! gcloud compute disks describe "${disk_name}" --zone "${GCP_ZONE}" > /dev/null 2>&1;
     then
-      gcloud compute disks create devstack-${FLAVOR} \
+      gcloud compute disks create "${disk_name}" \
         --image-project ubuntu-os-cloud --image-family ubuntu-2404-lts-amd64 \
         --zone "${GCP_ZONE}"
     fi
 
-    if ! gcloud compute images describe devstack-${FLAVOR} > /dev/null 2>&1;
+    if ! gcloud compute images describe "${disk_name}" > /dev/null 2>&1;
     then
-      gcloud compute images create devstack-${FLAVOR} \
-        --source-disk devstack-${FLAVOR} --source-disk-zone "${GCP_ZONE}" \
+      gcloud compute images create "${disk_name}" \
+        --source-disk "${disk_name}" --source-disk-zone "${GCP_ZONE}" \
         --licenses "https://www.googleapis.com/compute/v1/projects/vm-options/global/licenses/enable-vmx"
     fi
     ;;
@@ -115,7 +116,7 @@ main() {
   then
     gcloud compute instances create devstack \
       --zone "${GCP_ZONE}" \
-      --image devstack-${FLAVOR} \
+      --image "${disk_name}" \
       --boot-disk-size 30G \
       --boot-disk-type pd-ssd \
       --can-ip-forward \
