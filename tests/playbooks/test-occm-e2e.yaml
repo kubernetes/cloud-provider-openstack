@@ -25,5 +25,5 @@
     - role: install-k3s
       worker_node_count: 0
     - role: install-cpo-occm
-      run_e2e: "{{ run_e2e }}"
+      run_e2e: "{{ run_e2e | bool }}"
       octavia_provider: "{{ octavia_provider }}"
