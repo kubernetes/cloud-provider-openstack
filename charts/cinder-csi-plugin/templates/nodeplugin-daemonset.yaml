@@ -96,6 +96,11 @@ spec:
             {{- tpl . $ | trim | nindent 12 }}
             {{- end }}
             {{- end }}
+            {{- if .Values.csi.plugin.nodePlugin.extraArgs }}
+            {{- with .Values.csi.plugin.nodePlugin.extraArgs }}
+            {{- tpl . $ | trim | nindent 12 }}
+            {{- end }}
+            {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
