@@ -44,6 +44,7 @@ const (
 
 type controllerServer struct {
 	d *Driver
+	csi.UnimplementedControllerServer
 }
 
 var (
@@ -114,7 +115,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 	defer pendingVolumes.Delete(req.GetName())
 
-	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
@@ -154,11 +155,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		klog.V(4).Infof("CreateVolume: Getting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
 
 		// resolve share names to UUIDs
-		shareOpts.Affinity, err = resolveShareListToUUIDs(manilaClient, affinity)
+		shareOpts.Affinity, err = resolveShareListToUUIDs(ctx, manilaClient, affinity)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve affinity share UUIDs: %v", err)
 		}
-		shareOpts.AntiAffinity, err = resolveShareListToUUIDs(manilaClient, antiAffinity)
+		shareOpts.AntiAffinity, err = resolveShareListToUUIDs(ctx, manilaClient, antiAffinity)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity share UUIDs: %v", err)
 		}
@@ -179,7 +180,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	share, err := volCreator.create(manilaClient, shareName, sizeInGiB, shareOpts, shareMetadata)
+	share, err := volCreator.create(ctx, manilaClient, shareName, sizeInGiB, shareOpts, shareMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +194,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	ad := getShareAdapter(shareOpts.Protocol)
 
-	accessRight, err := ad.GetOrGrantAccess(&shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
+	accessRight, err := ad.GetOrGrantAccess(ctx, &shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rule %s for volume %s to become available", accessRight.ID, share.Name)
@@ -221,7 +222,6 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 }
 
 func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	klog.V(4).InfoS("ControllerModifyVolume: called", "args", *req)
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
@@ -235,12 +235,12 @@ func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	if err := deleteShare(manilaClient, req.GetVolumeId()); err != nil {
+	if err := deleteShare(ctx, manilaClient, req.GetVolumeId()); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete volume %s: %v", req.GetVolumeId(), err)
 	}
 
@@ -265,14 +265,14 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 	defer pendingSnapshots.Delete(req.GetName())
 
-	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
 	// Retrieve the source share
 
-	sourceShare, err := manilaClient.GetShareByID(req.GetSourceVolumeId())
+	sourceShare, err := manilaClient.GetShareByID(ctx, req.GetSourceVolumeId())
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "failed to create snapshot %s for volume %s because the volume doesn't exist: %v", req.GetName(), req.GetSourceVolumeId(), err)
@@ -299,7 +299,7 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Retrieve an existing snapshot or create a new one
 
-	snapshot, err := getOrCreateSnapshot(manilaClient, req.GetName(), sourceShare.ID)
+	snapshot, err := getOrCreateSnapshot(ctx, manilaClient, req.GetName(), sourceShare.ID)
 	if err != nil {
 		if wait.Interrupted(err) {
 			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for snapshot %s of volume %s to become available", snapshot.ID, req.GetSourceVolumeId())
@@ -327,9 +327,9 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		readyToUse = true
 	case snapshotError:
 		// An error occurred, try to roll-back the snapshot
-		tryDeleteSnapshot(manilaClient, snapshot)
+		tryDeleteSnapshot(ctx, manilaClient, snapshot)
 
-		manilaErrMsg, err := lastResourceError(manilaClient, snapshot.ID)
+		manilaErrMsg, err := lastResourceError(ctx, manilaClient, snapshot.ID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "snapshot %s of volume %s is in error state, error description could not be retrieved: %v", snapshot.ID, req.GetSourceVolumeId(), err)
 		}
@@ -367,12 +367,12 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	if err := deleteSnapshot(manilaClient, req.GetSnapshotId()); err != nil {
+	if err := deleteSnapshot(ctx, manilaClient, req.GetSnapshotId()); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete snapshot %s: %v", req.GetSnapshotId(), err)
 	}
 
@@ -409,12 +409,12 @@ func (cs *controllerServer) ValidateVolumeCapabilities(ctx context.Context, req 
 		}
 	}
 
-	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
-	share, err := manilaClient.GetShareByID(req.GetVolumeId())
+	share, err := manilaClient.GetShareByID(ctx, req.GetVolumeId())
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "volume %s not found: %v", req.GetVolumeId(), err)
@@ -476,14 +476,14 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
 	}
 
-	manilaClient, err := cs.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
 
 	// Retrieve the share by its ID
 
-	share, err := manilaClient.GetShareByID(req.GetVolumeId())
+	share, err := manilaClient.GetShareByID(ctx, req.GetVolumeId())
 	if err != nil {
 		if clouderrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "volume %s not found: %v", req.GetVolumeId(), err)
@@ -510,7 +510,7 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 		}, nil
 	}
 
-	share, err = extendShare(manilaClient, share.ID, desiredSizeInGiB)
+	share, err = extendShare(ctx, manilaClient, share.ID, desiredSizeInGiB)
 	if err != nil {
 		return nil, err
 	}

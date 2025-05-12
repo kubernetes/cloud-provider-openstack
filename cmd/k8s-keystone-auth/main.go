@@ -15,6 +15,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -38,7 +39,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			keystoneAuth, err := keystone.NewKeystoneAuth(config)
+			keystoneAuth, err := keystone.NewKeystoneAuth(context.Background(), config)
 			if err != nil {
 				klog.Errorf("%v", err)
 				os.Exit(1)

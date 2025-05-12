@@ -55,7 +55,7 @@ const (
 var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
 
 // CreateVolume creates a volume of given size
-func (os *OpenStack) CreateVolume(opts *volumes.CreateOpts, schedulerHints volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
+func (os *OpenStack) CreateVolume(ctx context.Context, opts *volumes.CreateOpts, schedulerHints volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
 	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (os *OpenStack) CreateVolume(opts *volumes.CreateOpts, schedulerHints volum
 
 	mc := metrics.NewMetricContext("volume", "create")
 	opts.Description = volumeDescription
-	vol, err := volumes.Create(context.TODO(), blockstorageClient, opts, schedulerHints).Extract()
+	vol, err := volumes.Create(ctx, blockstorageClient, opts, schedulerHints).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -78,13 +78,22 @@ func (os *OpenStack) CreateVolume(opts *volumes.CreateOpts, schedulerHints volum
 }
 
 // ListVolumes list all the volumes
-func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error) {
+func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken string) ([]volumes.Volume, string, error) {
 	var nextPageToken string
 	var vols []volumes.Volume
 
-	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
 	mc := metrics.NewMetricContext("volume", "list")
-	err := volumes.List(os.blockstorage, opts).EachPage(context.TODO(), func(_ context.Context, page pagination.Page) (bool, error) {
+	if limit == 0 {
+		page, err := volumes.List(os.blockstorage, nil).AllPages(ctx)
+		if err != nil {
+			return nil, "", err
+		}
+		vols, err = volumes.ExtractVolumes(page)
+		return vols, "", mc.ObserveRequest(err)
+	}
+
+	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
+	err := volumes.List(os.blockstorage, opts).EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
 		var err error
 
 		vols, err = volumes.ExtractVolumes(page)
@@ -107,16 +116,13 @@ func (os *OpenStack) ListVolumes(limit int, startingToken string) ([]volumes.Vol
 
 		return false, nil
 	})
-	if mc.ObserveRequest(err) != nil {
-		return nil, nextPageToken, err
-	}
 
-	return vols, nextPageToken, nil
+	return vols, nextPageToken, mc.ObserveRequest(err)
 }
 
 // GetVolumesByName is a wrapper around ListVolumes that creates a Name filter to act as a GetByName
 // Returns a list of Volume references with the specified name
-func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
+func (os *OpenStack) GetVolumesByName(ctx context.Context, n string) ([]volumes.Volume, error) {
 	// Init a local thread safe copy of the Cinder ServiceClient
 	blockstorageClient, err := openstack.NewBlockStorageV3(os.blockstorage.ProviderClient, os.epOpts)
 	if err != nil {
@@ -131,7 +137,7 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 
 	opts := volumes.ListOpts{Name: n}
 	mc := metrics.NewMetricContext("volume", "list")
-	pages, err := volumes.List(blockstorageClient, opts).AllPages(context.TODO())
+	pages, err := volumes.List(blockstorageClient, opts).AllPages(ctx)
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -146,8 +152,8 @@ func (os *OpenStack) GetVolumesByName(n string) ([]volumes.Volume, error) {
 
 // GetVolumeByName is a wrapper around GetVolumesByName that returns a single Volume reference
 // with the specified name
-func (os *OpenStack) GetVolumeByName(n string) (*volumes.Volume, error) {
-	vols, err := os.GetVolumesByName(n)
+func (os *OpenStack) GetVolumeByName(ctx context.Context, n string) (*volumes.Volume, error) {
+	vols, err := os.GetVolumesByName(ctx, n)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +170,8 @@ func (os *OpenStack) GetVolumeByName(n string) (*volumes.Volume, error) {
 }
 
 // DeleteVolume delete a volume
-func (os *OpenStack) DeleteVolume(volumeID string) error {
-	used, err := os.diskIsUsed(volumeID)
+func (os *OpenStack) DeleteVolume(ctx context.Context, volumeID string) error {
+	used, err := os.diskIsUsed(ctx, volumeID)
 	if err != nil {
 		return err
 	}
@@ -174,14 +180,14 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 	}
 
 	mc := metrics.NewMetricContext("volume", "delete")
-	err = volumes.Delete(context.TODO(), os.blockstorage, volumeID, nil).ExtractErr()
+	err = volumes.Delete(ctx, os.blockstorage, volumeID, nil).ExtractErr()
 	return mc.ObserveRequest(err)
 }
 
 // GetVolume retrieves Volume by its ID.
-func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
+func (os *OpenStack) GetVolume(ctx context.Context, volumeID string) (*volumes.Volume, error) {
 	mc := metrics.NewMetricContext("volume", "get")
-	vol, err := volumes.Get(context.TODO(), os.blockstorage, volumeID).Extract()
+	vol, err := volumes.Get(ctx, os.blockstorage, volumeID).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return nil, err
 	}
@@ -190,10 +196,10 @@ func (os *OpenStack) GetVolume(volumeID string) (*volumes.Volume, error) {
 }
 
 // AttachVolume attaches given cinder volume to the compute
-func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
+func (os *OpenStack) AttachVolume(ctx context.Context, instanceID, volumeID string) (string, error) {
 	computeServiceClient := os.compute
 
-	volume, err := os.GetVolume(volumeID)
+	volume, err := os.GetVolume(ctx, volumeID)
 	if err != nil {
 		return "", err
 	}
@@ -216,7 +222,7 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 	}
 
 	mc := metrics.NewMetricContext("volume", "attach")
-	_, err = volumeattach.Create(context.TODO(), computeServiceClient, instanceID, &volumeattach.CreateOpts{
+	_, err = volumeattach.Create(ctx, computeServiceClient, instanceID, &volumeattach.CreateOpts{
 		VolumeID: volume.ID,
 	}).Extract()
 
@@ -228,7 +234,7 @@ func (os *OpenStack) AttachVolume(instanceID, volumeID string) (string, error) {
 }
 
 // WaitDiskAttached waits for attached
-func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error {
+func (os *OpenStack) WaitDiskAttached(ctx context.Context, instanceID string, volumeID string) error {
 	backoff := wait.Backoff{
 		Duration: diskAttachInitDelay,
 		Factor:   diskAttachFactor,
@@ -236,7 +242,7 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	}
 
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		attached, err := os.diskIsAttached(instanceID, volumeID)
+		attached, err := os.diskIsAttached(ctx, instanceID, volumeID)
 		if err != nil && !cpoerrors.IsNotFound(err) {
 			// if this is a race condition indicate the volume is deleted
 			// during sleep phase, ignore the error and return attach=false
@@ -253,7 +259,7 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 }
 
 // WaitVolumeTargetStatus waits for volume to be in target state
-func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
+func (os *OpenStack) WaitVolumeTargetStatus(ctx context.Context, volumeID string, tStatus []string) error {
 	backoff := wait.Backoff{
 		Duration: operationFinishInitDelay,
 		Factor:   operationFinishFactor,
@@ -261,7 +267,7 @@ func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) e
 	}
 
 	waitErr := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		vol, err := os.GetVolume(volumeID)
+		vol, err := os.GetVolume(ctx, volumeID)
 		if err != nil {
 			return false, err
 		}
@@ -286,8 +292,8 @@ func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) e
 }
 
 // DetachVolume detaches given cinder volume from the compute
-func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
-	volume, err := os.GetVolume(volumeID)
+func (os *OpenStack) DetachVolume(ctx context.Context, instanceID, volumeID string) error {
+	volume, err := os.GetVolume(ctx, volumeID)
 	if err != nil {
 		return err
 	}
@@ -304,7 +310,7 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 	for _, att := range volume.Attachments {
 		if att.ServerID == instanceID {
 			mc := metrics.NewMetricContext("volume", "detach")
-			err = volumeattach.Delete(context.TODO(), os.compute, instanceID, volume.ID).ExtractErr()
+			err = volumeattach.Delete(ctx, os.compute, instanceID, volume.ID).ExtractErr()
 			if mc.ObserveRequest(err) != nil {
 				return fmt.Errorf("failed to detach volume %s from compute %s : %v", volume.ID, instanceID, err)
 			}
@@ -318,7 +324,7 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 }
 
 // WaitDiskDetached waits for detached
-func (os *OpenStack) WaitDiskDetached(instanceID string, volumeID string) error {
+func (os *OpenStack) WaitDiskDetached(ctx context.Context, instanceID string, volumeID string) error {
 	backoff := wait.Backoff{
 		Duration: diskDetachInitDelay,
 		Factor:   diskDetachFactor,
@@ -326,7 +332,7 @@ func (os *OpenStack) WaitDiskDetached(instanceID string, volumeID string) error 
 	}
 
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		attached, err := os.diskIsAttached(instanceID, volumeID)
+		attached, err := os.diskIsAttached(ctx, instanceID, volumeID)
 		if err != nil {
 			return false, err
 		}
@@ -341,8 +347,8 @@ func (os *OpenStack) WaitDiskDetached(instanceID string, volumeID string) error 
 }
 
 // GetAttachmentDiskPath gets device path of attached volume to the compute
-func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string, error) {
-	volume, err := os.GetVolume(volumeID)
+func (os *OpenStack) GetAttachmentDiskPath(ctx context.Context, instanceID, volumeID string) (string, error) {
+	volume, err := os.GetVolume(ctx, volumeID)
 	if err != nil {
 		return "", err
 	}
@@ -362,7 +368,7 @@ func (os *OpenStack) GetAttachmentDiskPath(instanceID, volumeID string) (string,
 }
 
 // ExpandVolume expands the volume to new size
-func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) error {
+func (os *OpenStack) ExpandVolume(ctx context.Context, volumeID string, status string, newSize int) error {
 	extendOpts := volumes.ExtendSizeOpts{
 		NewSize: newSize,
 	}
@@ -386,10 +392,10 @@ func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) e
 		blockstorageClient.Microversion = "3.42"
 
 		mc := metrics.NewMetricContext("volume", "expand")
-		return mc.ObserveRequest(volumes.ExtendSize(context.TODO(), blockstorageClient, volumeID, extendOpts).ExtractErr())
+		return mc.ObserveRequest(volumes.ExtendSize(ctx, blockstorageClient, volumeID, extendOpts).ExtractErr())
 	case VolumeAvailableStatus:
 		mc := metrics.NewMetricContext("volume", "expand")
-		return mc.ObserveRequest(volumes.ExtendSize(context.TODO(), os.blockstorage, volumeID, extendOpts).ExtractErr())
+		return mc.ObserveRequest(volumes.ExtendSize(ctx, os.blockstorage, volumeID, extendOpts).ExtractErr())
 	}
 
 	// cinder volume can not be expanded when volume status is not volumeInUseStatus or not volumeAvailableStatus
@@ -406,8 +412,8 @@ func (os *OpenStack) GetMaxVolLimit() int64 {
 }
 
 // diskIsAttached queries if a volume is attached to a compute instance
-func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
-	volume, err := os.GetVolume(volumeID)
+func (os *OpenStack) diskIsAttached(ctx context.Context, instanceID, volumeID string) (bool, error) {
+	volume, err := os.GetVolume(ctx, volumeID)
 	if err != nil {
 		return false, err
 	}
@@ -420,8 +426,8 @@ func (os *OpenStack) diskIsAttached(instanceID, volumeID string) (bool, error) {
 }
 
 // diskIsUsed returns true a disk is attached to any node.
-func (os *OpenStack) diskIsUsed(volumeID string) (bool, error) {
-	volume, err := os.GetVolume(volumeID)
+func (os *OpenStack) diskIsUsed(ctx context.Context, volumeID string) (bool, error) {
+	volume, err := os.GetVolume(ctx, volumeID)
 	if err != nil {
 		return false, err
 	}
@@ -440,7 +446,7 @@ func (os *OpenStack) GetBlockStorageOpts() BlockStorageOpts {
 
 // ResolveVolumeListToUUIDs resolves a list of volume names or UUIDs to a
 // string of UUIDs
-func (os *OpenStack) ResolveVolumeListToUUIDs(affinityList string) (string, error) {
+func (os *OpenStack) ResolveVolumeListToUUIDs(ctx context.Context, affinityList string) (string, error) {
 	list := util.SplitTrim(affinityList, ',')
 	if len(list) == 0 {
 		return "", nil
@@ -453,13 +459,13 @@ func (os *OpenStack) ResolveVolumeListToUUIDs(affinityList string) (string, erro
 
 		if id, e := util.UUID(v); e == nil {
 			// First try to get volume by ID
-			volume, err = os.GetVolume(id)
+			volume, err = os.GetVolume(ctx, id)
 			if err != nil && cpoerrors.IsNotFound(err) {
-				volume, err = os.GetVolumeByName(v)
+				volume, err = os.GetVolumeByName(ctx, v)
 			}
 		} else {
 			// If not a UUID, try to get volume by name
-			volume, err = os.GetVolumeByName(v)
+			volume, err = os.GetVolumeByName(ctx, v)
 		}
 		if err != nil {
 			if cpoerrors.IsNotFound(err) {

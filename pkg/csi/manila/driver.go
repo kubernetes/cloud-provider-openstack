@@ -29,7 +29,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
-	"k8s.io/client-go/listers/core/v1"
+	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
@@ -130,7 +130,7 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI spec version: ", specVersion)
-	klog.Infof("Topology awareness: %T", d.withTopology)
+	klog.Infof("Topology awareness: %t", d.withTopology)
 
 	getShareAdapter(d.shareProto) // The program will terminate with a non-zero exit code if the share protocol selector is wrong
 	klog.Infof("Operating on %s shares", d.shareProto)
@@ -269,14 +269,14 @@ func (d *Driver) initProxiedDriver() (csiNodeCapabilitySet, error) {
 	}
 	defer conn.Close()
 
-	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
-
-	if err = identityClient.ProbeForever(conn, time.Second*5); err != nil {
-		return nil, fmt.Errorf("probe failed: %v", err)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
+
+	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
+
+	if err = identityClient.ProbeForever(ctx, conn, time.Second*5); err != nil {
+		return nil, fmt.Errorf("probe failed: %v", err)
+	}
 
 	pluginInfo, err := identityClient.GetPluginInfo(ctx)
 	if err != nil {

@@ -158,7 +158,6 @@ type Event struct {
 
 // Controller ...
 type Controller struct {
-	stopCh              chan struct{}
 	knownNodes          []*apiv1.Node
 	queue               workqueue.TypedRateLimitingInterface[any]
 	informer            informers.SharedInformerFactory
@@ -322,7 +321,6 @@ func NewController(conf config.Config) *Controller {
 	controller := &Controller{
 		config:              conf,
 		queue:               queue,
-		stopCh:              make(chan struct{}),
 		informer:            kubeInformerFactory,
 		recorder:            recorder,
 		serviceLister:       serviceInformer.Lister(),
@@ -417,16 +415,15 @@ func NewController(conf config.Config) *Controller {
 }
 
 // Start starts the openstack ingress controller.
-func (c *Controller) Start() {
-	defer close(c.stopCh)
+func (c *Controller) Start(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
 	log.Debug("starting Ingress controller")
-	go c.informer.Start(c.stopCh)
+	go c.informer.Start(ctx.Done())
 
 	// wait for the caches to synchronize before starting the worker
-	if !cache.WaitForCacheSync(c.stopCh, c.ingressListerSynced, c.serviceListerSynced, c.nodeListerSynced) {
+	if !cache.WaitForCacheSync(ctx.Done(), c.ingressListerSynced, c.serviceListerSynced, c.nodeListerSynced) {
 		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
 		return
 	}
@@ -440,22 +437,22 @@ func (c *Controller) Start() {
 	c.knownNodes = readyWorkerNodes
 
 	// Get subnet CIDR. The subnet CIDR will be used as source IP range for related security group rules.
-	subnet, err := c.osClient.GetSubnet(c.config.Octavia.SubnetID)
+	subnet, err := c.osClient.GetSubnet(ctx, c.config.Octavia.SubnetID)
 	if err != nil {
 		log.Errorf("Failed to retrieve the subnet %s: %v", c.config.Octavia.SubnetID, err)
 		return
 	}
 	c.subnetCIDR = subnet.CIDR
 
-	go wait.Until(c.runWorker, time.Second, c.stopCh)
-	go wait.Until(c.nodeSyncLoop, 60*time.Second, c.stopCh)
+	go wait.UntilWithContext(ctx, c.runWorker, time.Second)
+	go wait.UntilWithContext(ctx, c.nodeSyncLoop, 60*time.Second)
 
-	<-c.stopCh
+	<-ctx.Done()
 }
 
 // nodeSyncLoop handles updating the hosts pointed to by all load
 // balancers whenever the set of nodes in the cluster changes.
-func (c *Controller) nodeSyncLoop() {
+func (c *Controller) nodeSyncLoop(ctx context.Context) {
 	readyWorkerNodes, err := listWithPredicate(c.nodeLister, getNodeConditionPredicate())
 	if err != nil {
 		log.Errorf("Failed to retrieve current set of nodes from node lister: %v", err)
@@ -477,7 +474,7 @@ func (c *Controller) nodeSyncLoop() {
 	var ings *nwv1.IngressList
 	// NOTE(lingxiankong): only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
-	if ings, err = c.kubeClient.NetworkingV1().Ingresses("").List(context.TODO(), opts); err != nil {
+	if ings, err = c.kubeClient.NetworkingV1().Ingresses("").List(ctx, opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
 	}
@@ -491,7 +488,7 @@ func (c *Controller) nodeSyncLoop() {
 		log.WithFields(log.Fields{"ingress": ing.Name, "namespace": ing.Namespace}).Debug("Starting to handle ingress")
 
 		lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
-		loadbalancer, err := openstackutil.GetLoadbalancerByName(c.osClient.Octavia, lbName)
+		loadbalancer, err := openstackutil.GetLoadbalancerByName(ctx, c.osClient.Octavia, lbName)
 		if err != nil {
 			if err != cpoerrors.ErrNotFound {
 				log.WithFields(log.Fields{"name": lbName}).Errorf("Failed to retrieve loadbalancer from OpenStack: %v", err)
@@ -501,7 +498,7 @@ func (c *Controller) nodeSyncLoop() {
 			continue
 		}
 
-		if err = c.osClient.UpdateLoadbalancerMembers(loadbalancer.ID, readyWorkerNodes); err != nil {
+		if err = c.osClient.UpdateLoadbalancerMembers(ctx, loadbalancer.ID, readyWorkerNodes); err != nil {
 			log.WithFields(log.Fields{"ingress": ing.Name}).Error("Failed to handle ingress")
 			continue
 		}
@@ -514,13 +511,13 @@ func (c *Controller) nodeSyncLoop() {
 	log.Info("Finished to handle node change")
 }
 
-func (c *Controller) runWorker() {
-	for c.processNextItem() {
+func (c *Controller) runWorker(ctx context.Context) {
+	for c.processNextItem(ctx) {
 		// continue looping
 	}
 }
 
-func (c *Controller) processNextItem() bool {
+func (c *Controller) processNextItem(ctx context.Context) bool {
 	obj, quit := c.queue.Get()
 
 	if quit {
@@ -528,7 +525,7 @@ func (c *Controller) processNextItem() bool {
 	}
 	defer c.queue.Done(obj)
 
-	err := c.processItem(obj.(Event))
+	err := c.processItem(ctx, obj.(Event))
 	if err == nil {
 		// No error, reset the ratelimit counters
 		c.queue.Forget(obj)
@@ -545,7 +542,7 @@ func (c *Controller) processNextItem() bool {
 	return true
 }
 
-func (c *Controller) processItem(event Event) error {
+func (c *Controller) processItem(ctx context.Context, event Event) error {
 	ing := event.Obj.(*nwv1.Ingress)
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 	logger := log.WithFields(log.Fields{"ingress": key})
@@ -554,7 +551,7 @@ func (c *Controller) processItem(event Event) error {
 	case CreateEvent:
 		logger.Info("creating ingress")
 
-		if err := c.ensureIngress(ing); err != nil {
+		if err := c.ensureIngress(ctx, ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to create openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to create openstack resources for ingress %s: %v", key, err))
 		} else {
@@ -563,7 +560,7 @@ func (c *Controller) processItem(event Event) error {
 	case UpdateEvent:
 		logger.Info("updating ingress")
 
-		if err := c.ensureIngress(ing); err != nil {
+		if err := c.ensureIngress(ctx, ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to update openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to update openstack resources for ingress %s: %v", key, err))
 		} else {
@@ -572,7 +569,7 @@ func (c *Controller) processItem(event Event) error {
 	case DeleteEvent:
 		logger.Info("deleting ingress")
 
-		if err := c.deleteIngress(ing); err != nil {
+		if err := c.deleteIngress(ctx, ing); err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to delete openstack resources for ingress %s: %v", key, err))
 			c.recorder.Event(ing, apiv1.EventTypeWarning, "Failed", fmt.Sprintf("Failed to delete openstack resources for ingress %s: %v", key, err))
 		} else {
@@ -583,13 +580,13 @@ func (c *Controller) processItem(event Event) error {
 	return nil
 }
 
-func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
+func (c *Controller) deleteIngress(ctx context.Context, ing *nwv1.Ingress) error {
 	key := fmt.Sprintf("%s/%s", ing.Namespace, ing.Name)
 	lbName := utils.GetResourceName(ing.Namespace, ing.Name, c.config.ClusterName)
 	logger := log.WithFields(log.Fields{"ingress": key})
 
 	// If load balancer doesn't exist, assume it's already deleted.
-	loadbalancer, err := openstackutil.GetLoadbalancerByName(c.osClient.Octavia, lbName)
+	loadbalancer, err := openstackutil.GetLoadbalancerByName(ctx, c.osClient.Octavia, lbName)
 	if err != nil {
 		if err != cpoerrors.ErrNotFound {
 			return fmt.Errorf("error getting loadbalancer %s: %v", ing.Name, err)
@@ -611,7 +608,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		// any floating IPs associated with the load balancer VIP port.
 		logger.WithFields(log.Fields{"lbID": loadbalancer.ID, "VIP": loadbalancer.VipAddress}).Info("deleting floating IPs associated with the load balancer VIP port")
 
-		if _, err = c.osClient.EnsureFloatingIP(true, loadbalancer.VipPortID, "", "", ""); err != nil {
+		if _, err = c.osClient.EnsureFloatingIP(ctx, true, loadbalancer.VipPortID, "", "", ""); err != nil {
 			return fmt.Errorf("failed to delete floating IP: %v", err)
 		}
 
@@ -623,7 +620,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ing.Namespace, ing.Name)}
 		tagString := strings.Join(sgTags, ",")
 		opts := groups.ListOpts{Tags: tagString}
-		sgs, err := c.osClient.GetSecurityGroups(opts)
+		sgs, err := c.osClient.GetSecurityGroups(ctx, opts)
 		if err != nil {
 			return fmt.Errorf("failed to get security groups for ingress %s: %v", key, err)
 		}
@@ -634,10 +631,10 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		}
 
 		for _, sg := range sgs {
-			if err = c.osClient.EnsurePortSecurityGroup(true, sg.ID, nodes); err != nil {
+			if err = c.osClient.EnsurePortSecurityGroup(ctx, true, sg.ID, nodes); err != nil {
 				return fmt.Errorf("failed to operate on the port security groups for ingress %s: %v", key, err)
 			}
-			if _, err = c.osClient.EnsureSecurityGroup(true, "", "", sgTags); err != nil {
+			if _, err = c.osClient.EnsureSecurityGroup(ctx, true, "", "", sgTags); err != nil {
 				return fmt.Errorf("failed to delete the security groups for ingress %s: %v", key, err)
 			}
 		}
@@ -645,7 +642,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Info("security group deleted")
 	}
 
-	err = openstackutil.DeleteLoadbalancer(c.osClient.Octavia, loadbalancer.ID, true)
+	err = openstackutil.DeleteLoadbalancer(ctx, c.osClient.Octavia, loadbalancer.ID, true)
 	if err != nil {
 		logger.WithFields(log.Fields{"lbID": loadbalancer.ID}).Infof("loadbalancer delete failed: %v", err)
 	} else {
@@ -655,7 +652,7 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 	// Delete Barbican secrets
 	if c.osClient.Barbican != nil && ing.Spec.TLS != nil {
 		nameFilter := fmt.Sprintf("kube_ingress_%s_%s_%s", c.config.ClusterName, ing.Namespace, ing.Name)
-		if err := openstackutil.DeleteSecrets(c.osClient.Barbican, nameFilter); err != nil {
+		if err := openstackutil.DeleteSecrets(ctx, c.osClient.Barbican, nameFilter); err != nil {
 			return fmt.Errorf("failed to remove Barbican secrets: %v", err)
 		}
 
@@ -665,8 +662,8 @@ func (c *Controller) deleteIngress(ing *nwv1.Ingress) error {
 	return err
 }
 
-func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretName string) (string, error) {
-	secret, err := c.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, apimetav1.GetOptions{})
+func (c *Controller) toBarbicanSecret(ctx context.Context, name string, namespace string, toSecretName string) (string, error) {
+	secret, err := c.kubeClient.CoreV1().Secrets(namespace).Get(ctx, name, apimetav1.GetOptions{})
 	if err != nil {
 		// TODO(lingxiankong): Creating secret on the fly not supported yet.
 		return "", err
@@ -698,16 +695,16 @@ func (c *Controller) toBarbicanSecret(name string, namespace string, toSecretNam
 		caCerts = append(caCerts, cb[1:]...)
 	}
 
-	pfxData, err := pkcs12.Encode(rand.Reader, pk, cb[0], caCerts, "")
+	pfxData, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(pk, cb[0], caCerts, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to create PKCS#12 bundle: %v", err)
 	}
 	encoded := base64.StdEncoding.EncodeToString(pfxData)
 
-	return openstackutil.EnsureSecret(c.osClient.Barbican, toSecretName, "application/octet-stream", encoded)
+	return openstackutil.EnsureSecret(ctx, c.osClient.Barbican, toSecretName, "application/octet-stream", encoded)
 }
 
-func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
+func (c *Controller) ensureIngress(ctx context.Context, ing *nwv1.Ingress) error {
 	ingName := ing.ObjectMeta.Name
 	ingNamespace := ing.ObjectMeta.Namespace
 	clusterName := c.config.ClusterName
@@ -719,7 +716,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 		return fmt.Errorf("TLS Ingress not supported because of Key Manager service unavailable")
 	}
 
-	lb, err := c.osClient.EnsureLoadBalancer(resName, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName, c.config.Octavia.FlavorID)
+	lb, err := c.osClient.EnsureLoadBalancer(ctx, resName, c.config.Octavia.SubnetID, ingNamespace, ingName, clusterName, c.config.Octavia.FlavorID)
 	if err != nil {
 		return err
 	}
@@ -739,7 +736,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 
 		sgDescription := fmt.Sprintf("Security group created for Ingress %s from cluster %s", ingfullName, clusterName)
 		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ingNamespace, ingName)}
-		sgID, err = c.osClient.EnsureSecurityGroup(false, resName, sgDescription, sgTags)
+		sgID, err = c.osClient.EnsureSecurityGroup(ctx, false, resName, sgDescription, sgTags)
 		if err != nil {
 			return fmt.Errorf("failed to prepare the security group for the ingress %s: %v", ingfullName, err)
 		}
@@ -751,7 +748,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	var secretRefs []string
 	for _, tls := range ing.Spec.TLS {
 		secretName := fmt.Sprintf(BarbicanSecretNameTemplate, clusterName, ingNamespace, ingName, tls.SecretName)
-		secretRef, err := c.toBarbicanSecret(tls.SecretName, ingNamespace, secretName)
+		secretRef, err := c.toBarbicanSecret(ctx, tls.SecretName, ingNamespace, secretName)
 		if err != nil {
 			return fmt.Errorf("failed to create Barbican secret: %v", err)
 		}
@@ -773,7 +770,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	timeoutTCPInspect := maybeGetIntFromIngressAnnotation(ing, IngressAnnotationTimeoutTCPInspect)
 
 	listenerAllowedCIDRs := strings.Split(sourceRanges, ",")
-	listener, err := c.osClient.EnsureListener(resName, lb.ID, secretRefs, listenerAllowedCIDRs, timeoutClientData, timeoutMemberData, timeoutTCPInspect, timeoutMemberConnect)
+	listener, err := c.osClient.EnsureListener(ctx, resName, lb.ID, secretRefs, listenerAllowedCIDRs, timeoutClientData, timeoutMemberData, timeoutTCPInspect, timeoutMemberConnect)
 	if err != nil {
 		return err
 	}
@@ -808,12 +805,12 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	var newPolicies []openstack.IngPolicy
 	var oldPolicies []openstack.ExistingPolicy
 
-	existingPolicies, err := openstackutil.GetL7policies(c.osClient.Octavia, listener.ID)
+	existingPolicies, err := openstackutil.GetL7policies(ctx, c.osClient.Octavia, listener.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get l7 policies for listener %s", listener.ID)
 	}
 	for _, policy := range existingPolicies {
-		rules, err := openstackutil.GetL7Rules(c.osClient.Octavia, policy.ID)
+		rules, err := openstackutil.GetL7Rules(ctx, c.osClient.Octavia, policy.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get l7 rules for policy %s", policy.ID)
 		}
@@ -823,7 +820,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 		})
 	}
 
-	existingPools, err := openstackutil.GetPools(c.osClient.Octavia, lb.ID)
+	existingPools, err := openstackutil.GetPools(ctx, c.osClient.Octavia, lb.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get pools from load balancer %s, error: %v", lb.ID, err)
 	}
@@ -923,21 +920,21 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 
 	// Reconcile octavia resources.
 	rt := openstack.NewResourceTracker(ingfullName, c.osClient.Octavia, lb.ID, listener.ID, newPools, newPolicies, existingPools, oldPolicies)
-	if err := rt.CreateResources(); err != nil {
+	if err := rt.CreateResources(ctx); err != nil {
 		return err
 	}
-	if err := rt.CleanupResources(); err != nil {
+	if err := rt.CleanupResources(ctx); err != nil {
 		return err
 	}
 
 	if c.config.Octavia.ManageSecurityGroups {
 		logger.WithFields(log.Fields{"sgID": sgID}).Info("ensuring security group rules")
 
-		if err := c.osClient.EnsureSecurityGroupRules(sgID, c.subnetCIDR, nodePorts); err != nil {
+		if err := c.osClient.EnsureSecurityGroupRules(ctx, sgID, c.subnetCIDR, nodePorts); err != nil {
 			return fmt.Errorf("failed to ensure security group rules for Ingress %s: %v", ingName, err)
 		}
 
-		if err := c.osClient.EnsurePortSecurityGroup(false, sgID, nodeObjs); err != nil {
+		if err := c.osClient.EnsurePortSecurityGroup(ctx, false, sgID, nodeObjs); err != nil {
 			return fmt.Errorf("failed to operate port security group for Ingress %s: %v", ingName, err)
 		}
 
@@ -966,7 +963,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 		} else {
 			logger.Info("creating new floating IP")
 		}
-		address, err = c.osClient.EnsureFloatingIP(false, lb.VipPortID, floatingIPSetting, c.config.Octavia.FloatingIPNetwork, description)
+		address, err = c.osClient.EnsureFloatingIP(ctx, false, lb.VipPortID, floatingIPSetting, c.config.Octavia.FloatingIPNetwork, description)
 		if err != nil {
 			return fmt.Errorf("failed to use provided floating IP %s : %v", floatingIPSetting, err)
 		}
@@ -974,7 +971,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	}
 
 	// Update ingress status
-	newIng, err := c.updateIngressStatus(ing, address)
+	newIng, err := c.updateIngressStatus(ctx, ing, address)
 	if err != nil {
 		return err
 	}
@@ -982,7 +979,7 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 
 	// Add ingress resource version to the load balancer description
 	newDes := fmt.Sprintf("Kubernetes Ingress %s in namespace %s from cluster %s, version: %s", ingName, ingNamespace, clusterName, newIng.ResourceVersion)
-	if err = c.osClient.UpdateLoadBalancerDescription(lb.ID, newDes); err != nil {
+	if err = c.osClient.UpdateLoadBalancerDescription(ctx, lb.ID, newDes); err != nil {
 		return err
 	}
 
@@ -991,13 +988,13 @@ func (c *Controller) ensureIngress(ing *nwv1.Ingress) error {
 	return nil
 }
 
-func (c *Controller) updateIngressStatus(ing *nwv1.Ingress, vip string) (*nwv1.Ingress, error) {
+func (c *Controller) updateIngressStatus(ctx context.Context, ing *nwv1.Ingress, vip string) (*nwv1.Ingress, error) {
 	newState := new(nwv1.IngressLoadBalancerStatus)
 	newState.Ingress = []nwv1.IngressLoadBalancerIngress{{IP: vip}}
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	newObj, err := c.kubeClient.NetworkingV1().Ingresses(newIng.Namespace).UpdateStatus(context.TODO(), newIng, apimetav1.UpdateOptions{})
+	newObj, err := c.kubeClient.NetworkingV1().Ingresses(newIng.Namespace).UpdateStatus(ctx, newIng, apimetav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}

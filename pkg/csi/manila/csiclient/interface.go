@@ -38,7 +38,7 @@ type Node interface {
 type Identity interface {
 	GetPluginInfo(ctx context.Context) (*csi.GetPluginInfoResponse, error)
 	Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error)
-	ProbeForever(conn *grpc.ClientConn, singleProbeTimeout time.Duration) error
+	ProbeForever(ctx context.Context, conn *grpc.ClientConn, singleProbeTimeout time.Duration) error
 }
 
 type Builder interface {

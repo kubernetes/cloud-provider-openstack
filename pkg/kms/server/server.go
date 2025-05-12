@@ -22,7 +22,7 @@ const (
 )
 
 type BarbicanService interface {
-	GetSecret(keyID string) ([]byte, error)
+	GetSecret(ctx context.Context, keyID string) ([]byte, error)
 }
 
 // KMSserver struct
@@ -116,7 +116,7 @@ func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.De
 	klog.V(4).Infof("Decrypt Request by Kubernetes api server")
 
 	// TODO: consider using req.KeyId
-	key, err := s.barbican.GetSecret(s.cfg.KeyManager.KeyID)
+	key, err := s.barbican.GetSecret(ctx, s.cfg.KeyManager.KeyID)
 	if err != nil {
 		klog.V(4).Infof("Failed to get key %v: ", err)
 		return nil, err
@@ -135,7 +135,7 @@ func (s *KMSserver) Decrypt(ctx context.Context, req *pb.DecryptRequest) (*pb.De
 func (s *KMSserver) Encrypt(ctx context.Context, req *pb.EncryptRequest) (*pb.EncryptResponse, error) {
 	klog.V(4).Infof("Encrypt Request by Kubernetes api server")
 
-	key, err := s.barbican.GetSecret(s.cfg.KeyManager.KeyID)
+	key, err := s.barbican.GetSecret(ctx, s.cfg.KeyManager.KeyID)
 
 	if err != nil {
 		klog.V(4).Infof("Failed to get key %v: ", err)

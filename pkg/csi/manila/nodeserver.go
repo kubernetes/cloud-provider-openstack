@@ -41,6 +41,7 @@ type nodeServer struct {
 	// The result of NodeStageVolume is stashed away for NodePublishVolume(s) that will follow
 	nodeStageCache    map[volumeID]stageCacheEntry
 	nodeStageCacheMtx sync.RWMutex
+	csi.UnimplementedNodeServer
 }
 
 type stageCacheEntry struct {
@@ -49,10 +50,10 @@ type stageCacheEntry struct {
 	publishSecret map[string]string
 }
 
-func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *client.AuthOpts) (
+func (ns *nodeServer) buildVolumeContext(ctx context.Context, volID volumeID, shareOpts *options.NodeVolumeContext, osOpts *client.AuthOpts) (
 	volumeContext map[string]string, accessRight *shares.AccessRight, err error,
 ) {
-	manilaClient, err := ns.d.manilaClientBuilder.New(osOpts)
+	manilaClient, err := ns.d.manilaClientBuilder.New(ctx, osOpts)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
 	}
@@ -62,7 +63,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	var share *shares.Share
 
 	if shareOpts.ShareID != "" {
-		share, err = manilaClient.GetShareByID(shareOpts.ShareID)
+		share, err = manilaClient.GetShareByID(ctx, shareOpts.ShareID)
 		if err != nil {
 			errCode := codes.Internal
 			if clouderrors.IsNotFound(err) {
@@ -72,7 +73,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 			return nil, nil, status.Errorf(errCode, "failed to retrieve volume with share ID %s: %v", shareOpts.ShareID, err)
 		}
 	} else {
-		share, err = manilaClient.GetShareByName(shareOpts.ShareName)
+		share, err = manilaClient.GetShareByName(ctx, shareOpts.ShareName)
 		if err != nil {
 			errCode := codes.Internal
 			if clouderrors.IsNotFound(err) {
@@ -102,7 +103,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 
 	// Get the access right for this share
 
-	accessRights, err := manilaClient.GetAccessRights(share.ID)
+	accessRights, err := manilaClient.GetAccessRights(ctx, share.ID)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "failed to list access rights for volume %s: %v", volID, err)
 	}
@@ -122,7 +123,7 @@ func (ns *nodeServer) buildVolumeContext(volID volumeID, shareOpts *options.Node
 	// Retrieve list of all export locations for this share.
 	// Share adapter will try to choose the correct one for mounting.
 
-	availableExportLocations, err := manilaClient.GetExportLocations(share.ID)
+	availableExportLocations, err := manilaClient.GetExportLocations(ctx, share.ID)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "failed to list export locations for volume %s: %v", volID, err)
 	}
@@ -201,13 +202,13 @@ func (ns *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 			volumeCtx, secret = cacheEntry.volumeContext, cacheEntry.publishSecret
 		} else {
 			klog.Warningf("STAGE_UNSTAGE_VOLUME capability is enabled, but node stage cache doesn't contain an entry for %s - this is most likely a bug! Rebuilding staging data anyway...", volID)
-			volumeCtx, accessRight, err = ns.buildVolumeContext(volID, shareOpts, osOpts)
+			volumeCtx, accessRight, err = ns.buildVolumeContext(ctx, volID, shareOpts, osOpts)
 			if err == nil {
 				secret, err = buildNodePublishSecret(accessRight, getShareAdapter(ns.d.shareProto), volID)
 			}
 		}
 	} else {
-		volumeCtx, accessRight, err = ns.buildVolumeContext(volID, shareOpts, osOpts)
+		volumeCtx, accessRight, err = ns.buildVolumeContext(ctx, volID, shareOpts, osOpts)
 		if err == nil {
 			secret, err = buildNodePublishSecret(accessRight, getShareAdapter(ns.d.shareProto), volID)
 		}
@@ -274,7 +275,7 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	if cacheEntry, ok := ns.nodeStageCache[volID]; ok {
 		volumeCtx, stageSecret = cacheEntry.volumeContext, cacheEntry.stageSecret
 	} else {
-		volumeCtx, accessRight, err = ns.buildVolumeContext(volID, shareOpts, osOpts)
+		volumeCtx, accessRight, err = ns.buildVolumeContext(ctx, volID, shareOpts, osOpts)
 
 		if err == nil {
 			stageSecret, err = buildNodeStageSecret(accessRight, getShareAdapter(ns.d.shareProto), volID)
