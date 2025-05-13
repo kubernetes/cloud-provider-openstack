@@ -87,6 +87,9 @@ spec:
               mountPath: /runtimeconfig
               readOnly: true
             {{- end }}
+            {{- with .Values.nodeplugin.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           resources:
 {{ toYaml $.Values.nodeplugin.nodeplugin.resources | indent 12 }}
         {{- end }}
@@ -109,6 +112,9 @@ spec:
           configMap:
             name: manila-csi-runtimeconf-cm
         {{- end }}
+        {{- end }}
+        {{- with .Values.nodeplugin.volumes }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
     {{- if .Values.nodeplugin.affinity }}
       affinity: {{ toYaml .Values.nodeplugin.affinity | nindent 8 }}
