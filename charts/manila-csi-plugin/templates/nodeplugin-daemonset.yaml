@@ -87,7 +87,7 @@ spec:
               mountPath: /runtimeconfig
               readOnly: true
             {{- end }}
-            {{- with .Values.nodeplugin.volumeMounts }}
+            {{- with $.Values.nodeplugin.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           resources:
