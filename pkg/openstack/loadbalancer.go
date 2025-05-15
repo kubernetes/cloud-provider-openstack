@@ -1699,7 +1699,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBRename, msg, loadbalancer.ID, loadbalancer.Name, lbName)
 			loadbalancer, err = renameLoadBalancer(ctx, lbaas.lb, loadbalancer, lbName, clusterName)
 			if err != nil {
-				return nil, fmt.Errorf("failed to update load balancer %s with an updated name", svcConf.lbID)
+				return nil, fmt.Errorf("failed to update load balancer %s with an updated name: %w", svcConf.lbID, err)
 			}
 		}
 
