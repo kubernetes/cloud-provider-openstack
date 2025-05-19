@@ -76,6 +76,8 @@ nodeplugin:
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
   podSecurityContext: {}
+  volumes: []
+  volumeMounts: []
 
 # StatefulSet deployment
 controllerplugin:
@@ -121,6 +123,17 @@ controllerplugin:
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
   podSecurityContext: {}
+  volumes: []
+    # - name: cacert
+    #   hostPath:
+    #     path: /etc/cacert
+  volumeMounts: []
+    # - name: cacert
+    #   mountPath: /etc/cacert
+    #   readOnly: true
+    # - name: cloud-config
+    #   mountPath: /etc/kubernetes
+    #   readOnly: true
 
 # Log verbosity level.
 # See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md

@@ -132,6 +132,9 @@ spec:
               mountPath: /runtimeconfig
               readOnly: true
             {{- end }}
+            {{- with $.Values.controllerplugin.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           resources:
 {{ toYaml $.Values.controllerplugin.nodeplugin.resources | indent 12 }}
         {{- end }}
@@ -155,6 +158,9 @@ spec:
           hostPath:
             path: /var/lib/kubelet/pods
             type: Directory
+        {{- with .Values.controllerplugin.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     {{- if .Values.controllerplugin.affinity }}
       affinity: {{ toYaml .Values.controllerplugin.affinity | nindent 8 }}
     {{- end }}
