@@ -30,6 +30,14 @@ csi:
     resources: {}
     extraArgs: {}
     extraEnv: []
+    # Secret permission is optional.
+    # Enable it if your driver needs secret.
+    # For example, `csi.storage.k8s.io/snapshotter-secret-name` is set in VolumeSnapshotClass.
+    # See https://kubernetes-csi.github.io/docs/secrets-and-credentials.html for more details.
+    extraRbac: {}
+    #  - apiGroups: [""]
+    #    resources: ["secrets"]
+    #    verbs: ["get", "list"]
   resizer:
     image:
       repository: registry.k8s.io/sig-storage/csi-resizer
@@ -38,6 +46,12 @@ csi:
     resources: {}
     extraArgs: {}
     extraEnv: []
+    # The following rule should be uncommented for plugins that require secrets
+    # for provisioning.
+    extraRbac: {}
+    # - apiGroups: [""]
+    #   resources: ["secrets"]
+    #   verbs: ["get", "list", "watch"]
   livenessprobe:
     image:
       repository: registry.k8s.io/sig-storage/livenessprobe
@@ -92,6 +106,7 @@ csi:
       tolerations:
         - operator: Exists
       kubeletDir: /var/lib/kubelet
+      extraArgs: {}
       # Allow for specifying internal IP addresses for multiple hostnames
       # hostAliases:
       #   - ip: "10.0.0.1"
@@ -130,6 +145,7 @@ csi:
       affinity: {}
       nodeSelector: {}
       tolerations: []
+      extraArgs: {}
       # Allow for specifying internal IP addresses for multiple hostnames
       # hostAliases:
       #   - ip: "10.0.0.1"

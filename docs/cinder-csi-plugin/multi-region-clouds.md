@@ -318,3 +318,39 @@ spec:
       ...
 ```
 
+### When Using the cinder-csi-plugin Helm Chart
+
+When running the `cinder-csi-plugin` in a multi-region setup, you need to specify different `extraArgs` for the `cinder-csi-plugin` containers in both the Deployment and the DaemonSet.
+
+When using the Helm chart, set the different `extraArgs` using `plugin.nodePlugin.extraArgs` and `plugin.controllerPlugin.extraArgs`.
+
+If you set the `extraArgs` in `plugin.extraArgs`, the same arguments will be applied to both the Deployment and the DaemonSet `cinder-csi-plugin` containers.
+
+You will still need to manually create additional DaemonSets for your extra regions.
+
+```yaml
+nodePlugin:
+  extraArgs: |-
+    - --cloud-name=region-one
+    - --additional-topology
+    - topology.kubernetes.io/region=region-one
+controllerPlugin:
+  extraArgs: |-
+    - --cloud-name=region-one
+    - --cloud-name=region-two
+```
+
+In addition, if you use the `resizer` and the `snapshotter`, you will need them to be able to read the secrets you defined in the storage class' annotations in order to determine which cloud to address. You will need to add some `extraRbac` in YAML format, like this:
+
+```yaml
+snapshotter:
+  extraRbac:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list"]
+resizer:
+  extraRbac:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list", "watch"]
+```
