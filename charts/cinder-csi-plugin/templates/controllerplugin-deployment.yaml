@@ -192,7 +192,7 @@ spec:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
-              value: /etc/kubernetes/{{ .Values.secret.filename }}
+              value: /etc/config/{{ .Values.secret.filename }}
             - name: CLUSTER_NAME
               value: "{{ .Values.clusterID }}"
             {{- if .Values.csi.plugin.extraEnv }}
@@ -233,7 +233,7 @@ spec:
         {{- else if .Values.secret.hostMount }}
         - name: cloud-config
           hostPath:
-            path: /etc/kubernetes
+            path: /etc/config
         {{- end }}
         {{- with .Values.csi.plugin.volumes }}
           {{- toYaml . | nindent 8 }}
