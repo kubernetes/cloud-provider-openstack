@@ -86,7 +86,7 @@ csi:
         mountPath: /etc/cacert
         readOnly: true
       - name: cloud-config
-        mountPath: /etc/kubernetes
+        mountPath: /etc/config
         readOnly: true
     nodePlugin:
       dnsPolicy: ClusterFirstWithHostNet
