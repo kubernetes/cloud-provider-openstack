@@ -103,6 +103,9 @@ vet: check
 cover: work
 	go test -tags=unit $(shell go list ./...) -cover
 
+verify-security: work
+	go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
 docs:
 	@echo "$@ not yet implemented"
 
