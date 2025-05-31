@@ -19,6 +19,7 @@ package validator
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 // Validator validates input data and stores it in the output struct.
@@ -113,10 +114,24 @@ func (v *Validator) Populate(data map[string]string, out interface{}) error {
 				return fmt.Errorf("parameter '%s' cannot be empty", fName)
 			}
 
-			// The value is present, populate the field and continue with the next one
+			field := vOut.Field(int(fIdx))
 
-			vOut.Field(int(fIdx)).SetString(value)
-			continue
+			switch field.Kind() {
+			case reflect.Bool:
+				boolValue, err := strconv.ParseBool(value)
+				if err != nil {
+					return fmt.Errorf("invalid boolean value for parameter '%s': %v", fName, err)
+				}
+				field.SetBool(boolValue)
+				continue
+
+			case reflect.String:
+				field.SetString(value)
+				continue
+
+			default:
+				return fmt.Errorf("unsupported field type for parameter '%s'", fName)
+			}
 		}
 
 		// Value not present, determine whether this field is required

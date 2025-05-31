@@ -37,7 +37,7 @@ import (
 )
 
 type AuthOpts struct {
-	AuthURL          string                   `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" dependsOn:"os-password|os-trustID|os-applicationCredentialSecret|os-clientCertPath"`
+	AuthURL          string                   `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" value:"optional" dependsOn:"os-password|os-trustID|os-applicationCredentialSecret|os-clientCertPath"`
 	UserID           string                   `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
 	Username         string                   `name:"os-userName" value:"optional" dependsOn:"os-password"`
 	Password         string                   `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
@@ -52,7 +52,7 @@ type AuthOpts struct {
 	TenantDomainName string                   `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
 	UserDomainID     string                   `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
 	UserDomainName   string                   `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
-	Region           string                   `name:"os-region"`
+	Region           string                   `name:"os-region" value:"optional" dependsOn:"os-password|os-applicationCredentialSecret|os-trusteePassword"`
 	EndpointType     gophercloud.Availability `gcfg:"os-endpoint-type" mapstructure:"os-endpoint-type" name:"os-endpointType" value:"optional"`
 	CAFile           string                   `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 	TLSInsecure      string                   `gcfg:"tls-insecure" mapstructure:"tls-insecure" name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
