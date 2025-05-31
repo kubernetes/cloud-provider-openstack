@@ -3,7 +3,6 @@ RECLONE=False
 HOST_IP={{ local_ip_address }}
 DEST=/opt/stack
 DATA_DIR=${DEST}/data
-USE_PYTHON3=True
 LOGFILE=$DEST/logs/stack.sh.log
 VERBOSE=True
 LOG_COLOR=False
@@ -39,7 +38,9 @@ ENABLE_SYSCTL_NET_TUNING=true
 # increase in swap performance by reducing the amount of data
 # written to disk. the overall speedup is porportional to the
 # compression ratio and the speed of the swap device.
-ENABLE_ZSWAP=true
+# FIXME(stephenfin): Set this to True. It was failing because the
+# /sys/module/zswap/parameters/zpool file is missing.
+ENABLE_ZSWAP=false
 
 {% if "nova" in enable_services %}
 # Nova
