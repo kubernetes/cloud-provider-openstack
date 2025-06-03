@@ -189,7 +189,7 @@ func CreateOpenStackProvider(cloudName string) (IOpenStack, error) {
 
 	provider, err := client.NewOpenStackClient(global, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create OpenStack client: %w", err)
 	}
 
 	epOpts := gophercloud.EndpointOpts{
@@ -200,13 +200,13 @@ func CreateOpenStackProvider(cloudName string) (IOpenStack, error) {
 	// Init Nova ServiceClient
 	computeclient, err := openstack.NewComputeV2(provider, epOpts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create Nova client: %w", err)
 	}
 
 	// Init Cinder ServiceClient
 	blockstorageclient, err := openstack.NewBlockStorageV3(provider, epOpts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create Cinder client: %w", err)
 	}
 
 	// Init OpenStack
