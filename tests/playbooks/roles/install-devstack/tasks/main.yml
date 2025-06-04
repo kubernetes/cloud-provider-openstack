@@ -48,6 +48,7 @@
           - python3-pip
           - build-essential
           - python3-dev
+          - python3-venv
           - python3-setuptools
           - libffi-dev
           - libxslt1-dev
@@ -58,6 +59,27 @@
           - unzip
           - jq
           - net-tools
+          - ca-certificates
+          - python3-openstackclient
+          - python3-cinderclient
+          - python3-glanceclient
+          - python3-keystoneclient
+          - python3-neutronclient
+          - python3-novaclient
+          - python3-swiftclient
+          - python3-heatclient
+          - python3-octaviaclient
+          - python3-manilaclient
+          - python3-barbicanclient
+
+    - name: Verify OpenStack CLI installation
+      ansible.builtin.command: openstack --version
+      register: openstack_version
+      changed_when: false
+
+    - name: Display OpenStack CLI version
+      ansible.builtin.debug:
+        msg: "OpenStack CLI installed successfully: {{ openstack_version.stdout }}"
 
     - name: Git checkout devstack
       git:

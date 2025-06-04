@@ -190,12 +190,12 @@
         --ginkgo.noColor \
         --ginkgo.progress \
         --ginkgo.v \
-        --ginkgo.timeout=24h \
+        --ginkgo.timeout=1h30m \
         -test.timeout=0 \
         -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
   ignore_errors: true
-  async: 5400 # wait 1h30m then fail and fetch the logs
+  async: 6300 # wait 1h45m (i.e. 15 mins longer than the ginkgo timeout) then fail and fetch the logs
   poll: 15
 
 - name: Collect pod logs for debug purpose
