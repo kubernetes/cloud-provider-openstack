@@ -2,9 +2,9 @@
 
 ### Multi cluster Configuration file
 
-Create a configuration file with a subsection per openstack cluster to manage (pay attention to enable ignore-volume-az in BlockStorage section).
+Create a configuration file with a subsection per openstack cluster to manage.
 
-Example of configuration with 3 regions (The default is backward compatible with mono cluster configuration but not mandatory).
+Example of configuration with 3 zones (The default is backward compatible with mono cluster configuration but not mandatory).
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -16,63 +16,36 @@ stringData:
   cloud.conf: |-
     [BlockStorage]
     bs-version=v3
-    ignore-volume-az=True
+    ignore-volume-az=false
 
     [Global]
-    auth-url="https://auth.cloud.openstackcluster.region-default.local/v3"
-    username="region-default-username"
-    password="region-default-password"
+    auth-url="https://auth.cloud.openstackcluster.zone-default.local/v3"
+    username="zone-default-username"
+    password="zone-default-password"
     region="default"
-    tenant-id="region-default-tenant-id"
-    tenant-name="region-default-tenant-name"
+    tenant-id="zone-default-tenant-id"
+    tenant-name="zone-default-tenant-name"
     domain-name="Default"
 
-    [Global "region-one"]
-    auth-url="https://auth.cloud.openstackcluster.region-one.local/v3"
-    username="region-one-username"
-    password="region-one-password"
+    [Global "zone-one"]
+    auth-url="https://auth.cloud.openstackcluster.zone-one.local/v3"
+    username="zone-one-username"
+    password="zone-one-password"
     region="one"
-    tenant-id="region-one-tenant-id"
-    tenant-name="region-one-tenant-name"
+    tenant-id="zone-one-tenant-id"
+    tenant-name="zone-one-tenant-name"
     domain-name="Default"
 
-    [Global "region-two"]
-    auth-url="https://auth.cloud.openstackcluster.region-two.local/v3"
-    username="region-two-username"
-    password="region-two-password"
+    [Global "zone-two"]
+    auth-url="https://auth.cloud.openstackcluster.zone-two.local/v3"
+    username="zone-two-username"
+    password="zone-two-password"
     region="two"
-    tenant-id="region-two-tenant-id"
-    tenant-name="region-two-tenant-name"
+    tenant-id="zone-two-tenant-id"
+    tenant-name="zone-two-tenant-name"
     domain-name="Default"
 ```
 
-
-
-### Create region/cloud secrets
-
-Create a secret per openstack cluster which contains a key `cloud` and as value the subsection's name of corresponding openstack cluster in configuration file.
-
-These secrets are referenced in storageClass definitions to identify openstack cluster associated to the storageClass.
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: openstack-config-region-one
-  namespace: kube-system
-type: Opaque
-stringData:
-  cloud: region-one
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: openstack-config-region-two
-  namespace: kube-system
-type: Opaque
-stringData:
-  cloud: region-two
-```
 
 ### Create storage Class for dedicated cluster
 
@@ -82,55 +55,17 @@ kind: StorageClass
 metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-  name: sc-region-one
+  name: sc-multi-zones
 allowVolumeExpansion: true
 allowedTopologies:
 - matchLabelExpressions:
   - key: topology.cinder.csi.openstack.org/zone
     values:
     - nova
-  - key: topology.kubernetes.io/region
+  - key: topology.kubernetes.io/zone
     values:
-    - region-one
-parameters:
-  csi.storage.k8s.io/controller-publish-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/controller-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-publish-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/node-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-stage-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
-  csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
-  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
-provisioner: cinder.csi.openstack.org
-reclaimPolicy: Delete
-volumeBindingMode: Immediate
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: sc-region-two
-allowVolumeExpansion: true
-allowedTopologies:
-- matchLabelExpressions:
-  - key: topology.cinder.csi.openstack.org/zone
-    values:
-    - nova
-  - key: topology.kubernetes.io/region
-    values:
-    - region-two
-parameters:
-  csi.storage.k8s.io/controller-publish-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/controller-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-publish-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/node-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-stage-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
-  csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
-  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
+    - zone-one
+    - zone-two
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
@@ -138,27 +73,27 @@ volumeBindingMode: Immediate
 
 ### Create a csi-cinder-nodeplugin daemonset per cluster openstack
 
-Daemonsets should deploy pods on nodes from proper openstack context. We suppose that the node have a label `topology.kubernetes.io/region` with the openstack cluster name as value (you could manage this with kubespray, manually, whatever, it should be great to implement this in openstack cloud controller manager).
+Daemonsets should deploy pods on nodes from proper openstack context. We suppose that the node have a label `topology.kubernetes.io/zone` with the openstack cluster name as value (you could manage this with kubespray, manually, whatever, it should be great to implement this in openstack cloud controller manager).
 
 Do as follows:
 - Use nodeSelector to match proper nodes labels
-- Add cli argument `--additional-topology topology.kubernetes.io/region=region-one`, which should match node labels, to container cinder-csi-plugin
-- Add cli argument `--cloud-name="region-one"`, which should match configuration file subsection name, to container cinder-csi-plugin.
+- Add cli argument `--additional-topology topology.kubernetes.io/zone=zone-one`, which should match node labels, to container cinder-csi-plugin
+- Add cli argument `--cloud-name="zone-one"`, which should match configuration file subsection name, to container cinder-csi-plugin.
 
 ```yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: csi-cinder-nodeplugin-region-one
+  name: csi-cinder-nodeplugin-zone-one
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      app: csi-cinder-nodeplugin-region-one
+      app: csi-cinder-nodeplugin-zone-one
   template:
     metadata:
       labels:
-        app: csi-cinder-nodeplugin-region-one
+        app: csi-cinder-nodeplugin-zone-one
     spec:
       containers:
       - name: node-driver-registrar
@@ -171,9 +106,9 @@ spec:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
-        - --cloud-name="region-one"
+        - --cloud-name="zone-one"
         - --additional-topology
-        - topology.kubernetes.io/region=region-one
+        - topology.kubernetes.io/zone=zone-one
         env:
         - name: CSI_ENDPOINT
           value: unix://csi/csi.sock
@@ -187,7 +122,7 @@ spec:
           readOnly: true
         ...
       nodeSelector:
-        topology.kubernetes.io/region: region-one
+        topology.kubernetes.io/zone: zone-one
       volumes:
       ...
       - name: secret-cinderplugin
@@ -199,16 +134,16 @@ spec:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: csi-cinder-nodeplugin-region-two
+  name: csi-cinder-nodeplugin-zone-two
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      app: csi-cinder-nodeplugin-region-two
+      app: csi-cinder-nodeplugin-zone-two
   template:
     metadata:
       labels:
-        app: csi-cinder-nodeplugin-region-two
+        app: csi-cinder-nodeplugin-zone-two
     spec:
       containers:
       - name: node-driver-registrar
@@ -221,9 +156,9 @@ spec:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
-        - --cloud-name="region-two"
+        - --cloud-name="zone-two"
         - --additional-topology
-        - topology.kubernetes.io/region=region-two
+        - topology.kubernetes.io/zone=zone-two
         env:
         - name: CSI_ENDPOINT
           value: unix://csi/csi.sock
@@ -237,7 +172,7 @@ spec:
           readOnly: true
         ...
       nodeSelector:
-        topology.kubernetes.io/region: region-two
+        topology.kubernetes.io/zone: zone-two
       volumes:
       ...
       - name: secret-cinderplugin
@@ -251,7 +186,7 @@ spec:
 
 Enable Topology feature-gate on container csi-provisioner of csi-cinder-controllerplugin deployment by adding cli argument ``--feature-gates="Topology=true"
 
-Add cli argument `--cloud-name="region-one"` for each managed openstack cluster, name should match configuration file subsection name, to container `cinder-csi-plugin`.
+Add cli argument `--cloud-name="zone-one"` for each managed openstack cluster, name should match configuration file subsection name, to container `cinder-csi-plugin`.
 
 
 ```yaml
@@ -288,8 +223,8 @@ spec:
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
         - --cluster=$(CLUSTER_NAME)
-        - --cloud-name="region-one"
-        - --cloud-name="region-two"
+        - --cloud-name="zone-one"
+        - --cloud-name="zone-two"
         env:
         - name: CSI_ENDPOINT
           value: unix://csi/csi.sock
