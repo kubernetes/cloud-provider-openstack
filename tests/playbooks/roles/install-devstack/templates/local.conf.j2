@@ -101,7 +101,6 @@ enable_service o-hk
 enable_service o-da
 enable_service o-api
 
-LIBS_FROM_GIT+=,python-octaviaclient
 DIB_REPOLOCATION_amphora_agent=https://github.com/openstack/octavia.git
 DIB_REPOLOCATION_octavia_lib=https://github.com/openstack/octavia-lib.git
 
@@ -121,8 +120,6 @@ enable_plugin ovn-octavia-provider https://opendev.org/openstack/ovn-octavia-pro
 # Barbican
 enable_plugin barbican ${GIT_BASE}/openstack/barbican.git {{ branch }}
 enable_service barbican-vault
-
-LIBS_FROM_GIT+=,python-barbicanclient
 {% endif %}
 
 {% if "manila" in enable_services %}
