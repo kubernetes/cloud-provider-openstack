@@ -21,6 +21,7 @@ set -o errexit
 
 # This utils are using by
 # go mod k8s.io/mount-utils
+/bin/sh -c true
 /bin/mount -V
 /bin/umount -V
 /sbin/blkid -V
