@@ -16,7 +16,11 @@ limitations under the License.
 
 package validator
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gophercloud/gophercloud/v2"
+)
 
 func TestValueRequired(t *testing.T) {
 	type s1 struct {
@@ -222,5 +226,65 @@ func TestFieldNames(t *testing.T) {
 		if !findElem(v.Fields[i], expected) {
 			t.Error("found unexpected field", v.Fields[i], "; expected fields", expected, "actual fields", v.Fields)
 		}
+	}
+}
+
+func TestBooleanField(t *testing.T) {
+	type s struct {
+		A bool `name:"a"`
+	}
+
+	v := New(&s{})
+
+	// Test with a valid boolean string "true"
+	obj := &s{}
+	err := v.Populate(map[string]string{"a": "true"}, obj)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if obj.A != true {
+		t.Errorf("expected A to be true, got: %v", obj.A)
+	}
+
+	// Test with a valid boolean string "false"
+	obj = &s{}
+	err = v.Populate(map[string]string{"a": "false"}, obj)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if obj.A != false {
+		t.Errorf("expected A to be false, got: %v", obj.A)
+	}
+
+	// Test with a invalid boolean string "foo"
+	obj = &s{}
+	err = v.Populate(map[string]string{"a": "foo"}, obj)
+	if err == nil {
+		t.Errorf("Populate with 'foo': expected an error, but got nil")
+	}
+}
+
+func TestAvailabilityField(t *testing.T) {
+	type s struct {
+		Avail gophercloud.Availability `name:"avail"`
+	}
+
+	v := New(&s{})
+
+	// Test with a valid availability string
+	obj := &s{}
+	err := v.Populate(map[string]string{"avail": "public"}, obj)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if obj.Avail != gophercloud.Availability("public") {
+		t.Errorf("expected Avail to be 'public', got: %v", obj.Avail)
+	}
+
+	// Test with empty value
+	obj = &s{}
+	err = v.Populate(map[string]string{"avail": ""}, obj)
+	if err == nil {
+		t.Errorf("expected error for empty value, got nil")
 	}
 }
