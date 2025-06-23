@@ -23,15 +23,20 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
-var fakeCs *controllerServer
-var fakeCsMultipleClouds *controllerServer
-var osmock *openstack.OpenStackMock
-var osmockRegionX *openstack.OpenStackMock
+var (
+	fakeCs               *controllerServer
+	fakeCsMultipleClouds *controllerServer
+	osmock               *openstack.OpenStackMock
+	osmockRegionX        *openstack.OpenStackMock
+)
 
 // Init Controller Server
 func init() {
@@ -94,7 +99,53 @@ func TestCreateVolume(t *testing.T) {
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 	assert.NotNil(actualRes.Volume.AccessibleTopology)
 	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
+}
 
+// Test CreateVolume fails with quota exceeded error
+func TestCreateVolumeQuotaError(t *testing.T) {
+	errorVolume := "errorVolume"
+
+	// mock OpenStack
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
+	// CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (string, string, int, error)
+	osmock.On("CreateVolume", errorVolume, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", "", properties).Return(&volumes.Volume{}, cpoerrors.ErrQuotaExceeded)
+
+	osmock.On("GetVolumesByName", errorVolume).Return(FakeVolListEmpty, nil)
+	// Init assert
+	assert := assert.New(t)
+
+	// Fake request
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: errorVolume,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: FakeAvailability},
+				},
+			},
+		},
+	}
+
+	// Invoke CreateVolume
+	_, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err == nil {
+		t.Errorf("CreateVolume did not return an error")
+	}
+	statusErr, ok := status.FromError(err)
+	if !ok {
+		t.Errorf("CreateVolume did not return a grpc status as error, got %v", err)
+	}
+
+	// Assert
+	assert.Equal(statusErr.Code(), codes.ResourceExhausted)
 }
 
 // Test CreateVolume with additional param
@@ -146,7 +197,6 @@ func TestCreateVolumeWithParam(t *testing.T) {
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 	assert.NotNil(actualRes.Volume.AccessibleTopology)
 	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
-
 }
 
 func TestCreateVolumeWithExtraMetadata(t *testing.T) {
@@ -192,7 +242,6 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to CreateVolume: %v", err)
 	}
-
 }
 
 func TestCreateVolumeFromSnapshot(t *testing.T) {
@@ -239,7 +288,6 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 
 	assert.Equal(FakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
-
 }
 
 func TestCreateVolumeFromSourceVolume(t *testing.T) {
@@ -286,7 +334,6 @@ func TestCreateVolumeFromSourceVolume(t *testing.T) {
 	assert.NotEqual(0, len(actualRes.Volume.VolumeId), "Volume Id is nil")
 
 	assert.Equal(FakeVolID, actualRes.Volume.ContentSource.GetVolume().VolumeId)
-
 }
 
 // Test CreateVolumeDuplicate
@@ -436,6 +483,7 @@ func genFakeVolumeEntry(fakeVol volumes.Volume) *csi.ListVolumesResponse_Entry {
 		},
 	}
 }
+
 func genFakeVolumeEntries(fakeVolumes []volumes.Volume) []*csi.ListVolumesResponse_Entry {
 	entries := make([]*csi.ListVolumesResponse_Entry, 0, len(fakeVolumes))
 	for _, fakeVol := range fakeVolumes {
@@ -800,7 +848,6 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 
 // Test CreateSnapshot
 func TestCreateSnapshot(t *testing.T) {
-
 	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, map[string]string{cinderCSIClusterIDKey: "cluster"}).Return(&FakeSnapshotRes, nil)
 	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
 	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
@@ -944,7 +991,6 @@ func TestControllerExpandVolume(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
-
 }
 
 func TestValidateVolumeCapabilities(t *testing.T) {
@@ -1000,7 +1046,6 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	}
 
 	actualRes2, err := fakeCs.ValidateVolumeCapabilities(FakeCtx, fakereq2)
-
 	if err != nil {
 		t.Errorf("failed to ValidateVolumeCapabilities: %v", err)
 	}
@@ -1008,5 +1053,4 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	// assert
 	assert.Equal(expectedRes, actualRes)
 	assert.Equal(expectedRes2, actualRes2)
-
 }

@@ -18,11 +18,14 @@ package openstack
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
@@ -71,6 +74,9 @@ func (os *OpenStack) CreateVolume(ctx context.Context, opts *volumes.CreateOpts,
 	opts.Description = volumeDescription
 	vol, err := volumes.Create(ctx, blockstorageClient, opts, schedulerHints).Extract()
 	if mc.ObserveRequest(err) != nil {
+		if gophercloud.ResponseCodeIs(err, http.StatusRequestEntityTooLarge) {
+			return nil, errors.Join(err, cpoerrors.ErrQuotaExceeded)
+		}
 		return nil, err
 	}
 
