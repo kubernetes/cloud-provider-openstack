@@ -39,7 +39,7 @@ require (
 	k8s.io/component-base v0.33.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kms v0.33.1
-	k8s.io/kubernetes v1.33.1
+	k8s.io/kubernetes v1.33.2
 	k8s.io/mount-utils v0.33.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 	software.sslmate.com/src/go-pkcs12 v0.5.0
