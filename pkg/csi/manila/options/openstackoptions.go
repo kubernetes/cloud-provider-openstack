@@ -17,15 +17,44 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
+	"strings"
+
 	"k8s.io/cloud-provider-openstack/pkg/client"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/validator"
+	"k8s.io/cloud-provider-openstack/pkg/openstack"
 )
 
 var (
 	osOptionsValidator = validator.New(&client.AuthOpts{})
+	cloudConfKey       = "cloud.conf"
 )
 
 func NewOpenstackOptions(data map[string]string) (*client.AuthOpts, error) {
+	if cloudConfig, exists := data[cloudConfKey]; exists {
+		return parseCloudConfig(cloudConfig)
+	}
+
+	// Fall back to individual keys format
+	return parseIndividualKeys(data)
+}
+
+// parseCloudConfig parses cloud.conf format from secret data
+func parseCloudConfig(configData string) (*client.AuthOpts, error) {
+	if configData == "" {
+		return nil, fmt.Errorf("cloud config data is empty")
+	}
+
+	cfg, err := openstack.ReadConfig(strings.NewReader(configData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cloud config: %w", err)
+	}
+
+	return &cfg.Global, nil
+}
+
+// parseIndividualKeys parses the original individual secret keys format
+func parseIndividualKeys(data map[string]string) (*client.AuthOpts, error) {
 	opts := &client.AuthOpts{}
 	if err := osOptionsValidator.Populate(data, opts); err != nil {
 		return nil, err

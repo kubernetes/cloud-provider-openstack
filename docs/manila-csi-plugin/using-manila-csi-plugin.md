@@ -80,7 +80,30 @@ _Note that the Node Plugin of CSI Manila doesn't care about the origin of a shar
 
 ### Secrets, authentication
 
-Authentication with OpenStack may be done using either user or trustee credentials.
+Authentication with OpenStack may be done using either user or trustee credentials, and can be configured using two formats:
+
+1. **Individual keys format** - Individual secret keys written in the k8s Secret resource.
+2. **Cloud-config format** - Standard OpenStack configuration format
+
+#### Individual keys format
+
+Individual keys format uses individual secret keys written in the k8s Secret resource.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-manila-secrets
+  namespace: default
+type: Opaque
+stringData:
+  os-authURL: "https://your-keystone-url:5000/v3"
+  os-region: "your-region"
+  os-userName: "your-username"
+  os-password: "your-password"
+  os-projectName: "your-project-name"
+  os-domainName: "your-domain-name"
+```
 
 Mandatory secrets: `os-authURL`, `os-region`.
 
@@ -95,6 +118,36 @@ Mandatory secrets for _trustee authentication:_ `os-trustID`, `os-trusteeID`, `o
 Optionally, a custom certificate may be sourced via `os-certAuthorityPath` (path to a PEM file inside the plugin container). By default, the usual TLS verification is performed. To override this behavior and accept insecure certificates, set `os-TLSInsecure` to `true` (defaults to `false`).
 
 For a client TLS authentication use both `os-clientCertPath` and `os-clientKeyPath` (paths to TLS keypair PEM files inside the plugin container).
+
+#### Cloud-config format
+
+The cloud-config format uses the standard OpenStack `cloud.conf` configuration file format.
+
+Create a secret with a `cloud.conf` key containing the OpenStack configuration:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-manila-secrets
+  namespace: default
+type: Opaque
+stringData:
+  cloud.conf: |
+    [Global]
+    auth-url = "https://your-keystone-url:5000/v3"
+    region = "your-region"
+    username = "your-username"
+    password = "your-password"
+    tenant-name = "your-project-name"
+    domain-name = "your-domain-name"
+```
+
+See `examples/manila-csi-plugin/nfs/secrets-cloudconfig.yaml` for complete examples including application credentials and trust authentication.
+
+#### Format precedence
+
+When both formats are present in the same secret, the cloud-config format takes precedence. The driver will use the `cloud.conf` key if present, otherwise it will fall back to individual keys.
 
 ### Topology-aware dynamic provisioning
 
