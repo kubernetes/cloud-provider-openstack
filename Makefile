@@ -166,7 +166,7 @@ build-local-image-%:
 		.
 
 # Build all images locally
-build-local-images: $(addprefix build-image-,$(IMAGE_NAMES))
+build-local-images: $(addprefix build-local-image-,$(IMAGE_NAMES))
 
 # Build a single image for all architectures in ARCHS and push it to REGISTRY
 push-multiarch-image-%:
