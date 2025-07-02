@@ -1,0 +1,30 @@
+name: Weekly security scan
+
+on:
+  schedule:
+  # Cron for every Monday at 4:12 UTC.
+  - cron: "12 4 * * 1"
+
+# Remove all permissions from GITHUB_TOKEN except metadata.
+permissions: {}
+
+jobs:
+  scan:
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, release-1.32, release-1.31, release-1.30]
+    name: Verify security
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # tag=v4.2.2
+      with:
+        ref: ${{ matrix.branch }}
+    - name: Set up Go
+      uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # tag=v5.4.0
+      with:
+        # Keep this in sync with the go version in the Dockerfile.
+        go-version: 1.23.6
+    - name: Run verify security target
+      run: make verify-security
