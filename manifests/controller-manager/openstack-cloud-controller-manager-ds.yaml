@@ -23,8 +23,13 @@ spec:
       labels:
         k8s-app: openstack-cloud-controller-manager
     spec:
-      nodeSelector:
-        node-role.kubernetes.io/control-plane: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
       securityContext:
         runAsUser: 1001
       tolerations:
