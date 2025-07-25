@@ -166,7 +166,7 @@ spec:
       - name: liveness-probe
         ...
       - name: cinder-csi-plugin
-        image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.0
+        image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.1
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
@@ -216,7 +216,7 @@ spec:
       - name: liveness-probe
         ...
       - name: cinder-csi-plugin
-        image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.0
+        image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.1
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
@@ -282,7 +282,7 @@ spec:
         - Topology=true
         ...
       - name: cinder-csi-plugin
-        image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.0
+        image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.1
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
