@@ -43,6 +43,14 @@ critical bug fixes.
 
 6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote gcr.io images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the images.yaml.
 
+Use `hack/hack/release-image-digests.sh` script and `hack/verify-image-digests.sh` to verify the digests before submitting the PR.
+
+```bash
+$ ./hack/release-image-digests.sh ../k8s.io/registry.k8s.io/images/k8s-staging-provider-os/images.yaml vX.Y.Z
+```
+
+Generate a PR with the updated `images.yaml` file. Make sure to review the changes and ensure that the correct images are being promoted.
+
 7. Once images are promoted create release notes using the "Generate release notes" button in the GitHub "New release" UI and publish the release.
 
 8. Update `kubernetes/test-infra` to add jobs for the new release branch in the [`config/jobs/kubernetes/cloud-provider-openstack`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack) directory.
