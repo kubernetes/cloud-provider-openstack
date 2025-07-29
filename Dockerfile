@@ -26,7 +26,7 @@ ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.3.1-go1.22.2-bookw
 
 # We use Alpine as the source for default CA certificates and some output
 # images
-ARG ALPINE_IMAGE=alpine:3.17.5
+ARG ALPINE_IMAGE=alpine:3.17.10
 
 # cinder-csi-plugin uses Debian as a base image
 ARG DEBIAN_IMAGE=registry.k8s.io/build-image/debian-base:bookworm-v1.0.4
