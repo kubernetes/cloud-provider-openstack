@@ -670,6 +670,12 @@ func (lbaas *LbaasV2) ensureFloatingIP(ctx context.Context, clusterName string, 
 		return lb.VipAddress, nil
 	}
 
+	// For shared internal load balancers, don't attempt to create/manage floating IPs
+	if svcConf.internal && !isLBOwner {
+		klog.V(4).Infof("Skipping floating IP management for shared internal load balancer service %s", serviceName)
+		return lb.VipAddress, nil
+	}
+
 	// first attempt: if we've found a FIP attached to LBs VIP port, we'll be using that.
 
 	// we cannot add a FIP to a shared LB when we're a secondary Service or we risk adding it to an internal

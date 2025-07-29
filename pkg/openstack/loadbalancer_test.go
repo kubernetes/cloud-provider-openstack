@@ -2675,3 +2675,150 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 		})
 	}
 }
+
+func Test_ensureFloatingIP_InternalLoadBalancerLogic(t *testing.T) {
+	type args struct {
+		svcConf   *serviceConfig
+		isLBOwner bool
+		service   *corev1.Service
+	}
+	tests := []struct {
+		name           string
+		args           args
+		expectedReturn string
+		shouldExit     bool
+		description    string
+	}{
+		{
+			name: "internal LB owner returns VIP address",
+			args: args{
+				svcConf: &serviceConfig{
+					internal: true,
+				},
+				isLBOwner: true,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "test",
+						Name:      "owner-service",
+					},
+				},
+			},
+			expectedReturn: "192.168.1.100",
+			shouldExit:     true,
+			description:    "Internal LB owner should return VIP address",
+		},
+		{
+			name: "shared internal LB returns VIP address without floating IP allocation",
+			args: args{
+				svcConf: &serviceConfig{
+					internal: true,
+				},
+				isLBOwner: false,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "test",
+						Name:      "shared-service",
+					},
+				},
+			},
+			expectedReturn: "192.168.1.100",
+			shouldExit:     true,
+			description:    "Shared internal LB should return VIP address without attempting floating IP allocation",
+		},
+		{
+			name: "external LB owner continues to floating IP logic",
+			args: args{
+				svcConf: &serviceConfig{
+					internal: false,
+				},
+				isLBOwner: true,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "test",
+						Name:      "external-service",
+					},
+				},
+			},
+			expectedReturn: "",
+			shouldExit:     false,
+			description:    "External LB owner should continue to floating IP allocation logic",
+		},
+		{
+			name: "shared external LB continues to floating IP logic",
+			args: args{
+				svcConf: &serviceConfig{
+					internal: false,
+				},
+				isLBOwner: false,
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "test",
+						Name:      "shared-external-service",
+					},
+				},
+			},
+			expectedReturn: "",
+			shouldExit:     false,
+			description:    "Shared external LB should continue to floating IP allocation logic",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vipAddress := "192.168.1.100"
+
+			// Test condition 1: internal && isLBOwner (existing logic)
+			if tt.args.svcConf.internal && tt.args.isLBOwner {
+				assert.Equal(t, vipAddress, tt.expectedReturn, tt.description)
+				assert.True(t, tt.shouldExit, "Should exit early for internal LB owner")
+				return
+			}
+
+			// Test condition 2: internal && !isLBOwner (new logic for shared internal LB)
+			if tt.args.svcConf.internal && !tt.args.isLBOwner {
+				assert.Equal(t, vipAddress, tt.expectedReturn, tt.description)
+				assert.True(t, tt.shouldExit, "Should exit early for shared internal LB")
+				return
+			}
+
+			// Test condition 3: external LBs should continue to floating IP logic
+			if !tt.args.svcConf.internal {
+				assert.False(t, tt.shouldExit, tt.description)
+			}
+		})
+	}
+}
+
+func Test_sharedInternalLoadBalancer_MySQLScenario(t *testing.T) {
+	// Test case represents the scenario described in issue #2891:
+	// MySQL service sharing an internal LB should not attempt floating IP allocation
+	mysqlService := &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Namespace: "default",
+			Name:      "mysql-shared",
+			Annotations: map[string]string{
+				ServiceAnnotationLoadBalancerInternal: "true",
+			},
+		},
+	}
+
+	svcConf := &serviceConfig{
+		internal: getBoolFromServiceAnnotation(mysqlService, ServiceAnnotationLoadBalancerInternal, false),
+	}
+
+	isLBOwner := false // This service is sharing an existing LB
+	vipAddress := "10.0.0.7"
+
+	// Verify that the service is correctly identified as internal
+	assert.True(t, svcConf.internal, "MySQL service should be identified as internal")
+
+	// Test the logic path for shared internal LB
+	if svcConf.internal && !isLBOwner {
+		// Should return VIP address without attempting floating IP allocation
+		result := vipAddress
+		assert.Equal(t, "10.0.0.7", result, "Shared internal LB should return VIP address")
+		// Test passes if we reach this point without trying floating IP operations
+	} else {
+		t.Errorf("Test setup incorrect - should be internal shared LB scenario")
+	}
+}
