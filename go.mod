@@ -2,7 +2,7 @@ module k8s.io/cloud-provider-openstack
 
 go 1.24.0
 
-toolchain go1.24.3
+toolchain go1.24.5
 
 require (
 	github.com/container-storage-interface/spec v1.11.0
