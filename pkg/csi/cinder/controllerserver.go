@@ -205,7 +205,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Set scheduler hints if affinity or anti-affinity is set in PVC annotations
 	var schedulerHints volumes.SchedulerHintOptsBuilder
-	var volCtx map[string]string
+	volCtx := map[string]string{}
 	affinity := pvcAnnotations[affinityKey]
 	antiAffinity := pvcAnnotations[antiAffinityKey]
 	if affinity != "" || antiAffinity != "" {
@@ -221,8 +221,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity volume UUIDs: %v", err)
 		}
 
-		volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", affinity)
-		volCtx = util.SetMapIfNotEmpty(volCtx, "anti-affinity", antiAffinity)
+		volCtx[affinityKey] = affinity
+		volCtx[antiAffinityKey] = antiAffinity
 		schedulerHints = &volumes.SchedulerHintOpts{
 			SameHost:      util.SplitTrim(affinity, ','),
 			DifferentHost: util.SplitTrim(antiAffinity, ','),
@@ -1036,13 +1036,12 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 }
 
 func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, ignoreVolumeAZ bool, accessibleTopologyReq *csi.TopologyRequirement) *csi.CreateVolumeResponse {
-	var volsrc *csi.VolumeContentSource
-	volCnx := map[string]string{}
+	var volSrc *csi.VolumeContentSource
 
 	if vol.SnapshotID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: vol.SnapshotID,
@@ -1052,9 +1051,9 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 	}
 
 	if vol.SourceVolID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Volume{
 				Volume: &csi.VolumeContentSource_VolumeSource{
 					VolumeId: vol.SourceVolID,
@@ -1064,9 +1063,9 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 	}
 
 	if vol.BackupID != nil && *vol.BackupID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: *vol.BackupID,
@@ -1095,8 +1094,8 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, igno
 			VolumeId:           vol.ID,
 			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: accessibleTopology,
-			ContentSource:      volsrc,
-			VolumeContext:      volCnx,
+			ContentSource:      volSrc,
+			VolumeContext:      volCtx,
 		},
 	}
 
