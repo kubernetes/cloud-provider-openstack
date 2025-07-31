@@ -71,7 +71,7 @@ Parameter | Required | Description
 ----------|----------|------------
 `shareID` | if `shareName` is not given | The UUID of the share
 `shareName` | if `shareID` is not given | The name of the share
-`shareAccessID` | _yes_ | The UUID of the access rule for the share
+`shareAccessIDs` | _yes_ | The UUID of the access rule for the share
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-kernelMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS kernel client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-fuseMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS FUSE client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
