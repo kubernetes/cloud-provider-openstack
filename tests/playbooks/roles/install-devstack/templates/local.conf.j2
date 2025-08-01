@@ -3,7 +3,6 @@ RECLONE=False
 HOST_IP={{ local_ip_address }}
 DEST=/opt/stack
 DATA_DIR=${DEST}/data
-USE_PYTHON3=True
 LOGFILE=$DEST/logs/stack.sh.log
 VERBOSE=True
 LOG_COLOR=False
@@ -49,6 +48,7 @@ enable_service n-cond
 enable_service n-sch
 enable_service n-api-meta
 
+# Placement
 enable_service placement-api
 enable_service placement-client
 {% endif %}
@@ -147,6 +147,16 @@ if [ -f /opt/stack/data/venv/bin/activate ]; then
     pip install --upgrade pip setuptools
     deactivate
 fi
+
+{% if "nova" in enable_services %}
+[[post-config|$NOVA_CONF]]
+[libvirt]
+# Workaround for nova bug #2119114. Until that bug is resolved, Nova will
+# always timeout when detaching volumes (which affects deletion of PVCs)
+#
+# https://bugs.launchpad.net/nova/+bug/2119114
+device_detach_timeout = 1
+{% endif %}
 
 {% if "glance" in enable_services %}
 [[post-config|$GLANCE_API_CONF]]
