@@ -127,7 +127,7 @@
             echo "Service volumev3 already exists"
             exit 0
           fi
-          URL="$(openstack endpoint list --service block-storage -f value -c URL | true)"
+          URL="$(openstack endpoint list --service block-storage -f value -c URL || true)"
           if [ -z "${URL}" ]; then
             exit 0
           fi
