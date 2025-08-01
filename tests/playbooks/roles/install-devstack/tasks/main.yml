@@ -115,3 +115,13 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
+
+    - name: Create volumev3 service type
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          set -ex
+          source openrc admin admin
+          openstack service create --name cinder volumev3
+          openstack endpoint create --region $OS_REGION_NAME volumev3 public `openstack endpoint list --service block-storage -f value -c URL`
