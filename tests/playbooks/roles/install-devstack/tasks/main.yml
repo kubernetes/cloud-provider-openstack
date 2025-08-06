@@ -115,3 +115,19 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
+
+    # FIXME(stephenfin): We should remove this as soon as [1] merges and we
+    # bump our dependencies to include it.
+    # [1] https://github.com/gophercloud/gophercloud/pull/3435
+    - name: Delete legacy manila endpoint
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          set -ex
+          export OS_CLOUD=devstack-admin
+
+          # delete legacy manila API endpoints
+          if openstack service show manila > /dev/null 2>&1; then
+            openstack service delete manila
+          fi
