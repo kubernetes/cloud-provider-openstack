@@ -187,15 +187,15 @@
         -storage.testdriver=tests/e2e/csi/cinder/test-driver.yaml \
         --ginkgo.focus='External.Storage' \
         --ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]|should\s+support\s+expansion\s+of\s+pvcs\s+created\s+for\s+ephemeral\s+pvcs' \
+        --ginkgo.v \
         --ginkgo.noColor \
         --ginkgo.progress \
-        --ginkgo.v \
-        --ginkgo.timeout=24h \
+        --ginkgo.timeout=1h45m \
         -test.timeout=0 \
         -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
   ignore_errors: true
-  async: 5400 # wait 1h30m then fail and fetch the logs
+  async: 6600 # wait 1h50m (i.e. 5 mins longer than the ginkgo timeout) then fail and fetch the logs
   poll: 15
 
 - name: Collect pod logs for debug purpose
