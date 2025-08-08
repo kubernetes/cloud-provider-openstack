@@ -36,6 +36,7 @@ import (
 const (
 	VolumeAvailableStatus    = "available"
 	VolumeInUseStatus        = "in-use"
+	VolumeDetachingStatus    = "detaching"
 	operationFinishInitDelay = 1 * time.Second
 	operationFinishFactor    = 1.1
 	operationFinishSteps     = 10
@@ -290,6 +291,11 @@ func (os *OpenStack) DetachVolume(instanceID, volumeID string) error {
 	}
 	if volume.Status == VolumeAvailableStatus {
 		klog.V(2).Infof("volume: %s has been detached from compute: %s ", volume.ID, instanceID)
+		return nil
+	}
+	// If the volume is already in detaching state, we can return nil
+	if volume.Status == VolumeDetachingStatus {
+		klog.V(2).Infof("volume: %s is already in detaching state from compute %s  ", volume.ID, instanceID)
 		return nil
 	}
 
