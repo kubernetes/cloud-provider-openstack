@@ -227,21 +227,23 @@
       set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
 
       cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
-
-      # GATEWAY_IP is the default value in devstack
       mkdir -p /var/log/csi-pod
+      # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
       OS_RC={{ devstack_workdir }}/openrc \
       go test -v ./cmd/tests/manila-csi-e2e-suite/manila_csi_e2e_suite_test.go \
+        --ginkgo.focus="\[manila-csi-e2e\]" \
+        --ginkgo.skip="\[Disruptive\]|\[sig-storage\]\s+\[manila-csi-e2e\]\s+CSI\s+Volumes\s+\[Driver:\s+nfs.manila.csi.openstack.org\]\s+\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]|should\s+provision\s+storage\s+with\s+snapshot\s+data\s+source|restoring\s+snapshot\s+to\s+larger\s+size" \
         --ginkgo.v \
         --ginkgo.noColor \
         --ginkgo.progress \
-        --ginkgo.skip="\[Disruptive\]|\[sig-storage\]\s+\[manila-csi-e2e\]\s+CSI\s+Volumes\s+\[Driver:\s+nfs.manila.csi.openstack.org\]\s+\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]|should\s+provision\s+storage\s+with\s+snapshot\s+data\s+source|restoring\s+snapshot\s+to\s+larger\s+size" \
-        --ginkgo.focus="\[manila-csi-e2e\]" \
-        -report-dir /var/log/csi-pod \
-        -timeout=0 | tee "/var/log/csi-pod/manila-csi-e2e.log"
+        --ginkgo.timeout=1h45m \
+        -timeout=0 \
+        -report-dir /var/log/csi-pod | tee "/var/log/csi-pod/manila-csi-e2e.log"
   register: functional_test_result
   ignore_errors: true
+  async: 6600 # wait 1h50m (i.e. 5 mins longer than the ginkgo timeout) then fail and fetch the logs
+  poll: 15
 
 - name: Collect pod logs for debug purpose
   shell:
