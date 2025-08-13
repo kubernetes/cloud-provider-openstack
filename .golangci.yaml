@@ -1,10 +1,55 @@
-run:
-  concurrency: 2
-  timeout: 10m0s
-linters:
-  enable:
-    - gofmt
+version: "2"
 output:
   formats:
-    - format: line-number
+    text:
       path: stdout
+      colors: false
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+linters:
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - staticcheck
+        text: "ST1005: error strings should not be capitalized"
+      - linters:
+          - staticcheck
+        text: "ST1023: should omit type .* from declaration; it will be inferred from the right-hand side"
+      - linters:
+          - staticcheck
+        text: "QF1001: could apply De Morgan's law"
+      - linters:
+          - staticcheck
+        text: "QF1003: could use tagged switch on .*"
+      - linters:
+          - staticcheck
+        text: "QF1004: could use strings.ReplaceAll instead"
+      - linters:
+          - staticcheck
+        text: "QF1007: could merge conditional assignment into variable declaration"
+      - linters:
+          - staticcheck
+        text: "QF1008: could remove embedded field \".*\" from selector"
+      - linters:
+          - staticcheck
+        text: "QF1011: could omit type .* from declaration; it will be inferred from the right-hand side"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
