@@ -1600,8 +1600,8 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	if svcConf.enableMonitor && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
 	}
-	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
-	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
+	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Seconds()))
+	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
 	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
 	return nil
@@ -1627,10 +1627,10 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 }
 
 func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, key, value string) {
-	if service.ObjectMeta.Annotations == nil {
-		service.ObjectMeta.Annotations = map[string]string{}
+	if service.Annotations == nil {
+		service.Annotations = map[string]string{}
 	}
-	service.ObjectMeta.Annotations[key] = value
+	service.Annotations[key] = value
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources

@@ -208,7 +208,7 @@ func nodeAddresses(ctx context.Context, srv *servers.Server, ports []PortWithTru
 	// Add the addresses assigned on subports via trunk
 	// This exposes the vlan networks to which subports are attached
 	for _, port := range ports {
-		for _, subport := range port.TrunkDetails.SubPorts {
+		for _, subport := range port.SubPorts {
 			p, err := neutronports.Get(ctx, client, subport.PortID).Extract()
 			if err != nil {
 				klog.Errorf("Failed to get subport %s details: %v", subport.PortID, err)

@@ -54,7 +54,7 @@ func NewKeystoner(client *gophercloud.ServiceClient) *Keystoner {
 
 // revive:disable:unexported-return
 func (k *Keystoner) GetTokenInfo(ctx context.Context, token string) (*tokenInfo, error) {
-	k.client.ProviderClient.SetToken(token)
+	k.client.SetToken(token)
 	ret := tokens.Get(ctx, k.client, token)
 
 	tokenUser, err := ret.ExtractUser()
@@ -94,7 +94,7 @@ func (k *Keystoner) GetTokenInfo(ctx context.Context, token string) (*tokenInfo,
 // revive:enable:unexported-return
 
 func (k *Keystoner) GetGroups(ctx context.Context, token string, userID string) ([]string, error) {
-	k.client.ProviderClient.SetToken(token)
+	k.client.SetToken(token)
 	allGroupPages, err := users.ListGroups(k.client, userID).AllPages(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user groups from Keystone: %v", err)

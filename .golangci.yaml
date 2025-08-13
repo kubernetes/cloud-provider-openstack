@@ -15,10 +15,6 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
-    rules:
-      - linters:
-          - staticcheck
-        text: "QF1008: could remove embedded field \".*\" from selector"
     paths:
       - third_party$
       - builtin$

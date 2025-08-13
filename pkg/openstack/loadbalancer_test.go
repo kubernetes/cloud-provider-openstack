@@ -1320,7 +1320,7 @@ func TestLbaasV2_updateServiceAnnotations(t *testing.T) {
 	lbaas.updateServiceAnnotation(service, "key1", "value1")
 
 	serviceAnnotations := make([]map[string]string, 0)
-	for key, value := range service.ObjectMeta.Annotations {
+	for key, value := range service.Annotations {
 		serviceAnnotations = append(serviceAnnotations, map[string]string{key: value})
 	}
 
