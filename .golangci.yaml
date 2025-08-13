@@ -6,5 +6,5 @@ linters:
     - gofmt
 output:
   formats:
-￼    - format: line-number
-￼      path: stdout
+    - format: line-number
+      path: stdout
