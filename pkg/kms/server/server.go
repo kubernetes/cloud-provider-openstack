@@ -92,7 +92,7 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 			}
 		case err := <-serverCh:
 			if err != nil {
-				return fmt.Errorf("Failed to listen: %w", err)
+				return fmt.Errorf("failed to listen: %w", err)
 			}
 		}
 	}

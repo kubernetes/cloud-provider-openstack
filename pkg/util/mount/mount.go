@@ -102,7 +102,7 @@ func probeVolume() error {
 			name := scsiPath + f.Name() + "/scan"
 			data := []byte("- - -")
 			if err := os.WriteFile(name, data, 0666); err != nil {
-				return fmt.Errorf("Unable to scan %s: %w", f.Name(), err)
+				return fmt.Errorf("unable to scan %s: %w", f.Name(), err)
 			}
 		}
 	}

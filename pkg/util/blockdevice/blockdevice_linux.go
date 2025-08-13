@@ -128,13 +128,13 @@ func RescanBlockDeviceGeometry(devicePath string, deviceMountPath string, newSiz
 func RescanDevice(devicePath string) error {
 	blockDeviceRescanPath, err := findBlockDeviceRescanPath(devicePath)
 	if err != nil {
-		return fmt.Errorf("Device does not have rescan path %s", devicePath)
+		return fmt.Errorf("device does not have rescan path %s", devicePath)
 	}
 
 	klog.V(3).Infof("Resolved block device path from %q to %q", devicePath, blockDeviceRescanPath)
 	err = triggerRescan(blockDeviceRescanPath)
 	if err != nil {
-		return fmt.Errorf("Error rescanning new block device geometry %s", devicePath)
+		return fmt.Errorf("error rescanning new block device geometry %s", devicePath)
 	}
 	return nil
 }

@@ -97,7 +97,7 @@ func (sc *syncConfig) validate() error {
 		}
 		if !flag {
 			return fmt.Errorf(
-				"Unsupported data type to sync: %v. Available values: %v",
+				"unsupported data type to sync: %v. Available values: %v",
 				dt,
 				strings.Join(allowedDataTypesToSync, ","),
 			)
