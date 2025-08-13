@@ -1397,19 +1397,20 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 			}
 			barbicanUUID := slice[len(slice)-1]
 			barbicanType := slice[len(slice)-2]
-			if barbicanType == "containers" {
+			switch barbicanType {
+			case "containers":
 				container, err := containers.Get(ctx, lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
 				}
 				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
-			} else if barbicanType == "secrets" {
+			case "secrets":
 				secret, err := secrets.Get(ctx, lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
 				}
 				klog.V(4).Infof("Default TLS secret %q found", secret.SecretRef)
-			} else {
+			default:
 				return fmt.Errorf("failed to validate tlsContainerRef for service %s: tlsContainerRef type %s unknown", serviceName, barbicanType)
 			}
 		}
