@@ -18,9 +18,6 @@ linters:
     rules:
       - linters:
           - staticcheck
-        text: "QF1004: could use strings.ReplaceAll instead"
-      - linters:
-          - staticcheck
         text: "QF1008: could remove embedded field \".*\" from selector"
     paths:
       - third_party$
