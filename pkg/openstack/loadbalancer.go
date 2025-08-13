@@ -937,7 +937,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 
 	if lbaas.opts.ProviderRequiresSerialAPICalls {
 		klog.V(2).Infof("Using serial API calls to update members for pool %s", pool.ID)
-		var nodePort int = int(port.NodePort)
+		var nodePort = int(port.NodePort)
 
 		if err := openstackutil.SeriallyReconcilePoolMembers(ctx, lbaas.lb, pool, nodePort, lbID, nodes); err != nil {
 			return nil, err
