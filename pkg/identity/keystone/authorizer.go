@@ -219,8 +219,8 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	}
 	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() &&
 		// Allow a trailing * subpath match
-		!(strings.HasSuffix(*p.NonResourceSpec.NonResourcePath, "*") &&
-			strings.HasPrefix(a.GetPath(), strings.TrimRight(*p.NonResourceSpec.NonResourcePath, "*"))) {
+		(!strings.HasSuffix(*p.NonResourceSpec.NonResourcePath, "*") ||
+			!strings.HasPrefix(a.GetPath(), strings.TrimRight(*p.NonResourceSpec.NonResourcePath, "*"))) {
 		return false
 	}
 	allowed := match(p.Match, a)

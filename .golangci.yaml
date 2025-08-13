@@ -18,13 +18,7 @@ linters:
     rules:
       - linters:
           - staticcheck
-        text: "QF1001: could apply De Morgan's law"
-      - linters:
-          - staticcheck
         text: "QF1004: could use strings.ReplaceAll instead"
-      - linters:
-          - staticcheck
-        text: "QF1007: could merge conditional assignment into variable declaration"
       - linters:
           - staticcheck
         text: "QF1008: could remove embedded field \".*\" from selector"

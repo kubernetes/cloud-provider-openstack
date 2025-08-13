@@ -2127,10 +2127,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 	}
 
 	// If the LB is shared by other Service or the LB was not created by occm, the LB should not be deleted.
-	needDeleteLB := true
-	if isSharedLB || !isCreatedByOCCM {
-		needDeleteLB = false
-	}
+	needDeleteLB := !isSharedLB && isCreatedByOCCM
 
 	klog.V(4).InfoS("Deleting service", "service", klog.KObj(service), "needDeleteLB", needDeleteLB, "isSharedLB", isSharedLB, "updateLBTag", updateLBTag, "isCreatedByOCCM", isCreatedByOCCM)
 
