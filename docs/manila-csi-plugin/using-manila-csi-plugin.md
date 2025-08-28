@@ -60,8 +60,8 @@ Parameter | Required | Description
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-kernelMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS kernel client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-fuseMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS FUSE client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
-`cephfs-clientID` | _no_ | Relevant for CephFS Manila shares. Specifies the cephx client ID when creating an access rule for the provisioned share. The same cephx client ID may be shared with multiple Manila shares. If no value is provided, client ID for the provisioned Manila share will be set to some unique value (PersistentVolume name).
-`nfs-shareClient` | _no_ | Relevant for NFS Manila shares. Specifies what address has access to the NFS share. Defaults to `0.0.0.0/0`, i.e. anyone.
+`cephfs-clientID` | _no_ | Relevant for CephFS Manila shares. Specifies the cephx client ID when creating an access rule for the provisioned share. The same cephx client ID may be shared with multiple Manila shares. If providing access to multiple cephx client IDs, set it as a comma separated list. If no value is provided, client ID for the provisioned Manila share will be set to some unique value (PersistentVolume name).
+`nfs-shareClient` | _no_ | Relevant for NFS Manila shares. Specifies what address has access to the NFS share. Use a comma separated list for granting access to multiple IP addresses or subnets. Defaults to `0.0.0.0/0`, i.e. anyone.
 
 ### Node Service volume context
 
@@ -71,7 +71,7 @@ Parameter | Required | Description
 ----------|----------|------------
 `shareID` | if `shareName` is not given | The UUID of the share
 `shareName` | if `shareID` is not given | The name of the share
-`shareAccessID` | _yes_ | The UUID of the access rule for the share
+`shareAccessIDs` | _yes_ | Comma separated UUIDs of access rules for the share
 `cephfs-mounter` | _no_ | Relevant for CephFS Manila shares. Specifies which mounting method to use with the CSI CephFS driver. Available options are `kernel` and `fuse`, defaults to `fuse`. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-kernelMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS kernel client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
 `cephfs-fuseMountOptions` | _no_ | Relevant for CephFS Manila shares. Specifies mount options for CephFS FUSE client. See [CSI CephFS docs](https://github.com/ceph/ceph-csi/blob/csi-v1.0/docs/deploy-cephfs.md#configuration) for further information.
