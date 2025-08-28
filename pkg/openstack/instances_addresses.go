@@ -154,7 +154,7 @@ func nodeAddresses(ctx context.Context, srv *servers.Server, ports []PortWithTru
 				continue
 			}
 			isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
-			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+			if !isIPv6 || !networkingOpts.IPv6SupportDisabled {
 				addToNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Type:    v1.NodeInternalIP,
@@ -208,7 +208,7 @@ func nodeAddresses(ctx context.Context, srv *servers.Server, ports []PortWithTru
 	// Add the addresses assigned on subports via trunk
 	// This exposes the vlan networks to which subports are attached
 	for _, port := range ports {
-		for _, subport := range port.TrunkDetails.SubPorts {
+		for _, subport := range port.SubPorts {
 			p, err := neutronports.Get(ctx, client, subport.PortID).Extract()
 			if err != nil {
 				klog.Errorf("Failed to get subport %s details: %v", subport.PortID, err)
@@ -222,7 +222,7 @@ func nodeAddresses(ctx context.Context, srv *servers.Server, ports []PortWithTru
 			for _, fixedIP := range p.FixedIPs {
 				klog.V(5).Infof("Node '%s' is found subport '%s' address '%s/%s'", srv.Name, p.Name, n.Name, fixedIP.IPAddress)
 				isIPv6 := net.ParseIP(fixedIP.IPAddress).To4() == nil
-				if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+				if !isIPv6 || !networkingOpts.IPv6SupportDisabled {
 					addr := Address{IPType: "fixed", Addr: fixedIP.IPAddress}
 					subportAddresses := map[string][]Address{n.Name: {addr}}
 					srvAddresses, ok := addresses[n.Name]
@@ -273,7 +273,7 @@ func nodeAddresses(ctx context.Context, srv *servers.Server, ports []PortWithTru
 			}
 
 			isIPv6 := net.ParseIP(props.Addr).To4() == nil
-			if !(isIPv6 && networkingOpts.IPv6SupportDisabled) {
+			if !isIPv6 || !networkingOpts.IPv6SupportDisabled {
 				addToNodeAddresses(&addrs,
 					v1.NodeAddress{
 						Type:    addressType,

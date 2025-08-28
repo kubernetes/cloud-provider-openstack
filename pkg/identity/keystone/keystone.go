@@ -265,7 +265,8 @@ func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if kind == "TokenReview" {
+	switch kind {
+	case "TokenReview":
 		var token = data["spec"].(map[string]interface{})["token"].(string)
 		userInfo := k.authenticateToken(ctx, w, r, token, data)
 
@@ -277,9 +278,9 @@ func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
 				klog.Errorf("an error occurred during data synchronization: %v", err)
 			}
 		}
-	} else if kind == "SubjectAccessReview" {
+	case "SubjectAccessReview":
 		k.authorizeToken(w, r, data)
-	} else {
+	default:
 		http.Error(w, fmt.Sprintf("unknown kind/apiVersion %q %q", kind, apiVersion), http.StatusBadRequest)
 	}
 }

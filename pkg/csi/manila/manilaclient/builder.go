@@ -66,14 +66,14 @@ func New(ctx context.Context, o *client.AuthOpts, userAgent string, extraUserAge
 		Availability: o.EndpointType,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Manila v2 client: %v", err)
+		return nil, fmt.Errorf("failed to create manila v2 client: %v", err)
 	}
 
 	// Check client's and server's versions for compatibility
 
 	client.Microversion = minimumManilaVersion
 	if err = validateManilaClient(ctx, client); err != nil {
-		return nil, fmt.Errorf("Manila v2 client validation failed: %v", err)
+		return nil, fmt.Errorf("manila v2 client validation failed: %v", err)
 	}
 
 	return &Client{c: client}, nil

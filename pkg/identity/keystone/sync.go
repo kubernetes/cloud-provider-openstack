@@ -76,9 +76,9 @@ func (sc *syncConfig) validate() error {
 
 		// By convention, the names should be up to maximum length of 63 characters and consist of
 		// lower and upper case alphanumeric characters, -, _ and .
-		ts := strings.Replace(sc.NamespaceFormat, "%i", "aa", -1)
-		ts = strings.Replace(ts, "%n", "aa", -1)
-		ts = strings.Replace(ts, "%d", "aa", -1)
+		ts := strings.ReplaceAll(sc.NamespaceFormat, "%i", "aa")
+		ts = strings.ReplaceAll(ts, "%n", "aa")
+		ts = strings.ReplaceAll(ts, "%d", "aa")
 
 		re := regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]$")
 		if !re.MatchString(ts) {
@@ -97,7 +97,7 @@ func (sc *syncConfig) validate() error {
 		}
 		if !flag {
 			return fmt.Errorf(
-				"Unsupported data type to sync: %v. Available values: %v",
+				"unsupported data type to sync: %v. Available values: %v",
 				dt,
 				strings.Join(allowedDataTypesToSync, ","),
 			)
@@ -109,9 +109,9 @@ func (sc *syncConfig) validate() error {
 
 // formatNamespaceName generates a namespace name, based on format string
 func (sc *syncConfig) formatNamespaceName(id string, name string, domain string) string {
-	res := strings.Replace(sc.NamespaceFormat, "%i", id, -1)
-	res = strings.Replace(res, "%n", name, -1)
-	res = strings.Replace(res, "%d", domain, -1)
+	res := strings.ReplaceAll(sc.NamespaceFormat, "%i", id)
+	res = strings.ReplaceAll(res, "%n", name)
+	res = strings.ReplaceAll(res, "%d", domain)
 
 	if len(res) > 63 {
 		klog.Warningf("Generated namespace name '%v' exceeds the maximum possible length of 63 characters. Just Keystone project id '%v' will be used as the namespace name.", res, id)
