@@ -1,7 +1,7 @@
 ---
 user: "stack"
 workdir: "/home/{{ user }}/devstack"
-branch: "2023.2-eol"
+branch: "stable/2025.1"
 enable_services:
   - nova
   - glance
@@ -10,6 +10,6 @@ enable_services:
   - octavia
   - ovn-octavia
   - barbican
-octavia_amphora_url: "https://tarballs.opendev.org/openstack/octavia/test-images/test-only-amphora-x64-haproxy-ubuntu-jammy.qcow2"
+octavia_amphora_url: "https://tarballs.opendev.org/openstack/octavia/test-images/test-only-amphora-x64-haproxy-ubuntu-noble.qcow2"
 octavia_amphora_dir: /opt/octavia-amphora
 octavia_amphora_filename: amphora-x64-haproxy.qcow2
