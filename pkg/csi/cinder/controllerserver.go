@@ -212,7 +212,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if affinity != "" || antiAffinity != "" {
 		klog.V(4).Infof("CreateVolume: Getting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
 
-		// resolve volume names to UUIDs
+		// Resolve volume names to UUIDs
 		affinity, err = cloud.ResolveVolumeListToUUIDs(ctx, affinity)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve affinity volume UUIDs: %v", err)
@@ -222,6 +222,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity volume UUIDs: %v", err)
 		}
 
+		// Note that this is context for the k8s CSI volume, not the Cinder volume
 		volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", affinity)
 		volCtx = util.SetMapIfNotEmpty(volCtx, "anti-affinity", antiAffinity)
 		schedulerHints = &volumes.SchedulerHintOpts{
