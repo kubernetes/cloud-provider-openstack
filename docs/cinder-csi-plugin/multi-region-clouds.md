@@ -5,6 +5,7 @@
 Create a configuration file with a subsection per openstack cluster to manage (pay attention to enable ignore-volume-az in BlockStorage section).
 
 Example of configuration with 3 regions (The default is backward compatible with mono cluster configuration but not mandatory).
+
 ```yaml
 apiVersion: v1
 kind: Secret
