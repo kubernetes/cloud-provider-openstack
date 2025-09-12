@@ -20,7 +20,7 @@ spec:
       namespace: default
     volumeAttributes:
       shareID: SHARE-UUID-GOES-HERE
-      shareAccessID: ACCESS-UUID-OF-THE-SHARE
+      shareAccessIDs: COMMA-SEPARATED-ACCESS-UUIDS-OF-THE-SHARE
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
