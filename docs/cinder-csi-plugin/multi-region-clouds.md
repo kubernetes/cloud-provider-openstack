@@ -2,7 +2,7 @@
 
 ### Multi cluster Configuration file
 
-Create a configuration file with a subsection per openstack cluster to manage (pay attention to enable ignore-volume-az in BlockStorage section).
+Create a configuration file with a subsection per openstack cluster to manage.
 
 Example of configuration with 3 regions (The default is backward compatible with mono cluster configuration but not mandatory).
 
@@ -17,7 +17,7 @@ stringData:
   cloud.conf: |-
     [BlockStorage]
     bs-version=v3
-    ignore-volume-az=True
+    ignore-volume-az=False
 
     [Global]
     auth-url="https://auth.cloud.openstackcluster.region-default.local/v3"
@@ -48,33 +48,6 @@ stringData:
 ```
 
 
-
-### Create region/cloud secrets
-
-Create a secret per openstack cluster which contains a key `cloud` and as value the subsection's name of corresponding openstack cluster in configuration file.
-
-These secrets are referenced in storageClass definitions to identify openstack cluster associated to the storageClass.
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: openstack-config-region-one
-  namespace: kube-system
-type: Opaque
-stringData:
-  cloud: region-one
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: openstack-config-region-two
-  namespace: kube-system
-type: Opaque
-stringData:
-  cloud: region-two
-```
-
 ### Create storage Class for dedicated cluster
 
 ```yaml
@@ -83,7 +56,7 @@ kind: StorageClass
 metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-  name: sc-region-one
+  name: sc-multi-regions
 allowVolumeExpansion: true
 allowedTopologies:
 - matchLabelExpressions:
@@ -93,45 +66,7 @@ allowedTopologies:
   - key: topology.kubernetes.io/region
     values:
     - region-one
-parameters:
-  csi.storage.k8s.io/controller-publish-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/controller-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-publish-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/node-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-stage-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
-  csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
-  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-one
-  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
-provisioner: cinder.csi.openstack.org
-reclaimPolicy: Delete
-volumeBindingMode: Immediate
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: sc-region-two
-allowVolumeExpansion: true
-allowedTopologies:
-- matchLabelExpressions:
-  - key: topology.cinder.csi.openstack.org/zone
-    values:
-    - nova
-  - key: topology.kubernetes.io/region
-    values:
     - region-two
-parameters:
-  csi.storage.k8s.io/controller-publish-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/controller-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-publish-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/node-publish-secret-namespace: kube-system
-  csi.storage.k8s.io/node-stage-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/node-stage-secret-namespace: kube-system
-  csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/provisioner-secret-namespace: kube-system
-  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-two
-  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 volumeBindingMode: Immediate

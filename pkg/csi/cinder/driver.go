@@ -22,7 +22,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/client-go/listers/core/v1"
+	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	driverName  = "cinder.csi.openstack.org"
-	topologyKey = "topology." + driverName + "/zone"
+	driverName      = "cinder.csi.openstack.org"
+	topologyKey     = "topology." + driverName + "/zone"
+	withTopologyKey = "topology.kubernetes.io/region"
 
 	// maxVolumesPerNode is the maximum number of volumes that can be attached to a node
 	maxVolumesPerNode = 256
