@@ -197,8 +197,8 @@ func (d *manilaTestDriver) GetPersistentVolumeSource(readOnly bool, fsType strin
 			ReadOnly:     readOnly,
 			FSType:       fsType,
 			VolumeAttributes: map[string]string{
-				"shareID":       v.shareID,
-				"shareAccessID": v.accessID,
+				"shareID":        v.shareID,
+				"shareAccessIDs": v.accessID,
 			},
 			NodeStageSecretRef: &v1.SecretReference{
 				Name:      manilaSecretName,
