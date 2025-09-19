@@ -35,6 +35,9 @@ type VolumeContextArgs struct {
 	// an export location when building a volume context.
 	Locations []shares.ExportLocation
 
+	// Share object containing metadata and other share information
+	Share *shares.Share
+
 	Options *options.NodeVolumeContext
 }
 
