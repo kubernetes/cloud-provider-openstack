@@ -19,6 +19,7 @@ package shareadapters
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -133,7 +134,42 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 		volCtx["fuseMountOptions"] = args.Options.CephfsFuseMountOptions
 	}
 
+	// Extract fs_name from __mount_options metadata if available
+	if fsName := extractFsNameFromMountOptions(args.Share); fsName != "" {
+		volCtx["fsName"] = fsName
+		klog.V(4).Infof("Found fs_name in share metadata: %s", fsName)
+	}
+
 	return volCtx, err
+}
+
+// extractFsNameFromMountOptions extracts the fs from __mount_options metadata
+// The __mount_options metadata contains mount options including fs for CephFS
+func extractFsNameFromMountOptions(share *shares.Share) string {
+	if share == nil || share.Metadata == nil {
+		return ""
+	}
+
+	mountOptions, exists := share.Metadata["__mount_options"]
+	if !exists {
+		klog.V(4).Infof("No __mount_options metadata found in share %s", share.ID)
+		return ""
+	}
+
+	// Parse mount options to extract fs
+	// Mount options are typically comma-separated key=value pairs
+	// Example: "fs=myfs,other_option=value"
+	options := strings.Split(mountOptions, ",")
+	for _, option := range options {
+		option = strings.TrimSpace(option)
+		if strings.HasPrefix(option, "fs=") {
+			fsName := strings.TrimPrefix(option, "fs=")
+			return strings.TrimSpace(fsName)
+		}
+	}
+
+	klog.V(4).Infof("No fs found in __mount_options metadata for share %s: %s", share.ID, mountOptions)
+	return ""
 }
 
 func (Cephfs) BuildNodeStageSecret(args *SecretArgs) (secret map[string]string, err error) {
