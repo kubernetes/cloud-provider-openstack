@@ -126,8 +126,8 @@
         runcmd:
           - update-ca-certificates
           - mkdir -p /var/lib/rancher/k3s/agent/images/
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s -o /usr/local/bin/k3s
           - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
           - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
