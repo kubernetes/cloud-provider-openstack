@@ -75,10 +75,10 @@ metadata:
   namespace: kube-system
 data:
   syncConfig: |
-    data_types_to_sync:
+    data-types-to-sync:
       - projects
       - role_assignments
-    namespace_format: "%i"
+    namespace-format: "%i"
     role-mappings:
       - keystone-role: member
         username: myuser
