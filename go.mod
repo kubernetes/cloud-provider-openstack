@@ -6,7 +6,6 @@ toolchain go1.24.5
 
 require (
 	github.com/container-storage-interface/spec v1.11.0
-	github.com/go-chi/chi/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud/v2 v2.7.0
 	github.com/gophercloud/utils/v2 v2.0.0-20250212084022-725b94822eeb
