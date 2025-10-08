@@ -1063,6 +1063,10 @@ func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, with
 func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, accessibleTopology []*csi.Topology) *csi.CreateVolumeResponse {
 	var volSrc *csi.VolumeContentSource
 
+	if volCtx == nil {
+		volCtx = map[string]string{}
+	}
+
 	if vol.SnapshotID != "" {
 		volCtx[ResizeRequired] = "true"
 
