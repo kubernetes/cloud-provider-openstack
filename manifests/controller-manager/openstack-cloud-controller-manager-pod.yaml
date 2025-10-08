@@ -11,7 +11,7 @@ metadata:
 spec:
   containers:
     - name: openstack-cloud-controller-manager
-      image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.33.0
+      image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.34.0
       args:
         - /bin/openstack-cloud-controller-manager
         - --v=1
