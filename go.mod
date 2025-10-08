@@ -6,7 +6,6 @@ toolchain go1.24.5
 
 require (
 	github.com/container-storage-interface/spec v1.11.0
-	github.com/go-chi/chi/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud/v2 v2.8.0
 	github.com/gophercloud/utils/v2 v2.0.0-20250212084022-725b94822eeb
@@ -48,15 +47,11 @@ require (
 // the below fixes the "go list -m all" execution
 replace (
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.33.3
-	k8s.io/cri-client => k8s.io/cri-client v0.33.3
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.33.3
 	k8s.io/endpointslice => k8s.io/endpointslice v0.33.3
 	k8s.io/externaljwt => k8s.io/externaljwt v0.33.3
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.33.3
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.33.3
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.33.3
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.33.3
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.33.3
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.33.3
 )
 
