@@ -6,11 +6,15 @@ kind: ServiceAccount
 metadata:
   name: csi-cinder-controller-sa
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cinder-csi.controllerplugin.labels" . | nindent 4 }}
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-attacher-role
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -32,6 +36,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-attacher-binding
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
@@ -46,6 +52,8 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-provisioner-role
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -79,6 +87,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-provisioner-binding
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
@@ -93,6 +103,8 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-snapshotter-role
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["events"]
@@ -117,6 +129,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-snapshotter-binding
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
@@ -130,6 +144,8 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-role
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -157,6 +173,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-binding
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
