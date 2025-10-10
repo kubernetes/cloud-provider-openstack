@@ -252,7 +252,7 @@ it as a service. There are several things we need to notice in the
 deployment manifest:
 
 - We are using image
-  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.33.0`
+  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.34.0`
 - We use `k8s-auth-policy` configmap created above.
 - The pod uses service account `keystone-auth` created above.
 - We use `keystone-auth-certs` secret created above to inject the
