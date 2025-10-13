@@ -26,6 +26,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"k8s.io/apimachinery/pkg/util/wait"
 	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/klog/v2"
 )
 
@@ -135,6 +136,8 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 	}
 
 	// Extract fs_name from __mount_options metadata if available
+	// This is used by the ceph-csi plugin:
+	// https://github.com/ceph/ceph-csi/blob/521a90c041acbe0fc68db8ecb27ef84da5af87dc/docs/static-pvc.md?plain=1#L287
 	if fsName := extractFsNameFromMountOptions(args.Share); fsName != "" {
 		volCtx["fsName"] = fsName
 		klog.V(4).Infof("Found fs_name in share metadata: %s", fsName)
@@ -156,15 +159,13 @@ func extractFsNameFromMountOptions(share *shares.Share) string {
 		return ""
 	}
 
-	// Parse mount options to extract fs
 	// Mount options are typically comma-separated key=value pairs
 	// Example: "fs=myfs,other_option=value"
-	options := strings.Split(mountOptions, ",")
+	options := util.SplitTrim(mountOptions, ',')
 	for _, option := range options {
-		option = strings.TrimSpace(option)
 		if strings.HasPrefix(option, "fs=") {
 			fsName := strings.TrimPrefix(option, "fs=")
-			return strings.TrimSpace(fsName)
+			return fsName
 		}
 	}
 
