@@ -73,7 +73,7 @@ user_id=ceb61464a3d341ebabdf97d1d4b97099
 user_project_id=b23a5e41d1af4c20974bf58b4dff8e5a
 password=password
 region=RegionOne
-image=registry.k8s.io/provider-os/magnum-auto-healer:v1.34.0
+image=registry.k8s.io/provider-os/magnum-auto-healer:v1.34.1
 
 cat <<EOF | kubectl apply -f -
 ---

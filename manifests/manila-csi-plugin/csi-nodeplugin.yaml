@@ -50,7 +50,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: registry.k8s.io/provider-os/manila-csi-plugin:v1.34.0
+          image: registry.k8s.io/provider-os/manila-csi-plugin:v1.34.1
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --endpoint=$(CSI_ENDPOINT)
