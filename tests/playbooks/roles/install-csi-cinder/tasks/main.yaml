@@ -159,6 +159,16 @@
 
           kubectl -n kube-system logs ds/openstack-cloud-controller-manager > /var/log/csi-pod/occm.log
 
+    - name: Collect pod logs for debug purpose (early collection on deployment failure)
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -x
+          mkdir -p /var/log/csi-pod
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/deployment-csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/deployment-csi-cinder-nodeplugin.log
+      ignore_errors: true
+
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
       fail:
         msg: *failmsg
