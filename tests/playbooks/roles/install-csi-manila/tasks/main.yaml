@@ -92,7 +92,7 @@
                   capabilities:
                     add: ["SYS_ADMIN"]
                   allowPrivilegeEscalation: true
-                image: quay.io/k8scsi/nfsplugin:v2.0.0
+                image: registry.k8s.io/sig-storage/nfsplugin:v4.12.1
                 args:
                   - "--nodeid=\$(NODE_ID)"
                   - "--endpoint=unix://plugin/csi.sock"
@@ -186,6 +186,16 @@
     - name: Log failed manila-csi-plugin deployment
       debug:
         var: describe_csi.stdout_lines
+
+    - name: Collect pod logs for debug purpose (early collection on deployment failure)
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -x
+          mkdir -p /var/log/csi-pod
+          kubectl logs -l app=openstack-manila-csi,component=controllerplugin -n default -c nfs-nodeplugin --tail=-1 > /var/log/csi-pod/deployment-csi-manila-controllerplugin.log
+          kubectl logs -l app=openstack-manila-csi,component=nodeplugin -n default -c nfs-nodeplugin --tail=-1 > /var/log/csi-pod/deployment-csi-manila-nodeplugin.log
+      ignore_errors: true
 
     - name: &failmsg Stop due to prior failure of manila-csi-plugin
       fail:
