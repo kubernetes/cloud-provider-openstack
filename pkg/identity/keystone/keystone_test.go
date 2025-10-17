@@ -17,6 +17,12 @@ limitations under the License.
 package keystone
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
@@ -55,6 +61,93 @@ func TestUserAgentFlag(t *testing.T) {
 				if !reflect.DeepEqual(userAgentData, testCase.expected) {
 					t.Errorf("userAgentData %#v did not match expected value %#v", userAgentData, testCase.expected)
 				}
+			}
+		})
+	}
+}
+
+// mockKeystoner is a mock implementation of IKeystone for testing
+type mockKeystoner struct{}
+
+func (m *mockKeystoner) GetTokenInfo(ctx context.Context, token string) (*tokenInfo, error) {
+	return nil, fmt.Errorf("invalid token")
+}
+
+func (m *mockKeystoner) GetGroups(ctx context.Context, token string, userID string) ([]string, error) {
+	return nil, fmt.Errorf("invalid token")
+}
+
+func TestWebhookRouting(t *testing.T) {
+	// Create a minimal Auth instance for testing
+	auth := &Auth{
+		authn: &Authenticator{
+			keystoner: &mockKeystoner{},
+		},
+		authz: &Authorizer{
+			pl: nil,
+		},
+		syncer: &Syncer{
+			syncConfig: nil,
+		},
+	}
+
+	tests := []struct {
+		name           string
+		path           string
+		method         string
+		body           map[string]interface{}
+		expectedStatus int
+	}{
+		{
+			name:   "valid_webhook_path",
+			path:   "/webhook",
+			method: http.MethodPost,
+			body: map[string]interface{}{
+				"apiVersion": "authentication.k8s.io/v1beta1",
+				"kind":       "TokenReview",
+				"spec": map[string]interface{}{
+					"token": "test-token",
+				},
+			},
+			// Handler will try to authenticate and fail, but we're testing routing
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "invalid_path",
+			path:           "/invalid",
+			method:         http.MethodPost,
+			body:           map[string]interface{}{},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "root_path",
+			path:           "/",
+			method:         http.MethodPost,
+			body:           map[string]interface{}{},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a request
+			bodyBytes, _ := json.Marshal(tc.body)
+			req := httptest.NewRequest(tc.method, tc.path, bytes.NewReader(bodyBytes))
+			req.Header.Set("Content-Type", "application/json")
+
+			// Create a response recorder
+			rr := httptest.NewRecorder()
+
+			// Create router and register handler
+			mux := http.NewServeMux()
+			mux.HandleFunc("/webhook", auth.Handler)
+
+			// Serve the request
+			mux.ServeHTTP(rr, req)
+
+			// Check status code
+			if rr.Code != tc.expectedStatus {
+				t.Errorf("Expected status %d, got %d", tc.expectedStatus, rr.Code)
 			}
 		})
 	}

@@ -30,7 +30,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: barbican-kms
-          image: registry.k8s.io/provider-os/barbican-kms-plugin:v1.33.0
+          image: registry.k8s.io/provider-os/barbican-kms-plugin:v1.34.0
           args:
             - /bin/barbican-kms-plugin
             - --socketpath=$(KMS_ENDPOINT)

@@ -76,7 +76,7 @@ func TestSyncConfigValidation(t *testing.T) {
 	th.AssertEquals(
 		t,
 		fmt.Sprintf(
-			"Unsupported data type to sync: not_allowed_type. Available values: %v",
+			"unsupported data type to sync: not_allowed_type. Available values: %v",
 			strings.Join(allowedDataTypesToSync, ","),
 		),
 		err.Error(),

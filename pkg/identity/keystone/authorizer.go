@@ -64,7 +64,7 @@ func getAllowed(definition string, str string) (sets.Set[string], error) {
 	} else if strings.Index(definition, "[") == 0 && strings.Index(definition, "]") == (len(definition)-1) {
 		// "['namespace1', 'namespace2']"
 		var items []string
-		if err := json.Unmarshal([]byte(strings.Replace(definition, "'", "\"", -1)), &items); err != nil {
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(definition, "'", "\"")), &items); err != nil {
 			klog.V(4).Infof("Skip the permission definition %s", definition)
 			return nil, fmt.Errorf("")
 		}
@@ -78,7 +78,7 @@ func getAllowed(definition string, str string) (sets.Set[string], error) {
 	} else if strings.Index(definition, "!") == 0 && strings.Index(definition, "[") == 1 && strings.Index(definition, "]") == (len(definition)-1) {
 		// "!['namespace1', 'namespace2']"
 		var items []string
-		if err := json.Unmarshal([]byte(strings.Replace(definition[1:], "'", "\"", -1)), &items); err != nil {
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(definition[1:], "'", "\"")), &items); err != nil {
 			klog.V(4).Infof("Skip the permission definition %s", definition)
 			return nil, fmt.Errorf("")
 		}
@@ -219,8 +219,8 @@ func nonResourceMatches(p policy, a authorizer.Attributes) bool {
 	}
 	if *p.NonResourceSpec.NonResourcePath != "*" && *p.NonResourceSpec.NonResourcePath != a.GetPath() &&
 		// Allow a trailing * subpath match
-		!(strings.HasSuffix(*p.NonResourceSpec.NonResourcePath, "*") &&
-			strings.HasPrefix(a.GetPath(), strings.TrimRight(*p.NonResourceSpec.NonResourcePath, "*"))) {
+		(!strings.HasSuffix(*p.NonResourceSpec.NonResourcePath, "*") ||
+			!strings.HasPrefix(a.GetPath(), strings.TrimRight(*p.NonResourceSpec.NonResourcePath, "*"))) {
 		return false
 	}
 	allowed := match(p.Match, a)

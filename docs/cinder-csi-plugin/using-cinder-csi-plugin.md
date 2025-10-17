@@ -151,13 +151,13 @@ For Cinder CSI Plugin to authenticate with OpenStack Keystone, required paramete
 These configuration options pertain to block storage and should appear in the `[BlockStorage]` section of the `$CLOUD_CONFIG` file.
 
 * `node-volume-attach-limit`
-  Optional. To configure maximum volumes that can be attached to the node. Its default value is `256`.
+  Optional. To configure maximum volumes that can be attached to the node. Defaults to `256`.
 * `rescan-on-resize`
-  Optional. Set to `true`, to rescan block device and verify its size before expanding the filesystem. Not all hypervizors have a /sys/class/block/XXX/device/rescan location, therefore if you enable this option and your hypervizor doesn't support this, you'll get a warning log on resize event. It is recommended to disable this option in this case. Defaults to `false`
+  Optional. Set to `true` to rescan block device and verify its size before expanding the filesystem. Not all hypervisors have a `/sys/class/block/XXX/device/rescan` location, therefore if you enable this option and your hypervisor doesn't support this, you'll get a warning log on resize event. It is recommended to disable this option in this case. Defaults to `false`
 * `ignore-volume-az`
-  Optional. When `Topology` feature enabled, by default, PV volume node affinity is populated with volume accessible topology, which is volume AZ. But, some of the openstack users do not have compute zones named exactly the same as volume zones. This might cause pods to go in pending state as no nodes available in volume AZ. Enabling `ignore-volume-az=true`, ignores volumeAZ and schedules on any of the available node AZ. Default `false`. Check `cross_az_attach` in [nova configuration](https://docs.openstack.org/nova/latest/configuration/config.html) for further information.
+  Optional. Set to `true` if your set of Block Storage (Cinder) AZs does not match your set of Compute (Nova) AZs and you are manually setting the `topology` parameter on your Storage Class(es). For more information, refer to [When trying to use the topology feature, pods are not able to schedule](./troubleshooting.md#when-trying-to-use-the-topology-feature-pods-are-not-able-to-schedule). Defaults to `false`.
 * `ignore-volume-microversion`
-  Optional. Set to `true` only when your cinder microversion is older than 3.34. This might cause some features to not work as expected, but aims to allow basic operations like creating a volume.
+  Optional. Set to `true` only when your cinder microversion is older than 3.34. This might cause some features to not work as expected, but aims to allow basic operations like creating a volume. Defaults to `false`
 
 ### Metadata
 These configuration options pertain to metadata and should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.
@@ -174,7 +174,7 @@ These configuration options pertain to metadata and should appear in the `[Metad
 
 ### Using the manifests
 
-All the manifests required for the deployment of the plugin are found at ```manifests/cinder-csi-plugin```
+All the manifests required for the deployment of the plugin are found at `manifests/cinder-csi-plugin`
 
 Configuration file specified in `$CLOUD_CONFIG` is passed to cinder CSI driver via kubernetes `secret`. If the secret `cloud-config` is already created in the cluster, you can remove the file, `manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml` and directly proceed to the step of creating controller and node plugins.
 

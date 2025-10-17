@@ -937,7 +937,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 
 	if lbaas.opts.ProviderRequiresSerialAPICalls {
 		klog.V(2).Infof("Using serial API calls to update members for pool %s", pool.ID)
-		var nodePort int = int(port.NodePort)
+		var nodePort = int(port.NodePort)
 
 		if err := openstackutil.SeriallyReconcilePoolMembers(ctx, lbaas.lb, pool, nodePort, lbID, nodes); err != nil {
 			return nil, err
@@ -1397,19 +1397,20 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 			}
 			barbicanUUID := slice[len(slice)-1]
 			barbicanType := slice[len(slice)-2]
-			if barbicanType == "containers" {
+			switch barbicanType {
+			case "containers":
 				container, err := containers.Get(ctx, lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
 				}
 				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
-			} else if barbicanType == "secrets" {
+			case "secrets":
 				secret, err := secrets.Get(ctx, lbaas.secret, barbicanUUID).Extract()
 				if err != nil {
 					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
 				}
 				klog.V(4).Infof("Default TLS secret %q found", secret.SecretRef)
-			} else {
+			default:
 				return fmt.Errorf("failed to validate tlsContainerRef for service %s: tlsContainerRef type %s unknown", serviceName, barbicanType)
 			}
 		}
@@ -1539,6 +1540,7 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+	svcConf.poolLbMethod = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLbMethod, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Get service node-selector annotations
@@ -1599,8 +1601,8 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	if svcConf.enableMonitor && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
 	}
-	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Duration.Seconds()))
-	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Duration.Seconds()))
+	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Seconds()))
+	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
 	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
 	return nil
@@ -1626,10 +1628,10 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 }
 
 func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, key, value string) {
-	if service.ObjectMeta.Annotations == nil {
-		service.ObjectMeta.Annotations = map[string]string{}
+	if service.Annotations == nil {
+		service.Annotations = map[string]string{}
 	}
-	service.ObjectMeta.Annotations[key] = value
+	service.Annotations[key] = value
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -2126,10 +2128,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 	}
 
 	// If the LB is shared by other Service or the LB was not created by occm, the LB should not be deleted.
-	needDeleteLB := true
-	if isSharedLB || !isCreatedByOCCM {
-		needDeleteLB = false
-	}
+	needDeleteLB := !isSharedLB && isCreatedByOCCM
 
 	klog.V(4).InfoS("Deleting service", "service", klog.KObj(service), "needDeleteLB", needDeleteLB, "isSharedLB", isSharedLB, "updateLBTag", updateLBTag, "isCreatedByOCCM", isCreatedByOCCM)
 

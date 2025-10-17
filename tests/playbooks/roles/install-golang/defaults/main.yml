@@ -1,5 +1,5 @@
 ---
-go_version: '1.22.2'
+go_version: '1.25.3'
 arch: 'amd64'
 go_tarball: 'go{{ go_version }}.linux-{{ arch }}.tar.gz'
 go_download_location: 'https://go.dev/dl/{{ go_tarball }}'
