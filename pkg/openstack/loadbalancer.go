@@ -87,6 +87,12 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorTimeout        = "loadbalancer.openstack.org/health-monitor-timeout"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries     = "loadbalancer.openstack.org/health-monitor-max-retries"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown = "loadbalancer.openstack.org/health-monitor-max-retries-down"
+	ServiceAnnotationLoadBalancerHealthMonitorHTTPPorts      = "loadbalancer.openstack.org/health-monitor-http-ports"
+	ServiceAnnotationLoadBalancerHealthMonitorHTTPTypes      = "loadbalancer.openstack.org/health-monitor-http-types"
+	ServiceAnnotationLoadBalancerHealthMonitorHTTPMethod     = "loadbalancer.openstack.org/health-monitor-http-method"
+	ServiceAnnotationLoadBalancerHealthMonitorHTTPVersion    = "loadbalancer.openstack.org/health-monitor-http-version"
+	ServiceAnnotationLoadBalancerHealthMonitorExpectedCodes  = "loadbalancer.openstack.org/health-monitor-expected-codes"
+	ServiceAnnotationLoadBalancerHealthMonitorURLPath        = "loadbalancer.openstack.org/health-monitor-url-path"
 	ServiceAnnotationLoadBalancerLoadbalancerHostname        = "loadbalancer.openstack.org/hostname"
 	ServiceAnnotationLoadBalancerAddress                     = "loadbalancer.openstack.org/load-balancer-address"
 	// revive:disable:var-naming
@@ -145,6 +151,12 @@ type serviceConfig struct {
 	healthMonitorTimeout        int
 	healthMonitorMaxRetries     int
 	healthMonitorMaxRetriesDown int
+	healthMonitorHTTPTypes      []string
+	healthMonitorHTTPPorts      []string
+	healthMonitorHTTPMethod     string
+	healthMonitorHTTPVersion    string
+	healthMonitorExpectedCodes  string
+	healthMonitorURLPath        string
 	preferredIPFamily           corev1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
 }
 
@@ -417,6 +429,21 @@ func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (str
 func getKeyValueFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting string) map[string]string {
 	annotationValue := getStringFromServiceAnnotation(service, annotationKey, defaultSetting)
 	return cpoutil.StringToMap(annotationValue)
+}
+
+// getValuesFromServiceAnnotation converts a comma-separated list of values
+// from the specified annotation into an array or returns the specified
+// defaultSetting if the annotation is empty
+func getValuesFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting string) []string {
+	annotationValue := getStringFromServiceAnnotation(service, annotationKey, defaultSetting)
+	values := make([]string, 0)
+	for part := range strings.SplitSeq(annotationValue, ",") {
+		trimmedValue := strings.TrimSpace(part)
+		if len(trimmedValue) > 0 {
+			values = append(values, strings.TrimSpace(part))
+		}
+	}
+	return values
 }
 
 // getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
@@ -810,16 +837,24 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(ctx context.Context, lbID strin
 
 	// update new monitor parameters
 	if name != monitor.Name ||
-		svcConf.healthMonitorDelay != monitor.Delay ||
-		svcConf.healthMonitorTimeout != monitor.Timeout ||
-		svcConf.healthMonitorMaxRetries != monitor.MaxRetries ||
-		svcConf.healthMonitorMaxRetriesDown != monitor.MaxRetriesDown {
+		createOpts.Delay != monitor.Delay ||
+		createOpts.Timeout != monitor.Timeout ||
+		createOpts.MaxRetries != monitor.MaxRetries ||
+		createOpts.MaxRetriesDown != monitor.MaxRetriesDown ||
+		createOpts.HTTPMethod != monitor.HTTPMethod ||
+		createOpts.HTTPVersion != monitor.HTTPVersion ||
+		createOpts.ExpectedCodes != monitor.ExpectedCodes ||
+		createOpts.URLPath != monitor.URLPath {
 		updateOpts := v2monitors.UpdateOpts{
 			Name:           &name,
-			Delay:          svcConf.healthMonitorDelay,
-			Timeout:        svcConf.healthMonitorTimeout,
-			MaxRetries:     svcConf.healthMonitorMaxRetries,
-			MaxRetriesDown: svcConf.healthMonitorMaxRetriesDown,
+			Delay:          createOpts.Delay,
+			Timeout:        createOpts.Timeout,
+			MaxRetries:     createOpts.MaxRetries,
+			MaxRetriesDown: createOpts.MaxRetriesDown,
+			HTTPMethod:     createOpts.HTTPMethod,
+			HTTPVersion:    &createOpts.HTTPVersion,
+			ExpectedCodes:  createOpts.ExpectedCodes,
+			URLPath:        createOpts.URLPath,
 		}
 		klog.Infof("Updating health monitor %s updateOpts %+v", monitorID, updateOpts)
 		return openstackutil.UpdateHealthMonitor(ctx, lbaas.lb, monitorID, updateOpts, lbID)
@@ -855,7 +890,34 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(ctx context.Context, svcConf *servi
 	if port.Protocol == corev1.ProtocolUDP {
 		opts.Type = "UDP-CONNECT"
 	}
-	if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(ctx, port) {
+	healthMonitorHTTPPort := ""
+	var healthMonitorHTTPIndex int
+	for index, checkHealthMonitorHTTPPort := range svcConf.healthMonitorHTTPPorts {
+		if matchServicePortByNameOrNumber([]corev1.ServicePort{port}, checkHealthMonitorHTTPPort) {
+			healthMonitorHTTPPort = checkHealthMonitorHTTPPort
+			healthMonitorHTTPIndex = index
+			break
+		}
+	}
+	if healthMonitorHTTPPort != "" && lbaas.canUseHTTPMonitor(ctx, port) {
+		if len(svcConf.healthMonitorHTTPTypes) > 1 {
+			opts.Type = svcConf.healthMonitorHTTPTypes[healthMonitorHTTPIndex]
+		} else {
+			opts.Type = svcConf.healthMonitorHTTPTypes[0]
+		}
+		if svcConf.healthMonitorURLPath != "" {
+			opts.URLPath = svcConf.healthMonitorURLPath
+		}
+		if svcConf.healthMonitorHTTPMethod != "" {
+			opts.HTTPMethod = svcConf.healthMonitorHTTPMethod
+		}
+		if svcConf.healthMonitorHTTPVersion != "" {
+			opts.HTTPVersion = svcConf.healthMonitorHTTPVersion
+		}
+		if svcConf.healthMonitorExpectedCodes != "" {
+			opts.ExpectedCodes = svcConf.healthMonitorExpectedCodes
+		}
+	} else if svcConf.healthCheckNodePort > 0 && lbaas.canUseHTTPMonitor(ctx, port) {
 		opts.Type = "HTTP"
 		opts.URLPath = "/healthz"
 		opts.HTTPMethod = "GET"
@@ -1601,6 +1663,47 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	if svcConf.enableMonitor && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
 		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
 	}
+	serviceHTTPMonitorEnabled := false
+	svcConf.healthMonitorHTTPPorts = getValuesFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorHTTPPorts, "")
+	for _, healthMonitorHTTPPort := range svcConf.healthMonitorHTTPPorts {
+		if healthMonitorHTTPPort != "" && !matchServicePortByNameOrNumber(service.Spec.Ports, healthMonitorHTTPPort) {
+			return fmt.Errorf("invalid value for annotation \"%s\": No port matching the provided value found", ServiceAnnotationLoadBalancerHealthMonitorHTTPPorts)
+		} else if healthMonitorHTTPPort != "" {
+			serviceHTTPMonitorEnabled = true
+		}
+	}
+
+	allowedHTTPTypes := []string{"HTTP", "HTTPS"}
+	svcConf.healthMonitorHTTPTypes = getValuesFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorHTTPTypes, "HTTP")
+	for _, healthMonitorHTTPType := range svcConf.healthMonitorHTTPTypes {
+		if serviceHTTPMonitorEnabled && healthMonitorHTTPType != "" && !slices.Contains(allowedHTTPTypes, healthMonitorHTTPType) {
+			return fmt.Errorf("invalid value for annotation \"%s\": Allowed values are %s", ServiceAnnotationLoadBalancerHealthMonitorHTTPTypes, strings.Join(allowedHTTPTypes, ", "))
+		}
+	}
+	if serviceHTTPMonitorEnabled && len(svcConf.healthMonitorHTTPTypes) > 1 && len(svcConf.healthMonitorHTTPTypes) != len(svcConf.healthMonitorHTTPPorts) {
+		return fmt.Errorf("invalid value for annotation \"%s\": Number of check types doesn't match number of ports", ServiceAnnotationLoadBalancerHealthMonitorHTTPTypes)
+	}
+
+	svcConf.healthMonitorHTTPMethod = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorHTTPMethod, "GET")
+	allowedHTTPMethods := []string{"CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "TRACE"}
+	if serviceHTTPMonitorEnabled && svcConf.healthMonitorHTTPMethod != "" && !slices.Contains(allowedHTTPMethods, svcConf.healthMonitorHTTPMethod) {
+		return fmt.Errorf("invalid value for annotation \"%s\": Allowed values are %s", ServiceAnnotationLoadBalancerHealthMonitorHTTPMethod, strings.Join(allowedHTTPMethods, ", "))
+	}
+	allowedHTTPVersions := []string{"1.0", "1.1"}
+	svcConf.healthMonitorHTTPVersion = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorHTTPVersion, "1.0")
+	if serviceHTTPMonitorEnabled && svcConf.healthMonitorHTTPVersion != "" && !slices.Contains(allowedHTTPVersions, svcConf.healthMonitorHTTPVersion) {
+		return fmt.Errorf("invalid value for annotation \"%s\": Allowed values are %s", ServiceAnnotationLoadBalancerHealthMonitorHTTPVersion, strings.Join(allowedHTTPVersions, ", "))
+	}
+	expectedCodesPattern := regexp.MustCompile(`^(\d+(-\d+)?)(,\s*(\d+(-\d+)?))*$`)
+	svcConf.healthMonitorExpectedCodes = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorExpectedCodes, "200")
+	if serviceHTTPMonitorEnabled && svcConf.healthMonitorExpectedCodes != "" && !expectedCodesPattern.MatchString(svcConf.healthMonitorExpectedCodes) {
+		return fmt.Errorf("invalid value for annotation \"%s\": Allowed values are \"a single value, such as 200\", \"a list, such as 200, 202\", \"a range, such as 200-204\"", ServiceAnnotationLoadBalancerHealthMonitorExpectedCodes)
+	}
+	//  The default URL path is /.
+	svcConf.healthMonitorURLPath = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorURLPath, "/")
+	if serviceHTTPMonitorEnabled && svcConf.healthMonitorURLPath != "" && !strings.HasPrefix(svcConf.healthMonitorURLPath, "/") {
+		return fmt.Errorf("invalid value for annotation \"%s\": Must be a string that begins with a forward slash (/)", ServiceAnnotationLoadBalancerHealthMonitorURLPath)
+	}
 	svcConf.healthMonitorDelay = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorDelay, int(lbaas.opts.MonitorDelay.Seconds()))
 	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
@@ -2191,7 +2294,6 @@ func GetLoadBalancerSourceRanges(service *corev1.Service, preferredIPFamily core
 	if len(service.Spec.LoadBalancerSourceRanges) > 0 {
 		specs := service.Spec.LoadBalancerSourceRanges
 		ipnets, err := netsets.ParseIPNets(specs...)
-
 		if err != nil {
 			return nil, fmt.Errorf("service.Spec.LoadBalancerSourceRanges: %v is not valid. Expecting a list of IP ranges. For example, 10.0.0.0/24. Error msg: %v", specs, err)
 		}
@@ -2298,4 +2400,16 @@ func matchNodeLabels(node *corev1.Node, filterLabels map[string]string) bool {
 	}
 
 	return true
+}
+
+// matchServicePortByNameOrNumber checks if a service has a port name or number with matching values
+func matchServicePortByNameOrNumber(ports []corev1.ServicePort, portNameOrNumber string) bool {
+	for _, port := range ports {
+		if port.Name == portNameOrNumber {
+			return true
+		} else if fmt.Sprint(port.Port) == portNameOrNumber {
+			return true
+		}
+	}
+	return false
 }
