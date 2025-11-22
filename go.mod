@@ -45,11 +45,14 @@ require (
 // the below fixes the "go list -m all" execution
 replace (
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.34.1
+	k8s.io/cri-client => k8s.io/cri-client v0.34.1
+	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.34.1
 	k8s.io/endpointslice => k8s.io/endpointslice v0.34.1
 	k8s.io/externaljwt => k8s.io/externaljwt v0.34.1
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.34.1
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.34.1
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.34.1
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.34.1
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.34.1
 )
 
