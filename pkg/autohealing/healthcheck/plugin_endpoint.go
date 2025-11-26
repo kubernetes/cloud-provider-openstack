@@ -22,13 +22,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 	log "k8s.io/klog/v2"
-
-	"k8s.io/cloud-provider-openstack/pkg/autohealing/utils"
 )
 
 const (
@@ -177,7 +176,7 @@ func (check *EndpointCheck) Check(ctx context.Context, node NodeInfo, controller
 		}
 		resp.Body.Close()
 
-		if !utils.ContainsInt(check.OKCodes, resp.StatusCode) {
+		if !slices.Contains(check.OKCodes, resp.StatusCode) {
 			log.V(4).Infof("Node %s, return code for url %s is %d, expected: %d", nodeName, url, resp.StatusCode, check.OKCodes)
 			return check.checkDuration(ctx, node, controller, false)
 		}
