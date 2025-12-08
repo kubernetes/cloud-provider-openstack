@@ -44,6 +44,7 @@ require (
 
 // the below fixes the "go list -m all" execution
 replace (
+	github.com/gophercloud/gophercloud/v2 => github.com/kayrus/gophercloud/v2 v2.9.1-0.20260112125525-25600003eb41
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.36.0
 	k8s.io/cri-client => k8s.io/cri-client v0.36.0
 	k8s.io/cri-streaming => k8s.io/cri-streaming v0.36.0
