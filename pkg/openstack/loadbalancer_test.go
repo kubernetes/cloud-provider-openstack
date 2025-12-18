@@ -3,10 +3,11 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/ptr"
 	"reflect"
 	"sort"
 	"testing"
+
+	"k8s.io/utils/ptr"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
@@ -709,6 +710,7 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 		})
 	}
 }
+
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 	ipmodeProxy := corev1.LoadBalancerIPModeProxy
 	ipmodeVIP := corev1.LoadBalancerIPModeVIP
@@ -2358,6 +2360,110 @@ func Test_buildMonitorCreateOpts(t *testing.T) {
 				ExpectedCodes: "200",
 			},
 		},
+		{
+			name: "using http health monitor with not-ovn provider",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "amphora",
+						},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          3,
+					healthMonitorTimeout:        8,
+					healthMonitorMaxRetries:     6,
+					healthMonitorMaxRetriesDown: 2,
+					healthMonitorHTTPPorts:      []string{"80"},
+					healthMonitorHTTPTypes:      []string{"HTTP"},
+					healthMonitorURLPath:        "/healthz",
+					healthMonitorHTTPMethod:     "HEAD",
+					healthMonitorHTTPVersion:    "1.1",
+					healthMonitorExpectedCodes:  "200,201",
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolTCP,
+					Port:     80,
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "using http health monitor with not-ovn provider",
+				Type:           "HTTP",
+				Delay:          3,
+				Timeout:        8,
+				MaxRetries:     6,
+				MaxRetriesDown: 2,
+				URLPath:        "/healthz",
+				HTTPMethod:     "HEAD",
+				HTTPVersion:    "1.1",
+				ExpectedCodes:  "200,201",
+			},
+		},
+		{
+			name: "using http health monitor on multiple ports with one type with not-ovn provider",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "amphora",
+						},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          3,
+					healthMonitorTimeout:        8,
+					healthMonitorMaxRetries:     6,
+					healthMonitorMaxRetriesDown: 2,
+					healthMonitorHTTPPorts:      []string{"80", "https"},
+					healthMonitorHTTPTypes:      []string{"HTTPS"},
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolTCP,
+					Name:     "https",
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "using http health monitor on multiple ports with one type with not-ovn provider",
+				Type:           "HTTPS",
+				Delay:          3,
+				Timeout:        8,
+				MaxRetries:     6,
+				MaxRetriesDown: 2,
+			},
+		},
+		{
+			name: "using http health monitor on multiple ports with different types with not-ovn provider",
+			testArg: testArg{
+				lbaas: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "amphora",
+						},
+					},
+				},
+				svcConf: &serviceConfig{
+					healthMonitorDelay:          3,
+					healthMonitorTimeout:        8,
+					healthMonitorMaxRetries:     6,
+					healthMonitorMaxRetriesDown: 2,
+					healthMonitorHTTPPorts:      []string{"80", "https"},
+					healthMonitorHTTPTypes:      []string{"HTTP", "HTTPS"},
+				},
+				port: corev1.ServicePort{
+					Protocol: corev1.ProtocolTCP,
+					Name:     "https",
+				},
+			},
+			want: v2monitors.CreateOpts{
+				Name:           "using http health monitor on multiple ports with different types with not-ovn provider",
+				Type:           "HTTPS",
+				Delay:          3,
+				Timeout:        8,
+				MaxRetries:     6,
+				MaxRetriesDown: 2,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2502,7 +2608,6 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			}
 			createOpt := lbaas.buildListenerCreateOpt(context.TODO(), tc.port, tc.svcConf, tc.name)
 			assert.Equal(t, tc.expectedCreateOpt, createOpt)
-
 		})
 	}
 }
@@ -2672,6 +2777,186 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getProxyProtocolFromServiceAnnotation(tt.args.service)
 			assert.Equalf(t, tt.want, got, "getProxyProtocolFromServiceAnnotation(%v)", tt.args.service)
+		})
+	}
+}
+
+func Test_getValuesFromServiceAnnotation(t *testing.T) {
+	type testArgs struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting string
+	}
+
+	tests := []struct {
+		name     string
+		testArgs testArgs
+		expected []string
+	}{
+		{
+			name: "enter empty arguments",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{},
+				},
+				annotationKey:  "",
+				defaultSetting: "",
+			},
+			expected: []string{},
+		},
+		{
+			name: "enter valid argument with annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: []string{"annotation-Value"},
+		},
+		{
+			name: "enter valid arguments with annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value,annotation-Value2"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: []string{"annotation-Value", "annotation-Value2"},
+		},
+		{
+			name: "valid argument without annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: []string{"default-setting"},
+		},
+		{
+			name: "valid arguments without annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting,default-setting2",
+			},
+			expected: []string{"default-setting", "default-setting2"},
+		},
+		{
+			name: "enter arguments without default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value,annotation-Value2"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: []string{"annotation-Value", "annotation-Value2"},
+		},
+		{
+			name: "enter arguments with spaces without default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value, annotation-Value2"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: []string{"annotation-Value", "annotation-Value2"},
+		},
+		{
+			name: "enter argument without annotation and default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: []string{},
+		},
+		{
+			name: "enter argument with a non-existing annotationKey with default setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "invalid-annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: []string{"default-setting"},
+		},
+		{
+			name: "enter argument with a non-existing annotationKey without a default setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "invalid-annotationKey",
+				defaultSetting: "",
+			},
+
+			expected: []string{},
+		},
+		{
+			name: "no name-space and service name but valid annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: []string{"annotation-Value"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := getValuesFromServiceAnnotation(test.testArgs.service, test.testArgs.annotationKey, test.testArgs.defaultSetting)
+
+			assert.Equal(t, test.expected, got)
 		})
 	}
 }
