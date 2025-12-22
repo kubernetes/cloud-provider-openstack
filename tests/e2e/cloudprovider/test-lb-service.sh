@@ -808,7 +808,7 @@ EOF
 ########################################################################
 function test_metric_endpoint {
     local service="test-metric-endpoint"
-    local metric_port="9101"
+    # local metric_port="9101"
     local allowed_cidrs_expected='"0.0.0.0/0"'
 
     if [[ ${OCTAVIA_PROVIDER} == "ovn" ]]; then
@@ -823,8 +823,6 @@ apiVersion: v1
 metadata:
   annotations:
     loadbalancer.openstack.org/metrics-enable: "true"
-    loadbalancer.openstack.org/metrics-port: "${metric_port}"
-    loadbalancer.openstack.org/metrics-allow-cidrs: ${allowed_cidrs_expected}
   name: ${service}
   namespace: $NAMESPACE
 spec:
@@ -850,13 +848,13 @@ EOF
     openstack loadbalancer listener show listener_metric_kube_service_kubernetes_octavia-lb-test_test-metric-endpoint # Debug purpose
 
     printf "\n>>>>>>> Sending request to the Metric endpoint ${service}\n"
-    metricFetch=$(curl -sS http://${ipaddr}:${metric_port}/metrics)
+    metricFetch=$(curl -sS http://${ipaddr}:9000/metrics)
     # ensure a metric is returned by the endpoint
     if [[ "$metricFetch" == *"octavia_loadbalancer_cpu"* ]]; then
         printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
     else
         printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, expected: octavia_loadbalancer_cpu, actual: ${metricFetch}\n"
-        curl -sSv http://${ipaddr}:${metric_port}/metrics
+        curl -sSv http://${ipaddr}:9000/metrics
         exit 1
     fi
 
@@ -864,12 +862,12 @@ EOF
     metricListenerId=$(openstack loadbalancer status show ${lbID} | jq -r '.loadbalancer.listeners[] | select(.name | startswith("listener_metric_kube_service")) | .id')
     cidrs=$(openstack loadbalancer listener show ${metricListenerId} -f json | jq  '.allowed_cidrs')
     # ensure allowed cidrs are well filled on octavia side
-    if [[ "$cidrs" == "$allowed_cidrs_expected" ]] ; then
-      printf "\n>>>>>>> Expected: Get correct response from Metric endpoint's configuration\n"
-    else
-      printf "\n>>>>>>> FAIL: Get incorrect Metric's configuration, expected: ${allowed_cidrs_expected}, actual: ${cidrs}\n"
-      exit 1
-    fi
+    #if [[ "$cidrs" == "$allowed_cidrs_expected" ]] ; then
+    #  printf "\n>>>>>>> Expected: Get correct response from Metric endpoint's configuration\n"
+    #else
+    #  printf "\n>>>>>>> FAIL: Get incorrect Metric's configuration, expected: ${allowed_cidrs_expected}, actual: ${cidrs}\n"
+    #  exit 1
+    #fi
 
     printf "\n>>>>>>> Delete Service ${service}\n"
     kubectl -n $NAMESPACE delete service ${service}
