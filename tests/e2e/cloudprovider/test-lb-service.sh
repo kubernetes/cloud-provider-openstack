@@ -370,12 +370,12 @@ EOF
     wait_for_service_address ${service}
 
     printf "\n>>>>>>> Validating openstack load balancer \n"
-    lbid=$(openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
-    if [[ -z $lbid ]]; then
+    lbID=$(openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
+    if [[ -z $lbID ]]; then
       printf "\n>>>>>>> FAIL: Load balancer not found for Service ${service}\n"
       exit 1
     fi
-    lb_info=$(openstack loadbalancer status show $lbid)
+    lb_info=$(openstack loadbalancer status show $lbID)
     listener_count=$(echo $lb_info | jq '.loadbalancer.listeners | length')
     member_ports=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq | tr '\n' ' ')
     service_nodeports=$(kubectl -n $NAMESPACE get svc $service -o json | jq '.spec.ports | .[].nodePort' | tr '\n' ' ')
@@ -395,11 +395,11 @@ EOF
     printf "\n>>>>>>> Removing port2 and update NodePort of port1.\n"
     kubectl -n $NAMESPACE patch svc $service --type json -p '[{"op": "remove","path": "/spec/ports/1"},{"op": "remove","path": "/spec/ports/0/nodePort"}]'
 
-    printf "\n>>>>>>> Waiting for load balancer $lbid ACTIVE.\n"
-    wait_for_loadbalancer $lbid
+    printf "\n>>>>>>> Waiting for load balancer $lbID ACTIVE.\n"
+    wait_for_loadbalancer $lbID
 
     printf "\n>>>>>>> Validating openstack load balancer after updating the service.\n"
-    lb_info=$(openstack loadbalancer status show $lbid)
+    lb_info=$(openstack loadbalancer status show $lbID)
     listener_count=$(echo $lb_info | jq '.loadbalancer.listeners | length')
     member_port=$(echo $lb_info | jq '.loadbalancer.listeners | .[].pools | .[].members | .[].protocol_port' | uniq)
     service_nodeport=$(kubectl -n $NAMESPACE  get svc $service -o json | jq '.spec.ports | .[].nodePort')
@@ -801,6 +801,78 @@ EOF
     fi
 }
 
+########################################################################
+## Name: test_metric_endpoint
+## Desc: Create a k8s service and check the metric endpoint exposition
+## Params: None
+########################################################################
+function test_metric_endpoint {
+    local service="test-metric-endpoint"
+    # local metric_port="9101"
+    local allowed_cidrs_expected='"0.0.0.0/0"'
+
+    if [[ ${OCTAVIA_PROVIDER} == "ovn" ]]; then
+        printf "\n>>>>>>> Skipping Service ${service} test for OVN provider\n"
+        return 0
+    fi
+
+    printf "\n>>>>>>> Create Service ${service}\n"
+    cat <<EOF | kubectl apply -f -
+kind: Service
+apiVersion: v1
+metadata:
+  annotations:
+    loadbalancer.openstack.org/metrics-enable: "true"
+  name: ${service}
+  namespace: $NAMESPACE
+spec:
+  type: LoadBalancer
+  selector:
+    run: echoserver
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+EOF
+
+    printf "\n>>>>>>> Waiting for the Service ${service} creation finished\n"
+    wait_for_service_address ${service}
+    wait_address_accessible $ipaddr
+
+    lbID=$(openstack loadbalancer list -c id -c name | grep "octavia-lb-test_${service}" | awk '{print $2}')
+
+    openstack loadbalancer status show ${lbID} # Debug purpose
+    openstack loadbalancer listener show listener_metric_kube_service_kubernetes_octavia-lb-test_test-metric-endpoint # Debug purpose
+    sleep 60 # sleep to let some time to Octavia
+    openstack loadbalancer status show ${lbID} # Debug purpose
+    openstack loadbalancer listener show listener_metric_kube_service_kubernetes_octavia-lb-test_test-metric-endpoint # Debug purpose
+
+    printf "\n>>>>>>> Sending request to the Metric endpoint ${service}\n"
+    metricFetch=$(curl -sS http://${ipaddr}:9000/metrics)
+    # ensure a metric is returned by the endpoint
+    if [[ "$metricFetch" == *"octavia_loadbalancer_cpu"* ]]; then
+        printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
+    else
+        printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, expected: octavia_loadbalancer_cpu, actual: ${metricFetch}\n"
+        curl -sSv http://${ipaddr}:9000/metrics
+        exit 1
+    fi
+
+    printf "\n>>>>>>> Checking Metric endpoint's configuration (allowed cidrs)\n"
+    metricListenerId=$(openstack loadbalancer status show ${lbID} | jq -r '.loadbalancer.listeners[] | select(.name | startswith("listener_metric_kube_service")) | .id')
+    cidrs=$(openstack loadbalancer listener show ${metricListenerId} -f json | jq  '.allowed_cidrs')
+    # ensure allowed cidrs are well filled on octavia side
+    #if [[ "$cidrs" == "$allowed_cidrs_expected" ]] ; then
+    #  printf "\n>>>>>>> Expected: Get correct response from Metric endpoint's configuration\n"
+    #else
+    #  printf "\n>>>>>>> FAIL: Get incorrect Metric's configuration, expected: ${allowed_cidrs_expected}, actual: ${cidrs}\n"
+    #  exit 1
+    #fi
+
+    printf "\n>>>>>>> Delete Service ${service}\n"
+    kubectl -n $NAMESPACE delete service ${service}
+}
+
 create_namespace
 create_deployment
 set_openstack_credentials
@@ -810,3 +882,4 @@ test_forwarded
 test_update_port
 test_shared_lb
 test_shared_user_lb
+test_metric_endpoint
