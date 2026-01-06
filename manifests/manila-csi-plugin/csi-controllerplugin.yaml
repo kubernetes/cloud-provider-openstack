@@ -36,7 +36,7 @@ spec:
       serviceAccountName: openstack-manila-csi-controllerplugin
       containers:
         - name: provisioner
-          image: "registry.k8s.io/sig-storage/csi-provisioner:v5.1.0"
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v5.3.0"
           args:
             - "--csi-address=$(ADDRESS)"
             - "--extra-create-metadata"
@@ -50,7 +50,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: snapshotter
-          image: "registry.k8s.io/sig-storage/csi-snapshotter:v8.1.0"
+          image: "registry.k8s.io/sig-storage/csi-snapshotter:v8.3.0"
           args:
             - "--csi-address=$(ADDRESS)"
           env:
@@ -61,7 +61,7 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: resizer
-          image: "registry.k8s.io/sig-storage/csi-resizer:v1.12.0"
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.14.0"
           args:
             - "--csi-address=$(ADDRESS)"
             - "--handle-volume-inuse-error=false"
@@ -78,7 +78,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: registry.k8s.io/provider-os/manila-csi-plugin:v1.33.0
+          image: registry.k8s.io/provider-os/manila-csi-plugin:v1.34.0
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --endpoint=$(CSI_ENDPOINT)

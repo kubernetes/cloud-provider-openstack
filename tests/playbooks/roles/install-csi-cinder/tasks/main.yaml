@@ -159,6 +159,16 @@
 
           kubectl -n kube-system logs ds/openstack-cloud-controller-manager > /var/log/csi-pod/occm.log
 
+    - name: Collect pod logs for debug purpose (early collection on deployment failure)
+      shell:
+        executable: /bin/bash
+        cmd: |
+          set -x
+          mkdir -p /var/log/csi-pod
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/deployment-csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/deployment-csi-cinder-nodeplugin.log
+      ignore_errors: true
+
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
       fail:
         msg: *failmsg
@@ -188,14 +198,14 @@
         --ginkgo.focus='External.Storage' \
         --ginkgo.skip='\[Disruptive\]|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+mount\s+multiple\s+PV\s+pointing\s+to\s+the\s+same\s+storage\s+on\s+the\s+same\s+node|\[Testpattern:\s+Dynamic\s+PV\s+\(default\s+fs\)\]\s+provisioning\s+should\s+provision\s+storage\s+with\s+any\s+volume\s+data\s+source\s+\[Serial\]|should\s+support\s+expansion\s+of\s+pvcs\s+created\s+for\s+ephemeral\s+pvcs' \
         --ginkgo.v \
-        --ginkgo.noColor \
-        --ginkgo.progress \
-        --ginkgo.timeout=1h30m \
+        --ginkgo.no-color \
+        --ginkgo.show-node-events \
+        --ginkgo.timeout=1h45m \
         -test.timeout=0 \
         -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
   register: functional_test_result
   ignore_errors: true
-  async: 5700 # wait 1h35m (i.e. 5 mins longer than the ginkgo timeout) then fail and fetch the logs
+  async: 6600 # wait 1h50m (i.e. 5 mins longer than the ginkgo timeout) then fail and fetch the logs
   poll: 15
 
 - name: Collect pod logs for debug purpose

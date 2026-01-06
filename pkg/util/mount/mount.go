@@ -102,7 +102,7 @@ func probeVolume() error {
 			name := scsiPath + f.Name() + "/scan"
 			data := []byte("- - -")
 			if err := os.WriteFile(name, data, 0666); err != nil {
-				return fmt.Errorf("Unable to scan %s: %w", f.Name(), err)
+				return fmt.Errorf("unable to scan %s: %w", f.Name(), err)
 			}
 		}
 	}
@@ -162,7 +162,7 @@ func (m *Mount) getDevicePathBySerialID(volumeID string) string {
 		// KVM virtio-scsi #852
 		fmt.Sprintf("scsi-0QEMU_QEMU_HARDDISK_%s", volumeID),
 		// ESXi
-		fmt.Sprintf("wwn-0x%s", strings.Replace(volumeID, "-", "", -1)),
+		fmt.Sprintf("wwn-0x%s", strings.ReplaceAll(volumeID, "-", "")),
 	}
 
 	files, err := os.ReadDir("/dev/disk/by-id/")

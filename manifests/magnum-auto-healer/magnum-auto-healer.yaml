@@ -88,7 +88,7 @@ spec:
         node-role.kubernetes.io/control-plane: ""
       containers:
         - name: magnum-auto-healer
-          image: registry.k8s.io/provider-os/magnum-auto-healer:v1.33.0
+          image: registry.k8s.io/provider-os/magnum-auto-healer:v1.34.0
           imagePullPolicy: Always
           args:
             - /bin/magnum-auto-healer

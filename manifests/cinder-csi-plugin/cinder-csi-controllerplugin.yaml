@@ -25,7 +25,7 @@ spec:
       serviceAccount: csi-cinder-controller-sa
       containers:
         - name: csi-attacher
-          image: registry.k8s.io/sig-storage/csi-attacher:v4.7.0
+          image: registry.k8s.io/sig-storage/csi-attacher:v4.10.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -39,7 +39,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-provisioner
-          image: registry.k8s.io/sig-storage/csi-provisioner:v5.1.0
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.3.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -55,7 +55,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-snapshotter
-          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.1.0
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.3.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -69,7 +69,7 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
         - name: csi-resizer
-          image: registry.k8s.io/sig-storage/csi-resizer:v1.12.0
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.14.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=3m"
@@ -83,7 +83,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: liveness-probe
-          image: registry.k8s.io/sig-storage/livenessprobe:v2.14.0
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.17.0
           args:
             - "--csi-address=$(ADDRESS)"
           env:
@@ -93,7 +93,7 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
         - name: cinder-csi-plugin
-          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.33.0
+          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.34.0
           args:
             - /bin/cinder-csi-plugin
             - "--endpoint=$(CSI_ENDPOINT)"

@@ -38,21 +38,21 @@ import (
 
 type AuthOpts struct {
 	AuthURL          string                   `gcfg:"auth-url" mapstructure:"auth-url" name:"os-authURL" value:"optional" dependsOn:"os-password|os-trustID|os-applicationCredentialSecret|os-clientCertPath"`
-	UserID           string                   `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional" dependsOn:"os-password"`
-	Username         string                   `name:"os-userName" value:"optional" dependsOn:"os-password"`
-	Password         string                   `name:"os-password" value:"optional" dependsOn:"os-domainID|os-domainName,os-projectID|os-projectName,os-userID|os-userName"`
-	TenantID         string                   `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional" dependsOn:"os-password|os-clientCertPath"`
-	TenantName       string                   `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional" dependsOn:"os-password|os-clientCertPath"`
+	UserID           string                   `gcfg:"user-id" mapstructure:"user-id" name:"os-userID" value:"optional"`
+	Username         string                   `name:"os-userName" value:"optional"`
+	Password         string                   `name:"os-password" value:"optional"`
+	TenantID         string                   `gcfg:"tenant-id" mapstructure:"project-id" name:"os-projectID" value:"optional"`
+	TenantName       string                   `gcfg:"tenant-name" mapstructure:"project-name" name:"os-projectName" value:"optional"`
 	TrustID          string                   `gcfg:"trust-id" mapstructure:"trust-id" name:"os-trustID" value:"optional"`
 	TrusteeID        string                   `gcfg:"trustee-id" mapstructure:"trustee-id" name:"os-trusteeID" value:"optional" dependsOn:"os-trustID"`
 	TrusteePassword  string                   `gcfg:"trustee-password" mapstructure:"trustee-password" name:"os-trusteePassword" value:"optional" dependsOn:"os-trustID"`
-	DomainID         string                   `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional" dependsOn:"os-password|os-clientCertPath"`
-	DomainName       string                   `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional" dependsOn:"os-password|os-clientCertPath"`
+	DomainID         string                   `gcfg:"domain-id" mapstructure:"domain-id" name:"os-domainID" value:"optional"`
+	DomainName       string                   `gcfg:"domain-name" mapstructure:"domain-name" name:"os-domainName" value:"optional"`
 	TenantDomainID   string                   `gcfg:"tenant-domain-id" mapstructure:"project-domain-id" name:"os-projectDomainID" value:"optional"`
 	TenantDomainName string                   `gcfg:"tenant-domain-name" mapstructure:"project-domain-name" name:"os-projectDomainName" value:"optional"`
 	UserDomainID     string                   `gcfg:"user-domain-id" mapstructure:"user-domain-id" name:"os-userDomainID" value:"optional"`
 	UserDomainName   string                   `gcfg:"user-domain-name" mapstructure:"user-domain-name" name:"os-userDomainName" value:"optional"`
-	Region           string                   `name:"os-region" value:"optional" dependsOn:"os-password|os-applicationCredentialSecret|os-trusteePassword"`
+	Region           string                   `name:"os-region" value:"optional"`
 	EndpointType     gophercloud.Availability `gcfg:"os-endpoint-type" mapstructure:"os-endpoint-type" name:"os-endpointType" value:"optional"`
 	CAFile           string                   `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 	TLSInsecure      string                   `gcfg:"tls-insecure" mapstructure:"tls-insecure" name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`

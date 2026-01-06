@@ -57,7 +57,7 @@ func Decrypt(data, key []byte) (plaintext []byte, err error) {
 	ciphertext := data[aes.BlockSize:]
 
 	if len(ciphertext)%aes.BlockSize != 0 {
-		return nil, errors.New("Invalid Data, not multiple of block size")
+		return nil, errors.New("invalid Data, not multiple of block size")
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
