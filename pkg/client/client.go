@@ -56,6 +56,7 @@ type AuthOpts struct {
 	EndpointType     gophercloud.Availability `gcfg:"os-endpoint-type" mapstructure:"os-endpoint-type" name:"os-endpointType" value:"optional"`
 	CAFile           string                   `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 	TLSInsecure      string                   `gcfg:"tls-insecure" mapstructure:"tls-insecure" name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
+	Token            string                   `gcfg:"token" mapstructure:"token" name:"os-token" value:"optional"`
 
 	// TLS client auth
 	CertFile string `gcfg:"cert-file" mapstructure:"cert-file" name:"os-clientCertPath" value:"optional" dependsOn:"os-clientKeyPath"`
@@ -150,6 +151,7 @@ func (authOpts AuthOpts) ToAuthOptions() gophercloud.AuthOptions {
 			ApplicationCredentialID:     authOpts.ApplicationCredentialID,
 			ApplicationCredentialName:   authOpts.ApplicationCredentialName,
 			ApplicationCredentialSecret: authOpts.ApplicationCredentialSecret,
+			Token:                       authOpts.Token,
 		},
 	}
 
@@ -231,6 +233,7 @@ func ReadClouds(authOpts *AuthOpts) error {
 	authOpts.ApplicationCredentialID = replaceEmpty(authOpts.ApplicationCredentialID, cloud.AuthInfo.ApplicationCredentialID)
 	authOpts.ApplicationCredentialName = replaceEmpty(authOpts.ApplicationCredentialName, cloud.AuthInfo.ApplicationCredentialName)
 	authOpts.ApplicationCredentialSecret = replaceEmpty(authOpts.ApplicationCredentialSecret, cloud.AuthInfo.ApplicationCredentialSecret)
+	authOpts.Token = replaceEmpty(authOpts.Token, cloud.AuthInfo.Token)
 
 	return nil
 }

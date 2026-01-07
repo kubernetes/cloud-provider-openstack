@@ -155,7 +155,9 @@ The options in `Global` section are used for openstack-cloud-controller-manager 
 * `application-credential-secret`
   The secret of an application credential to authenticate with.
 * `tls-insecure`
-  If set to `true`, then the server's certificate will not be verified. Default is `false`.
+  If set to `true`, then the server’s certificate will not be verified. Default is `false`.
+* `token`
+  Keystone token.
 
 ###  Networking
 
