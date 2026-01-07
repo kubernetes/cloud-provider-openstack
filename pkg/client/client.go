@@ -56,7 +56,7 @@ type AuthOpts struct {
 	EndpointType     gophercloud.Availability `gcfg:"os-endpoint-type" mapstructure:"os-endpoint-type" name:"os-endpointType" value:"optional"`
 	CAFile           string                   `gcfg:"ca-file" mapstructure:"ca-file" name:"os-certAuthorityPath" value:"optional"`
 	TLSInsecure      string                   `gcfg:"tls-insecure" mapstructure:"tls-insecure" name:"os-TLSInsecure" value:"optional" matches:"^true|false$"`
-	Token            string                   `name:"os-token" value:"optional"`
+	Token            string                   `gcfg:"token" mapstructure:"token" name:"os-token" value:"optional"`
 
 	// TLS client auth
 	CertFile string `gcfg:"cert-file" mapstructure:"cert-file" name:"os-clientCertPath" value:"optional" dependsOn:"os-clientKeyPath"`
