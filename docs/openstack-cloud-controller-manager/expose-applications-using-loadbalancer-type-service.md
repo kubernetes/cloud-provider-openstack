@@ -152,6 +152,24 @@ Request Body:
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
+- `loadbalancer.openstack.org/x-forwarded-port`
+
+  If 'true', `X-Forwarded-Port` is inserted into the HTTP headers which contains the original destination port used by the client (for example `443` for HTTPS traffic), allowing the backend HTTP service to reconstruct the original request port. Please note that the cloud provider will force the creation of an Octavia listener of type `HTTP` if this option is set. Only applies when using Octavia.
+
+  This annotation also works in conjunction with the `loadbalancer.openstack.org/default-tls-container-ref` annotation. In this case the cloud provider will create an Octavia listener of type `TERMINATED_HTTPS` instead of an `HTTP` listener.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
+- `loadbalancer.openstack.org/x-forwarded-proto`
+
+  If 'true', `X-Forwarded-Proto` is inserted into the HTTP headers which contains the original protocol used by the client (for example `http` or `https`), allowing the backend HTTP service to correctly determine the original request scheme when TLS termination occurs at the load balancer. Please note that the cloud provider will force the creation of an Octavia listener of type `HTTP` if this option is set. Only applies when using Octavia.
+
+  This annotation also works in conjunction with the `loadbalancer.openstack.org/default-tls-container-ref` annotation. In this case the cloud provider will create an Octavia listener of type `TERMINATED_HTTPS` instead of an `HTTP` listener.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
+  The `x-forwarded-for`, `x-forwarded-port`, and `x-forwarded-proto` annotations are independent and can be enabled separately depending on application requirements.
+
 - `loadbalancer.openstack.org/lb-method`
 
   Load balancing algorithm to use when distributed to members. [OpenStack Pool Creation | lb_algorithm](https://docs.openstack.org/api-ref/load-balancer/v2/#create-pool)
