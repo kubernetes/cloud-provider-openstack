@@ -3,7 +3,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "occm.name" . }}
-  labels: 
+  labels:
     {{- include "common.labels.standard" . | nindent 4 }}
   {{- if .Values.serviceMonitor.additionalLabels }}
     {{- toYaml .Values.serviceMonitor.additionalLabels | nindent 4 }}
@@ -15,8 +15,7 @@ metadata:
     {{- end }}
 spec:
   endpoints:
-  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-    interval: 30s
+  - interval: 30s
     port: http
     scheme: https
     tlsConfig:
@@ -24,5 +23,5 @@ spec:
   jobLabel: component
   selector:
     matchLabels:
-      {{- include "occm.controllermanager.matchLabels" . | nindent 6 }}
+      {{- include "common.labels.standard" . | nindent 6 }}
 {{- end }}
