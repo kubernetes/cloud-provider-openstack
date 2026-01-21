@@ -3,6 +3,22 @@ entries:
   openstack-cinder-csi:
   - apiVersion: v1
     appVersion: v1.34.1
+    created: "2026-01-21T13:43:42.336955664Z"
+    description: Cinder CSI Chart for OpenStack
+    digest: 367f83412a0c7990a36df47cb5b650e88f5cb0774ebbcf81634cef088112a9a6
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://github.com/kubernetes/kubernetes/blob/master/logo/logo.png
+    maintainers:
+    - email: mnasiadka@gmail.com
+      name: mnasiadka
+    - email: matt@stackhpc.com
+      name: mkjpryor
+    name: openstack-cinder-csi
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cinder-csi-2.34.3/openstack-cinder-csi-2.34.3.tgz
+    version: 2.34.3
+  - apiVersion: v1
+    appVersion: v1.34.1
     created: "2025-10-15T15:42:07.233534841Z"
     description: Cinder CSI Chart for OpenStack
     digest: 4de112747178b9058e135a0facbda473b36b68b931455909df03ebb06d5f9bcd
@@ -2533,4 +2549,4 @@ entries:
     urls:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-0.2.1/openstack-manila-csi-0.2.1.tgz
     version: 0.2.1
-generated: "2026-01-16T08:51:34.682167583Z"
+generated: "2026-01-21T13:43:42.337730968Z"
