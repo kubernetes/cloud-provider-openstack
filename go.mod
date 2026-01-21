@@ -44,6 +44,7 @@ require (
 
 // the below fixes the "go list -m all" execution
 replace (
+	github.com/opencontainers/cgroups => github.com/opencontainers/cgroups v0.0.3
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.35.0
 	k8s.io/cri-client => k8s.io/cri-client v0.35.0
 	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation v0.35.0
