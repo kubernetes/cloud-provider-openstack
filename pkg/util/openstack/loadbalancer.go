@@ -603,6 +603,47 @@ func BatchUpdatePoolMembers(ctx context.Context, client *gophercloud.ServiceClie
 	return nil
 }
 
+// BatchUpdatePoolsMembers
+func BatchUpdatePoolsMembers(ctx context.Context, client *gophercloud.ServiceClient, lbID string, newPools []pools.Pool) error {
+	mc := metrics.NewMetricContext("loadbalancer_pools_members", "update")
+
+	opts := make([]pools.BatchUpdateMemberOpts, 0, len(newPools)*len(newPools[0].Members))
+	for _, p := range newPools {
+		for _, m := range p.Members {
+			var name, subnetID *string
+			if m.Name != "" {
+				name = &m.Name
+			}
+			if m.SubnetID != "" {
+				subnetID = &m.SubnetID
+			}
+			var monitorPort *int
+			if m.MonitorPort > 0 {
+				monitorPort = &m.MonitorPort
+			}
+			opts = append(opts, pools.BatchUpdateMemberOpts{
+				PoolID:       p.ID,
+				Address:      m.Address,
+				ProtocolPort: m.ProtocolPort,
+				Name:         name,
+				SubnetID:     subnetID,
+				MonitorPort:  monitorPort,
+			})
+		}
+	}
+
+	err := pools.BatchUpdatePoolsMembers(ctx, client, opts).ExtractErr()
+	if mc.ObserveRequest(err) != nil {
+		return err
+	}
+
+	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating pools members: %v", lbID, err)
+	}
+
+	return nil
+}
+
 // GetL7policies retrieves all l7 policies for the given listener.
 func GetL7policies(ctx context.Context, client *gophercloud.ServiceClient, listenerID string) ([]l7policies.L7Policy, error) {
 	var policies []l7policies.L7Policy
