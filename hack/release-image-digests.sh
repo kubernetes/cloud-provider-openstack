@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # example:
-# ./release-image-digests.sh registry.k8s.io/images/k8s-staging-provider-os/images.yaml [v1.34.0] [v1.33.1]
+# ./release-image-digests.sh registry.k8s.io/images/k8s-staging-provider-os/images.yaml [v1.35.0] [v1.34.1]
 
 YAML_FILE=${1:?Usage: $0 <yaml_file> [<tag>...]}
 TAGS="${@:2}"
