@@ -194,6 +194,30 @@ Request Body:
 
   NOTE: Health monitors for the `ovn` provider are only supported on OpenStack Wallaby and later.
 
+- `loadbalancer.openstack.org/health-monitor-http-ports`
+
+  A list of the ports (specified by name or number) that should get an HTTP(S) health check, separated by commas.
+
+- `loadbalancer.openstack.org/health-monitor-http-types`
+
+  One or more check types can be selected for HTTP(S) health checks. These can be set to either `HTTP` or `HTTPS`. If multiple HTTP health check ports are defined, you can set either one value for all checks or multiple values separated by commas for individual checks, using the same index as in `health-monitor-https-ports`. Defaults to `HTTP`.
+
+- `loadbalancer.openstack.org/health-monitor-http-method`
+
+  The HTTP method that should be used for HTTP health checks. Valid values are `CONNECT`, `DELETE`, `GET`, `HEAD`, `OPTIONS`, `PATCH`, `POST`, `PUT` and `TRACE`. Defaults to `GET`
+
+- `loadbalancer.openstack.org/health-monitor-http-version`
+
+  The HTTP version that should be used for HTTP health checks. Valid values are `1.0` and `1.1`. Defaults to `1.0`.
+
+- `loadbalancer.openstack.org/health-monitor-expected-codes`
+
+  A list of HTTP status codes that should be considered healthy by the HTTP health checks. Valid values include a single value, such as `200`, a list, such as `200, 202` or a range, such as `200-204`. Defaults to `200`.
+
+- `loadbalancer.openstack.org/health-monitor-url-path`
+
+  The URL that should be used by the HTTP health checks. The value must start with a `/`. Defaults to `/`.
+
 - `loadbalancer.openstack.org/health-monitor-delay`
 
   Defines the health monitor delay in seconds for the loadbalancer pools.
