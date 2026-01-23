@@ -72,6 +72,10 @@
   set_fact:
     k3s_fip: "{{ fip.stdout }}"
 
+- name: Set k3s release
+  set_fact:
+    k3s_release: "{{ k8s_release }}.k3s1"
+
 - name: Run k3s master
   shell:
     executable: /bin/bash
@@ -154,7 +158,7 @@
   retries: 100
   delay: 5
 
-- name: Prepare kubeconfig file
+- name: Prepare kubectl and kubeconfig file
   shell:
     executable: /bin/bash
     cmd: |
@@ -162,31 +166,8 @@
 
       mkdir -p {{ ansible_user_dir }}/.kube
       scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }}:/etc/rancher/k3s/k3s.yaml {{ ansible_user_dir }}/.kube/config
-
-- name: Get latest kubectl version
-  uri:
-    url: https://dl.k8s.io/release/stable.txt
-    return_content: yes
-  register: kubectl_version
-  retries: 5
-  delay: 10
-  until: kubectl_version.status == 200
-
-- name: Download kubectl binary
-  get_url:
-    url: "https://dl.k8s.io/release/{{ kubectl_version.content | trim }}/bin/linux/amd64/kubectl"
-    dest: /usr/local/bin/kubectl
-    mode: '0755'
-  become: true
-  retries: 5
-  delay: 10
-
-- name: Set kubectl cluster config
-  shell:
-    executable: /bin/bash
-    cmd: |
-      set -ex
-
+      curl -sLO# https://dl.k8s.io/release/{{ k8s_release }}/bin/linux/amd64/kubectl
+      chmod +x ./kubectl; sudo mv ./kubectl /usr/local/bin/kubectl
       kubectl config set-cluster default --server=https://{{ k3s_fip }}:6443 --kubeconfig {{ ansible_user_dir }}/.kube/config
 
 - name: Wait for k8s node ready

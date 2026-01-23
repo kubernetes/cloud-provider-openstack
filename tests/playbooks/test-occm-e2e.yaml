@@ -6,6 +6,7 @@
   vars:
     user: stack
     devstack_workdir: /home/{{ user }}/devstack
+    k8s_release: v1.35.0
     octavia_provider: ""
 
   roles:
