@@ -1,5 +1,10 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "management") }}
 apiVersion: apps/v1
+{{- if .Values.splitMode.enabled }}
+kind: Deployment
+{{- else }}
 kind: DaemonSet
+{{- end }}
 metadata:
   name: {{ include "occm.name" . }}
   labels: {{- include "common.labels.standard" . | nindent 4 }}
@@ -9,11 +14,19 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  {{- if .Values.splitMode.enabled }}
+  replicas: {{ .Values.splitMode.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "occm.controllermanager.matchLabels" . | nindent 6 }}
+  {{- if .Values.splitMode.enabled }}
+  strategy:
+    type: RollingUpdate
+  {{- else }}
   updateStrategy:
     type: RollingUpdate
+  {{- end }}
   template:
     metadata:
       annotations:
@@ -26,9 +39,16 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.splitMode.enabled }}
+      {{- with .Values.splitMode.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- else }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
@@ -42,7 +62,11 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.splitMode.enabled }}
+      automountServiceAccountToken: false
+      {{- else }}
       serviceAccountName: {{ .Values.serviceAccountName }}
+      {{- end }}
       containers:
         - name: openstack-cloud-controller-manager
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
@@ -56,6 +80,10 @@ spec:
             - --cloud-config=$(CLOUD_CONFIG)
             - --cluster-name=$(CLUSTER_NAME)
             - --cloud-provider=openstack
+            {{- if .Values.splitMode.enabled }}
+            - --kubeconfig=/etc/kubernetes/kubeconfig
+            - --leader-elect=true
+            {{- end }}
             - --use-service-account-credentials=false
             - --controllers={{- trimAll "," (include "occm.enabledControllers" . ) -}}
             {{- if .Values.serviceMonitor.enabled }}
@@ -71,10 +99,23 @@ spec:
           {{- if .Values.serviceMonitor.enabled }}
           ports:
           - containerPort: 10258
+            {{- if not .Values.splitMode.enabled }}
             hostPort: 10258
+            {{- end }}
             name: http
             protocol: TCP
           {{- end }}
+          {{- if .Values.splitMode.enabled }}
+          volumeMounts: {{- toYaml .Values.splitMode.extraVolumeMounts | nindent 12 }}
+            - mountPath: /etc/kubernetes
+              name: kubeconfig-volume
+              readOnly: true
+          {{- if .Values.secret.enabled }}
+            - mountPath: /etc/config
+              name: cloud-config-volume
+              readOnly: true
+          {{- end }}
+          {{- else }}
           {{- if or (.Values.extraVolumeMounts) (.Values.secret.enabled) }}
           volumeMounts:
           {{- end }}
@@ -85,6 +126,7 @@ spec:
           {{- end }}
           {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+          {{- end }}
           {{- end }}
           {{- if .Values.livenessProbe }}
           livenessProbe:
@@ -110,11 +152,27 @@ spec:
       initContainers: {{ toYaml .Values.extraInitContainers | nindent 6 }}
       {{- end }}
       dnsPolicy: {{ .Values.dnsPolicy }}
+      {{- if not .Values.splitMode.enabled }}
       hostNetwork: true
+      {{- end }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
 
+      {{- if .Values.splitMode.enabled }}
+      volumes: {{- toYaml .Values.splitMode.extraVolumes | nindent 6 }}
+      - name: kubeconfig-volume
+        secret:
+          secretName: {{ .Values.splitMode.kubeconfig.secretName }}
+          items:
+            - key: {{ .Values.splitMode.kubeconfig.secretKey }}
+              path: kubeconfig
+      {{- if .Values.secret.enabled }}
+      - name: cloud-config-volume
+        secret:
+          secretName: {{ .Values.secret.name }}
+      {{- end }}
+      {{- else }}
       {{- if or (.Values.extraVolumes) (.Values.secret.enabled) }}
       volumes:
       {{- end }}
@@ -126,3 +184,5 @@ spec:
       {{- if .Values.extraVolumes }}
         {{ toYaml .Values.extraVolumes | nindent 6 }}
       {{- end }}
+      {{- end }}
+{{- end }}
