@@ -1,4 +1,4 @@
-{{- if .Values.storageClass.enabled }}
+{{- if and .Values.storageClass.enabled (or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload")) }}
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
