@@ -1,3 +1,4 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload") }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -26,3 +27,4 @@ roleRef:
   kind: ClusterRole
   name: csi-nodeplugin-role
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
