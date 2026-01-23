@@ -168,7 +168,7 @@
     url: https://dl.k8s.io/release/stable.txt
     return_content: yes
   register: kubectl_version
-  retries: 5
+  retries: 50
   delay: 10
   until: kubectl_version.status == 200
 
@@ -178,7 +178,7 @@
     dest: /usr/local/bin/kubectl
     mode: '0755'
   become: true
-  retries: 5
+  retries: 50
   delay: 10
 
 - name: Set kubectl cluster config
