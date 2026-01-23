@@ -175,7 +175,7 @@
 
 - name: Fetch kubernetes-test-linux-amd64.tar.gz
   unarchive:
-    src: "https://dl.k8s.io/{{ e2e_test_version }}/kubernetes-test-linux-amd64.tar.gz"
+    src: "https://dl.k8s.io/{{ k8s_release }}/kubernetes-test-linux-amd64.tar.gz"
     dest: /tmp/
     remote_src: true
     extra_opts:

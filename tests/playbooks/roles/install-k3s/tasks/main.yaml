@@ -72,6 +72,10 @@
   set_fact:
     k3s_fip: "{{ fip.stdout }}"
 
+- name: Set k3s release
+  set_fact:
+    k3s_release: "{{ k8s_release }}.k3s1"
+
 - name: Run k3s master
   shell:
     executable: /bin/bash
@@ -162,7 +166,7 @@
 
       mkdir -p {{ ansible_user_dir }}/.kube
       scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }}:/etc/rancher/k3s/k3s.yaml {{ ansible_user_dir }}/.kube/config
-      curl -sLO# https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+      curl -sLO# https://dl.k8s.io/release/{{ k8s_release }}/bin/linux/amd64/kubectl
       chmod +x ./kubectl; sudo mv ./kubectl /usr/local/bin/kubectl
       kubectl config set-cluster default --server=https://{{ k3s_fip }}:6443 --kubeconfig {{ ansible_user_dir }}/.kube/config
 
