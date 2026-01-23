@@ -1,3 +1,4 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload") }}
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
@@ -20,7 +21,7 @@ spec:
       annotations:
         {{- include "cinder-csi.nodeplugin.podAnnotations" . | nindent 8 }}
     spec:
-      serviceAccount: csi-cinder-node-sa
+      serviceAccountName: csi-cinder-node-sa
       hostNetwork: true
       dnsPolicy: {{ .Values.csi.plugin.nodePlugin.dnsPolicy }}
       securityContext:
@@ -133,7 +134,12 @@ spec:
             - name: pods-probe-dir
               mountPath: /dev
               mountPropagation: "HostToContainer"
-          {{- with .Values.csi.plugin.volumeMounts }}
+          {{- if .Values.secret.enabled }}
+            - name: cloud-config
+              mountPath: {{ .Values.secret.path }}
+              readOnly: true
+          {{- end }}
+          {{- with .Values.splitMode.enabled | ternary .Values.splitMode.volumeMounts .Values.csi.plugin.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources: {{ toYaml .Values.csi.plugin.resources | nindent 12 }}
@@ -167,7 +173,7 @@ spec:
           hostPath:
             path: /etc/config
         {{- end }}
-        {{- with .Values.csi.plugin.volumes }}
+        {{- with .Values.splitMode.enabled | ternary .Values.splitMode.volumes .Values.csi.plugin.volumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
       affinity: {{ toYaml .Values.csi.plugin.nodePlugin.affinity | nindent 8 }}
@@ -184,3 +190,4 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+{{- end }}

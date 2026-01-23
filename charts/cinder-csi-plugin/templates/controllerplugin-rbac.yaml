@@ -1,12 +1,15 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload") }}
 # This YAML file contains RBAC API objects,
 # which are necessary to run csi controller plugin
 
+{{- if not .Values.splitMode.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: csi-cinder-controller-sa
   namespace: {{ .Release.Namespace }}
 ---
+{{- end }}
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -33,9 +36,15 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-attacher-binding
 subjects:
+  {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "workload") }}
+  - kind: User
+    name: {{ .Values.splitMode.subject.name }}
+    apiGroup: rbac.authorization.k8s.io
+  {{- else }}
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
     namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   kind: ClusterRole
   name: csi-attacher-role
@@ -80,9 +89,15 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-provisioner-binding
 subjects:
+  {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "workload") }}
+  - kind: User
+    name: {{ .Values.splitMode.subject.name }}
+    apiGroup: rbac.authorization.k8s.io
+  {{- else }}
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
     namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   kind: ClusterRole
   name: csi-provisioner-role
@@ -118,9 +133,15 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-snapshotter-binding
 subjects:
+  {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "workload") }}
+  - kind: User
+    name: {{ .Values.splitMode.subject.name }}
+    apiGroup: rbac.authorization.k8s.io
+  {{- else }}
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
     namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   kind: ClusterRole
   name: csi-snapshotter-role
@@ -158,11 +179,17 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-resizer-binding
 subjects:
+  {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "workload") }}
+  - kind: User
+    name: {{ .Values.splitMode.subject.name }}
+    apiGroup: rbac.authorization.k8s.io
+  {{- else }}
   - kind: ServiceAccount
     name: csi-cinder-controller-sa
     namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   kind: ClusterRole
   name: csi-resizer-role
   apiGroup: rbac.authorization.k8s.io
----
+{{- end }}
