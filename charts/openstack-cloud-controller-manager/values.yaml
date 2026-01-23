@@ -165,3 +165,33 @@ cluster:
 clusterRoleName: system:cloud-controller-manager
 
 serviceAccountName: cloud-controller-manager
+
+# External mode configuration
+# Enables split deployment across management and workload clusters
+splitMode:
+  # Enable external mode
+  enabled: false
+  # Which part to deploy: "management" or "workload"
+  # - management: Deploys the Deployment (controller) with kubeconfig
+  # - workload: Deploys only RBAC resources with configurable subject
+  type: management
+
+  # Management cluster settings (when type=management)
+  kubeconfig:
+    # Name of the pre-existing secret containing kubeconfig
+    secretName: ""
+    # Key in the secret containing the kubeconfig data
+    secretKey: value
+  # Number of replicas for the Deployment
+  replicas: 1
+  # Node selector for external mode Deployment
+  nodeSelector: {}
+  # Extra volumes for external mode
+  extraVolumes: []
+  # Extra volume mounts for external mode
+  extraVolumeMounts: []
+
+  # Workload cluster settings (when type=workload)
+  # Subject for the ClusterRoleBinding
+  subject:
+    name: openstack-cloud-controller-manager
