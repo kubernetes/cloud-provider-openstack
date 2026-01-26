@@ -46,6 +46,10 @@ spec:
       containers:
         - name: openstack-cloud-controller-manager
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args:
             - /bin/openstack-cloud-controller-manager
             - --v={{ .Values.logVerbosityLevel }}

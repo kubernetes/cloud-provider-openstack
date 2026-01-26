@@ -1,7 +1,7 @@
 ---
 user: "stack"
 workdir: "/home/{{ user }}/devstack"
-branch: "stable/2025.1"
+branch: "stable/2025.2"
 enable_services:
   - nova
   - glance
