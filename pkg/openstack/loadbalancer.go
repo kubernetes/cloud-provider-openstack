@@ -262,8 +262,8 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clust
 		var desiredTags []string
 		if len(svcConf.lbTags) == 0 {
 			klog.V(4).Infof("No load balancer tags found from service annotation key: %s", ServiceAnnotationLoadBalancerTags)
-		} else if err := json.Unmarshal([]byte(svcConf.lbTags), &desiredTags); err != nil {
-			klog.Warningf("unmarshal service annotation load balancer tags from key: %s, error: %s", ServiceAnnotationLoadBalancerTags, err)
+		} else {
+			desiredTags = cpoutil.SplitTrim(svcConf.lbTags, ',')
 		}
 		createOpts.Tags = append([]string{svcConf.lbName}, desiredTags...)
 	}
@@ -956,8 +956,8 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 	var desiredTags []string
 	if len(svcConf.poolTags) == 0 {
 		klog.V(4).Infof("No pools tags found from service annotation key: %s", ServiceAnnotationPoolTags)
-	} else if err := json.Unmarshal([]byte(svcConf.poolTags), &desiredTags); err != nil {
-		klog.Warningf("unmarshal service annotation pools tags from key: %s, error: %s", ServiceAnnotationPoolTags, err)
+	} else {
+		desiredTags = cpoutil.SplitTrim(svcConf.poolTags, ',')
 	}
 
 	if pool == nil {
@@ -973,20 +973,18 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 			return nil, err
 		}
 		klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
-	} else {
-		if svcConf.supportLBTags {
-			// Update tags if needed
-			if len(desiredTags) > 0 {
-				klog.V(4).Infof("Desired pools tags: %+v from service annotation key: %s", desiredTags, ServiceAnnotationPoolTags)
-				if ok, tags := mergeTags(pool.Tags, desiredTags); !ok {
-					klog.V(4).Infof("Will update pools' tags, current pools tags: %+v, desired tags: %+v", pool.Tags, tags)
-					updateOpts := v2pools.UpdateOpts{
-						Tags: &tags,
-					}
-					klog.InfoS("Updating pool tags", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "tags", desiredTags)
-					if err := openstackutil.UpdatePool(ctx, lbaas.lb, lbID, pool.ID, updateOpts); err != nil {
-						klog.Warningf("Error updating LB pool tags: %v", err)
-					}
+	} else if svcConf.supportLBTags {
+		// Update tags if needed
+		if len(desiredTags) > 0 {
+			klog.V(4).Infof("Desired pools tags: %+v from service annotation key: %s", desiredTags, ServiceAnnotationPoolTags)
+			if ok, tags := mergeTags(pool.Tags, desiredTags); !ok {
+				klog.V(4).Infof("Will update pools' tags, current pools tags: %+v, desired tags: %+v", pool.Tags, tags)
+				updateOpts := v2pools.UpdateOpts{
+					Tags: &tags,
+				}
+				klog.InfoS("Updating pool tags", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "tags", desiredTags)
+				if err := openstackutil.UpdatePool(ctx, lbaas.lb, lbID, pool.ID, updateOpts); err != nil {
+					klog.Warningf("Error updating LB pool tags: %v", err)
 				}
 			}
 		}
@@ -1167,8 +1165,8 @@ func (lbaas *LbaasV2) ensureOctaviaListener(ctx context.Context, lbID string, na
 				var desiredTags []string
 				if len(svcConf.listenerTags) == 0 {
 					klog.V(4).Infof("No listeners tags found from service annotation key: %s", ServiceAnnotationListenerTags)
-				} else if err := json.Unmarshal([]byte(svcConf.listenerTags), &desiredTags); err != nil {
-					klog.Warningf("unmarshal service annotation listeners tags from key: %s, error: %s", ServiceAnnotationListenerTags, err)
+				} else {
+					desiredTags = cpoutil.SplitTrim(svcConf.listenerTags, ',')
 				}
 				// Ensure listeners tags match the desired tags from Service annotations
 				if len(desiredTags) > 0 {
@@ -1255,8 +1253,8 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(ctx context.Context, port corev1.Se
 		var desiredTags []string
 		if len(svcConf.listenerTags) == 0 {
 			klog.V(4).Infof("No listeners tags found from service annotation key: %s", ServiceAnnotationListenerTags)
-		} else if err := json.Unmarshal([]byte(svcConf.listenerTags), &desiredTags); err != nil {
-			klog.Warningf("unmarshal service annotation listeners tags from key: %s, error: %s", ServiceAnnotationListenerTags, err)
+		} else {
+			desiredTags = cpoutil.SplitTrim(svcConf.listenerTags, ',')
 		}
 		if len(desiredTags) > 0 {
 			klog.V(4).Infof("Desired listener tags: %+v from service annotation key: %s", desiredTags, ServiceAnnotationListenerTags)
@@ -1852,8 +1850,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		var desiredTags []string
 		if len(svcConf.lbTags) == 0 {
 			klog.V(4).Infof("No load balancer tags found from service annotation key: %s", ServiceAnnotationLoadBalancerTags)
-		} else if err := json.Unmarshal([]byte(svcConf.lbTags), &desiredTags); err != nil {
-			klog.Warningf("unmarshal service annotation load balancer tags from key: %s, error: %s", ServiceAnnotationLoadBalancerTags, err)
+		} else {
+			desiredTags = cpoutil.SplitTrim(svcConf.lbTags, ',')
 		}
 		// add the service annotation tags to load balancer tags if the tags don't match
 		if len(desiredTags) > 0 {
