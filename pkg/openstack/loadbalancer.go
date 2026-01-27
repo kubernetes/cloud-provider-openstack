@@ -1154,29 +1154,19 @@ func (lbaas *LbaasV2) ensureOctaviaListener(ctx context.Context, lbID string, na
 		updateOpts := listeners.UpdateOpts{}
 
 		if svcConf.supportLBTags {
-			if !slices.Contains(listener.Tags, svcConf.lbName) {
-				var newTags []string
-				copy(newTags, listener.Tags)
-				newTags = append(newTags, svcConf.lbName)
-				updateOpts.Tags = &newTags
-				listenerChanged = true
+			// Get desired tags from Service annotations
+			var desiredTags []string
+			if len(svcConf.listenerTags) == 0 {
+				klog.V(4).Infof("No listeners tags found from service annotation key: %s", ServiceAnnotationListenerTags)
 			} else {
-				// Get desired tags from Service annotations
-				var desiredTags []string
-				if len(svcConf.listenerTags) == 0 {
-					klog.V(4).Infof("No listeners tags found from service annotation key: %s", ServiceAnnotationListenerTags)
-				} else {
-					desiredTags = cpoutil.SplitTrim(svcConf.listenerTags, ',')
-				}
-				// Ensure listeners tags match the desired tags from Service annotations
-				if len(desiredTags) > 0 {
-					klog.Infof("Desired listener tags: %+v from service annotation key: %s", desiredTags, ServiceAnnotationListenerTags)
-					if ok, tags := mergeTags(listener.Tags, desiredTags); !ok {
-						klog.V(4).Infof("Will update listeners' tags, current listeners tags: %+v, desired tags: %+v", listener.Tags, tags)
-						updateOpts.Tags = &tags
-						listenerChanged = true
-					}
-				}
+				desiredTags = cpoutil.SplitTrim(svcConf.listenerTags, ',')
+			}
+
+			tagsToEnsure := append([]string{svcConf.lbName}, desiredTags...)
+			if ok, tags := mergeTags(listener.Tags, tagsToEnsure); !ok {
+				klog.V(4).Infof("Will update listeners' tags, current listeners tags: %+v, desired tags: %+v", listener.Tags, tags)
+				updateOpts.Tags = &tags
+				listenerChanged = true
 			}
 		}
 
@@ -1256,13 +1246,15 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(ctx context.Context, port corev1.Se
 		} else {
 			desiredTags = cpoutil.SplitTrim(svcConf.listenerTags, ',')
 		}
+
+		tags := []string{svcConf.lbName}
 		if len(desiredTags) > 0 {
 			klog.V(4).Infof("Desired listener tags: %+v from service annotation key: %s", desiredTags, ServiceAnnotationListenerTags)
-			if ok, tags := mergeTags([]string{svcConf.lbName}, desiredTags); !ok {
-				klog.V(4).Infof("Will update listeners' tags, current listeners tags: %s, desired tags: %+v", svcConf.lbName, tags)
-				listenerCreateOpt.Tags = tags
+			if ok, merged := mergeTags(tags, desiredTags); !ok {
+				tags = merged
 			}
 		}
+		listenerCreateOpt.Tags = tags
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
