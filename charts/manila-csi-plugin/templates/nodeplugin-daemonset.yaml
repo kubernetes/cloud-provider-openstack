@@ -62,7 +62,7 @@ spec:
             --drivername=$(DRIVER_NAME)
             --share-protocol-selector=$(MANILA_SHARE_PROTO)
             --fwdendpoint=$(FWD_CSI_ENDPOINT)
-            --cluster-id="{{ $.Values.csimanila.clusterID }}"'
+            --cluster-id=$(CLUSTER_NAME)'
           ]
           env:
             - name: DRIVER_NAME
@@ -73,6 +73,10 @@ spec:
               value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
             - name: MANILA_SHARE_PROTO
               value: "{{ .protocolSelector }}"
+            {{- if $.Values.csimanila.clusterID }}
+            - name: CLUSTER_NAME
+              value: "{{ $.Values.csimanila.clusterID }}"
+            {{- end }}
             {{- if $.Values.nodeplugin.nodeplugin.extraEnv }}
               {{- toYaml $.Values.nodeplugin.nodeplugin.extraEnv | nindent 12 }}
             {{- end }}
