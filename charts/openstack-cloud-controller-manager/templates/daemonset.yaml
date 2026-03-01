@@ -17,7 +17,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include "cloudConfig" . | sha256sum }}
+        checksum/config: {{ print (include "cloudConfig" .) (.Values.cloudConfigContents | default "") | sha256sum }}
         {{- include "occm.controllermanager.annotations" . | nindent 8 }}
       labels:
         {{- include "occm.controllermanager.labels" . | nindent 8 }}
