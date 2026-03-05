@@ -85,9 +85,6 @@ csi:
       - name: cacert
         mountPath: /etc/cacert
         readOnly: true
-      - name: cloud-config
-        mountPath: /etc/config
-        readOnly: true
     nodePlugin:
       dnsPolicy: ClusterFirstWithHostNet
       # Optional additional annotations to add to the nodePlugin Pods.
@@ -180,6 +177,7 @@ secret:
   hostMount: true
   create: false
   filename: cloud.conf
+  path: /etc/config
 #  name: cinder-csi-cloud-config
 #  data:
 #    cloud.conf: |-
@@ -233,3 +231,24 @@ imagePullSecrets: []
 
 # add annotations to all pods, deployment, daemonset and podmonitor
 commonAnnotations: {}
+
+# External mode for split-cluster deployments (e.g., Cluster API)
+# When disabled, deploys both controller and node plugin with standard RBAC
+splitMode:
+  enabled: false
+  # type: "management" - Deploy controller with external kubeconfig (management cluster)
+  # type: "workload" - Deploy node plugin with RBAC for external controller (workload cluster)
+  type: ""
+  # Management cluster settings (type: management)
+  kubeconfig:
+    secretName: ""
+    secretKey: value
+  replicas: 1
+  nodeSelector: {}
+  # Workload cluster settings (type: workload)
+  # The User subject name for controller RBAC (identity of external controller)
+  subject:
+    name: cinder-csi-controller
+  # Volumes and volumeMounts for splitMode (overrides csi.plugin.volumes/volumeMounts)
+  volumes: []
+  volumeMounts: []

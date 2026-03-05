@@ -1,3 +1,4 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload") }}
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
@@ -8,3 +9,4 @@ spec:
   volumeLifecycleModes:
   - Persistent
   - Ephemeral
+{{- end }}
