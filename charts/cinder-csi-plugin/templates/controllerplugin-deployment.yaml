@@ -193,8 +193,10 @@ spec:
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
               value: /etc/config/{{ .Values.secret.filename }}
+            {{- if .Values.clusterID }}
             - name: CLUSTER_NAME
               value: "{{ .Values.clusterID }}"
+            {{- end }}
             {{- if .Values.csi.plugin.extraEnv }}
               {{- toYaml .Values.csi.plugin.extraEnv | nindent 12 }}
             {{- end }}
