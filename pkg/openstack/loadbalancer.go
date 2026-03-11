@@ -1033,10 +1033,21 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(ctx context.Context, port corev
 			memberSubnetID = nil
 		}
 
-		if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+		var protoPort int32
+		if !lbaas.opts.ProviderRequiresNodeports {
+			protoPort = port.Port
+		} else {
+			if port.NodePort != 0 { // It's 0 when AllocateLoadBalancerNodePorts=False
+				protoPort = port.NodePort
+			}
+		}
+
+		// protoPort set when provider doesn't require nodePorts (and e.g. AllocateLoadBalancerNodePorts=false)
+		// or when NodePort is set
+		if protoPort > 0 {
 			member := v2pools.BatchUpdateMemberOpts{
 				Address:      addr,
-				ProtocolPort: int(port.NodePort),
+				ProtocolPort: int(protoPort),
 				Name:         &node.Name,
 				SubnetID:     memberSubnetID,
 			}
