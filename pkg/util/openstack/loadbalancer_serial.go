@@ -51,7 +51,7 @@ func getNodeAddressForLB(node *apiv1.Node) (string, error) {
 
 func SeriallyReconcilePoolMembers(ctx context.Context, client *gophercloud.ServiceClient, pool *pools.Pool, nodePort int, lbID string, nodes []*apiv1.Node) error {
 
-	members, err := GetMembersbyPool(ctx, client, pool.ID)
+	members, err := GetPoolMembers(ctx, client, pool.ID)
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf("error getting pool members %s: %v", pool.ID, err)
 	}

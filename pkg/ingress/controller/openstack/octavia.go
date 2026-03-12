@@ -529,7 +529,7 @@ func (os *OpenStack) UpdateLoadbalancerMembers(ctx context.Context, lbID string,
 	for _, pool := range lbPools {
 		log.WithFields(log.Fields{"poolID": pool.ID}).Debug("Starting to update pool members")
 
-		members, err := openstackutil.GetMembersbyPool(ctx, os.Octavia, pool.ID)
+		members, err := openstackutil.GetPoolMembers(ctx, os.Octavia, pool.ID)
 		if err != nil {
 			log.WithFields(log.Fields{"poolID": pool.ID}).Errorf("Failed to get pool members: %v", err)
 			continue
