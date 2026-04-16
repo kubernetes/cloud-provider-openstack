@@ -200,6 +200,94 @@ func TestCreateVolumeWithParam(t *testing.T) {
 	assert.Equal(FakeAvailability, actualRes.Volume.AccessibleTopology[0].GetSegments()[topologyKey])
 }
 
+// Test CreateVolume passes mkfs-options to VolumeContext
+func TestCreateVolumeWithMkfsOptions(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	// mock OpenStack
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, FakeAvailability, "", "", "", properties).Return(&FakeVol, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+	assert := assert.New(t)
+
+	// Fake request with mkfs-options
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+		Parameters: map[string]string{
+			"mkfs-options": "-E nodiscard",
+		},
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: FakeAvailability},
+				},
+			},
+		},
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert mkfs-options is in VolumeContext
+	assert.NotNil(actualRes.Volume)
+	assert.Equal("-E nodiscard", actualRes.Volume.VolumeContext["mkfs-options"])
+}
+
+// Test CreateVolume passes mkfs-options on idempotent path (volume already exists)
+func TestCreateVolumeExistingWithMkfsOptions(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	// mock OpenStack - volume already exists
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolList, nil)
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+	assert := assert.New(t)
+
+	// Fake request with mkfs-options
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+		Parameters: map[string]string{
+			"mkfs-options": "-E nodiscard",
+		},
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Requisite: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: FakeAvailability},
+				},
+			},
+		},
+	}
+
+	// Invoke CreateVolume
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	// Assert mkfs-options is in VolumeContext even on idempotent path
+	assert.NotNil(actualRes.Volume)
+	assert.Equal("-E nodiscard", actualRes.Volume.VolumeContext["mkfs-options"])
+}
+
 // Test CreateVolume with ignore-volume-az option
 func TestCreateVolumeWithIgnoreVolumeAZ(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
