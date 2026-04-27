@@ -3,13 +3,12 @@ emeritus_approvers:
 - lingxiankong
 - ramineni
 - jichenjc
-approvers:
 - dulek
+approvers:
 - kayrus
 - stephenfin
 - zetaab
 reviewers:
-- dulek
 - kayrus
 - stephenfin
 - zetaab
