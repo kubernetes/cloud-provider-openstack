@@ -10,6 +10,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
@@ -2672,6 +2673,125 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getProxyProtocolFromServiceAnnotation(tt.args.service)
 			assert.Equalf(t, tt.want, got, "getProxyProtocolFromServiceAnnotation(%v)", tt.args.service)
+		})
+	}
+}
+
+func TestClusterIDTag(t *testing.T) {
+	assert.Equal(t, "", clusterIDTag(""))
+	assert.Equal(t, "kube_cluster_id_abc-123", clusterIDTag("abc-123"))
+	assert.True(t, len(clusterIDTagPrefix) > 0)
+}
+
+func TestFilterLoadBalancersByClusterID(t *testing.T) {
+	const (
+		thisUID    = "11111111-2222-3333-4444-555555555555"
+		otherUID   = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		thisTag    = clusterIDTagPrefix + thisUID
+		otherTag   = clusterIDTagPrefix + otherUID
+		serviceTag = "kube_service_kubernetes_default_test"
+	)
+
+	mkLB := func(id string, tags ...string) loadbalancers.LoadBalancer {
+		return loadbalancers.LoadBalancer{ID: id, Tags: tags}
+	}
+
+	tests := []struct {
+		name           string
+		clusterUID     string
+		input          []loadbalancers.LoadBalancer
+		wantIDs        []string
+		wantForeignFnd bool
+	}{
+		{
+			name:       "empty clusterUID is a no-op",
+			clusterUID: "",
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag),
+				mkLB("b", serviceTag, otherTag),
+			},
+			wantIDs:        []string{"a", "b"},
+			wantForeignFnd: false,
+		},
+		{
+			name:           "empty input list",
+			clusterUID:     thisUID,
+			input:          nil,
+			wantIDs:        nil,
+			wantForeignFnd: false,
+		},
+		{
+			name:       "single matching tag is kept",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "all untagged falls back to legacy behaviour",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "foreign cluster tag is filtered out",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantForeignFnd: true,
+		},
+		{
+			name:       "mixed: matching kept, foreign dropped",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+				mkLB("b", serviceTag, otherTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "mixed: untagged ignored when matching exists",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+				mkLB("b", serviceTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "all foreign returns empty with foreignFound true",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, otherTag),
+				mkLB("b", serviceTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantForeignFnd: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, foreign := filterLoadBalancersByClusterID(tt.input, tt.clusterUID)
+			gotIDs := make([]string, 0, len(got))
+			for _, lb := range got {
+				gotIDs = append(gotIDs, lb.ID)
+			}
+			if len(tt.wantIDs) == 0 {
+				assert.Empty(t, gotIDs)
+			} else {
+				assert.Equal(t, tt.wantIDs, gotIDs)
+			}
+			assert.Equal(t, tt.wantForeignFnd, foreign)
 		})
 	}
 }
