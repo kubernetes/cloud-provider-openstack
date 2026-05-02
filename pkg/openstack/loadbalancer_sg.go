@@ -243,6 +243,9 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 		return fmt.Errorf(
 			"failed to find subnet %s from openstack: %v", svcConf.lbMemberSubnetID, err)
 	}
+	if subnet == nil {
+		return fmt.Errorf("subnet %s not found in openstack", svcConf.lbMemberSubnetID)
+	}
 
 	etherType := rules.EtherType4
 	if netutils.IsIPv6CIDRString(subnet.CIDR) {
