@@ -14,14 +14,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# example:
-# ./verify-image-digests.sh 'v1.33.*' registry.k8s.io/images/k8s-staging-provider-os/images.yaml
+usage() {
+  cat <<EOF
+Usage: $0 [<match>] <yaml_file>
 
-# default to match all images
-MATCH=${1:-'.*'}
+Verify that content digests in an image promoter manifest match what is
+currently in the GCR staging registry and the production registry.
 
-# fail if $2 is not set
-YAML_FILE=${2:?Usage: $0 '<match>' <yaml_file>}
+For each image/tag pair recorded in the manifest, this script fetches the
+digest from both gcr.io/k8s-staging-provider-os and registry.k8s.io/provider-os
+and compares them against the digest stored in the dmap. Any mismatch is
+reported as an error.
+
+Arguments:
+  match       A regex to filter tags (e.g. 'v1.33.*'). Defaults to '.*'
+              (all tags).
+  yaml_file   Path to the image promoter manifest, e.g.
+              registry.k8s.io/images/k8s-staging-provider-os/images.yaml
+
+Examples:
+  $0 'v1.33.*' registry.k8s.io/images/k8s-staging-provider-os/images.yaml
+  $0 registry.k8s.io/images/k8s-staging-provider-os/images.yaml
+EOF
+}
+
+ARGS=$(getopt -o h --long help -n "$0" -- "$@") || { usage >&2; exit 1; }
+eval set -- "$ARGS"
+while true; do
+  case "$1" in
+    -h|--help) usage; exit 0;;
+    --) shift; break;;
+  esac
+done
+
+# if only one arg remains it's the yaml file; two args means match + yaml file
+if [ $# -eq 1 ]; then
+  MATCH='.*'
+  YAML_FILE=$1
+else
+  MATCH=${1:-'.*'}
+  YAML_FILE=${2:?$(usage)}
+fi
 
 # fail if file does not exist
 if [ ! -f "${YAML_FILE}" ]; then
@@ -47,4 +80,4 @@ while read -r IMAGE DIGEST TAG; do
   if [ "$digest1" != "$DIGEST" ]; then
     echo "ERROR: registry.k8s.io/provider-os/$IMAGE:$TAG digest mismatch: expected $DIGEST, got $digest1" >&2
   fi
-done <<< `yq '.[] | .name as $name | .dmap | to_entries | sort_by(.value[0]) | reverse | .[] | select(.value[0] | test("'"${MATCH}"'")) | "\($name) \(.key) \(.value[0])"' "${YAML_FILE}"`
+done <<< $(yq '.[] | .name as $name | .dmap | to_entries | sort_by(.value[0]) | reverse | .[] | select(.value[0] | test("'"${MATCH}"'")) | "\($name) \(.key) \(.value[0])"' "${YAML_FILE}")
