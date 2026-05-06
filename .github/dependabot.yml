@@ -1,0 +1,195 @@
+# Please see the documentation for all configuration options: https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+## main branch config starts here
+# github-actions
+- directory: "/"
+  package-ecosystem: "github-actions"
+  schedule:
+    interval: "monthly"
+    day: "monday"
+  target-branch: main
+  groups:
+    all-github-actions:
+      patterns: ["*"]
+  commit-message:
+    prefix: ":seedling:"
+    include: scope
+  cooldown:
+    default-days: 7
+  labels:
+  - "area/dependency"
+  - "ok-to-test"
+# Go directories
+- directories:
+  - "/"
+  - "/hack/tools"
+  package-ecosystem: "gomod"
+  schedule:
+    interval: "weekly"
+    day: "monday"
+  target-branch: main
+  groups:
+    all-go-mod-patch-and-minor:
+      patterns: ["*"]
+      update-types: ["patch", "minor"]
+  commit-message:
+    prefix: ":seedling:"
+    include: scope
+  ignore:
+  # Ignore kubernetes major and minor bumps as it is upgraded manually
+  - dependency-name: "k8s.io/api"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/apimachinery"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/apiserver"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/client-go"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/client-go"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/cloud-provider"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/component-base"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/kms"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/kubernetes"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/mount-utils"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  cooldown:
+    default-days: 7
+  labels:
+  - "area/dependency"
+  - "ok-to-test"
+## main branch config ends here
+
+## release-1.35 branch config starts here
+# github-actions
+- directory: "/"
+  package-ecosystem: "github-actions"
+  schedule:
+    interval: "monthly"
+    day: "monday"
+  target-branch: release-1.35
+  groups:
+    all-github-actions:
+      patterns: ["*"]
+  commit-message:
+    prefix: ":seedling:"
+    include: scope
+  cooldown:
+    default-days: 7
+  labels:
+  - "area/dependency"
+  - "ok-to-test"
+# Go directories
+- directories:
+  - "/"
+  - "/hack/tools"
+  package-ecosystem: "gomod"
+  schedule:
+    interval: "weekly"
+    day: "monday"
+  target-branch: release-1.35
+  groups:
+    all-go-mod-patch-and-minor:
+      patterns: ["*"]
+      update-types: ["patch", "minor"]
+  commit-message:
+    prefix: ":seedling:"
+    include: scope
+  ignore:
+  # Ignore kubernetes major and minor bumps as it is upgraded manually
+  - dependency-name: "k8s.io/api"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/apimachinery"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/apiserver"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/client-go"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/client-go"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/cloud-provider"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/component-base"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/kms"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/kubernetes"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/mount-utils"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  cooldown:
+    default-days: 7
+  labels:
+  - "area/dependency"
+  - "ok-to-test"
+## release-1.35 branch config ends here
+
+## release-1.34 branch config starts here
+# github-actions
+- directory: "/"
+  package-ecosystem: "github-actions"
+  schedule:
+    interval: "monthly"
+    day: "monday"
+  target-branch: release-1.34
+  groups:
+    all-github-actions:
+      patterns: ["*"]
+  commit-message:
+    prefix: ":seedling:"
+    include: scope
+  cooldown:
+    default-days: 7
+  labels:
+  - "area/dependency"
+  - "ok-to-test"
+# Go directories
+- directories:
+  - "/"
+  - "/hack/tools"
+  package-ecosystem: "gomod"
+  schedule:
+    interval: "weekly"
+    day: "monday"
+  target-branch: release-1.34
+  groups:
+    all-go-mod-patch-and-minor:
+      patterns: ["*"]
+      update-types: ["patch", "minor"]
+  commit-message:
+    prefix: ":seedling:"
+    include: scope
+  ignore:
+  # Ignore kubernetes major and minor bumps as it is upgraded manually
+  - dependency-name: "k8s.io/api"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/apimachinery"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/apiserver"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/client-go"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/client-go"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/cloud-provider"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/component-base"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/kms"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/kubernetes"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  - dependency-name: "k8s.io/mount-utils"
+    update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  cooldown:
+    default-days: 7
+  labels:
+  - "area/dependency"
+  - "ok-to-test"
+## release-1.34 branch config ends here
