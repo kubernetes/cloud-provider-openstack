@@ -917,7 +917,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 			err = PreserveGopherError(err)
 			msg := fmt.Sprintf("Error updating LB method for LoadBalancer: %v", err)
 			klog.Errorf(msg, "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
-			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
+			lbaas.eventRecorder.Event(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
 		} else {
 			pool.LBMethod = poolLbMethod
 		}
