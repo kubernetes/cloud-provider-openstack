@@ -167,11 +167,6 @@ type OpenStack struct {
 	kclient               kubernetes.Interface
 	nodeInformer          coreinformers.NodeInformer
 	nodeInformerHasSynced func() bool
-	// clusterUID is the kube-system namespace UID, used as a stable cluster
-	// identifier on OpenStack load balancer tags. May be empty if the lookup
-	// failed or RBAC does not allow it; in that case OCCM falls back to the
-	// legacy name-based load balancer identification.
-	clusterUID string
 
 	eventBroadcaster record.EventBroadcaster
 	eventRecorder    record.EventRecorder
@@ -211,7 +206,6 @@ func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuil
 	os.eventBroadcaster = record.NewBroadcaster()
 	os.eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: os.kclient.CoreV1().Events("")})
 	os.eventRecorder = os.eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "cloud-provider-openstack"})
-	os.clusterUID = fetchClusterUID(clientset)
 }
 
 // fetchClusterUID returns the UID of the kube-system namespace, which is a
@@ -405,7 +399,8 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder, os.clusterUID}}, true
+	clusterUID := fetchClusterUID(os.kclient)
+	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder, clusterUID}}, true
 }
 
 // Zones indicates that we support zones

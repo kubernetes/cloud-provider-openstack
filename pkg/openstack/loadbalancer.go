@@ -112,12 +112,6 @@ const (
 	// OCCM to disambiguate load balancers when multiple Kubernetes clusters
 	// share the same OpenStack project and a service name happens to collide.
 	clusterIDTagPrefix = "kube_cluster_id_"
-
-	// eventLBStolen is emitted when getLoadbalancerByName finds a load
-	// balancer with a matching name that belongs to a different Kubernetes
-	// cluster (different cluster-id tag). The lookup is treated as NotFound
-	// so OCCM creates a new load balancer instead of stealing an existing one.
-	eventLBStolen = "LoadBalancerNameCollision"
 )
 
 // clusterIDTag formats the Octavia load balancer tag carrying the cluster
