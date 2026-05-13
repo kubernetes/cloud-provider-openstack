@@ -1170,7 +1170,7 @@ func testConfigFromEnv(t *testing.T, cfg *Config) {
 func TestFetchClusterUID(t *testing.T) {
 	t.Run("returns kube-system UID", func(t *testing.T) {
 		const wantUID = "11111111-2222-3333-4444-555555555555"
-		client := fake.NewSimpleClientset(&v1.Namespace{
+		client := fake.NewClientset(&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "kube-system",
 				UID:  types.UID(wantUID),
@@ -1184,7 +1184,7 @@ func TestFetchClusterUID(t *testing.T) {
 	})
 
 	t.Run("returns empty when namespace missing", func(t *testing.T) {
-		client := fake.NewSimpleClientset()
+		client := fake.NewClientset()
 
 		got := fetchClusterUID(client)
 		if got != "" {
@@ -1193,7 +1193,7 @@ func TestFetchClusterUID(t *testing.T) {
 	})
 
 	t.Run("returns empty on RBAC denial without crashing", func(t *testing.T) {
-		client := fake.NewSimpleClientset()
+		client := fake.NewClientset()
 		client.PrependReactor("get", "namespaces", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 			return true, nil, apierrors.NewForbidden(
 				schema.GroupResource{Resource: "namespaces"}, "kube-system",
