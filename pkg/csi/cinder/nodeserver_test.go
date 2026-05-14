@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -30,6 +31,9 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
+	mountutil "k8s.io/mount-utils"
+	utilsexec "k8s.io/utils/exec"
+	testingexec "k8s.io/utils/exec/testing"
 )
 
 func fakeNodeServer() (*nodeServer, *openstack.OpenStackMock, *mount.MountMock, *metadata.MetadataMock) {
@@ -236,6 +240,134 @@ func TestNodeStageVolumeBlock(t *testing.T) {
 	assert.Equal(expectedRes, actualRes)
 }
 
+// TestNodeStageVolume_MkfsOptions_ArgvCapture drives NodeStageVolume with a
+// range of mkfs-options values and asserts that the argv handed to mkfs
+// starts with the user-supplied arguments.
+func TestNodeStageVolume_MkfsOptions_ArgvCapture(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skipf("mkfs argv capture only runs on linux (GOOS=%s)", runtime.GOOS)
+	}
+
+	stdMountVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	cases := []struct {
+		name              string
+		mkfsOptions       string
+		expectedArguments []string
+	}{
+		{
+			name:              "no options",
+			mkfsOptions:       "",
+			expectedArguments: []string{},
+		},
+		{
+			name:              "single flag",
+			mkfsOptions:       "-j",
+			expectedArguments: []string{"-j"},
+		},
+		{
+			name:              "flag and value",
+			mkfsOptions:       "-E nodiscard",
+			expectedArguments: []string{"-E", "nodiscard"},
+		},
+		{
+			name:              "multiple options",
+			mkfsOptions:       "-E nodiscard -j",
+			expectedArguments: []string{"-E", "nodiscard", "-j"},
+		},
+		{
+			// Demonstrates the bug in util.SplitTrim: it also splits on
+			// whitespace, so the comma-containing value was shredded into
+			// two separate mkfs args and treated by mkfs as a block count.
+			name:              "commas inside option value",
+			mkfsOptions:       "-E lazy_itable_init=0,lazy_journal_init=0",
+			expectedArguments: []string{"-E", "lazy_itable_init=0,lazy_journal_init=0"},
+		},
+		{
+			name:              "extra whitespace",
+			mkfsOptions:       "  -j   -F  ",
+			expectedArguments: []string{"-j", "-F"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeNs, omock, mmock, _ := fakeNodeServer()
+
+			mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
+			mmock.On("IsLikelyNotMountPointAttach", FakeStagingTargetPath).Return(true, nil)
+			omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
+
+			// Script exec:
+			//   1. blkid → exit 2 (device is unformatted) to trigger the mkfs path.
+			//   2. mkfs.ext4 → succeed, and capture the argv it was called with.
+			var capturedMkfsArgs []string
+
+			fakeExec := &testingexec.FakeExec{}
+
+			blkidCmd := &testingexec.FakeCmd{
+				CombinedOutputScript: []testingexec.FakeAction{
+					func() ([]byte, []byte, error) {
+						return nil, nil, &testingexec.FakeExitError{Status: 2}
+					},
+				},
+			}
+			fakeExec.CommandScript = append(fakeExec.CommandScript,
+				func(cmd string, args ...string) utilsexec.Cmd {
+					return testingexec.InitFakeCmd(blkidCmd, cmd, args...)
+				},
+			)
+
+			mkfsCmd := &testingexec.FakeCmd{
+				CombinedOutputScript: []testingexec.FakeAction{
+					func() ([]byte, []byte, error) { return nil, nil, nil },
+				},
+			}
+			fakeExec.CommandScript = append(fakeExec.CommandScript,
+				func(cmd string, args ...string) utilsexec.Cmd {
+					capturedMkfsArgs = append([]string(nil), args...)
+					return testingexec.InitFakeCmd(mkfsCmd, cmd, args...)
+				},
+			)
+
+			mmock.SetMounter(&mountutil.SafeFormatAndMount{
+				Interface: mount.NewFakeMounter(),
+				Exec:      fakeExec,
+			})
+
+			volCtx := map[string]string{}
+			if tc.mkfsOptions != "" {
+				volCtx["mkfs-options"] = tc.mkfsOptions
+			}
+
+			fakeReq := &csi.NodeStageVolumeRequest{
+				VolumeId:          FakeVolID,
+				PublishContext:    map[string]string{"DevicePath": FakeDevicePath},
+				StagingTargetPath: FakeStagingTargetPath,
+				VolumeCapability:  stdMountVolCap,
+				VolumeContext:     volCtx,
+			}
+
+			_, err := fakeNs.NodeStageVolume(FakeCtx, fakeReq)
+			assert.NoError(t, err)
+
+			// mount-utils constructs mkfs argv as: formatOptions ++ ["-F", "-m0", devicePath].
+			// Our user-supplied options therefore occupy the argv prefix.
+			assert.GreaterOrEqual(t, len(capturedMkfsArgs), len(tc.expectedArguments),
+				"captured argv = %v", capturedMkfsArgs)
+			assert.Equal(t, tc.expectedArguments, capturedMkfsArgs[:len(tc.expectedArguments)],
+				"mkfs argv prefix mismatch; full argv = %v", capturedMkfsArgs)
+		})
+	}
+}
+
 // Test NodeUnpublishVolume
 func TestNodeUnpublishVolume(t *testing.T) {
 	fakeNs, omock, mmock, _ := fakeNodeServer()
@@ -394,5 +526,4 @@ func TestNodeGetVolumeStatsFs(t *testing.T) {
 
 	assert.NoError(err)
 	assert.Equal(expectedFsRes, fsRes)
-
 }
