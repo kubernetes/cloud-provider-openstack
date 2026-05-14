@@ -2,6 +2,14 @@
 #
 # Define deployment mode for the controller and provide cloud credentials in cloudConfig at the end of the file
 #
+# Controller kind: DaemonSet or Deployment
+# Use DaemonSet to run on all control-plane nodes (default)
+# Use Deployment to run a specific number of replicas
+controllerKind: DaemonSet
+
+# Number of replicas (only used when controllerKind is Deployment)
+controllerReplicas: 2
+
 ## Annotations to apply to all resources
 commonAnnotations: {}
 # commonAnnotations:
@@ -48,9 +56,13 @@ readinessProbe: {}
 
 dnsPolicy: ClusterFirst
 
-# Set nodeSelector where the controller should run, i.e. controlplane nodes
+# Set nodeSelector where the controller should run, i.e. controlplane nodes (used for DaemonSet)
 nodeSelector:
   node-role.kubernetes.io/control-plane: ""
+
+# Set nodeSelector for Deployment (used when controllerKind is Deployment)
+# Defaults to empty (no node restriction)
+deploymentNodeSelector: {}
 
 # Set tolerations for nodes where the controller should run, i.e. node
 # should be uninitialized, controlplane...
