@@ -946,7 +946,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 	}
 
 	curMembers := sets.New[string]()
-	poolMembers, err := openstackutil.GetMembersbyPool(ctx, lbaas.lb, pool.ID)
+	poolMembers, err := openstackutil.GetPoolMembers(ctx, lbaas.lb, pool.ID)
 	if err != nil {
 		klog.Errorf("failed to get members in the pool %s: %v", pool.ID, err)
 	}
