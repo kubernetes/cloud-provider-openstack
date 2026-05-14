@@ -11,6 +11,7 @@
     - [Restrict Access For LoadBalancer Service](#restrict-access-for-loadbalancer-service)
     - [Use PROXY protocol to preserve client IP](#use-proxy-protocol-to-preserve-client-ip)
     - [Sharing load balancer with multiple Services](#sharing-load-balancer-with-multiple-services)
+    - [Running multiple Kubernetes clusters in one OpenStack project](#running-multiple-kubernetes-clusters-in-one-openstack-project)
     - [IPv4 / IPv6 dual-stack services](#ipv4--ipv6-dual-stack-services)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -626,6 +627,55 @@ $ openstack loadbalancer listener list --loadbalancer 2b224530-9414-4302-8163-5a
 ```
 
 The load balancer will be deleted after `service-2` is deleted.
+
+### Running multiple Kubernetes clusters in one OpenStack project
+
+OCCM names each load balancer it creates as `kube_service_<cluster-name>_<namespace>_<service>`,
+where `<cluster-name>` comes from the kube-controller-manager `--cluster-name` flag and
+defaults to `kubernetes`. When two Kubernetes clusters share the same OpenStack project
+and use the same `--cluster-name`, namespace and service name, the resulting load balancer
+names collide. OpenStack does not require load balancer names to be unique, so previously
+the second cluster could "adopt" the load balancer that the first cluster owned and start
+overwriting its configuration. The recommended way to avoid this remains to set a unique
+`--cluster-name` on every Kubernetes cluster (see issues
+[#2241](https://github.com/kubernetes/cloud-provider-openstack/issues/2241),
+[#2571](https://github.com/kubernetes/cloud-provider-openstack/issues/2571),
+[#2624](https://github.com/kubernetes/cloud-provider-openstack/issues/2624)).
+
+To make OCCM resilient even when that recommendation isn't followed, OCCM also tags
+every load balancer it creates with the UID of the cluster's `kube-system` namespace,
+which is a stable and unique identifier per Kubernetes cluster. The tag has the form
+`kube_cluster_id_<uid>`. When OCCM looks up a load balancer by name on the first
+reconcile of a Service, it ignores load balancers that carry a `kube_cluster_id_*` tag
+for a *different* cluster and creates a new one instead. Load balancers that don't
+carry any `kube_cluster_id_*` tag (legacy load balancers, or load balancers created by
+external tooling) keep their previous behaviour for backward compatibility, and gain
+the cluster-id tag on the next reconcile.
+
+OCCM reads the `kube-system` namespace UID once at start-up; this requires the
+`get` verb on the `namespaces` resource (already part of the standard cloud-controller
+RBAC). If the lookup fails (for example because of a custom RBAC restriction) OCCM logs
+a warning and continues without the safeguard, falling back to the legacy name-based
+behaviour.
+
+After successful reconcile, the load balancer tags will look similar to:
+
+```shell
+$ openstack loadbalancer show <lb-id> -c name -c tags
++-------+--------------------------------------------------------------------------+
+| Field | Value                                                                    |
++-------+--------------------------------------------------------------------------+
+| name  | kube_service_kubernetes_default_service-1                                |
+| tags  | kube_service_kubernetes_default_service-1,                               |
+|       | kube_cluster_id_11111111-2222-3333-4444-555555555555                     |
++-------+--------------------------------------------------------------------------+
+```
+
+> NOTE: This safeguard only protects new (or freshly reconciled) load balancers. It
+> does not retroactively resolve an already-stolen load balancer between two running
+> clusters. If you suspect cross-cluster collisions, set unique `--cluster-name` on
+> each cluster and let OCCM rename the existing resources (see
+> [PR #2552](https://github.com/kubernetes/cloud-provider-openstack/pull/2552)).
 
 ### IPv4 / IPv6 dual-stack services
 Since Kubernetes 1.20, Kubernetes clusters can run in dual-stack mode,

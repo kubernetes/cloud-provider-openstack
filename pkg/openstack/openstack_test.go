@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,7 +31,13 @@ import (
 	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
@@ -1158,4 +1165,45 @@ func testConfigFromEnv(t *testing.T, cfg *Config) {
 	if cfg.Global.AuthURL == "" {
 		t.Skip("No config found in environment")
 	}
+}
+
+func TestFetchClusterUID(t *testing.T) {
+	t.Run("returns kube-system UID", func(t *testing.T) {
+		const wantUID = "11111111-2222-3333-4444-555555555555"
+		client := fake.NewClientset(&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "kube-system",
+				UID:  types.UID(wantUID),
+			},
+		})
+
+		got := fetchClusterUID(client)
+		if got != wantUID {
+			t.Errorf("fetchClusterUID() = %q, want %q", got, wantUID)
+		}
+	})
+
+	t.Run("returns empty when namespace missing", func(t *testing.T) {
+		client := fake.NewClientset()
+
+		got := fetchClusterUID(client)
+		if got != "" {
+			t.Errorf("fetchClusterUID() = %q, want empty string", got)
+		}
+	})
+
+	t.Run("returns empty on RBAC denial without crashing", func(t *testing.T) {
+		client := fake.NewClientset()
+		client.PrependReactor("get", "namespaces", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, apierrors.NewForbidden(
+				schema.GroupResource{Resource: "namespaces"}, "kube-system",
+				errors.New("not allowed"),
+			)
+		})
+
+		got := fetchClusterUID(client)
+		if got != "" {
+			t.Errorf("fetchClusterUID() = %q, want empty string on forbidden error", got)
+		}
+	})
 }

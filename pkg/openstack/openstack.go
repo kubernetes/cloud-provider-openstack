@@ -30,6 +30,7 @@ import (
 	neutronports "github.com/gophercloud/gophercloud/v2/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	gcfg "gopkg.in/gcfg.v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
@@ -88,6 +89,12 @@ type LoadBalancer struct {
 	opts          LoadBalancerOpts
 	kclient       kubernetes.Interface
 	eventRecorder record.EventRecorder
+	// clusterUID is a stable, cluster-scoped identifier (the kube-system namespace UID).
+	// It is attached as a tag on Octavia load balancers so that OCCM can disambiguate
+	// load balancers with the same name when multiple Kubernetes clusters share the
+	// same OpenStack project. An empty value disables the disambiguation and falls
+	// back to the legacy name-based behaviour.
+	clusterUID string
 }
 
 // LoadBalancerOpts have the options to talk to Neutron LBaaSV2 or Octavia
@@ -199,6 +206,26 @@ func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuil
 	os.eventBroadcaster = record.NewBroadcaster()
 	os.eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: os.kclient.CoreV1().Events("")})
 	os.eventRecorder = os.eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "cloud-provider-openstack"})
+}
+
+// fetchClusterUID returns the UID of the kube-system namespace, which is a
+// stable, unique identifier for the Kubernetes cluster. It is used as a tag on
+// Octavia load balancers so OCCM can tell its own load balancers apart from
+// load balancers created by a different cluster sharing the same OpenStack
+// project even when the names collide. Failure is non-fatal: callers must
+// tolerate an empty string and fall back to the legacy behaviour.
+func fetchClusterUID(clientset kubernetes.Interface) string {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeOut)
+	defer cancel()
+
+	ns, err := clientset.CoreV1().Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
+	if err != nil {
+		klog.Warningf("Failed to read kube-system namespace UID, load balancer cluster-identity tagging will be disabled: %v", err)
+		return ""
+	}
+	uid := string(ns.UID)
+	klog.V(2).Infof("Using kube-system namespace UID %q as cluster identity for load balancer tagging", uid)
+	return uid
 }
 
 // ReadConfig reads values from the cloud.conf
@@ -372,7 +399,8 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	klog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder}}, true
+	clusterUID := fetchClusterUID(os.kclient)
+	return &LbaasV2{LoadBalancer{secret, network, lb, os.lbOpts, os.kclient, os.eventRecorder, clusterUID}}, true
 }
 
 // Zones indicates that we support zones
