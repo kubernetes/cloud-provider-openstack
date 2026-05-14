@@ -23,6 +23,7 @@ csi:
     extraArgs: {}
     extraEnv: []
   snapshotter:
+    enabled: true
     image:
       repository: registry.k8s.io/sig-storage/csi-snapshotter
       tag: v8.4.0
