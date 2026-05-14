@@ -10,7 +10,7 @@ items:
     name: system:cloud-node-controller
   subjects:
   - kind: ServiceAccount
-    name: cloud-node-controller
+    name: cloud-controller-manager
     namespace: kube-system
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
