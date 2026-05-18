@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# example:
+# example usage:
 # ./verify-image-digests.sh 'v1.33.*' registry.k8s.io/images/k8s-staging-provider-os/images.yaml
 
 # default to match all images
@@ -47,4 +47,4 @@ while read -r IMAGE DIGEST TAG; do
   if [ "$digest1" != "$DIGEST" ]; then
     echo "ERROR: registry.k8s.io/provider-os/$IMAGE:$TAG digest mismatch: expected $DIGEST, got $digest1" >&2
   fi
-done <<< `yq '.[] | .name as $name | .dmap | to_entries | sort_by(.value[0]) | reverse | .[] | select(.value[0] | test("'"${MATCH}"'")) | "\($name) \(.key) \(.value[0])"' "${YAML_FILE}"`
+done <<< $(yq '.[] | .name as $name | .dmap | to_entries | sort_by(.value[0]) | reverse | .[] | select(.value[0] | test("'"${MATCH}"'")) | "\($name) \(.key) \(.value[0])"' "${YAML_FILE}")

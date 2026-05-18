@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# example:
-# ./release-image-digests.sh registry.k8s.io/images/k8s-staging-provider-os/images.yaml [v1.36.0] [v1.35.0]
+# example usage:
+# ./release-image-digests.sh registry.k8s.io/images/k8s-staging-provider-os/images.yaml v1.36.0 v1.35.0
+# will replace all instances of the v1.35.0 tag with v1.36.0
 
 YAML_FILE=${1:?Usage: $0 <yaml_file> [<tag>...]}
 TAGS="${@:2}"
