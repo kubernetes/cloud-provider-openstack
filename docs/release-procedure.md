@@ -70,16 +70,17 @@ dependency or sidecar container.
 
 2. Update the minor version with the expected version.
 
-    Make changes in the `docs/manifests/tests/examples` directories using the
-    `hack/bump-release.sh` script by running the following command:
+    Make changes in the `docs`, `manifests`, `tests`, and `examples`
+    directories using the `hack/bump-release.sh` script by running the
+    following command:
 
     ```bash
     $ hack/bump-release.sh 28 29 0
     ```
 
-    This will replace `1.28.x` with `1.29.0` strings in the
-    `docs/manifests/tests/examples` directories. Ensure that you double-check the
-    diff before committing the changes. Non-related changes must not be shipped.
+    This will replace `1.28.x` with `1.29.0` strings in the relevant
+    directories. Ensure that you double-check the diff before committing the
+    changes. Non-related changes must not be shipped.
 
 3. Create a new pull request (PR) and make sure all CI checks have passed.
 
