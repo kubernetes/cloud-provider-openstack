@@ -94,25 +94,34 @@ dependency or sidecar container.
     $ git push origin release-X.Y
     ```
 
-    This will kick the [`cloud-provider-openstack-push-images` job](https://prow.k8s.io/job-history/gs/kubernetes-ci-logs/logs/cloud-provider-openstack-push-images)
-    and will result in new container images being pushed to [the staging area](https://console.cloud.google.com/artifacts/docker/k8s-staging-provider-os/us/gcr.io).
+    This will kick the [`cloud-provider-openstack-push-images`
+    job](https://prow.k8s.io/job-history/gs/kubernetes-ci-logs/logs/cloud-provider-openstack-push-images)
+    and will result in new container images being pushed to [the staging
+    area](https://console.cloud.google.com/artifacts/docker/k8s-staging-provider-os/us/gcr.io).
 
-6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote staging images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the `images.yaml`.
+6. Make PR modifying
+   [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml)
+   to promote staging images to registry.k8s.io. The point is to copy the proper image
+   sha256 hashes from the staging repository to the `images.yaml`.
 
-    Use `hack/release-image-digests.sh` script and `hack/verify-image-digests.sh` to verify the digests before submitting the PR.
+    Use `hack/release-image-digests.sh` script and `hack/verify-image-digests.sh` to
+    verify the digests before submitting the PR.
 
     ```bash
     $ ./hack/release-image-digests.sh ../k8s.io/registry.k8s.io/images/k8s-staging-provider-os/images.yaml vX.Y.Z
     ```
 
-    Generate a PR with the updated `images.yaml` file. Make sure to review the changes and ensure that the correct images are being promoted.
+    Generate a PR with the updated `images.yaml` file. Make sure to review the changes
+    and ensure that the correct images are being promoted.
 
-7. Once images are promoted (takes about 30 minutes) create release notes using the "Generate release notes" button in the GitHub "New release" UI and publish the release.
+7. Once images are promoted (takes about 30 minutes) create release notes using the
+   "Generate release notes" button in the GitHub "New release" UI and publish the
+   release.
 
 8. Update the helm chart version with the expected version.
 
-    Make changes in the `charts` directory using the
-    `hack/bump-release.sh` script by running the following command:
+    Make changes in the `charts` directory using the `hack/bump-release.sh` script by
+    running the following command:
 
     ```bash
     $ hack/bump-charts.sh 28 29 0
@@ -125,6 +134,10 @@ dependency or sidecar container.
     Make a PR to bump the chart version in the `charts` directory. Once the PR is
     merged, the chart will be automatically published to the repository registry.
 
-9. Update `kubernetes/test-infra` to add jobs for the new release branch in the [`config/jobs/kubernetes/cloud-provider-openstack`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack) directory.
+9. Update `kubernetes/test-infra` to add jobs for the new release branch in the
+   [`config/jobs/kubernetes/cloud-provider-openstack`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack)
+   directory.
 
-    This is generally as simple as copying the `release-master` file to `release-X.Y`, adding `--release-XY` suffixes to the job names and `testgrid-tab-name` annotations, and updating the branch specifiers.
+    This is generally as simple as copying the `release-master` file to `release-X.Y`,
+    adding `--release-XY` suffixes to the job names and `testgrid-tab-name` annotations,
+    and updating the branch specifiers.
