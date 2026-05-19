@@ -94,9 +94,10 @@ dependency or sidecar container.
     $ git push origin release-X.Y
     ```
 
-    New [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) will be built.
+    This will kick the [`cloud-provider-openstack-push-images` job](https://prow.k8s.io/job-history/gs/kubernetes-ci-logs/logs/cloud-provider-openstack-push-images)
+    and will result in new container images being pushed to [the staging area](https://console.cloud.google.com/artifacts/docker/k8s-staging-provider-os/us/gcr.io).
 
-6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote gcr.io images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the images.yaml.
+6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote staging images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the `images.yaml`.
 
     Use `hack/release-image-digests.sh` script and `hack/verify-image-digests.sh` to verify the digests before submitting the PR.
 
