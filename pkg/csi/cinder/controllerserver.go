@@ -332,6 +332,9 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	_, err = cloud.AttachVolume(ctx, instanceID, volumeID)
 	if err != nil {
 		klog.Errorf("Failed to AttachVolume: %v", err)
+		if s, ok := status.FromError(err); ok {
+			return nil, status.Error(s.Code(), fmt.Sprintf("[ControllerPublishVolume] Attach Volume failed with error %v", err))
+		}
 		return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] Attach Volume failed with error %v", err)
 
 	}

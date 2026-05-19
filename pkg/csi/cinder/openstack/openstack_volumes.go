@@ -218,6 +218,10 @@ func (os *OpenStack) AttachVolume(ctx context.Context, instanceID, volumeID stri
 		}
 	}
 
+	if len(volume.Attachments) > 0 && !volume.Multiattach {
+		return "", status.Errorf(codes.FailedPrecondition, "volume %s is already attached to node %s", volumeID, volume.Attachments[0].ServerID)
+	}
+
 	if volume.Multiattach {
 		// For multiattach volumes, supported compute api version is 2.60
 		// Init a local thread safe copy of the compute ServiceClient
