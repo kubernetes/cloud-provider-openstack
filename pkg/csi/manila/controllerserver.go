@@ -194,18 +194,24 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	ad := getShareAdapter(shareOpts.Protocol)
 
-	accessRight, err := ad.GetOrGrantAccess(ctx, &shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
+	accessRights, err := ad.GetOrGrantAccesses(ctx, &shareadapters.GrantAccessArgs{Share: share, ManilaClient: manilaClient, Options: shareOpts})
 	if err != nil {
 		if wait.Interrupted(err) {
-			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rule %s for volume %s to become available", accessRight.ID, share.Name)
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while waiting for access rules for volume %s to become available", share.Name)
 		}
 
 		return nil, status.Errorf(codes.Internal, "failed to grant access to volume %s: %v", share.Name, err)
 	}
 
+	var accessRightIDs []string
+	for _, ar := range accessRights {
+		accessRightIDs = append(accessRightIDs, ar.ID)
+	}
+	shareAccessIDs := strings.Join(accessRightIDs, ",")
+
 	volCtx := filterParametersForVolumeContext(params, options.NodeVolumeContextFields())
 	volCtx = util.SetMapIfNotEmpty(volCtx, "shareID", share.ID)
-	volCtx = util.SetMapIfNotEmpty(volCtx, "shareAccessID", accessRight.ID)
+	volCtx = util.SetMapIfNotEmpty(volCtx, "shareAccessIDs", shareAccessIDs)
 	volCtx = util.SetMapIfNotEmpty(volCtx, "groupID", share.ShareGroupID)
 	volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", shareOpts.Affinity)
 	volCtx = util.SetMapIfNotEmpty(volCtx, "antiAffinity", shareOpts.AntiAffinity)

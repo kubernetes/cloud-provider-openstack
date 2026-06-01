@@ -4,7 +4,7 @@
   gather_facts: true
 
   vars:
-    e2e_test_version: v1.32.2
+    e2e_test_version: v1.34.1
     user: stack
     devstack_workdir: /home/{{ user }}/devstack
 

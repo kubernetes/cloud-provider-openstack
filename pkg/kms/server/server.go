@@ -27,6 +27,7 @@ type BarbicanService interface {
 
 // KMSserver struct
 type KMSserver struct {
+	pb.UnimplementedKeyManagementServiceServer
 	cfg      barbican.Config
 	barbican BarbicanService
 }

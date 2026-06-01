@@ -19,6 +19,7 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -32,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
-	"k8s.io/utils/strings/slices"
 
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"

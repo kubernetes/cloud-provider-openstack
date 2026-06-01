@@ -94,12 +94,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, in case vol AZ is different from node AZ
 	var volAvailability string
-	if cs.Driver.withTopology {
-		if volParams["availability"] != "" {
-			volAvailability = volParams["availability"]
-		} else if accessibleTopologyReq != nil {
-			volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
-		}
+	if volParams["availability"] != "" {
+		volAvailability = volParams["availability"]
+	} else if cs.Driver.withTopology && accessibleTopologyReq != nil {
+		volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
 	}
 
 	// get the PVC annotation
@@ -120,7 +118,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Error(codes.AlreadyExists, "Volume Already exists with same name and different capacity")
 		}
 		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", vols[0].ID, vols[0].AvailabilityZone, vols[0].Size)
-		accessibleTopology := getTopology(&vols[0], accessibleTopologyReq, ignoreVolumeAZ)
+		accessibleTopology := getTopology(&vols[0], accessibleTopologyReq, cs.Driver.withTopology, ignoreVolumeAZ)
 		return getCreateVolumeResponse(&vols[0], nil, accessibleTopology), nil
 	}
 
@@ -208,13 +206,13 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	// Set scheduler hints if affinity or anti-affinity is set in PVC annotations
 	var schedulerHints volumes.SchedulerHintOptsBuilder
-	var volCtx map[string]string
+	volCtx := map[string]string{}
 	affinity := pvcAnnotations[affinityKey]
 	antiAffinity := pvcAnnotations[antiAffinityKey]
 	if affinity != "" || antiAffinity != "" {
 		klog.V(4).Infof("CreateVolume: Getting scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
 
-		// resolve volume names to UUIDs
+		// Resolve volume names to UUIDs
 		affinity, err = cloud.ResolveVolumeListToUUIDs(ctx, affinity)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve affinity volume UUIDs: %v", err)
@@ -224,6 +222,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Errorf(codes.InvalidArgument, "failed to resolve anti-affinity volume UUIDs: %v", err)
 		}
 
+		// Note that this is context for the k8s CSI volume, not the Cinder volume
 		volCtx = util.SetMapIfNotEmpty(volCtx, "affinity", affinity)
 		volCtx = util.SetMapIfNotEmpty(volCtx, "anti-affinity", antiAffinity)
 		schedulerHints = &volumes.SchedulerHintOpts{
@@ -250,7 +249,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 	klog.V(4).Infof("CreateVolume: Successfully created volume %s in Availability Zone: %s of size %d GiB", vol.ID, vol.AvailabilityZone, vol.Size)
 
-	accessibleTopology := getTopology(vol, accessibleTopologyReq, ignoreVolumeAZ)
+	accessibleTopology := getTopology(vol, accessibleTopologyReq, cs.Driver.withTopology, ignoreVolumeAZ)
 
 	return getCreateVolumeResponse(vol, volCtx, accessibleTopology), nil
 }
@@ -1040,8 +1039,12 @@ func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi
 	}, nil
 }
 
-func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, ignoreVolumeAZ bool) []*csi.Topology {
+func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, withTopology bool, ignoreVolumeAZ bool) []*csi.Topology {
 	var accessibleTopology []*csi.Topology
+	if !withTopology {
+		return accessibleTopology
+	}
+
 	if ignoreVolumeAZ {
 		if topologyReq != nil {
 			accessibleTopology = topologyReq.GetPreferred()
@@ -1058,13 +1061,16 @@ func getTopology(vol *volumes.Volume, topologyReq *csi.TopologyRequirement, igno
 }
 
 func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, accessibleTopology []*csi.Topology) *csi.CreateVolumeResponse {
-	var volsrc *csi.VolumeContentSource
-	volCnx := map[string]string{}
+	var volSrc *csi.VolumeContentSource
+
+	if volCtx == nil {
+		volCtx = map[string]string{}
+	}
 
 	if vol.SnapshotID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: vol.SnapshotID,
@@ -1074,9 +1080,9 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 	}
 
 	if vol.SourceVolID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Volume{
 				Volume: &csi.VolumeContentSource_VolumeSource{
 					VolumeId: vol.SourceVolID,
@@ -1086,9 +1092,9 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 	}
 
 	if vol.BackupID != nil && *vol.BackupID != "" {
-		volCnx[ResizeRequired] = "true"
+		volCtx[ResizeRequired] = "true"
 
-		volsrc = &csi.VolumeContentSource{
+		volSrc = &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
 					SnapshotId: *vol.BackupID,
@@ -1102,8 +1108,8 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 			VolumeId:           vol.ID,
 			CapacityBytes:      int64(vol.Size * 1024 * 1024 * 1024),
 			AccessibleTopology: accessibleTopology,
-			ContentSource:      volsrc,
-			VolumeContext:      volCnx,
+			ContentSource:      volSrc,
+			VolumeContext:      volCtx,
 		},
 	}
 

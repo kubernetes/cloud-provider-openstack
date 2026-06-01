@@ -57,7 +57,7 @@ function _check_lb_tags {
   local tags=$3
 
   if [ -z "$tags" ]; then
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
   fi
   if [[ ! "$tags" =~ (^|[[:space:]])kube_service_(.+?)$svcName($|[[:space:]]) ]]; then
@@ -468,7 +468,7 @@ EOF
     lbID=$(_check_service_lb_annotation "${service1}")
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -ne 0 ]; then
@@ -509,7 +509,7 @@ EOF
     fi
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -ne 0 ]; then
@@ -560,7 +560,7 @@ EOF
     wait_for_loadbalancer $lbID
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -ne 0 ]; then
@@ -605,7 +605,7 @@ EOF
     wait_for_service_address ${service3}
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service3 "$tags"
     if [ $? -ne 0 ]; then
@@ -637,7 +637,7 @@ EOF
     sleep 10
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -ne 0 ]; then
@@ -660,7 +660,7 @@ EOF
     sleep 5
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -ne 0 ]; then
@@ -680,7 +680,7 @@ EOF
     wait_for_loadbalancer $lbID
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -eq 0 ]; then
@@ -778,7 +778,7 @@ EOF
     lbID=$(_check_service_lb_annotation "${service1}")
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -ne 0 ]; then
@@ -792,7 +792,7 @@ EOF
     wait_for_service_deleted ${service1}
 
     printf "\n>>>>>>> Validating tags of openstack load balancer %s \n" "$lbID"
-    tags=$(openstack loadbalancer show $lbID -f value -c tags)
+    tags=$(openstack loadbalancer show $lbID -f json -c tags | jq -r '.tags[]')
     tags=$(echo $tags)
     _check_lb_tags $lbID $service1 "$tags"
     if [ $? -eq 0 ]; then

@@ -19,12 +19,11 @@ package healthcheck
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 	log "k8s.io/klog/v2"
-
-	"k8s.io/cloud-provider-openstack/pkg/autohealing/utils"
 )
 
 const (
@@ -50,18 +49,18 @@ func (check *NodeConditionCheck) Check(ctx context.Context, node NodeInfo, contr
 	nodeName := node.KubeNode.Name
 
 	for _, cond := range node.KubeNode.Status.Conditions {
-		if utils.Contains(check.Types, string(cond.Type)) {
+		if slices.Contains(check.Types, string(cond.Type)) {
 			unhealthyDuration := time.Since(cond.LastTransitionTime.Time)
 
 			if len(check.ErrorValues) > 0 {
-				if utils.Contains(check.ErrorValues, string(cond.Status)) {
+				if slices.Contains(check.ErrorValues, string(cond.Status)) {
 					if unhealthyDuration >= check.UnhealthyDuration {
 						return false
 					}
 					log.Warningf("Node %s is unhealthy, %s: %s", nodeName, string(cond.Type), string(cond.Status))
 				}
 			} else if len(check.OKValues) > 0 {
-				if !utils.Contains(check.OKValues, string(cond.Status)) {
+				if !slices.Contains(check.OKValues, string(cond.Status)) {
 					if unhealthyDuration >= check.UnhealthyDuration {
 						return false
 					}

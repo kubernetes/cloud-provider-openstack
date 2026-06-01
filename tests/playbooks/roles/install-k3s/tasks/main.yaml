@@ -126,8 +126,8 @@
         runcmd:
           - update-ca-certificates
           - mkdir -p /var/lib/rancher/k3s/agent/images/
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
-          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ release.stdout }}/k3s -o /usr/local/bin/k3s
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s-airgap-images-amd64.tar -o /var/lib/rancher/k3s/agent/images/k3s-airgap-images.tar
+          - curl -sSL https://github.com/k3s-io/k3s/releases/download/{{ k3s_release }}/k3s -o /usr/local/bin/k3s
           - curl -sSL https://get.k3s.io -o /var/lib/rancher/k3s/install.sh
           - chmod u+x /var/lib/rancher/k3s/install.sh /usr/local/bin/k3s
           - INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL=https://{{ k3s_fip }}:6443 K3S_TOKEN={{ cluster_token }} /var/lib/rancher/k3s/install.sh --docker --kubelet-arg="cloud-provider=external"
@@ -154,7 +154,7 @@
   retries: 100
   delay: 5
 
-- name: Prepare kubectl and kubeconfig file
+- name: Prepare kubeconfig file
   shell:
     executable: /bin/bash
     cmd: |
@@ -162,8 +162,31 @@
 
       mkdir -p {{ ansible_user_dir }}/.kube
       scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }}:/etc/rancher/k3s/k3s.yaml {{ ansible_user_dir }}/.kube/config
-      curl -sLO# https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
-      chmod +x ./kubectl; sudo mv ./kubectl /usr/local/bin/kubectl
+
+- name: Get latest kubectl version
+  uri:
+    url: https://dl.k8s.io/release/stable.txt
+    return_content: yes
+  register: kubectl_version
+  retries: 5
+  delay: 10
+  until: kubectl_version.status == 200
+
+- name: Download kubectl binary
+  get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version.content | trim }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+  become: true
+  retries: 5
+  delay: 10
+
+- name: Set kubectl cluster config
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -ex
+
       kubectl config set-cluster default --server=https://{{ k3s_fip }}:6443 --kubeconfig {{ ansible_user_dir }}/.kube/config
 
 - name: Wait for k8s node ready

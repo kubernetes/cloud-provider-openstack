@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -28,6 +29,12 @@ const (
 	manilaShareAccessType = "ip"
 	manilaShareAccessTo   = "0.0.0.0/0"
 	manilaShareSizeGiB    = 1
+)
+
+// Environment variables for DHSS=True (driver_handles_share_servers) mode.
+// Set MANILA_SHARE_NETWORK_ID to enable testing with share networks.
+var (
+	manilaShareNetworkID = os.Getenv("MANILA_SHARE_NETWORK_ID")
 )
 
 type manilaTestDriver struct {
@@ -129,6 +136,11 @@ func (d *manilaTestDriver) GetDynamicProvisionStorageClass(ctx context.Context, 
 		"csi.storage.k8s.io/node-publish-secret-namespace":      manilaSecretNamespace,
 	}
 
+	// Support for DHSS=True mode: include share network ID if specified
+	if manilaShareNetworkID != "" {
+		parameters["shareNetworkID"] = manilaShareNetworkID
+	}
+
 	sc := storageframework.GetStorageClass(
 		d.driverInfo.Name,
 		parameters,
@@ -197,8 +209,8 @@ func (d *manilaTestDriver) GetPersistentVolumeSource(readOnly bool, fsType strin
 			ReadOnly:     readOnly,
 			FSType:       fsType,
 			VolumeAttributes: map[string]string{
-				"shareID":       v.shareID,
-				"shareAccessID": v.accessID,
+				"shareID":        v.shareID,
+				"shareAccessIDs": v.accessID,
 			},
 			NodeStageSecretRef: &v1.SecretReference{
 				Name:      manilaSecretName,

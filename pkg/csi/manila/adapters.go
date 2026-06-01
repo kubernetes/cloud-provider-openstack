@@ -19,6 +19,8 @@ package manila
 import (
 	"strings"
 
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/shareadapters"
 	"k8s.io/klog/v2"
 )
@@ -33,5 +35,42 @@ func getShareAdapter(proto string) shareadapters.ShareAdapter {
 		klog.Fatalf("unknown share adapter %s", proto)
 	}
 
+	return nil
+}
+
+func getAccessIDs(shareOpts *options.NodeVolumeContext) []string {
+	if shareOpts.ShareAccessIDs != "" {
+		// Split by comma if multiple
+		return strings.Split(shareOpts.ShareAccessIDs, ",")
+	} else if shareOpts.ShareAccessID != "" {
+		// Backwards compatibility: treat as single-element list
+		return []string{shareOpts.ShareAccessID}
+	}
+	return nil
+}
+
+func getAccessRightBasedOnShareAdapter(shareAdapter shareadapters.ShareAdapter, accessRights []shares.AccessRight, shareOpts *options.NodeVolumeContext) (accessRight *shares.AccessRight) {
+	switch shareAdapter.(type) {
+	case *shareadapters.Cephfs:
+		shareAccessIDs := getAccessIDs(shareOpts)
+		for _, accessRightID := range shareAccessIDs {
+			for _, accessRight := range accessRights {
+				if accessRight.ID == accessRightID {
+					// TODO: we should add support for getting the node's own IP or Ceph
+					// user to avoid unnecessary access rights processing. All the node
+					// needs is one cephx user/key to mount the share, so we can return
+					// the first access right that matches the share access IDs list.
+					return &accessRight
+				}
+			}
+		}
+		klog.Fatalf("failed to find access rights %s for cephfs share", shareAccessIDs)
+	case *shareadapters.NFS:
+		// For NFS, we don't need to use an access right specifically. The controller is
+		// already making sure the access rules are properly created.
+		return nil
+	default:
+		klog.Fatalf("unknown share adapter type %T", shareAdapter)
+	}
 	return nil
 }

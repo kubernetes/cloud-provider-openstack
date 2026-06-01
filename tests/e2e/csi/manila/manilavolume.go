@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -12,6 +13,10 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
 )
+
+// Environment variable for DHSS=True mode share network.
+// This must match the variable in testdriver.go.
+var manilaShareNetworkIDForVolume = os.Getenv("MANILA_SHARE_NETWORK_ID")
 
 func runCmd(name string, args ...string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
@@ -47,9 +52,8 @@ func manilaCreateVolume(
 	ginkgo.By("Creating a test Manila volume externally")
 
 	// Create share.
-
-	out, err := runCmd(
-		"openstack",
+	// Build command arguments, optionally including share network for DHSS=True mode.
+	args := []string{
 		"share",
 		"create",
 		shareProto,
@@ -58,7 +62,14 @@ func manilaCreateVolume(
 		"--format=value",
 		"--column=id",
 		"--wait",
-	)
+	}
+
+	// Support for DHSS=True mode: include share network ID if specified
+	if manilaShareNetworkIDForVolume != "" {
+		args = append(args, "--share-network="+manilaShareNetworkIDForVolume)
+	}
+
+	out, err := runCmd("openstack", args...)
 
 	shareID := strings.TrimSpace(string(out))
 

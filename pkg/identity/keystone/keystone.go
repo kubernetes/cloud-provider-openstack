@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/utils"
@@ -116,11 +115,11 @@ func (k *Auth) Run() {
 		go wait.Until(k.runWorker, time.Second, k.stopCh)
 	}
 
-	r := chi.NewRouter()
-	r.HandleFunc("/webhook", k.Handler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/webhook", k.Handler)
 
 	klog.Infof("Starting webhook server...")
-	klog.Fatal(http.ListenAndServeTLS(k.config.Address, k.config.CertFile, k.config.KeyFile, r))
+	klog.Fatal(http.ListenAndServeTLS(k.config.Address, k.config.CertFile, k.config.KeyFile, mux))
 }
 
 func (k *Auth) enqueueConfigMap(obj interface{}) {
