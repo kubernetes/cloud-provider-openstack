@@ -794,7 +794,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 	volCloud := req.GetSecrets()["cloud"]
 	cloud, cloudExist := cs.Clouds[volCloud]
 	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[DeleteSnapshot] specified cloud undefined")
+		return nil, status.Error(codes.InvalidArgument, "[ListSnapshots] specified cloud undefined")
 	}
 
 	snapshotID := req.GetSnapshotId()
