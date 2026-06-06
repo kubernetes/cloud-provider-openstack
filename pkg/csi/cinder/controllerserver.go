@@ -952,6 +952,7 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 			}
 			return nil, status.Errorf(codes.Internal, "ControllerGetVolume failed with error %v", err)
 		}
+		break
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)
