@@ -29,6 +29,8 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
@@ -274,8 +276,21 @@ func (d *Driver) initProxiedDriver() (csiNodeCapabilitySet, error) {
 
 	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
 
-	if err = identityClient.ProbeForever(ctx, conn, time.Second*5); err != nil {
-		return nil, fmt.Errorf("probe failed: %v", err)
+	for {
+		if err = identityClient.ProbeForever(ctx, conn, time.Second*5); err == nil {
+			break
+		}
+		if status.Code(err) != codes.Unavailable {
+			return nil, fmt.Errorf("probe failed: %v", err)
+		}
+		klog.Warningf("proxied CSI driver probe returned Unavailable for %s, retrying: %v", d.fwdEndpoint, err)
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+		}
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("timed out probing proxied CSI driver %s: %v", d.fwdEndpoint, err)
+		}
 	}
 
 	pluginInfo, err := identityClient.GetPluginInfo(ctx)
