@@ -417,6 +417,103 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	assert.Equal(FakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
 }
 
+func TestCreateVolumeFromSnapshotWithTopology(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
+	// Expect empty AZ: the driver should clear the topology-derived AZ
+	// and let Cinder place the volume in the snapshot's AZ.
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", FakeSnapshotID, "", "", properties).Return(&FakeVolFromSnapshot, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+	assert := assert.New(t)
+
+	src := &csi.VolumeContentSource{
+		Type: &csi.VolumeContentSource_Snapshot{
+			Snapshot: &csi.VolumeContentSource_SnapshotSource{
+				SnapshotId: FakeSnapshotID,
+			},
+		},
+	}
+
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+		VolumeContentSource: src,
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Preferred: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: "az-2"},
+				},
+			},
+		},
+	}
+
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	assert.NotNil(actualRes.Volume)
+	assert.Equal(FakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
+}
+
+func TestCreateVolumeFromSnapshotWithExplicitAvailability(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	properties := map[string]string{cinderCSIClusterIDKey: FakeCluster}
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "explicit-az", FakeSnapshotID, "", "", properties).Return(&FakeVolFromSnapshot, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+	assert := assert.New(t)
+
+	src := &csi.VolumeContentSource{
+		Type: &csi.VolumeContentSource_Snapshot{
+			Snapshot: &csi.VolumeContentSource_SnapshotSource{
+				SnapshotId: FakeSnapshotID,
+			},
+		},
+	}
+
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		Parameters: map[string]string{
+			"availability": "explicit-az",
+		},
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+		VolumeContentSource: src,
+		AccessibilityRequirements: &csi.TopologyRequirement{
+			Preferred: []*csi.Topology{
+				{
+					Segments: map[string]string{topologyKey: "az-2"},
+				},
+			},
+		},
+	}
+
+	actualRes, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+
+	assert.NotNil(actualRes.Volume)
+	assert.Equal(FakeSnapshotID, actualRes.Volume.ContentSource.GetSnapshot().SnapshotId)
+}
+
 func TestCreateVolumeFromSourceVolume(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 

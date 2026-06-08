@@ -94,10 +94,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, in case vol AZ is different from node AZ
 	var volAvailability string
+	volAvailabilityFromTopology := false
 	if volParams["availability"] != "" {
 		volAvailability = volParams["availability"]
 	} else if cs.Driver.withTopology && accessibleTopologyReq != nil {
 		volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+		volAvailabilityFromTopology = true
 	}
 
 	// get the PVC annotation
@@ -156,6 +158,10 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		// If the snapshot exists but is not yet available, fail.
 		if err == nil && snap.Status != "available" {
 			return nil, status.Errorf(codes.Unavailable, "VolumeContentSource Snapshot %s is not yet available. status: %s", snapshotID, snap.Status)
+		}
+		if err == nil && volAvailabilityFromTopology {
+			klog.V(4).Infof("CreateVolume: clearing topology-derived availability zone %q for snapshot %s to let Cinder select the correct zone", volAvailability, snapshotID)
+			volAvailability = ""
 		}
 
 		// In case a snapshot is not found
