@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,7 +57,7 @@ const (
 	volumeDescription        = "Created by OpenStack Cinder CSI driver"
 )
 
-var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
+var VolumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
 
 // CreateVolume creates a volume of given size
 func (os *OpenStack) CreateVolume(ctx context.Context, opts *volumes.CreateOpts, schedulerHints volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
@@ -278,15 +279,11 @@ func (os *OpenStack) WaitVolumeTargetStatus(ctx context.Context, volumeID string
 		if err != nil {
 			return false, err
 		}
-		for _, t := range tStatus {
-			if vol.Status == t {
-				return true, nil
-			}
+		if slices.Contains(tStatus, vol.Status) {
+			return true, nil
 		}
-		for _, eState := range volumeErrorStates {
-			if vol.Status == eState {
-				return false, fmt.Errorf("volume is in Error State : %s", vol.Status)
-			}
+		if slices.Contains(VolumeErrorStates[:], vol.Status) {
+			return false, fmt.Errorf("volume is in Error State : %s", vol.Status)
 		}
 		return false, nil
 	})

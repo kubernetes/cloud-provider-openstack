@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util"
@@ -313,12 +314,42 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume capability must be provided")
 	}
 
-	_, err := cloud.GetVolume(ctx, volumeID)
+	// Wait for the volume to reach a state valid for attachment.
+	// Cinder rejects attachment requests for volumes not in "available"
+	// (or "in-use" for multiattach) state. Without this wait, the driver
+	// would immediately hit a 409 Conflict if CreateVolume has just been
+	// called and the volume is still being provisioned on the backend.
+	vol, err := cs.waitForVolumeAttachable(ctx, cloud, volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Volume %s not found", volumeID)
 		}
-		return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] get volume failed with error %v", err)
+		klog.Errorf("Failed waiting for volume %s to become attachable: %v", volumeID, err)
+		return nil, status.Errorf(codes.FailedPrecondition, "[ControllerPublishVolume] Volume %s is not available for attach: %v", volumeID, err)
+	}
+
+	// Check if the volume is already attached to this instance (idempotent).
+	// CSI spec requires that a repeated ControllerPublishVolume for the same
+	// volume+node returns 0 OK (see CSI v1.12 spec §ControllerPublishVolume).
+	// This uses the volume object returned by waitForVolumeAttachable to
+	// avoid a redundant volumes.Get API call.
+	for _, att := range vol.Attachments {
+		if instanceID == att.ServerID {
+			klog.V(4).Infof("Volume %s is already attached to instance %s", volumeID, instanceID)
+			devicePath, err := cloud.GetAttachmentDiskPath(ctx, instanceID, volumeID)
+			if err != nil {
+				klog.Errorf("Failed to GetAttachmentDiskPath: %v", err)
+				return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] failed to get device path of attached volume: %v", err)
+			}
+			pvInfo := map[string]string{"DevicePath": devicePath}
+			return &csi.ControllerPublishVolumeResponse{PublishContext: pvInfo}, nil
+		}
+	}
+
+	// If the volume is in-use and not multiattach-capable, it is attached to
+	// a different node (same-node was handled above). Fail immediately.
+	if vol.Status == openstack.VolumeInUseStatus && !vol.Multiattach {
+		return nil, status.Errorf(codes.FailedPrecondition, "[ControllerPublishVolume] Volume %s is already attached to a different node and does not support multiattach", volumeID)
 	}
 
 	_, err = cloud.GetInstanceByID(ctx, instanceID)
@@ -357,6 +388,45 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 	return &csi.ControllerPublishVolumeResponse{
 		PublishContext: pvInfo,
 	}, nil
+}
+
+// waitForVolumeAttachable polls the volume status until it leaves transitional
+// states (e.g. "creating", "downloading") and reaches "available" or "in-use".
+// For "in-use" volumes, the caller is responsible for checking whether the
+// attachment is an idempotent same-node retry (CSI spec requires 0 OK) or a
+// conflict with a different node.
+// The wait is bounded by the context deadline (typically the gRPC RPC timeout).
+func (cs *controllerServer) waitForVolumeAttachable(ctx context.Context, cloud openstack.IOpenStack, volumeID string) (*volumes.Volume, error) {
+	bsOpts := cloud.GetBlockStorageOpts()
+
+	var lastVol *volumes.Volume
+	err := wait.PollUntilContextCancel(ctx, bsOpts.VolumeStatusPollInterval(), true, func(ctx context.Context) (bool, error) {
+		vol, err := cloud.GetVolume(ctx, volumeID)
+		if err != nil {
+			return false, err
+		}
+		lastVol = vol
+
+		if vol.Status == openstack.VolumeAvailableStatus {
+			return true, nil
+		}
+		if vol.Status == openstack.VolumeInUseStatus {
+			// Return the volume as-is. The caller will inspect
+			// attachments for idempotency before rejecting.
+			return true, nil
+		}
+
+		if slices.Contains(openstack.VolumeErrorStates[:], vol.Status) {
+			return false, fmt.Errorf("volume %s is in error state: %s", volumeID, vol.Status)
+		}
+		return false, nil
+	})
+
+	if err != nil && ctx.Err() != nil {
+		return lastVol, fmt.Errorf("timeout waiting for volume %s to become available: %w", volumeID, err)
+	}
+
+	return lastVol, err
 }
 
 func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
