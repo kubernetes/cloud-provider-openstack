@@ -529,6 +529,7 @@ func TestDeleteVolume(t *testing.T) {
 func TestControllerPublishVolume(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
 	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	osmock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	osmock.On("GetAttachmentDiskPath", FakeNodeID, FakeVolID).Return(FakeDevicePath, nil)
