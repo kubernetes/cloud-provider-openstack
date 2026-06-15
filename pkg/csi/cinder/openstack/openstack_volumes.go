@@ -202,23 +202,50 @@ func (os *OpenStack) GetVolume(ctx context.Context, volumeID string) (*volumes.V
 	return vol, nil
 }
 
+// volumeForAttach contains the volume fields needed for attach validation,
+// including migration_status which gophercloud's Volume struct does not map.
+type volumeForAttach struct {
+	ID              string               `json:"id"`
+	Status          string               `json:"status"`
+	Multiattach     bool                 `json:"multiattach"`
+	Attachments     []volumes.Attachment `json:"attachments"`
+	MigrationStatus *string              `json:"migration_status"`
+}
+
 // AttachVolume attaches given cinder volume to the compute
 func (os *OpenStack) AttachVolume(ctx context.Context, instanceID, volumeID string) (string, error) {
 	computeServiceClient := os.compute
 
-	volume, err := os.GetVolume(ctx, volumeID)
-	if err != nil {
+	// Fetch the volume with migration_status using a single API call.
+	// We use a custom struct because gophercloud's Volume does not include migration_status.
+	mc := metrics.NewMetricContext("volume", "get")
+	var volResult volumeForAttach
+	err := volumes.Get(ctx, os.blockstorage, volumeID).ExtractInto(&volResult)
+	if mc.ObserveRequest(err) != nil {
 		return "", err
 	}
 
-	for _, att := range volume.Attachments {
+	for _, att := range volResult.Attachments {
 		if instanceID == att.ServerID {
 			klog.V(4).Infof("Disk %s is already attached to instance %s", volumeID, instanceID)
-			return volume.ID, nil
+			return volResult.ID, nil
 		}
 	}
 
-	if volume.Multiattach {
+	// Check migration_status: if the volume is migrating, it cannot be attached.
+	// Per OpenStack docs, "starting", "migrating", and "completing" all indicate
+	// a migration is in progress.
+	if volResult.MigrationStatus != nil {
+		switch *volResult.MigrationStatus {
+		case "starting", "migrating", "completing":
+			return "", fmt.Errorf("volume %s has migration_status %q, volume must not be migrating before attach", volumeID, *volResult.MigrationStatus)
+		}
+	}
+
+	if volResult.Multiattach {
+		if volResult.Status != VolumeAvailableStatus && volResult.Status != VolumeInUseStatus {
+			return "", fmt.Errorf("volume %s is in %s status, volume must be available or in-use for multi-attach capable volumes", volumeID, volResult.Status)
+		}
 		// For multiattach volumes, supported compute api version is 2.60
 		// Init a local thread safe copy of the compute ServiceClient
 		computeServiceClient, err = openstack.NewComputeV2(os.compute.ProviderClient, os.epOpts)
@@ -226,18 +253,22 @@ func (os *OpenStack) AttachVolume(ctx context.Context, instanceID, volumeID stri
 			return "", err
 		}
 		computeServiceClient.Microversion = "2.60"
+	} else {
+		if volResult.Status != VolumeAvailableStatus {
+			return "", fmt.Errorf("volume %s is in %s status, volume must be available", volumeID, volResult.Status)
+		}
 	}
 
-	mc := metrics.NewMetricContext("volume", "attach")
+	mcAttach := metrics.NewMetricContext("volume", "attach")
 	_, err = volumeattach.Create(ctx, computeServiceClient, instanceID, &volumeattach.CreateOpts{
-		VolumeID: volume.ID,
+		VolumeID: volResult.ID,
 	}).Extract()
 
-	if mc.ObserveRequest(err) != nil {
+	if mcAttach.ObserveRequest(err) != nil {
 		return "", fmt.Errorf("failed to attach %s volume to %s compute: %v", volumeID, instanceID, err)
 	}
 
-	return volume.ID, nil
+	return volResult.ID, nil
 }
 
 // WaitDiskAttached waits for attached
