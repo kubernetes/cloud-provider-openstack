@@ -52,6 +52,7 @@ var (
 	userAgentData            []string
 	provideControllerService bool
 	provideNodeService       bool
+	searchOrder              string
 )
 
 func validateShareProtocolSelector(v string) error {
@@ -104,8 +105,13 @@ func main() {
 			}
 
 			if provideNodeService {
+				err = metadata.CheckMetadataSearchOrder(searchOrder)
+				if err != nil {
+					klog.Fatalf("Invalid search-order: %v", err)
+				}
+
 				// Initialize metadata
-				metadata := metadata.GetMetadataProvider("")
+				metadata := metadata.GetMetadataProvider(searchOrder)
 
 				err = d.SetupNodeService(metadata)
 				if err != nil {
@@ -158,6 +164,7 @@ func main() {
 
 	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
 	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
+	cmd.PersistentFlags().StringVar(&searchOrder, "search-order", "configDrive,metadataService", "The search order in which the driver retrieves metadata relating to the instance (s) in which it runs")
 
 	code := cli.Run(cmd)
 	os.Exit(code)
