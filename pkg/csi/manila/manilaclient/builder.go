@@ -72,11 +72,12 @@ func New(ctx context.Context, o *client.AuthOpts, userAgent string, extraUserAge
 	// Check client's and server's versions for compatibility
 
 	client.Microversion = minimumManilaVersion
-	if err = validateManilaClient(ctx, client); err != nil {
+	serverMaxMicroversion, err := validateManilaClient(ctx, client)
+	if err != nil {
 		return nil, fmt.Errorf("manila v2 client validation failed: %v", err)
 	}
 
-	return &Client{c: client}, nil
+	return &Client{c: client, serverMaxMicroversion: serverMaxMicroversion}, nil
 }
 
 func splitManilaMicroversion(microversion string) (major, minor int) {
@@ -106,27 +107,27 @@ func compareManilaVersionsLessThan(a, b string) bool {
 	return aMaj < bMaj || (aMaj == bMaj && aMin < bMin)
 }
 
-func validateManilaClient(ctx context.Context, c *gophercloud.ServiceClient) error {
+func validateManilaClient(ctx context.Context, c *gophercloud.ServiceClient) (string, error) {
 	serverVersion, err := apiversions.Get(ctx, c, "v2").Extract()
 	if err != nil {
-		return fmt.Errorf("failed to get Manila v2 API microversions: %v", err)
+		return "", fmt.Errorf("failed to get Manila v2 API microversions: %v", err)
 	}
 
 	if err = validateManilaMicroversion(serverVersion.MinVersion); err != nil {
-		return fmt.Errorf("server's minimum microversion is invalid: %v", err)
+		return "", fmt.Errorf("server's minimum microversion is invalid: %v", err)
 	}
 
 	if err = validateManilaMicroversion(serverVersion.Version); err != nil {
-		return fmt.Errorf("server's maximum microversion is invalid: %v", err)
+		return "", fmt.Errorf("server's maximum microversion is invalid: %v", err)
 	}
 
 	if compareManilaVersionsLessThan(c.Microversion, serverVersion.MinVersion) {
-		return fmt.Errorf("client's microversion %s is lower than server's minimum microversion %s", c.Microversion, serverVersion.MinVersion)
+		return "", fmt.Errorf("client's microversion %s is lower than server's minimum microversion %s", c.Microversion, serverVersion.MinVersion)
 	}
 
 	if compareManilaVersionsLessThan(serverVersion.Version, c.Microversion) {
-		return fmt.Errorf("client's microversion %s is higher than server's highest supported microversion %s", c.Microversion, serverVersion.Version)
+		return "", fmt.Errorf("client's microversion %s is higher than server's highest supported microversion %s", c.Microversion, serverVersion.Version)
 	}
 
-	return nil
+	return serverVersion.Version, nil
 }

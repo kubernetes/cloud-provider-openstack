@@ -74,6 +74,10 @@ func (c fakeManilaClient) GetMicroversion() string {
 func (c fakeManilaClient) SetMicroversion(_ string) {
 }
 
+func (c fakeManilaClient) GetServerMaxMicroversion() string {
+	return "2.94"
+}
+
 func (c fakeManilaClient) GetShareByID(_ context.Context, shareID string) (*shares.Share, error) {
 	s, ok := fakeShares[strToInt(shareID)]
 	if !ok {

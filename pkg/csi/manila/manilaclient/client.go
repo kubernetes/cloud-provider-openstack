@@ -21,6 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/messages"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shareaccessrules"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/snapshots"
@@ -29,8 +30,13 @@ import (
 	snapshots_utils "github.com/gophercloud/utils/v2/openstack/sharedfilesystems/v2/snapshots"
 )
 
+const (
+	accessRulesGETMicroversion = "2.45"
+)
+
 type Client struct {
-	c *gophercloud.ServiceClient
+	c                     *gophercloud.ServiceClient
+	serverMaxMicroversion string
 }
 
 func (c Client) GetMicroversion() string {
@@ -75,7 +81,41 @@ func (c Client) SetShareMetadata(ctx context.Context, shareID string, opts share
 }
 
 func (c Client) GetAccessRights(ctx context.Context, shareID string) ([]shares.AccessRight, error) {
+	if !compareManilaVersionsLessThan(c.serverMaxMicroversion, accessRulesGETMicroversion) {
+		return c.getAccessRightsV2(ctx, shareID)
+	}
 	return shares.ListAccessRights(ctx, c.c, shareID).Extract()
+}
+
+// getAccessRightsV2 uses the GET-based share-access-rules API (microversion 2.45+)
+// instead of the deprecated os-access_list POST action.
+func (c Client) getAccessRightsV2(ctx context.Context, shareID string) ([]shares.AccessRight, error) {
+	origMicroversion := c.c.Microversion
+	c.c.Microversion = accessRulesGETMicroversion
+	defer func() { c.c.Microversion = origMicroversion }()
+
+	accessList, err := shareaccessrules.List(ctx, c.c, shareID).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	rights := make([]shares.AccessRight, len(accessList))
+	for i, a := range accessList {
+		rights[i] = shares.AccessRight{
+			ID:          a.ID,
+			ShareID:     a.ShareID,
+			AccessType:  a.AccessType,
+			AccessTo:    a.AccessTo,
+			AccessKey:   a.AccessKey,
+			AccessLevel: a.AccessLevel,
+			State:       a.State,
+		}
+	}
+	return rights, nil
+}
+
+func (c Client) GetServerMaxMicroversion() string {
+	return c.serverMaxMicroversion
 }
 
 func (c Client) GrantAccess(ctx context.Context, shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error) {

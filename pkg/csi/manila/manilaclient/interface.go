@@ -29,6 +29,7 @@ import (
 type Interface interface {
 	GetMicroversion() string
 	SetMicroversion(version string)
+	GetServerMaxMicroversion() string
 
 	GetShareByID(ctx context.Context, shareID string) (*shares.Share, error)
 	GetShareByName(ctx context.Context, shareName string) (*shares.Share, error)
