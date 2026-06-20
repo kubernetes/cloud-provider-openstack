@@ -42,6 +42,7 @@ type Interface interface {
 
 	GetAccessRights(ctx context.Context, shareID string) ([]shares.AccessRight, error)
 	GrantAccess(ctx context.Context, shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error)
+	RevokeAccess(ctx context.Context, shareID string, accessID string) error
 
 	GetSnapshotByID(ctx context.Context, snapID string) (*snapshots.Snapshot, error)
 	GetSnapshotByName(ctx context.Context, snapName string) (*snapshots.Snapshot, error)
