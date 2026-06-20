@@ -119,6 +119,7 @@ func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[str
 		"monitors":        monitors,
 		"rootPath":        rootPath,
 		"mounter":         args.Options.CephfsMounter,
+		"staticVolume":    "true",
 		"provisionVolume": "false",
 	}
 
