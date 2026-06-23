@@ -54,7 +54,7 @@ func TestDriver(t *testing.T) {
 
 	fakemeta := &fakemetadata{}
 
-	err = d.SetupNodeService(fakemeta)
+	err = d.SetupNodeService("", "", fakemeta)
 	if err != nil {
 		t.Fatalf("Failed to initialize CSI Manila node service: %v", err)
 	}
