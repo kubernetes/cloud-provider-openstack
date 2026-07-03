@@ -48,6 +48,9 @@ csimanila:
     pullPolicy: IfNotPresent
     tag:  # defaults to .Chart.AppVersion
 
+  # Set the search order in which the driver retrieves metadata relating to the instance (s) in which it runs
+  searchOrder: ""
+
 # DeamonSet deployment
 nodeplugin:
   # Component name
@@ -139,3 +142,5 @@ controllerplugin:
 # See https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md
 # for description of individual verbosity levels.
 logVerbosityLevel: 2
+
+searchOrder:
