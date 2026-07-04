@@ -17,9 +17,11 @@ limitations under the License.
 package cinder
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -1048,6 +1050,40 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 	assert.Equal(FakeVolID, actualRes.Snapshot.SourceVolumeId)
 
 	assert.NotNil(FakeSnapshotID, actualRes.Snapshot.SnapshotId)
+}
+
+func TestCreateSnapshotBackupGetBackupByIDError(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	backendErr := errors.New("backend lookup failed")
+	existingBackup := backups.Backup{
+		ID:   "existing-backup-id",
+		Name: FakeSnapshotName,
+	}
+
+	osmock.On("ListBackups", map[string]string{"Name": FakeSnapshotName}).Return([]backups.Backup{existingBackup}, nil)
+	osmock.On("GetBackupByID", existingBackup.ID).Return((*backups.Backup)(nil), backendErr)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			openstack.SnapshotType: "backup",
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err == nil {
+		t.Fatal("expected CreateSnapshot to return an error")
+	}
+
+	statusErr, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected grpc status error, got %v", err)
+	}
+
+	assert.Equal(t, codes.Internal, statusErr.Code())
+	assert.Equal(t, "Failed to get backup by ID", statusErr.Message())
 }
 
 // Test DeleteSnapshot
