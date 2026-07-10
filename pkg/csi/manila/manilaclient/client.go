@@ -21,6 +21,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/messages"
+	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shareaccessrules"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/sharetypes"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/snapshots"
@@ -75,7 +76,35 @@ func (c Client) SetShareMetadata(ctx context.Context, shareID string, opts share
 }
 
 func (c Client) GetAccessRights(ctx context.Context, shareID string) ([]shares.AccessRight, error) {
-	return shares.ListAccessRights(ctx, c.c, shareID).Extract()
+	// Set microversion to 2.45 to use the GET /share-access-rules endpoint
+	v := c.GetMicroversion()
+	c.SetMicroversion("2.45")
+	defer c.SetMicroversion(v)
+
+	rules, err := shareaccessrules.List(ctx, c.c, shareID).Extract()
+	if err != nil {
+		return nil, err
+	}
+
+	return toAccessRights(rules), nil
+}
+
+// toAccessRights adapts the shareaccessrules API type to the shares.AccessRight type
+func toAccessRights(rules []shareaccessrules.ShareAccess) []shares.AccessRight {
+	accessRights := make([]shares.AccessRight, len(rules))
+	for i, r := range rules {
+		accessRights[i] = shares.AccessRight{
+			ShareID:     r.ShareID,
+			AccessType:  r.AccessType,
+			AccessTo:    r.AccessTo,
+			AccessKey:   r.AccessKey,
+			AccessLevel: r.AccessLevel,
+			State:       r.State,
+			ID:          r.ID,
+		}
+	}
+
+	return accessRights
 }
 
 func (c Client) GrantAccess(ctx context.Context, shareID string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error) {
