@@ -43,8 +43,8 @@ type ControllerVolumeContext struct {
 type NodeVolumeContext struct {
 	ShareID        string `name:"shareID" value:"optionalIf:shareName=." precludes:"shareName"`
 	ShareName      string `name:"shareName" value:"optionalIf:shareID=." precludes:"shareID"`
-	ShareAccessID  string `name:"shareAccessID" value:"optionalIf:shareAccessIDs=." precludes:"shareAccessIDs"` // Keep this for backwards compatibility
-	ShareAccessIDs string `name:"shareAccessIDs" value:"optionalIf:shareAccessID=." precludes:"shareAccessID"`
+	ShareAccessID  string `name:"shareAccessID" value:"optional"`  // Deprecated: use shareAccessIDs
+	ShareAccessIDs string `name:"shareAccessIDs" value:"optional"` // Preferred; takes precedence over shareAccessID
 
 	// Adapter options
 
