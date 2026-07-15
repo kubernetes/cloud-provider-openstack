@@ -566,6 +566,28 @@ func TestControllerPublishVolume(t *testing.T) {
 	assert.Equal(expectedRes, actualRes)
 }
 
+func TestControllerPublishVolumePreservesFailedPrecondition(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return("", status.Error(codes.FailedPrecondition, "volume is already attached to another node"))
+
+	fakeReq := &csi.ControllerPublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+		Readonly: false,
+	}
+
+	actualRes, err := fakeCs.ControllerPublishVolume(FakeCtx, fakeReq)
+
+	assert.Nil(t, actualRes)
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
 // Test ControllerUnpublishVolume
 func TestControllerUnpublishVolume(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
