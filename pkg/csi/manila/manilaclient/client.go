@@ -111,6 +111,10 @@ func (c Client) GrantAccess(ctx context.Context, shareID string, opts shares.Gra
 	return shares.GrantAccess(ctx, c.c, shareID, opts).Extract()
 }
 
+func (c Client) RevokeAccess(ctx context.Context, shareID string, accessID string) error {
+	return shares.RevokeAccess(ctx, c.c, shareID, shares.RevokeAccessOpts{AccessID: accessID}).ExtractErr()
+}
+
 func (c Client) GetSnapshotByID(ctx context.Context, snapID string) (*snapshots.Snapshot, error) {
 	return snapshots.Get(ctx, c.c, snapID).Extract()
 }

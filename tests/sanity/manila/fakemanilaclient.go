@@ -216,10 +216,25 @@ func (c fakeManilaClient) GrantAccess(_ context.Context, shareID string, opts sh
 
 	accessRight.ID = intToStr(fakeAccessRightID)
 	accessRight.ShareID = shareID
+	accessRight.State = "active"
 	fakeAccessRights[fakeAccessRightID] = accessRight
 	fakeAccessRightID++
 
 	return accessRight, nil
+}
+
+func (c fakeManilaClient) RevokeAccess(_ context.Context, shareID string, accessID string) error {
+	if !shareExists(shareID) {
+		return gophercloud.ErrResourceNotFound{}
+	}
+
+	id := strToInt(accessID)
+	if _, ok := fakeAccessRights[id]; !ok {
+		return gophercloud.ErrResourceNotFound{}
+	}
+
+	delete(fakeAccessRights, id)
+	return nil
 }
 
 func (c fakeManilaClient) GetSnapshotByID(_ context.Context, snapID string) (*snapshots.Snapshot, error) {
