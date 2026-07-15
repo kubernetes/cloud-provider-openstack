@@ -106,21 +106,19 @@ func (l Logger) Printf(format string, args ...interface{}) {
 
 	// extra check in case, when verbosity has been changed dynamically
 	if debugger {
+		// Walk the stack and find the deepest gophercloud frame (matches both
+		// gophercloud/gophercloud and gophercloud/utils, where the
+		// RoundTripper lives). The frame above it is the actual caller that
+		// triggered the API request, which is what we want klog to report.
+		const gc = "/github.com/gophercloud/"
 		var skip int
-		var found bool
-		var gc = "/github.com/gophercloud/gophercloud"
-
-		// detect the depth of the actual function, which calls gophercloud code
-		// 10 is the common depth from the logger to "github.com/gophercloud/gophercloud/v2"
-		for i := 10; i <= 20; i++ {
-			if _, file, _, ok := runtime.Caller(i); ok && !found && strings.Contains(file, gc) {
-				found = true
-				continue
-			} else if ok && found && !strings.Contains(file, gc) {
-				skip = i
+		for i := 1; ; i++ {
+			_, file, _, ok := runtime.Caller(i)
+			if !ok {
 				break
-			} else if !ok {
-				break
+			}
+			if strings.Contains(file, gc) {
+				skip = i + 1
 			}
 		}
 
