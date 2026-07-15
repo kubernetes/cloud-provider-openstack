@@ -1470,6 +1470,7 @@ func Test_nodeAddressForLB(t *testing.T) {
 	type testArgs struct {
 		node              *corev1.Node
 		preferredIPFamily corev1.IPFamily
+		preferredAddrType corev1.NodeAddressType
 	}
 
 	tests := []struct {
@@ -1775,11 +1776,76 @@ func Test_nodeAddressForLB(t *testing.T) {
 			expect:      "",
 			expectedErr: cpoerrors.ErrNoAddressFound,
 		},
+		{
+			name: "ExternalIP preferred over InternalIP with IPv4",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "10.0.0.1",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+				preferredAddrType: corev1.NodeExternalIP,
+			},
+			expect:      "10.0.0.1",
+			expectedErr: nil,
+		},
+		{
+			name: "ExternalIP preferred falls back to InternalIP when no ExternalIP",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+				preferredAddrType: corev1.NodeExternalIP,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "ExternalIP preferred with IPv6",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:db8::1",
+							},
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:db8::2",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+				preferredAddrType: corev1.NodeExternalIP,
+			},
+			expect:      "2001:db8::2",
+			expectedErr: nil,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := nodeAddressForLB(test.testArgs.node, test.testArgs.preferredIPFamily)
+			got, err := nodeAddressForLB(test.testArgs.node, test.testArgs.preferredIPFamily, test.testArgs.preferredAddrType)
 			if test.expectedErr != nil {
 				assert.EqualError(t, err, test.expectedErr.Error())
 			} else {
