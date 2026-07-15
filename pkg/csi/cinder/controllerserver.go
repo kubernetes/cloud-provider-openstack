@@ -565,9 +565,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		if len(backups) == 1 {
 			// since backup.VolumeID is not part of ListBackups response
 			// we need fetch single backup to get the full object.
-			backup, err = cloud.GetBackupByID(ctx, backups[0].ID)
+			backupID := backups[0].ID
+			backup, err = cloud.GetBackupByID(ctx, backupID)
 			if err != nil {
-				klog.Errorf("Failed to get backup by ID %s: %v", backup.ID, err)
+				klog.Errorf("Failed to get backup by ID %s: %v", backupID, err)
 				return nil, status.Error(codes.Internal, "Failed to get backup by ID")
 			}
 
