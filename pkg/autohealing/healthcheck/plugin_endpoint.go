@@ -19,6 +19,7 @@ package healthcheck
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"os"
@@ -33,6 +34,7 @@ import (
 const (
 	EndpointType = "Endpoint"
 	TokenPath    = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	CAPath       = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	TimeLayout   = "2006-01-02 15:04:05"
 )
 
@@ -60,6 +62,13 @@ type EndpointCheck struct {
 
 	// (Optional) Token to use in the request header. Default: read from TokenPath file
 	Token string `mapstructure:"token"`
+
+	// (Optional) Path to CA certificate file for TLS server verification. Only used when Protocol is HTTPS.
+	// Default: read from CAPath (the in-cluster Kubernetes CA).
+	CAFile string `mapstructure:"ca-file"`
+
+	// (Optional) Skip TLS certificate verification. Not recommended for production. Default: false.
+	InsecureSkipVerify bool `mapstructure:"insecure-skip-verify"`
 }
 
 // GetName returns name of the health check
@@ -140,9 +149,27 @@ func (check *EndpointCheck) Check(ctx context.Context, node NodeInfo, controller
 	protocol := strings.ToLower(check.Protocol)
 	switch protocol {
 	case "https":
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		tlsConfig := &tls.Config{}
+		if check.InsecureSkipVerify {
+			tlsConfig.InsecureSkipVerify = true
+		} else {
+			caFile := check.CAFile
+			if caFile == "" {
+				caFile = CAPath
+			}
+			caCert, err := os.ReadFile(caFile)
+			if err != nil {
+				log.Errorf("Node %s, failed to read CA certificate from %s: %v", nodeName, caFile, err)
+				return true
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caCert) {
+				log.Errorf("Node %s, failed to parse CA certificate from %s", nodeName, caFile)
+				return true
+			}
+			tlsConfig.RootCAs = pool
 		}
+		tr := &http.Transport{TLSClientConfig: tlsConfig}
 		client = &http.Client{Transport: tr, Timeout: time.Second * 5}
 	case "http":
 		client = &http.Client{Timeout: time.Second * 5}

@@ -183,6 +183,23 @@ spec:
 EOF
 ```
 
+#### Endpoint health check parameters
+
+The `Endpoint` type health check supports the following parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `protocol` | string | `HTTPS` | URL scheme to use. `HTTP` or `HTTPS` (case-insensitive). |
+| `port` | int | `6443` | Port to connect to on the node. |
+| `endpoints` | []string | `["/healthz"]` | List of URL paths to check. |
+| `ok-codes` | []int | `[200]` | HTTP response codes considered healthy. |
+| `unhealthy-duration` | duration | `300s` | How long a node must be continuously unhealthy before repair is triggered. |
+| `unhealthy-annotation` | string | `autohealing.openstack.org/unhealthy-timestamp` | Node annotation used to record when the node first became unhealthy. |
+| `require-token` | bool | `false` | Whether to include a bearer token in the request. |
+| `token` | string | read from `/var/run/secrets/kubernetes.io/serviceaccount/token` | Bearer token value. Only used when `require-token` is `true`. |
+| `ca-file` | string | `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` | Path to a CA certificate file used to verify the server's TLS certificate. Only used when `protocol` is `HTTPS`. |
+| `insecure-skip-verify` | bool | `false` | Skip TLS certificate verification entirely. Not recommended for production use. |
+
 ### Testing magnum-auto-healer
 
 We could ssh into a worker node(`lingxian-por-test-1-12-7-ha-bbgjts5g4xhb-minion-1` in this example) and stop the kubelet service to simulate the worker node failure. The node status check is covered in NodeCondition type of health check plugin(see configuration above).
