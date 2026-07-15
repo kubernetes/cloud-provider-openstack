@@ -86,6 +86,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
           resources: {{ toYaml .Values.csi.provisioner.resources | nindent 12 }}
+        {{- if .Values.csi.snapshotter.enabled }}
         - name: csi-snapshotter
           securityContext:
             {{- toYaml .Values.csi.plugin.controllerPlugin.securityContext | nindent 12 }}
@@ -111,6 +112,7 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
           resources: {{ toYaml .Values.csi.snapshotter.resources | nindent 12 }}
+        {{- end }}
         - name: csi-resizer
           securityContext:
             {{- toYaml .Values.csi.plugin.controllerPlugin.securityContext | nindent 12 }}
