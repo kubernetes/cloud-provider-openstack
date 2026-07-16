@@ -352,15 +352,15 @@ func waitLoadBalancerDeleted(ctx context.Context, client *gophercloud.ServiceCli
 	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		mc := metrics.NewMetricContext("loadbalancer", "get")
 		_, err := loadbalancers.Get(ctx, client, loadbalancerID).Extract()
-		if err != nil {
-			if cpoerrors.IsNotFound(err) {
-				klog.V(4).InfoS("Load balancer deleted", "lbID", loadbalancerID)
-				return true, mc.ObserveRequest(nil)
-			}
-			return false, mc.ObserveRequest(err)
+		if mc.ObserveRequest(err) != nil && cpoerrors.IsNotFound(err) {
+			klog.V(4).InfoS("Load balancer deleted", "lbID", loadbalancerID)
+			return true, nil
 		}
-		return false, mc.ObserveRequest(nil)
+		return false, err
 	})
+	if err != nil {
+		klog.Warningf("Failed to fetch loadbalancer status from OpenStack (lbID %q): %s", loadbalancerID, err)
+	}
 
 	if wait.Interrupted(err) {
 		err = fmt.Errorf("loadbalancer failed to delete within the allotted time")
@@ -377,17 +377,11 @@ func DeleteLoadbalancer(ctx context.Context, client *gophercloud.ServiceClient, 
 
 	mc := metrics.NewMetricContext("loadbalancer", "delete")
 	err := loadbalancers.Delete(ctx, client, lbID, opts).ExtractErr()
-	if err != nil && !cpoerrors.IsNotFound(err) {
-		_ = mc.ObserveRequest(err)
+	if mc.ObserveRequest(err) != nil && !cpoerrors.IsNotFound(err) {
 		return fmt.Errorf("error deleting loadbalancer %s: %v", lbID, err)
 	}
-	_ = mc.ObserveRequest(nil)
 
-	if err := waitLoadBalancerDeleted(ctx, client, lbID); err != nil {
-		return err
-	}
-
-	return nil
+	return waitLoadBalancerDeleted(ctx, client, lbID)
 }
 
 // ==============================================================================
