@@ -163,7 +163,7 @@ func executeAndWaitActive(ctx context.Context, client *gophercloud.ServiceClient
 	lbID, resourceType, operation string, fn func() error) error {
 
 	_, err := executeExtractAndWaitActive(ctx, client, lbID, resourceType, operation,
-		func() (any, error) {
+		func() (*any, error) {
 			return nil, fn()
 		})
 	return err
@@ -174,32 +174,23 @@ func executeAndWaitActive(ctx context.Context, client *gophercloud.ServiceClient
 // Used for create operations that return the created resource.
 // For delete operations, NotFound errors are logged but not returned as errors.
 func executeExtractAndWaitActive[T any](ctx context.Context, client *gophercloud.ServiceClient,
-	lbID, resourceType, operation string, fn func() (T, error)) (T, error) {
+	lbID, resourceType, operation string, fn func() (*T, error)) (*T, error) {
 
 	mc := metrics.NewMetricContext(resourceType, operation)
 	result, err := fn()
-
-	// For delete operations, treat NotFound as success (already deleted)
-	if operation == "delete" && err != nil && cpoerrors.IsNotFound(err) {
-		klog.V(2).Infof("%s was already deleted", resourceType)
-		_ = mc.ObserveRequest(nil)
-		// Still wait for load balancer to be active for consistency
-		if _, waitErr := WaitActiveAndGetLoadBalancer(ctx, client, lbID); waitErr != nil {
-			return result, fmt.Errorf("failed to wait for load balancer %s ACTIVE after %s %s: %v",
-				lbID, operation, resourceType, waitErr)
-		}
-		return result, nil
-	}
-
-	// Observe the request result (error or success)
 	if mc.ObserveRequest(err) != nil {
-		return result, fmt.Errorf("failed to %s %s on load balancer %s: %v", operation, resourceType, lbID, err)
+		// For delete operations, treat NotFound as success (already deleted)
+		if operation == "delete" && cpoerrors.IsNotFound(err) {
+			klog.V(2).Infof("%s was already deleted", resourceType)
+		} else {
+			return result, fmt.Errorf("failed to %s %s on load balancer %s: %v", operation, resourceType, lbID, err)
+		}
 	}
-
 	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
 		return result, fmt.Errorf("failed to wait for load balancer %s ACTIVE after %s %s: %v",
 			lbID, operation, resourceType, err)
 	}
+
 	return result, nil
 }
 
