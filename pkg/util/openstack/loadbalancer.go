@@ -223,31 +223,28 @@ func listWithUniqueResult[T any](ctx context.Context, resourceType, operation st
 	pager pagination.Pager, extractFn func(pagination.Page) ([]T, error)) (*T, error) {
 
 	mc := metrics.NewMetricContext(resourceType, operation)
-	var results []T
+	var result *T
 	err := pager.EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
 		items, err := extractFn(page)
 		if err != nil {
 			return false, err
 		}
-		results = append(results, items...)
+
+		// Stop early if we found no results
+		if len(items) == 0 {
+			return false, cpoerrors.ErrNotFound
+		}
 		// Stop early if we found more than one result
-		if len(results) > 1 {
+		if len(items) > 1 {
 			return false, cpoerrors.ErrMultipleResults
 		}
-		return true, nil
+		// Exactly one result found, store it and stop pagination
+		result = &items[0]
+
+		return false, nil
 	})
 
-	if mc.ObserveRequest(err) != nil {
-		if cpoerrors.IsNotFound(err) {
-			return nil, cpoerrors.ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(results) == 0 {
-		return nil, cpoerrors.ErrNotFound
-	}
-	return &results[0], nil
+	return result, mc.ObserveRequest(err)
 }
 
 // getSingleResource executes a single resource retrieval operation with metrics tracking.
