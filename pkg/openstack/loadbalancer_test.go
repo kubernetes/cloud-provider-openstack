@@ -3,10 +3,11 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/ptr"
 	"reflect"
 	"sort"
 	"testing"
+
+	"k8s.io/utils/ptr"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
@@ -500,6 +501,24 @@ func Test_getListenerProtocol(t *testing.T) {
 			expected: listeners.ProtocolHTTP,
 		},
 		{
+			name: "not nil svcConf and keepClientPort is true",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					keepClientPort: true,
+				},
+			},
+			expected: listeners.ProtocolHTTP,
+		},
+		{
+			name: "not nil svcConf and keepClientProto is true",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					keepClientProto: true,
+				},
+			},
+			expected: listeners.ProtocolHTTP,
+		},
+		{
 			name: "nil svcConf with TCP protocol",
 			testArg: testArg{
 				svcConf:  nil,
@@ -529,6 +548,26 @@ func Test_getListenerProtocol(t *testing.T) {
 				svcConf: &serviceConfig{
 					tlsContainerRef: "tls-container-ref",
 					keepClientIP:    true,
+				},
+			},
+			expected: listeners.ProtocolTerminatedHTTPS,
+		},
+		{
+			name: "passing a svcConf tls container ref with a keep client Port",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					tlsContainerRef: "tls-container-ref",
+					keepClientPort:  true,
+				},
+			},
+			expected: listeners.ProtocolTerminatedHTTPS,
+		},
+		{
+			name: "passing a svcConf tls container ref with a keep client Proto",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					tlsContainerRef: "tls-container-ref",
+					keepClientProto: true,
 				},
 			},
 			expected: listeners.ProtocolTerminatedHTTPS,
@@ -1008,6 +1047,66 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			},
 		},
 		{
+			name: "test for proxy protocol enabled with keepClientPort",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientPort:       true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for proxy protocol enabled with keepClientPort",
+				Protocol:    pools.ProtocolPROXY,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for proxy protocol enabled with keepClientProto",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientProto:      true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for proxy protocol enabled with keepClientProto",
+				Protocol:    pools.ProtocolPROXY,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
 			name: "test for pool protocol http with proxy protocol disabled",
 			args: args{
 				protocol: "HTTP",
@@ -1150,6 +1249,66 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			},
 			want: pools.CreateOpts{
 				Name:        "test for proxy protocol v2 enabled",
+				Protocol:    pools.ProtocolPROXYV2,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for proxy protocol v2 enabled with keepClientPort",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientPort:       true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2),
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for proxy protocol v2 enabled with keepClientPort",
+				Protocol:    pools.ProtocolPROXYV2,
+				LBMethod:    "SOURCE_IP_PORT",
+				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
+			},
+		},
+		{
+			name: "test for proxy protocol v2 enabled with keepClientProto",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					keepClientProto:      true,
+					tlsContainerRef:      "tls-container-ref",
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2),
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "ovn",
+							LBMethod:   "SOURCE_IP_PORT",
+						},
+					},
+				},
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						SessionAffinity: corev1.ServiceAffinityClientIP,
+					},
+				},
+			},
+			want: pools.CreateOpts{
+				Name:        "test for proxy protocol v2 enabled with keepClientProto",
 				Protocol:    pools.ProtocolPROXYV2,
 				LBMethod:    "SOURCE_IP_PORT",
 				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
@@ -2390,11 +2549,12 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				lbName:    "my-lb",
 			},
 			expectedCreateOpt: listeners.CreateOpts{
-				Name:         "Test with basic configuration",
-				Protocol:     listeners.ProtocolTCP,
-				ProtocolPort: 80,
-				ConnLimit:    &svcConf.connLimit,
-				Tags:         nil,
+				Name:          "Test with basic configuration",
+				Protocol:      listeners.ProtocolTCP,
+				ProtocolPort:  80,
+				ConnLimit:     &svcConf.connLimit,
+				InsertHeaders: map[string]string{},
+				Tags:          nil,
 			},
 		},
 		{
@@ -2420,7 +2580,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			},
 		},
 		{
-			name: "Test with TLSContainerRef but without X-Forwarded-For",
+			name: "Test with TLSContainerRef and X-Forwarded-*",
 			port: corev1.ServicePort{
 				Protocol: "TCP",
 				Port:     443,
@@ -2430,13 +2590,40 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
 				keepClientIP:    false,
+				keepClientPort:  false,
+				keepClientProto: true,
 			},
 			expectedCreateOpt: listeners.CreateOpts{
-				Name:                   "Test with TLSContainerRef but without X-Forwarded-For",
+				Name:                   "Test with TLSContainerRef and X-Forwarded-*",
 				Protocol:               listeners.ProtocolTerminatedHTTPS,
 				ProtocolPort:           443,
 				ConnLimit:              &svcConf.connLimit,
 				DefaultTlsContainerRef: "tls-container-ref",
+				InsertHeaders:          map[string]string{"X-Forwarded-Proto": "true"},
+				Tags:                   nil,
+			},
+		},
+		{
+			name: "Test with TLSContainerRef but without X-Forwarded-*",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     443,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				tlsContainerRef: "tls-container-ref",
+				keepClientIP:    false,
+				keepClientPort:  false,
+				keepClientProto: false,
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:                   "Test with TLSContainerRef but without X-Forwarded-*",
+				Protocol:               listeners.ProtocolTerminatedHTTPS,
+				ProtocolPort:           443,
+				ConnLimit:              &svcConf.connLimit,
+				DefaultTlsContainerRef: "tls-container-ref",
+				InsertHeaders:          map[string]string{},
 				Tags:                   nil,
 			},
 		},
@@ -2482,6 +2669,29 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				ProtocolPort:  80,
 				ConnLimit:     &svcConf.connLimit,
 				InsertHeaders: map[string]string{"X-Forwarded-For": "true"},
+				Tags:          nil,
+			},
+		},
+		{
+			name: "Test with Protocol forced to HTTP with X-Forwarded-*",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				keepClientIP:    false,
+				keepClientPort:  true,
+				keepClientProto: false,
+				tlsContainerRef: "",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:          "Test with Protocol forced to HTTP with X-Forwarded-*",
+				Protocol:      listeners.ProtocolHTTP,
+				ProtocolPort:  80,
+				ConnLimit:     &svcConf.connLimit,
+				InsertHeaders: map[string]string{"X-Forwarded-Port": "true"},
 				Tags:          nil,
 			},
 		},
