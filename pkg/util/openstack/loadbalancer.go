@@ -272,7 +272,7 @@ func WaitActiveAndGetLoadBalancer(ctx context.Context, client *gophercloud.Servi
 	}
 
 	var loadbalancer *loadbalancers.LoadBalancer
-	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		mc := metrics.NewMetricContext("loadbalancer", "get")
 		var err error
 		loadbalancer, err = loadbalancers.Get(ctx, client, loadbalancerID).Extract()
@@ -340,7 +340,7 @@ func waitLoadBalancerDeleted(ctx context.Context, client *gophercloud.ServiceCli
 		Factor:   waitLoadbalancerFactor,
 		Steps:    waitLoadbalancerDeleteSteps,
 	}
-	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		mc := metrics.NewMetricContext("loadbalancer", "get")
 		_, err := loadbalancers.Get(ctx, client, loadbalancerID).Extract()
 		if mc.ObserveRequest(err) != nil && cpoerrors.IsNotFound(err) {
