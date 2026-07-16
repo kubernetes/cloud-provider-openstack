@@ -255,8 +255,7 @@ func getSingleResource[T any](ctx context.Context, resourceType, operation strin
 	mc := metrics.NewMetricContext(resourceType, operation)
 	result, err := fn()
 	if mc.ObserveRequest(err) != nil {
-		var zero T
-		return zero, fmt.Errorf("failed to %s %s: %v", operation, resourceType, err)
+		return result, fmt.Errorf("failed to %s %s: %v", operation, resourceType, err)
 	}
 	return result, nil
 }
