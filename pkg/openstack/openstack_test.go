@@ -153,6 +153,19 @@ func TestReadConfig(t *testing.T) {
 	}
 }
 
+func TestReadConfigDisableLBRename(t *testing.T) {
+	cfg, err := ReadConfig(strings.NewReader(`
+ [LoadBalancer]
+ enable-lb-rename = false
+ `))
+	if err != nil {
+		t.Fatalf("Should succeed when enable-lb-rename is false: %v", err)
+	}
+	if cfg.LoadBalancer.EnableLBRename {
+		t.Error("incorrect lb.enable-lb-rename: true")
+	}
+}
+
 func TestReadClouds(t *testing.T) {
 
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
