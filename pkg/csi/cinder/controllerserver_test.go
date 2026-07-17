@@ -1090,8 +1090,8 @@ func TestCreateSnapshotBackupGetBackupByIDError(t *testing.T) {
 func TestDeleteSnapshot(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
+	osmock.On("GetBackupByID", FakeSnapshotID).Return((*backups.Backup)(nil), cpoerrors.ErrNotFound)
 	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
-	osmock.On("DeleteBackup", FakeSnapshotID).Return(nil)
 
 	assert := assert.New(t)
 
@@ -1111,6 +1111,56 @@ func TestDeleteSnapshot(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+}
+
+func TestDeleteSnapshotDeletesBackupWithoutDeletingSnapshot(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	osmock.On("GetBackupByID", FakeSnapshotID).Return(&backups.Backup{ID: FakeSnapshotID}, nil)
+	osmock.On("DeleteBackup", FakeSnapshotID).Return(nil)
+
+	actualRes, err := fakeCs.DeleteSnapshot(FakeCtx, &csi.DeleteSnapshotRequest{SnapshotId: FakeSnapshotID})
+	if err != nil {
+		t.Fatalf("DeleteSnapshot returned an error: %v", err)
+	}
+
+	assert.Equal(t, &csi.DeleteSnapshotResponse{}, actualRes)
+	osmock.AssertNotCalled(t, "DeleteSnapshot", FakeSnapshotID)
+}
+
+func TestDeleteSnapshotIgnoresBackupNotFoundDuringDelete(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	osmock.On("GetBackupByID", FakeSnapshotID).Return(&backups.Backup{ID: FakeSnapshotID}, nil)
+	osmock.On("DeleteBackup", FakeSnapshotID).Return(cpoerrors.ErrNotFound)
+
+	actualRes, err := fakeCs.DeleteSnapshot(FakeCtx, &csi.DeleteSnapshotRequest{SnapshotId: FakeSnapshotID})
+	if err != nil {
+		t.Fatalf("DeleteSnapshot returned an error: %v", err)
+	}
+
+	assert.Equal(t, &csi.DeleteSnapshotResponse{}, actualRes)
+	osmock.AssertNotCalled(t, "DeleteSnapshot", FakeSnapshotID)
+}
+
+func TestDeleteSnapshotReturnsErrorWhenBackupLookupFails(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+	lookupErr := errors.New("cinder backup service unavailable")
+
+	osmock.On("GetBackupByID", FakeSnapshotID).Return((*backups.Backup)(nil), lookupErr)
+	osmock.On("DeleteSnapshot", FakeSnapshotID).Maybe().Return(cpoerrors.ErrNotFound)
+
+	_, err := fakeCs.DeleteSnapshot(FakeCtx, &csi.DeleteSnapshotRequest{SnapshotId: FakeSnapshotID})
+	if err == nil {
+		t.Fatal("expected DeleteSnapshot to return an error")
+	}
+
+	statusErr, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected grpc status error, got %v", err)
+	}
+	assert.Equal(t, codes.Internal, statusErr.Code())
+	osmock.AssertNotCalled(t, "DeleteSnapshot", FakeSnapshotID)
 }
 
 func TestListSnapshots(t *testing.T) {
