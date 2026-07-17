@@ -62,7 +62,10 @@ spec:
             --drivername=$(DRIVER_NAME)
             --share-protocol-selector=$(MANILA_SHARE_PROTO)
             --fwdendpoint=$(FWD_CSI_ENDPOINT)
-            --cluster-id="{{ $.Values.csimanila.clusterID }}"'
+            --cluster-id="{{ $.Values.csimanila.clusterID }}"
+            {{- if $.Values.csimanila.searchOrder }}
+            --search-order="{{ $.Values.csimanila.searchOrder }}"
+            {{- end }}'
           ]
           env:
             - name: DRIVER_NAME
@@ -87,6 +90,9 @@ spec:
               mountPath: /runtimeconfig
               readOnly: true
             {{- end }}
+            - name: configdrive-dev
+              mountPath: /dev
+              mountPropagation: "HostToContainer"
             {{- with $.Values.nodeplugin.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -113,6 +119,10 @@ spec:
             name: manila-csi-runtimeconf-cm
         {{- end }}
         {{- end }}
+        - name: configdrive-dev
+          hostPath:
+            path: /dev
+            type: Directory
         {{- with .Values.nodeplugin.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

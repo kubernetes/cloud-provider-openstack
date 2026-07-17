@@ -48,6 +48,9 @@ csimanila:
     pullPolicy: IfNotPresent
     tag:  # defaults to .Chart.AppVersion
 
+  # Set the search order in which the driver retrieves metadata relating to the instance (s) in which it runs
+  searchOrder: ""
+
 # DeamonSet deployment
 nodeplugin:
   # Component name

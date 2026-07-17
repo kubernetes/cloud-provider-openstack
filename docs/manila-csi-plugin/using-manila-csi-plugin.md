@@ -44,6 +44,7 @@ Option | Default value | Description
 `--provide-controller-service` | `true` | If set to true then the CSI driver does provide the controller service.
 `--provide-node-service` | `true` | If set to true then the CSI driver does provide the node service.
 `--pvc-annotations` | `false` | If set to true then the CSI driver will use PVC annotations as an additional information when creating shares. See [Supported PVC annotations](#supported-pvc-annotations) for more info.
+`--search-order` | `configDrive,metadataService` | The search order in which the driver retrieves metadata relating to the instance in which it runs. Only effective when `--provide-node-service=true`.
 
 ### Controller Service volume parameters
 
