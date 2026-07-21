@@ -58,13 +58,8 @@ spec:
             - --cloud-provider=openstack
             - --use-service-account-credentials=false
             - --controllers={{- trimAll "," (include "occm.enabledControllers" . ) -}}
-{{- if .Values.serviceMonitor.enabled }}
-- --authorization-always-allow-paths=/metrics
-- --bind-address=0.0.0.0
-{{- else }}
-- --bind-address=127.0.0.1
-{{- end }}
             {{- if .Values.serviceMonitor.enabled }}
+            - --authorization-always-allow-paths=/metrics
             - --bind-address=0.0.0.0
             {{- else }}
             - --bind-address=127.0.0.1
