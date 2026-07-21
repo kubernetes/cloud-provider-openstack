@@ -1,3 +1,4 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "management") }}
 kind: Deployment
 apiVersion: apps/v1
 metadata:
@@ -10,7 +11,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  replicas: {{ .Values.csi.plugin.controllerPlugin.replicas }}
+  replicas: {{ and .Values.splitMode.enabled (eq .Values.splitMode.type "management") | ternary .Values.splitMode.replicas .Values.csi.plugin.controllerPlugin.replicas }}
   strategy:
     type: {{ .Values.csi.plugin.controllerPlugin.strategy.type }}
 {{- if eq .Values.csi.plugin.controllerPlugin.strategy.type "RollingUpdate" }}
@@ -28,7 +29,11 @@ spec:
       annotations:
         {{- include "cinder-csi.controllerplugin.podAnnotations" . | nindent 8 }}
     spec:
-      serviceAccount: csi-cinder-controller-sa
+      {{- if .Values.splitMode.enabled }}
+      automountServiceAccountToken: false
+      {{- else }}
+      serviceAccountName: csi-cinder-controller-sa
+      {{- end }}
       securityContext:
         {{- toYaml .Values.csi.plugin.controllerPlugin.podSecurityContext | nindent 8 }}
       containers:
@@ -43,6 +48,9 @@ spec:
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
             - "--default-fstype=ext4"
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - "--kubeconfig=/etc/kubernetes/kubeconfig"
+            {{- end }}
             {{- if .Values.csi.attacher.extraArgs }}
             {{- with .Values.csi.attacher.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
@@ -57,6 +65,11 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - name: kubeconfig
+              mountPath: /etc/kubernetes
+              readOnly: true
+            {{- end }}
           resources: {{ toYaml .Values.csi.attacher.resources | nindent 12 }}
         - name: csi-provisioner
           securityContext:
@@ -71,6 +84,9 @@ spec:
             - "--default-fstype=ext4"
             - "--feature-gates=Topology={{ .Values.csi.provisioner.topology }}"
             - "--extra-create-metadata"
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - "--kubeconfig=/etc/kubernetes/kubeconfig"
+            {{- end }}
             {{- if .Values.csi.provisioner.extraArgs }}
             {{- with .Values.csi.provisioner.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
@@ -85,6 +101,11 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - name: kubeconfig
+              mountPath: /etc/kubernetes
+              readOnly: true
+            {{- end }}
           resources: {{ toYaml .Values.csi.provisioner.resources | nindent 12 }}
         - name: csi-snapshotter
           securityContext:
@@ -96,6 +117,9 @@ spec:
             - "--csi-address=$(ADDRESS)"
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - "--kubeconfig=/etc/kubernetes/kubeconfig"
+            {{- end }}
             {{- if .Values.csi.snapshotter.extraArgs }}
             {{- with .Values.csi.snapshotter.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
@@ -110,6 +134,11 @@ spec:
           volumeMounts:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - name: kubeconfig
+              mountPath: /etc/kubernetes
+              readOnly: true
+            {{- end }}
           resources: {{ toYaml .Values.csi.snapshotter.resources | nindent 12 }}
         - name: csi-resizer
           securityContext:
@@ -122,6 +151,9 @@ spec:
             - "--timeout={{ .Values.timeout }}"
             - "--handle-volume-inuse-error=false"
             - "--leader-election=true"
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - "--kubeconfig=/etc/kubernetes/kubeconfig"
+            {{- end }}
             {{- if .Values.csi.resizer.extraArgs }}
             {{- with .Values.csi.resizer.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
@@ -136,6 +168,11 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+            {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+            - name: kubeconfig
+              mountPath: /etc/kubernetes
+              readOnly: true
+            {{- end }}
           resources: {{ toYaml .Values.csi.resizer.resources | nindent 12 }}
         - name: liveness-probe
           securityContext:
@@ -219,7 +256,12 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-          {{- with .Values.csi.plugin.volumeMounts }}
+          {{- if .Values.secret.enabled }}
+            - name: cloud-config
+              mountPath: {{ .Values.secret.path }}
+              readOnly: true
+          {{- end }}
+          {{- with .Values.splitMode.enabled | ternary .Values.splitMode.volumeMounts .Values.csi.plugin.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources: {{ toYaml .Values.csi.plugin.resources | nindent 12 }}
@@ -235,11 +277,19 @@ spec:
           hostPath:
             path: /etc/config
         {{- end }}
-        {{- with .Values.csi.plugin.volumes }}
+        {{- with .Values.splitMode.enabled | ternary .Values.splitMode.volumes .Values.csi.plugin.volumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "management") }}
+        - name: kubeconfig
+          secret:
+            secretName: {{ .Values.splitMode.kubeconfig.secretName }}
+            items:
+              - key: {{ .Values.splitMode.kubeconfig.secretKey }}
+                path: kubeconfig
+        {{- end }}
       affinity: {{ toYaml .Values.csi.plugin.controllerPlugin.affinity | nindent 8 }}
-      nodeSelector: {{ toYaml .Values.csi.plugin.controllerPlugin.nodeSelector | nindent 8 }}
+      nodeSelector: {{ toYaml (and .Values.splitMode.enabled (eq .Values.splitMode.type "management") | ternary .Values.splitMode.nodeSelector .Values.csi.plugin.controllerPlugin.nodeSelector) | nindent 8 }}
       tolerations: {{ toYaml .Values.csi.plugin.controllerPlugin.tolerations | nindent 8 }}
       {{- with .Values.csi.plugin.controllerPlugin.hostAliases }}
       hostAliases:
@@ -252,3 +302,4 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+{{- end }}
