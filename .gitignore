@@ -162,3 +162,8 @@ zz_generated.openapi.go
 
 # Openstack credential file
 clouds.yaml
+
+# helm files
+
+*.lock
+*.zip
