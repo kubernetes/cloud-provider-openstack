@@ -133,6 +133,9 @@ func TestReadConfig(t *testing.T) {
 	if !cfg.LoadBalancer.CreateMonitor {
 		t.Errorf("incorrect lb.create-monitor: %t", cfg.LoadBalancer.CreateMonitor)
 	}
+	if !cfg.LoadBalancer.EnableLBRename {
+		t.Errorf("incorrect lb.enable-lb-rename default: %t", cfg.LoadBalancer.EnableLBRename)
+	}
 	if cfg.LoadBalancer.MonitorDelay.Duration != 1*time.Minute {
 		t.Errorf("incorrect lb.monitor-delay: %s", cfg.LoadBalancer.MonitorDelay)
 	}
@@ -147,6 +150,19 @@ func TestReadConfig(t *testing.T) {
 	}
 	if cfg.Metadata.SearchOrder != "configDrive, metadataService" {
 		t.Errorf("incorrect md.search-order: %v", cfg.Metadata.SearchOrder)
+	}
+}
+
+func TestReadConfigDisableLBRename(t *testing.T) {
+	cfg, err := ReadConfig(strings.NewReader(`
+ [LoadBalancer]
+ enable-lb-rename = false
+ `))
+	if err != nil {
+		t.Fatalf("Should succeed when enable-lb-rename is false: %v", err)
+	}
+	if cfg.LoadBalancer.EnableLBRename {
+		t.Error("incorrect lb.enable-lb-rename: true")
 	}
 }
 
