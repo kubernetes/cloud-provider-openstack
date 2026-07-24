@@ -156,42 +156,42 @@ func TestMergeTags(t *testing.T) {
 	testCases := []struct {
 		name         string
 		existedTags  []string
-		desiredTags  []string
+		newTags      []string
 		expectedOK   bool
 		expectedTags []string
 	}{
 		{
 			name:         "nil existing tags returns desired tags",
 			existedTags:  nil,
-			desiredTags:  []string{"a", "b"},
+			newTags:      []string{"a", "b"},
 			expectedOK:   false,
 			expectedTags: []string{"a", "b"},
 		},
 		{
 			name:         "empty existing tags returns desired tags",
 			existedTags:  []string{},
-			desiredTags:  []string{"a"},
+			newTags:      []string{"a"},
 			expectedOK:   false,
 			expectedTags: []string{"a"},
 		},
 		{
 			name:         "all desired tags already present",
 			existedTags:  []string{"a", "b", "c"},
-			desiredTags:  []string{"a", "b"},
+			newTags:      []string{"a", "b"},
 			expectedOK:   true,
 			expectedTags: nil,
 		},
 		{
 			name:         "some desired tags missing are merged and sorted",
 			existedTags:  []string{"b", "d"},
-			desiredTags:  []string{"a", "c"},
+			newTags:      []string{"a", "c"},
 			expectedOK:   false,
 			expectedTags: []string{"a", "b", "c", "d"},
 		},
 		{
 			name:         "empty desired tags with existing tags is a no-op",
 			existedTags:  []string{"a"},
-			desiredTags:  []string{},
+			newTags:      []string{},
 			expectedOK:   true,
 			expectedTags: nil,
 		},
@@ -199,7 +199,7 @@ func TestMergeTags(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ok, tags := mergeTags(tc.existedTags, tc.desiredTags)
+			ok, tags := mergeTags(tc.existedTags, tc.newTags)
 			assert.Equal(t, tc.expectedOK, ok)
 			assert.Equal(t, tc.expectedTags, tags)
 		})
