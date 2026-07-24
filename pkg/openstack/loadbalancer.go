@@ -213,18 +213,18 @@ func withLBNameTag(lbName, annotation string) []string {
 	return append([]string{lbName}, cpoutil.SplitTrim(annotation, ',')...)
 }
 
-// mergeTags merges existedTags and desiredTags, returns true if all desiredTags are already in existedTags.
-func mergeTags(existedTags []string, desiredTags []string) (bool, []string) {
+// mergeTags merges existedTags and newTags, returns true if all newTags are already in existedTags.
+func mergeTags(existedTags []string, newTags []string) (bool, []string) {
 	if len(existedTags) == 0 {
-		return false, desiredTags
+		return false, newTags
 	}
 
 	tagSet := sets.NewString(existedTags...)
-	if tagSet.HasAll(desiredTags...) {
+	if tagSet.HasAll(newTags...) {
 		return true, nil
 	}
 
-	return false, tagSet.Union(sets.NewString(desiredTags...)).List()
+	return false, tagSet.Union(sets.NewString(newTags...)).List()
 }
 
 func popListener(existingListeners []listeners.Listener, id string) []listeners.Listener {
@@ -958,36 +958,25 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 	} else {
 		// Gather all desired changes to the existing pool into a single update.
 		updateOpts := v2pools.UpdateOpts{}
-		var newLBMethod string
-		var newTags []string
 
 		if pool.LBMethod != poolLbMethod {
-			newLBMethod = poolLbMethod
 			updateOpts.LBMethod = v2pools.LBMethod(poolLbMethod)
 		}
 
 		if svcConf.supportLBTags && len(poolTags) > 0 {
 			klog.V(4).Infof("Desired pool tags: %+v from service annotation key: %s", poolTags, ServiceAnnotationPoolTags)
 			if ok, tags := mergeTags(pool.Tags, poolTags); !ok {
-				newTags = tags
-				updateOpts.Tags = &newTags
+				updateOpts.Tags = &tags
 			}
 		}
 
-		if newLBMethod != "" || newTags != nil {
-			klog.InfoS("Updating pool", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "lbMethod", newLBMethod, "tags", newTags)
+		if updateOpts != (v2pools.UpdateOpts{}) {
+			klog.InfoS("Updating pool", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "lbMethod", updateOpts.LBMethod, "tags", updateOpts.Tags)
 			if err := openstackutil.UpdatePool(ctx, lbaas.lb, lbID, pool.ID, updateOpts); err != nil {
 				err = PreserveGopherError(err)
 				msg := fmt.Sprintf("Error updating pool for LoadBalancer: %v", err)
 				klog.Errorf(msg, "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
 				lbaas.eventRecorder.Event(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
-			} else {
-				if newLBMethod != "" {
-					pool.LBMethod = newLBMethod
-				}
-				if newTags != nil {
-					pool.Tags = newTags
-				}
 			}
 		}
 	}
@@ -1157,8 +1146,8 @@ func (lbaas *LbaasV2) ensureOctaviaListener(ctx context.Context, lbID string, na
 
 		if svcConf.supportLBTags {
 			// Ensure the LB name tag plus any desired tags from the Service annotation.
-			tagsToEnsure := withLBNameTag(svcConf.lbName, svcConf.listenerTags)
-			if ok, tags := mergeTags(listener.Tags, tagsToEnsure); !ok {
+			listenerTags := withLBNameTag(svcConf.lbName, svcConf.listenerTags)
+			if ok, tags := mergeTags(listener.Tags, listenerTags); !ok {
 				klog.V(4).Infof("Will update listener tags, current listener tags: %+v, desired tags: %+v", listener.Tags, tags)
 				updateOpts.Tags = &tags
 				listenerChanged = true
@@ -1821,9 +1810,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 	if svcConf.supportLBTags {
 		// Ensure the LB name tag plus any tags from the Service annotation in a single update.
-		desiredLBTags := withLBNameTag(lbName, svcConf.lbTags)
-		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", desiredLBTags, ServiceAnnotationLoadBalancerTags)
-		if ok, tags := mergeTags(loadbalancer.Tags, desiredLBTags); !ok {
+		lbTags := withLBNameTag(lbName, svcConf.lbTags)
+		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
+		if ok, tags := mergeTags(loadbalancer.Tags, lbTags); !ok {
 			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", tags)
 			if err := openstackutil.UpdateLoadBalancerTags(ctx, lbaas.lb, loadbalancer.ID, tags); err != nil {
 				return nil, fmt.Errorf("failed to update load balancer %s tags: %w", loadbalancer.ID, err)
