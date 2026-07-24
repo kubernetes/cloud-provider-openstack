@@ -152,6 +152,60 @@ type testGetRulesToCreateAndDelete struct {
 	toDelete      []rules.SecGroupRule
 }
 
+func TestMergeTags(t *testing.T) {
+	testCases := []struct {
+		name         string
+		existedTags  []string
+		desiredTags  []string
+		expectedOK   bool
+		expectedTags []string
+	}{
+		{
+			name:         "nil existing tags returns desired tags",
+			existedTags:  nil,
+			desiredTags:  []string{"a", "b"},
+			expectedOK:   false,
+			expectedTags: []string{"a", "b"},
+		},
+		{
+			name:         "empty existing tags returns desired tags",
+			existedTags:  []string{},
+			desiredTags:  []string{"a"},
+			expectedOK:   false,
+			expectedTags: []string{"a"},
+		},
+		{
+			name:         "all desired tags already present",
+			existedTags:  []string{"a", "b", "c"},
+			desiredTags:  []string{"a", "b"},
+			expectedOK:   true,
+			expectedTags: nil,
+		},
+		{
+			name:         "some desired tags missing are merged and sorted",
+			existedTags:  []string{"b", "d"},
+			desiredTags:  []string{"a", "c"},
+			expectedOK:   false,
+			expectedTags: []string{"a", "b", "c", "d"},
+		},
+		{
+			name:         "empty desired tags with existing tags is a no-op",
+			existedTags:  []string{"a"},
+			desiredTags:  []string{},
+			expectedOK:   true,
+			expectedTags: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, tags := mergeTags(tc.existedTags, tc.desiredTags)
+			assert.Equal(t, tc.expectedOK, ok)
+			assert.Equal(t, tc.expectedTags, tags)
+		})
+	}
+}
+
 func TestGetRulesToCreateAndDelete(t *testing.T) {
 	tests := []testGetRulesToCreateAndDelete{
 		{
@@ -2483,6 +2537,45 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				ConnLimit:     &svcConf.connLimit,
 				InsertHeaders: map[string]string{"X-Forwarded-For": "true"},
 				Tags:          nil,
+			},
+		},
+		{
+			name: "Test with LB tags support and no listener-tags annotation",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with LB tags support and no listener-tags annotation",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"my-lb"},
+			},
+		},
+		{
+			name: "Test with LB tags support and listener-tags annotation",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+				listenerTags:  "foo, bar",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with LB tags support and listener-tags annotation",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"bar", "foo", "my-lb"},
 			},
 		},
 	}
