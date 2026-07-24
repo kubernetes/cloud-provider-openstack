@@ -2575,7 +2575,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				Protocol:     listeners.ProtocolTCP,
 				ProtocolPort: 80,
 				ConnLimit:    &svcConf.connLimit,
-				Tags:         []string{"bar", "foo", "my-lb"},
+				Tags:         []string{"my-lb", "foo", "bar"},
 			},
 		},
 	}
