@@ -942,6 +942,30 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 	}
 	poolTags := cpoutil.SplitTrim(svcConf.poolTags, ',')
 
+	// If the LBMethod or tags change, update the existing pool in a single call.
+	if pool != nil {
+		updateOpts := v2pools.UpdateOpts{}
+		if pool.LBMethod != poolLbMethod {
+			updateOpts.LBMethod = v2pools.LBMethod(poolLbMethod)
+		}
+		if svcConf.supportLBTags && len(poolTags) > 0 {
+			klog.V(4).Infof("Desired pool tags: %+v from service annotation key: %s", poolTags, ServiceAnnotationPoolTags)
+			if ok, tags := mergeTags(pool.Tags, poolTags); !ok {
+				updateOpts.Tags = &tags
+			}
+		}
+		if updateOpts != (v2pools.UpdateOpts{}) {
+			klog.InfoS("Updating pool", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "lbMethod", updateOpts.LBMethod, "tags", updateOpts.Tags)
+			err = openstackutil.UpdatePool(ctx, lbaas.lb, lbID, pool.ID, updateOpts)
+			if err != nil {
+				err = PreserveGopherError(err)
+				msg := fmt.Sprintf("Error updating pool for LoadBalancer: %v", err)
+				klog.Errorf(msg, "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
+				lbaas.eventRecorder.Event(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
+			}
+		}
+	}
+
 	if pool == nil {
 		createOpt := lbaas.buildPoolCreateOpt(listener.Protocol, service, svcConf, name)
 		createOpt.ListenerID = listener.ID
@@ -955,30 +979,6 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 			return nil, err
 		}
 		klog.V(2).Infof("Pool %s created for listener %s", pool.ID, listener.ID)
-	} else {
-		// Gather all desired changes to the existing pool into a single update.
-		updateOpts := v2pools.UpdateOpts{}
-
-		if pool.LBMethod != poolLbMethod {
-			updateOpts.LBMethod = v2pools.LBMethod(poolLbMethod)
-		}
-
-		if svcConf.supportLBTags && len(poolTags) > 0 {
-			klog.V(4).Infof("Desired pool tags: %+v from service annotation key: %s", poolTags, ServiceAnnotationPoolTags)
-			if ok, tags := mergeTags(pool.Tags, poolTags); !ok {
-				updateOpts.Tags = &tags
-			}
-		}
-
-		if updateOpts != (v2pools.UpdateOpts{}) {
-			klog.InfoS("Updating pool", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "lbMethod", updateOpts.LBMethod, "tags", updateOpts.Tags)
-			if err := openstackutil.UpdatePool(ctx, lbaas.lb, lbID, pool.ID, updateOpts); err != nil {
-				err = PreserveGopherError(err)
-				msg := fmt.Sprintf("Error updating pool for LoadBalancer: %v", err)
-				klog.Errorf(msg, "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID)
-				lbaas.eventRecorder.Event(service, corev1.EventTypeWarning, eventLBLbMethodUnknown, msg)
-			}
-		}
 	}
 
 	if lbaas.opts.ProviderRequiresSerialAPICalls {
@@ -1808,19 +1808,6 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// Make sure LB ID will be saved at this point.
 	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, loadbalancer.ID)
 
-	if svcConf.supportLBTags {
-		// Ensure the LB name tag plus any tags from the Service annotation in a single update.
-		lbTags := withLBNameTag(lbName, svcConf.lbTags)
-		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
-		if ok, tags := mergeTags(loadbalancer.Tags, lbTags); !ok {
-			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", tags)
-			if err := openstackutil.UpdateLoadBalancerTags(ctx, lbaas.lb, loadbalancer.ID, tags); err != nil {
-				return nil, fmt.Errorf("failed to update load balancer %s tags: %w", loadbalancer.ID, err)
-			}
-			loadbalancer.Tags = tags
-		}
-	}
-
 	if loadbalancer.ProvisioningStatus != activeStatus {
 		return nil, fmt.Errorf("load balancer %s is not ACTIVE, current provisioning status: %s", loadbalancer.ID, loadbalancer.ProvisioningStatus)
 	}
@@ -1890,6 +1877,19 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 
 	// save address into the annotation
 	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
+
+	// Ensure the LB name tag plus any tags from the Service annotation in a single update.
+	if svcConf.supportLBTags {
+		lbTags := withLBNameTag(lbName, svcConf.lbTags)
+		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
+		if ok, tags := mergeTags(loadbalancer.Tags, lbTags); !ok {
+			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", tags)
+			if err := openstackutil.UpdateLoadBalancerTags(ctx, lbaas.lb, loadbalancer.ID, tags); err != nil {
+				return nil, fmt.Errorf("failed to update load balancer %s tags: %w", loadbalancer.ID, err)
+			}
+			loadbalancer.Tags = tags
+		}
+	}
 
 	// Create status the load balancer
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
