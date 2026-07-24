@@ -932,7 +932,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		pool = nil
 	}
 
-	// Resolve the desired LB method, falling back to OCCM's default.
+	// If LBMethod changes, update the Pool with the new value
 	var poolLbMethod string
 	if svcConf.poolLbMethod != "" {
 		poolLbMethod = svcConf.poolLbMethod
@@ -942,7 +942,6 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 	}
 	poolTags := cpoutil.SplitTrim(svcConf.poolTags, ',')
 
-	// If the LBMethod or tags change, update the existing pool in a single call.
 	if pool != nil {
 		updateOpts := v2pools.UpdateOpts{}
 		if pool.LBMethod != poolLbMethod {
