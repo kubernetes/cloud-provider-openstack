@@ -195,6 +195,13 @@ func TestMergeTags(t *testing.T) {
 			expectedOK:   true,
 			expectedTags: nil,
 		},
+		{
+			name:         "empty existing and empty desired tags is a no-op",
+			existedTags:  []string{},
+			newTags:      []string{},
+			expectedOK:   true,
+			expectedTags: nil,
+		},
 	}
 
 	for _, tc := range testCases {
