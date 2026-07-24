@@ -215,10 +215,6 @@ func withLBNameTag(lbName, annotation string) []string {
 
 // mergeTags merges existedTags and newTags, returns true if all newTags are already in existedTags.
 func mergeTags(existedTags []string, newTags []string) (bool, []string) {
-	if len(existedTags) == 0 {
-		return false, newTags
-	}
-
 	tagSet := sets.NewString(existedTags...)
 	if tagSet.HasAll(newTags...) {
 		return true, nil
