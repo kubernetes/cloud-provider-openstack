@@ -769,12 +769,17 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 
 	// If volumeSnapshot object was linked to a cinder backup, delete the backup.
 	back, err := cloud.GetBackupByID(ctx, id)
-	if err == nil && back != nil {
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		klog.Errorf("Failed to get backup %s: %v", id, err)
+		return nil, status.Errorf(codes.Internal, "GetBackupByID failed with error %v", err)
+	}
+	if back != nil {
 		err = cloud.DeleteBackup(ctx, id)
-		if err != nil {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			klog.Errorf("Failed to Delete backup: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteBackup failed with error %v", err))
 		}
+		return &csi.DeleteSnapshotResponse{}, nil
 	}
 
 	// Delegate the check to openstack itself
