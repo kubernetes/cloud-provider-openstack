@@ -2,6 +2,7 @@ package openstack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"k8s.io/utils/ptr"
 	"reflect"
@@ -549,11 +550,12 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 		curListenerMapping map[listenerKey]*listeners.Listener
 		isLBOwner          bool
 		lbName             string
+		extraPorts         []corev1.ServicePort
 	}
 	tests := []struct {
 		name    string
 		args    args
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name: "error is not thrown if loadbalancer matches & if port is already in use by a lb",
@@ -578,10 +580,11 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 						Tags: []string{"test-lb"},
 					},
 				},
-				isLBOwner: false,
-				lbName:    "test-lb",
+				isLBOwner:  false,
+				lbName:     "test-lb",
+				extraPorts: nil,
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name: "error is thrown if loadbalancer doesn't matches & if port is already in use by a service",
@@ -606,10 +609,11 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 						Tags: []string{"test-lb", "test-lb1"},
 					},
 				},
-				isLBOwner: false,
-				lbName:    "test-lb2",
+				isLBOwner:  false,
+				lbName:     "test-lb2",
+				extraPorts: nil,
 			},
-			wantErr: true,
+			wantErr: errors.New("already exists"),
 		},
 		{
 			name: "error is not thrown if lbOwner is present & no tags on service",
@@ -633,10 +637,11 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 						ID: "listenerid",
 					},
 				},
-				isLBOwner: true,
-				lbName:    "test-lb",
+				isLBOwner:  true,
+				lbName:     "test-lb",
+				extraPorts: nil,
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name: "error is not thrown if lbOwner is true & there are tags on service",
@@ -661,10 +666,11 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 						Tags: []string{"test-lb"},
 					},
 				},
-				isLBOwner: true,
-				lbName:    "test-lb",
+				isLBOwner:  true,
+				lbName:     "test-lb",
+				extraPorts: nil,
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name: "error is not thrown if listener key doesn't match port & protocol",
@@ -689,10 +695,126 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 						Tags: []string{"test-lb"},
 					},
 				},
-				isLBOwner: false,
-				lbName:    "test-lb",
+				isLBOwner:  false,
+				lbName:     "test-lb",
+				extraPorts: nil,
 			},
-			wantErr: false,
+			wantErr: nil,
+		},
+		{
+			name: "validate a legit extraPorts list",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: corev1.ProtocolTCP,
+								Port:     443,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "tcp",
+						Port:     443,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+				extraPorts: []corev1.ServicePort{
+					{
+						Name:     "extra-port-tcp",
+						Protocol: corev1.ProtocolTCP,
+						Port:     9100,
+					},
+					{
+						Name:     "extra-port-udp",
+						Protocol: corev1.ProtocolUDP,
+						Port:     9100,
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "error is thrown if extra ports conflict with Service's ports",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: corev1.ProtocolTCP,
+								Port:     9100,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "tcp",
+						Port:     9100,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+				extraPorts: []corev1.ServicePort{
+					{
+						Name:     "extra-port",
+						Protocol: corev1.ProtocolTCP,
+						Port:     9100,
+					},
+				},
+			},
+			wantErr: errors.New("an extraPort (extra-port) conflicts with a Service Port 9100/TCP"),
+		},
+		{
+			name: "error is thrown if extra ports conflict with another extra port",
+			args: args{
+				service: &corev1.Service{
+					Spec: corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{
+							{
+								Name:     "service",
+								Protocol: corev1.ProtocolTCP,
+								Port:     443,
+							},
+						},
+					},
+				},
+				curListenerMapping: map[listenerKey]*listeners.Listener{
+					{
+						Protocol: "tcp",
+						Port:     443,
+					}: {
+						ID:   "listenerid",
+						Tags: []string{"test-lb"},
+					},
+				},
+				isLBOwner: true,
+				lbName:    "test-lb",
+				extraPorts: []corev1.ServicePort{
+					{
+						Name:     "extra-port",
+						Protocol: corev1.ProtocolTCP,
+						Port:     9100,
+					},
+					{
+						Name:     "another-extra-port",
+						Protocol: corev1.ProtocolTCP,
+						Port:     9100,
+					},
+				},
+			},
+			wantErr: errors.New("some extraPorts (extra-port/another-extra-port) are in conflicts: 9100/TCP"),
 		},
 	}
 	for _, tt := range tests {
@@ -700,9 +822,9 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 			lbaas := &LbaasV2{
 				LoadBalancer: LoadBalancer{},
 			}
-			err := lbaas.checkListenerPorts(tt.args.service, tt.args.curListenerMapping, tt.args.isLBOwner, tt.args.lbName)
-			if tt.wantErr == true {
-				assert.ErrorContains(t, err, "already exists")
+			err := lbaas.checkListenerPorts(tt.args.service, tt.args.curListenerMapping, tt.args.isLBOwner, tt.args.lbName, tt.args.extraPorts)
+			if tt.wantErr != nil {
+				assert.ErrorContains(t, err, tt.wantErr.Error())
 			} else {
 				assert.NoError(t, err)
 			}
@@ -2672,6 +2794,85 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getProxyProtocolFromServiceAnnotation(tt.args.service)
 			assert.Equalf(t, tt.want, got, "getProxyProtocolFromServiceAnnotation(%v)", tt.args.service)
+		})
+	}
+}
+
+func Test_getStringArrayFromServiceAnnotationSeparateByComma(t *testing.T) {
+	type args struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "ensure string is well split",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"my-csv-annotation": "10.0.0.0/8, my-string-data"},
+					},
+				},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{"10.0.0.0/8", "my-string-data"},
+		},
+		{
+			name: "ensure default is return when annotation doesn't exist",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service:        &corev1.Service{},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{"10.0.0.0/8"},
+		},
+		{
+			name: "ensure empty array is returned when annotation has blank chars",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"my-csv-annotation": " , "},
+					},
+				},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{},
+		},
+		{
+			name: "ensure empty array is returned when annotation is empty",
+			args: struct {
+				service        *corev1.Service
+				annotationKey  string
+				defaultSetting []string
+			}{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"my-csv-annotation": ""},
+					},
+				},
+				annotationKey:  "my-csv-annotation",
+				defaultSetting: []string{"10.0.0.0/8"}},
+			want: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, getStringArrayFromServiceAnnotationSeparatedByComma(tt.args.service, tt.args.annotationKey, tt.args.defaultSetting), "getStringArrayFromServiceAnnotationSeparatedByComma(%v, %v, %v)", tt.args.service, tt.args.annotationKey, tt.args.defaultSetting)
 		})
 	}
 }

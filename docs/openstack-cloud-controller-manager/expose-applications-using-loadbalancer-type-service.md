@@ -210,6 +210,22 @@ Request Body:
 
   Defines the health monitor retry count for the loadbalancer pool members to be marked down.
 
+- `loadbalancer.openstack.org/metrics-enable`
+
+  If 'true', enable the Prometheus listener on the loadbalancer. (default: 'false')
+
+  The Kubernetes service must be the [owner of the LoadBalancer](#sharing-load-balancer-with-multiple-services)
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
+- `loadbalancer.openstack.org/metrics-port`
+
+  Defines the Prometheus listener's port. If `metric-enable` is 'true', the annotation is automatically added to the service. Default: `9100`
+
+- `loadbalancer.openstack.org/metrics-allow-cidrs`
+
+  Defines the Prometheus listener's allowed cirds. __Warning__: [security recommendations](#metric-listener-allowed-cird-security-recommendation). Default: none 
+
 - `loadbalancer.openstack.org/flavor-id`
 
   The id of the flavor that is used for creating the loadbalancer.
@@ -247,6 +263,10 @@ Request Body:
   
   This annotation is automatically added and it contains the floating ip address of the load balancer service.
   When using `loadbalancer.openstack.org/hostname` annotation it is the only place to see the real address of the load balancer.
+
+- `loadbalancer.openstack.org/load-balancer-vip-address`
+
+  This annotation is automatically added and it contains the Octavia's Virtual-IP (VIP).
 
 - `loadbalancer.openstack.org/node-selector`
 
@@ -644,3 +664,64 @@ is not yet supported by OCCM.
 Internally, OCCM would automatically look for IPv4 or IPv6 subnet to allocate the load balancer
 address from based on the service's address family preference. If the subnet with preferred
 address family is not available, load balancer can not be created.
+
+### Metric endpoint configuration
+
+Since Octavia v2.25, Octavia proposes to expose an HTTP Prometheus endpoint. Using the annotation `loadbalancer.openstack.org/metrics-enable`, you will be able to configure this endpoint on the LoadBalancer:
+
+```yaml
+kind: Service
+apiVersion: v1
+metadata:
+  name: service-with-metric
+  namespace: default
+  annotations:
+    loadbalancer.openstack.org/metrics-enable: "true" # Enable the listener endpoint on the Octavia LoadBalancer (default false)
+    loadbalancer.openstack.org/metrics-port: "9100" # Listener's port (default 9100)
+    loadbalancer.openstack.org/metrics-allow-cidrs: "10.0.0.0/8, fe80::/10" # Listener's allowed cidrs (default none)
+spec:
+  type: LoadBalancer
+```
+
+Then, you can configure a Prometheus scrapper like to get metrics from the LoadBalancer.
+
+e.g. Prometheus Operator configuration:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+    name: octavia-sd-config
+    labels:
+        release: prometheus # adapt it to your Prometheus deployment configuration
+spec:
+    kubernetesSDConfigs:
+    - role: Service
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+      action: replace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: job
+      action: replace
+    - sourceLabels:
+        - __meta_kubernetes_service_annotation_loadbalancer_openstack_org_load_balancer_vip_address
+        - __meta_kubernetes_service_annotation_loadbalancer_openstack_org_metrics_port
+      separator: ":"
+      targetLabel: __address__
+      action: replace
+    - sourceLabels:
+        - __meta_kubernetes_service_annotation_loadbalancer_openstack_org_metrics_enable
+      regex: "true"
+      action: keep
+```
+
+> This configuration use the `loadbalancer.openstack.org/load-balancer-vip-address` annotation that will use the Octavia's VIP to fetch the metric endpoint. Adapt it to your Octavia deployment.
+
+For more information: https://docs.openstack.org/octavia/latest/user/guides/monitoring.html#monitoring-with-prometheus
+
+Grafana dashboard for Octavia Amphora: https://grafana.com/grafana/dashboards/15828-openstack-octavia-amphora-load-balancer/
+
+#### Metric listener allowed CIRD security recommendation
+
+If the Octavia LoadBalancer is exposed with a public IP, the Prometheus listener is also exposed (at least for Amphora). Even if no critical data are exposed by this endpoint, __it's strongly recommended to apply an allowed cidrs on the listener__ via the annotation `loadbalancer.openstack.org/metrics-allow-cidrs`.
