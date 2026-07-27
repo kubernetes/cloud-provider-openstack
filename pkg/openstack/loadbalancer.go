@@ -208,9 +208,16 @@ func getLoadbalancerByName(ctx context.Context, client *gophercloud.ServiceClien
 }
 
 // withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
-// comma-separated tags from the given Service annotation value.
+// comma-separated tags from the given Service annotation value, skipping any
+// annotation tag that duplicates the LB name so it cannot appear twice.
 func withLBNameTag(lbName, annotation string) []string {
-	return append([]string{lbName}, cpoutil.SplitTrim(annotation, ',')...)
+	tags := []string{lbName}
+	for _, t := range cpoutil.SplitTrim(annotation, ',') {
+		if t != lbName {
+			tags = append(tags, t)
+		}
+	}
+	return tags
 }
 
 // mergeTags merges existedTags and newTags, returns true if all newTags are already in existedTags.
