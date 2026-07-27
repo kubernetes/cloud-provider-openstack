@@ -1422,11 +1422,6 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 		return fmt.Errorf("no service ports provided")
 	}
 
-	annotations := service.GetAnnotations()
-	svcConf.lbTags = annotations[ServiceAnnotationLoadBalancerTags]
-	svcConf.listenerTags = annotations[ServiceAnnotationListenerTags]
-	svcConf.poolTags = annotations[ServiceAnnotationPoolTags]
-
 	if len(service.Spec.IPFamilies) > 0 {
 		// Since OCCM does not support multiple load-balancers per service yet,
 		// the first IP family will determine the IP family of the load-balancer
@@ -1604,6 +1599,11 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.poolLbMethod = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLbMethod, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
+
+	annotations := service.GetAnnotations()
+	svcConf.lbTags = annotations[ServiceAnnotationLoadBalancerTags]
+	svcConf.listenerTags = annotations[ServiceAnnotationListenerTags]
+	svcConf.poolTags = annotations[ServiceAnnotationPoolTags]
 
 	// Get service node-selector annotations
 	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
