@@ -2605,6 +2605,26 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				Tags:         []string{"my-lb", "foo", "bar"},
 			},
 		},
+		{
+			name: "Test with duplicate tags within the listener-tags annotation",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+				listenerTags:  "foo, foo, bar, foo",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with duplicate tags within the listener-tags annotation",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"my-lb", "foo", "bar"},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

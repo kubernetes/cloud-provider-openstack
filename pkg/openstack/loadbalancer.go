@@ -207,17 +207,25 @@ func getLoadbalancerByName(ctx context.Context, client *gophercloud.ServiceClien
 	return &validLBs[0], nil
 }
 
-// withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
-// comma-separated tags from the given Service annotation value, skipping any
-// annotation tag that duplicates the LB name so it cannot appear twice.
-func withLBNameTag(lbName, annotation string) []string {
-	tags := []string{lbName}
-	for _, t := range cpoutil.SplitTrim(annotation, ',') {
-		if t != lbName {
-			tags = append(tags, t)
+// dedupTags returns tags with duplicates removed, preserving first-seen order.
+func dedupTags(tags []string) []string {
+	seen := sets.NewString()
+	result := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if !seen.Has(t) {
+			seen.Insert(t)
+			result = append(result, t)
 		}
 	}
-	return tags
+	return result
+}
+
+// withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
+// comma-separated tags from the given Service annotation value, with duplicate
+// tags removed (including ones that duplicate the LB name) so no tag can appear
+// twice.
+func withLBNameTag(lbName, annotation string) []string {
+	return dedupTags(append([]string{lbName}, cpoutil.SplitTrim(annotation, ',')...))
 }
 
 // mergeTags merges existedTags and newTags, returns true if all newTags are already in existedTags.
@@ -943,7 +951,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		// if LBMethod is not defined, fallback on default OCCM's default method
 		poolLbMethod = lbaas.opts.LBMethod
 	}
-	poolTags := cpoutil.SplitTrim(svcConf.poolTags, ',')
+	poolTags := dedupTags(cpoutil.SplitTrim(svcConf.poolTags, ','))
 
 	if pool != nil {
 		updateOpts := v2pools.UpdateOpts{}
