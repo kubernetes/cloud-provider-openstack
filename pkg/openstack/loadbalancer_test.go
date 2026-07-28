@@ -213,6 +213,52 @@ func TestMergeTags(t *testing.T) {
 	}
 }
 
+func TestWithLBNameTag(t *testing.T) {
+	testCases := []struct {
+		name       string
+		lbName     string
+		annotation string
+		expected   []string
+	}{
+		{
+			name:       "empty annotation returns only the LB name",
+			lbName:     "kube_service_cluster_ns_svc",
+			annotation: "",
+			expected:   []string{"kube_service_cluster_ns_svc"},
+		},
+		{
+			name:       "user tags are appended after the LB name",
+			lbName:     "kube_service_cluster_ns_svc",
+			annotation: "team=foo,env=prod",
+			expected:   []string{"kube_service_cluster_ns_svc", "team=foo", "env=prod"},
+		},
+		{
+			name:       "user tag matching the LB name is dropped, not duplicated",
+			lbName:     "kube_service_cluster_ns_svc",
+			annotation: "kube_service_cluster_ns_svc,team=foo",
+			expected:   []string{"kube_service_cluster_ns_svc", "team=foo"},
+		},
+		{
+			name:       "user tag not matching this LB name is preserved",
+			lbName:     "kube_service_cluster_ns_svc",
+			annotation: "kube_service_cluster_ns_other,team=foo",
+			expected:   []string{"kube_service_cluster_ns_svc", "kube_service_cluster_ns_other", "team=foo"},
+		},
+		{
+			name:       "duplicate user tags are removed",
+			lbName:     "kube_service_cluster_ns_svc",
+			annotation: "team=foo,team=foo",
+			expected:   []string{"kube_service_cluster_ns_svc", "team=foo"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, withLBNameTag(tc.lbName, tc.annotation))
+		})
+	}
+}
+
 func TestGetRulesToCreateAndDelete(t *testing.T) {
 	tests := []testGetRulesToCreateAndDelete{
 		{
