@@ -214,47 +214,67 @@ func TestMergeTags(t *testing.T) {
 }
 
 func TestWithLBNameTag(t *testing.T) {
+	lbName := servicePrefix + "cluster_ns_svc"
 	testCases := []struct {
 		name       string
-		lbName     string
 		annotation string
 		expected   []string
 	}{
 		{
 			name:       "empty annotation returns only the LB name",
-			lbName:     "kube_service_cluster_ns_svc",
 			annotation: "",
-			expected:   []string{"kube_service_cluster_ns_svc"},
+			expected:   []string{lbName},
 		},
 		{
 			name:       "user tags are appended after the LB name",
-			lbName:     "kube_service_cluster_ns_svc",
 			annotation: "team=foo,env=prod",
-			expected:   []string{"kube_service_cluster_ns_svc", "team=foo", "env=prod"},
+			expected:   []string{lbName, "team=foo", "env=prod"},
 		},
 		{
-			name:       "user tag matching the LB name is dropped, not duplicated",
-			lbName:     "kube_service_cluster_ns_svc",
-			annotation: "kube_service_cluster_ns_svc,team=foo",
-			expected:   []string{"kube_service_cluster_ns_svc", "team=foo"},
+			name:       "user tag using the reserved prefix is stripped",
+			annotation: servicePrefix + "cluster_ns_other,team=foo",
+			expected:   []string{lbName, "team=foo"},
 		},
 		{
-			name:       "user tag not matching this LB name is preserved",
-			lbName:     "kube_service_cluster_ns_svc",
-			annotation: "kube_service_cluster_ns_other,team=foo",
-			expected:   []string{"kube_service_cluster_ns_svc", "kube_service_cluster_ns_other", "team=foo"},
+			name:       "user tag equal to this LB name is stripped, not duplicated",
+			annotation: lbName + ",team=foo",
+			expected:   []string{lbName, "team=foo"},
 		},
 		{
 			name:       "duplicate user tags are removed",
-			lbName:     "kube_service_cluster_ns_svc",
 			annotation: "team=foo,team=foo",
-			expected:   []string{"kube_service_cluster_ns_svc", "team=foo"},
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "whitespace-padded reserved tag is trimmed then stripped",
+			annotation: "  " + servicePrefix + "cluster_ns_other  ,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "bare reserved prefix is stripped",
+			annotation: servicePrefix + ",team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "multiple reserved tags are all stripped",
+			annotation: servicePrefix + "a," + servicePrefix + "b,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "prefix appearing mid-string is not stripped",
+			annotation: "owner=" + servicePrefix + "x,team=foo",
+			expected:   []string{lbName, "owner=" + servicePrefix + "x", "team=foo"},
+		},
+		{
+			name:       "only reserved tags leaves just the LB name",
+			annotation: servicePrefix + "a," + servicePrefix + "b",
+			expected:   []string{lbName},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, withLBNameTag(tc.lbName, tc.annotation))
+			assert.Equal(t, tc.expected, withLBNameTag(lbName, tc.annotation))
 		})
 	}
 }
