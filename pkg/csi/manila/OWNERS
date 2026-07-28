@@ -1,10 +1,12 @@
+emeritus_approvers:
+- tombarron
+emeritus_reviewers:
+- Fedosin
+- tombarron
+- tsmetana
 approvers:
 - gman0
 - gouthampacha
-- tombarron
 reviewers:
 - gman0
 - gouthampacha
-- tombarron
-- Fedosin
-- tsmetana

@@ -565,9 +565,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		if len(backups) == 1 {
 			// since backup.VolumeID is not part of ListBackups response
 			// we need fetch single backup to get the full object.
-			backup, err = cloud.GetBackupByID(ctx, backups[0].ID)
+			backupID := backups[0].ID
+			backup, err = cloud.GetBackupByID(ctx, backupID)
 			if err != nil {
-				klog.Errorf("Failed to get backup by ID %s: %v", backup.ID, err)
+				klog.Errorf("Failed to get backup by ID %s: %v", backupID, err)
 				return nil, status.Error(codes.Internal, "Failed to get backup by ID")
 			}
 
@@ -768,12 +769,17 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 
 	// If volumeSnapshot object was linked to a cinder backup, delete the backup.
 	back, err := cloud.GetBackupByID(ctx, id)
-	if err == nil && back != nil {
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		klog.Errorf("Failed to get backup %s: %v", id, err)
+		return nil, status.Errorf(codes.Internal, "GetBackupByID failed with error %v", err)
+	}
+	if back != nil {
 		err = cloud.DeleteBackup(ctx, id)
-		if err != nil {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			klog.Errorf("Failed to Delete backup: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteBackup failed with error %v", err))
 		}
+		return &csi.DeleteSnapshotResponse{}, nil
 	}
 
 	// Delegate the check to openstack itself
@@ -794,7 +800,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 	volCloud := req.GetSecrets()["cloud"]
 	cloud, cloudExist := cs.Clouds[volCloud]
 	if !cloudExist {
-		return nil, status.Error(codes.InvalidArgument, "[DeleteSnapshot] specified cloud undefined")
+		return nil, status.Error(codes.InvalidArgument, "[ListSnapshots] specified cloud undefined")
 	}
 
 	snapshotID := req.GetSnapshotId()
@@ -952,6 +958,7 @@ func (cs *controllerServer) ControllerGetVolume(ctx context.Context, req *csi.Co
 			}
 			return nil, status.Errorf(codes.Internal, "ControllerGetVolume failed with error %v", err)
 		}
+		break
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)

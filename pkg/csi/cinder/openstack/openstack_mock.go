@@ -463,6 +463,29 @@ func (_m *OpenStackMock) WaitSnapshotReady(ctx context.Context, snapshotID strin
 }
 
 func (_m *OpenStackMock) GetBackupByID(ctx context.Context, backupID string) (*backups.Backup, error) {
+	for _, call := range _m.ExpectedCalls {
+		if call.Method != "GetBackupByID" {
+			continue
+		}
+
+		ret := _m.Called(backupID)
+
+		var r0 *backups.Backup
+		if rf, ok := ret.Get(0).(func(string) *backups.Backup); ok {
+			r0 = rf(backupID)
+		} else if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*backups.Backup)
+		}
+
+		var r1 error
+		if rf, ok := ret.Get(1).(func(string) error); ok {
+			r1 = rf(backupID)
+		} else {
+			r1 = ret.Error(1)
+		}
+
+		return r0, r1
+	}
 
 	return &fakeBackup, nil
 }
