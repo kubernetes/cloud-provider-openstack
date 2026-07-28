@@ -220,12 +220,29 @@ func dedupTags(tags []string) []string {
 	return result
 }
 
+// sanitizeUserTags drops any user-supplied tag that equals lbName, the special
+// ownership tag OCCM derives from GetLoadBalancerName. Allowing a user to set it
+// via annotation could clash with OCCM's ownership detection (e.g. a tag that
+// matches another load balancer's name), so it is reserved for OCCM's own use.
+func sanitizeUserTags(lbName string, tags []string) []string {
+	result := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t == lbName {
+			klog.Warningf("Ignoring reserved tag %q: it matches the load balancer name and is reserved for OCCM ownership tracking", t)
+			continue
+		}
+		result = append(result, t)
+	}
+	return result
+}
+
 // withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
 // comma-separated tags from the given Service annotation value, with duplicate
 // tags removed (including ones that duplicate the LB name) so no tag can appear
 // twice.
 func withLBNameTag(lbName, annotation string) []string {
-	return dedupTags(append([]string{lbName}, cpoutil.SplitTrim(annotation, ',')...))
+	userTags := sanitizeUserTags(lbName, cpoutil.SplitTrim(annotation, ','))
+	return dedupTags(append([]string{lbName}, userTags...))
 }
 
 // mergeTags merges existedTags and newTags, returns true if all newTags are already in existedTags.
@@ -951,7 +968,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		// if LBMethod is not defined, fallback on default OCCM's default method
 		poolLbMethod = lbaas.opts.LBMethod
 	}
-	poolTags := dedupTags(cpoutil.SplitTrim(svcConf.poolTags, ','))
+	poolTags := dedupTags(sanitizeUserTags(svcConf.lbName, cpoutil.SplitTrim(svcConf.poolTags, ',')))
 
 	if pool != nil {
 		updateOpts := v2pools.UpdateOpts{}
