@@ -220,15 +220,27 @@ func dedupTags(tags []string) []string {
 	return result
 }
 
-// sanitizeUserTags drops any user-supplied tag that equals lbName, the special
-// ownership tag OCCM derives from GetLoadBalancerName. Allowing a user to set it
-// via annotation could clash with OCCM's ownership detection (e.g. a tag that
-// matches another load balancer's name), so it is reserved for OCCM's own use.
-func sanitizeUserTags(lbName string, tags []string) []string {
+// stripReservedTags drops any user-supplied tag that begins with servicePrefix.
+//
+// Tags with this prefix are how OCCM marks resource ownership: the ownership tag
+// written to a resource is always a GetLoadBalancerName value, which always
+// starts with servicePrefix. Every ownership check in this file matches tags
+// exclusively on that form -- either an exact match against the prefixed lbName
+// (e.g. slices.Contains(tags, lbName)) or a strings.HasPrefix(tag, servicePrefix)
+// scan (used for shared-LB counting and deletion decisions).
+//
+// Because of that, keeping user tags out of the servicePrefix subspace fully
+// partitions the tag namespace: ownership tags live in the kube_service_* space,
+// user tags live in its complement, and no user tag can ever satisfy an ownership
+// check. This prevents a Service from injecting a tag matching another (possibly
+// cross-tenant) load balancer's name to hijack ownership, shared-LB limits, or
+// deletion. INVARIANT: any new tag-based ownership check must also key on
+// servicePrefix, or this guarantee no longer holds.
+func stripReservedTags(tags []string) []string {
 	result := make([]string, 0, len(tags))
 	for _, t := range tags {
-		if t == lbName {
-			klog.Warningf("Ignoring reserved tag %q: it matches the load balancer name and is reserved for OCCM ownership tracking", t)
+		if strings.HasPrefix(t, servicePrefix) {
+			klog.Warningf("Ignoring reserved tag %q: tags starting with %q are reserved for OCCM ownership tracking", t, servicePrefix)
 			continue
 		}
 		result = append(result, t)
@@ -237,11 +249,11 @@ func sanitizeUserTags(lbName string, tags []string) []string {
 }
 
 // withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
-// comma-separated tags from the given Service annotation value, with duplicate
-// tags removed (including ones that duplicate the LB name) so no tag can appear
-// twice.
+// comma-separated tags from the given Service annotation value. Any user tag
+// using the reserved servicePrefix is stripped, and duplicate tags are removed
+// (including ones that duplicate the LB name) so no tag can appear twice.
 func withLBNameTag(lbName, annotation string) []string {
-	userTags := sanitizeUserTags(lbName, cpoutil.SplitTrim(annotation, ','))
+	userTags := stripReservedTags(cpoutil.SplitTrim(annotation, ','))
 	return dedupTags(append([]string{lbName}, userTags...))
 }
 
@@ -968,7 +980,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		// if LBMethod is not defined, fallback on default OCCM's default method
 		poolLbMethod = lbaas.opts.LBMethod
 	}
-	poolTags := dedupTags(sanitizeUserTags(svcConf.lbName, cpoutil.SplitTrim(svcConf.poolTags, ',')))
+	poolTags := dedupTags(stripReservedTags(cpoutil.SplitTrim(svcConf.poolTags, ',')))
 
 	if pool != nil {
 		updateOpts := v2pools.UpdateOpts{}
