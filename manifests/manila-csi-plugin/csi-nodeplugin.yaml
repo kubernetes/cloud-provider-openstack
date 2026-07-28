@@ -81,7 +81,7 @@ spec:
             - name: fwd-plugin-dir
               mountPath: /var/lib/kubelet/plugins/FWD-NODEPLUGIN
             - name: configdrive-dev
-              mountPath: /dev
+              mountPath: /dev/disk
               mountPropagation: "HostToContainer"
       volumes:
         - name: registration-dir
@@ -98,5 +98,5 @@ spec:
             type: DirectoryOrCreate
         - name: configdrive-dev
           hostPath:
-            path: /dev
+            path: /dev/disk
             type: Directory

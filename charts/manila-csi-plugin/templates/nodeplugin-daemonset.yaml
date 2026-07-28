@@ -95,7 +95,7 @@ spec:
               readOnly: true
             {{- end }}
             - name: configdrive-dev
-              mountPath: /dev
+              mountPath: /dev/disk
               mountPropagation: "HostToContainer"
             {{- with $.Values.nodeplugin.volumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -125,7 +125,7 @@ spec:
         {{- end }}
         - name: configdrive-dev
           hostPath:
-            path: /dev
+            path: /dev/disk
             type: Directory
         {{- with .Values.nodeplugin.volumes }}
         {{- toYaml . | nindent 8 }}
