@@ -101,7 +101,7 @@ spec:
             {{- if .compatibilitySettings }}
             --compatibility-settings={{ .compatibilitySettings }}
             {{- end }}
-            --cluster-id="{{ $.Values.csimanila.clusterID }}"
+            --cluster-id=$(CLUSTER_NAME)
             {{- if $.Values.csimanila.pvcAnnotations }}
             --pvc-annotations
             {{- end }}'
@@ -115,9 +115,17 @@ spec:
               value: "unix://{{ .fwdNodePluginEndpoint.dir }}/{{ .fwdNodePluginEndpoint.sockFile }}"
             - name: MANILA_SHARE_PROTO
               value: "{{ .protocolSelector }}"
+            {{- if $.Values.csimanila.clusterID }}
+            - name: CLUSTER_NAME
+              value: {{ $.Values.csimanila.clusterID }}
+            {{- end }}
             {{- if $.Values.controllerplugin.nodeplugin.extraEnv }}
               {{- toYaml $.Values.controllerplugin.nodeplugin.extraEnv | nindent 12 }}
             {{- end }}
+          {{- with $.Values.controllerplugin.nodeplugin.envFrom }}
+          envFrom:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
           imagePullPolicy: {{ $.Values.csimanila.image.pullPolicy }}
           volumeMounts:
             - name: {{ .protocolSelector | lower }}-plugin-dir
