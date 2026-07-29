@@ -118,6 +118,14 @@ Request Body:
 
   Member subnet ID of the load balancer created.
 
+- `loadbalancer.openstack.org/node-address-type`
+
+  The node address type to use when selecting the IP address for load balancer pool members. By default, InternalIP is preferred over ExternalIP. Set to `ExternalIP` to reverse this priority, which is useful when nodes have multiple interfaces and the member subnet corresponds to the ExternalIP network.
+
+  Default: InternalIP is tried first, then ExternalIP.
+
+  Possible values: `ExternalIP`
+
 - `loadbalancer.openstack.org/network-id`
 
   The network ID which will allocate virtual IP for loadbalancer.

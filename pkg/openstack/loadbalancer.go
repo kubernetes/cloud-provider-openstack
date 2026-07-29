@@ -73,6 +73,7 @@ const (
 	ServiceAnnotationLoadBalancerSubnetID             = "loadbalancer.openstack.org/subnet-id"
 	ServiceAnnotationLoadBalancerNetworkID            = "loadbalancer.openstack.org/network-id"
 	ServiceAnnotationLoadBalancerMemberSubnetID       = "loadbalancer.openstack.org/member-subnet-id"
+	ServiceAnnotationLoadBalancerNodeAddressType      = "loadbalancer.openstack.org/node-address-type"
 	ServiceAnnotationLoadBalancerTimeoutClientData    = "loadbalancer.openstack.org/timeout-client-data"
 	ServiceAnnotationLoadBalancerTimeoutMemberConnect = "loadbalancer.openstack.org/timeout-member-connect"
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
@@ -145,7 +146,8 @@ type serviceConfig struct {
 	healthMonitorTimeout        int
 	healthMonitorMaxRetries     int
 	healthMonitorMaxRetriesDown int
-	preferredIPFamily           corev1.IPFamily // preferred (the first) IP family indicated in service's `spec.ipFamilies`
+	preferredIPFamily           corev1.IPFamily        // preferred (the first) IP family indicated in service's `spec.ipFamilies`
+	nodeAddressType             corev1.NodeAddressType // preferred node address type for pool members
 }
 
 type listenerKey struct {
@@ -382,13 +384,17 @@ func (lbaas *LbaasV2) getLoadBalancerLegacyName(service *corev1.Service) string 
 // If neither InternalIP nor ExternalIP can be found an error is
 // returned.
 // If preferredIPFamily is specified, only address of the specified IP family can be returned.
-func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
+// If preferredAddrType is ExternalIP, ExternalIP is tried first.
+func nodeAddressForLB(node *corev1.Node, preferredIPFamily corev1.IPFamily, preferredAddrType corev1.NodeAddressType) (string, error) {
 	addrs := node.Status.Addresses
 	if len(addrs) == 0 {
 		return "", cpoerrors.ErrNoAddressFound
 	}
 
 	allowedAddrTypes := []corev1.NodeAddressType{corev1.NodeInternalIP, corev1.NodeExternalIP}
+	if preferredAddrType == corev1.NodeExternalIP {
+		allowedAddrTypes = []corev1.NodeAddressType{corev1.NodeExternalIP, corev1.NodeInternalIP}
+	}
 	for _, allowedAddrType := range allowedAddrTypes {
 		for _, addr := range addrs {
 			if addr.Type == allowedAddrType {
@@ -493,7 +499,7 @@ func getProxyProtocolFromServiceAnnotation(service *corev1.Service) *v2pools.Pro
 
 // getSubnetIDForLB returns subnet-id for a specific node
 func getSubnetIDForLB(ctx context.Context, network *gophercloud.ServiceClient, node corev1.Node, preferredIPFamily corev1.IPFamily) (string, error) {
-	ipAddress, err := nodeAddressForLB(&node, preferredIPFamily)
+	ipAddress, err := nodeAddressForLB(&node, preferredIPFamily, "")
 	if err != nil {
 		return "", err
 	}
@@ -1017,7 +1023,7 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(ctx context.Context, port corev
 	newMembers := sets.New[string]()
 
 	for _, node := range nodes {
-		addr, err := nodeAddressForLB(node, svcConf.preferredIPFamily)
+		addr, err := nodeAddressForLB(node, svcConf.preferredIPFamily, svcConf.nodeAddressType)
 		if err != nil {
 			if err == cpoerrors.ErrNoAddressFound {
 				// Node failure, do not create member
@@ -1308,6 +1314,8 @@ func (lbaas *LbaasV2) checkServiceUpdate(ctx context.Context, service *corev1.Se
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
 	}
 
+	svcConf.nodeAddressType = corev1.NodeAddressType(getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeAddressType, ""))
+
 	// Find subnet ID for creating members
 	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
@@ -1370,6 +1378,8 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 		// the first IP family will determine the IP family of the load-balancer
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
 	}
+
+	svcConf.nodeAddressType = corev1.NodeAddressType(getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeAddressType, ""))
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
 	if lbaas.opts.InternalLB {
