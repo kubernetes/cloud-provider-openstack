@@ -207,19 +207,6 @@ func getLoadbalancerByName(ctx context.Context, client *gophercloud.ServiceClien
 	return &validLBs[0], nil
 }
 
-// dedupTags returns tags with duplicates removed, preserving first-seen order.
-func dedupTags(tags []string) []string {
-	seen := sets.NewString()
-	result := make([]string, 0, len(tags))
-	for _, t := range tags {
-		if !seen.Has(t) {
-			seen.Insert(t)
-			result = append(result, t)
-		}
-	}
-	return result
-}
-
 // stripReservedTags drops any user-supplied tag that begins with servicePrefix.
 //
 // Tags with this prefix are how OCCM marks resource ownership: the ownership tag
@@ -254,17 +241,7 @@ func stripReservedTags(tags []string) []string {
 // (including ones that duplicate the LB name) so no tag can appear twice.
 func withLBNameTag(lbName, annotation string) []string {
 	userTags := stripReservedTags(cpoutil.SplitTrim(annotation, ','))
-	return dedupTags(append([]string{lbName}, userTags...))
-}
-
-// mergeTags merges existedTags and newTags, returns true if all newTags are already in existedTags.
-func mergeTags(existedTags []string, newTags []string) (bool, []string) {
-	tagSet := sets.NewString(existedTags...)
-	if tagSet.HasAll(newTags...) {
-		return true, nil
-	}
-
-	return false, tagSet.Union(sets.NewString(newTags...)).List()
+	return cpoutil.Unique(append([]string{lbName}, userTags...))
 }
 
 func popListener(existingListeners []listeners.Listener, id string) []listeners.Listener {
@@ -980,7 +957,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		// if LBMethod is not defined, fallback on default OCCM's default method
 		poolLbMethod = lbaas.opts.LBMethod
 	}
-	poolTags := dedupTags(stripReservedTags(cpoutil.SplitTrim(svcConf.poolTags, ',')))
+	poolTags := cpoutil.Unique(stripReservedTags(cpoutil.SplitTrim(svcConf.poolTags, ',')))
 
 	if pool != nil {
 		updateOpts := v2pools.UpdateOpts{}
@@ -989,7 +966,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		}
 		if svcConf.supportLBTags && len(poolTags) > 0 {
 			klog.V(4).Infof("Desired pool tags: %+v from service annotation key: %s", poolTags, ServiceAnnotationPoolTags)
-			if ok, tags := mergeTags(pool.Tags, poolTags); !ok {
+			if tags, changed := cpoutil.Merge(pool.Tags, poolTags); changed {
 				updateOpts.Tags = &tags
 			}
 		}
@@ -1186,7 +1163,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(ctx context.Context, lbID string, na
 		if svcConf.supportLBTags {
 			// Ensure the LB name tag plus any desired tags from the Service annotation.
 			listenerTags := withLBNameTag(svcConf.lbName, svcConf.listenerTags)
-			if ok, tags := mergeTags(listener.Tags, listenerTags); !ok {
+			if tags, changed := cpoutil.Merge(listener.Tags, listenerTags); changed {
 				klog.V(4).Infof("Will update listener tags, current listener tags: %+v, desired tags: %+v", listener.Tags, tags)
 				updateOpts.Tags = &tags
 				listenerChanged = true
@@ -1921,7 +1898,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	if svcConf.supportLBTags {
 		lbTags := withLBNameTag(lbName, svcConf.lbTags)
 		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
-		if ok, tags := mergeTags(loadbalancer.Tags, lbTags); !ok {
+		if tags, changed := cpoutil.Merge(loadbalancer.Tags, lbTags); changed {
 			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", tags)
 			if err := openstackutil.UpdateLoadBalancerTags(ctx, lbaas.lb, loadbalancer.ID, tags); err != nil {
 				return nil, fmt.Errorf("failed to update load balancer %s tags: %w", loadbalancer.ID, err)

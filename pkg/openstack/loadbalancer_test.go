@@ -152,67 +152,6 @@ type testGetRulesToCreateAndDelete struct {
 	toDelete      []rules.SecGroupRule
 }
 
-func TestMergeTags(t *testing.T) {
-	testCases := []struct {
-		name         string
-		existedTags  []string
-		newTags      []string
-		expectedOK   bool
-		expectedTags []string
-	}{
-		{
-			name:         "nil existing tags returns desired tags",
-			existedTags:  nil,
-			newTags:      []string{"a", "b"},
-			expectedOK:   false,
-			expectedTags: []string{"a", "b"},
-		},
-		{
-			name:         "empty existing tags returns desired tags",
-			existedTags:  []string{},
-			newTags:      []string{"a"},
-			expectedOK:   false,
-			expectedTags: []string{"a"},
-		},
-		{
-			name:         "all desired tags already present",
-			existedTags:  []string{"a", "b", "c"},
-			newTags:      []string{"a", "b"},
-			expectedOK:   true,
-			expectedTags: nil,
-		},
-		{
-			name:         "some desired tags missing are merged and sorted",
-			existedTags:  []string{"b", "d"},
-			newTags:      []string{"a", "c"},
-			expectedOK:   false,
-			expectedTags: []string{"a", "b", "c", "d"},
-		},
-		{
-			name:         "empty desired tags with existing tags is a no-op",
-			existedTags:  []string{"a"},
-			newTags:      []string{},
-			expectedOK:   true,
-			expectedTags: nil,
-		},
-		{
-			name:         "empty existing and empty desired tags is a no-op",
-			existedTags:  []string{},
-			newTags:      []string{},
-			expectedOK:   true,
-			expectedTags: nil,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ok, tags := mergeTags(tc.existedTags, tc.newTags)
-			assert.Equal(t, tc.expectedOK, ok)
-			assert.Equal(t, tc.expectedTags, tags)
-		})
-	}
-}
-
 func TestWithLBNameTag(t *testing.T) {
 	lbName := servicePrefix + "cluster_ns_svc"
 	testCases := []struct {
