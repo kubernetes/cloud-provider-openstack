@@ -210,6 +210,11 @@ func TestWithLBNameTag(t *testing.T) {
 			annotation: servicePrefix + "a," + servicePrefix + "b",
 			expected:   []string{lbName},
 		},
+		{
+			name:       "user tag using the cluster-id prefix is stripped",
+			annotation: clusterIDTagPrefix + "some-other-cluster,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -2823,10 +2828,10 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 }
 
 func TestWithClusterIDTag(t *testing.T) {
-	assert.Equal(t, []string{"foo"}, withClusterIDTag([]string{"foo"}, ""))
-	assert.Equal(t, []string{"foo", "kube_cluster_id_abc-123"}, withClusterIDTag([]string{"foo"}, "abc-123"))
+	assert.Equal(t, []string{"foo"}, withClusterIDTag("", []string{"foo"}))
+	assert.Equal(t, []string{"foo", "kube_cluster_id_abc-123"}, withClusterIDTag("abc-123", []string{"foo"}))
 	// already present, no duplicate
-	assert.Equal(t, []string{"kube_cluster_id_abc-123"}, withClusterIDTag([]string{"kube_cluster_id_abc-123"}, "abc-123"))
+	assert.Equal(t, []string{"kube_cluster_id_abc-123"}, withClusterIDTag("abc-123", []string{"kube_cluster_id_abc-123"}))
 	assert.True(t, len(clusterIDTagPrefix) > 0)
 }
 
