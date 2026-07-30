@@ -2822,9 +2822,11 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 	}
 }
 
-func TestClusterIDTag(t *testing.T) {
-	assert.Equal(t, "", clusterIDTag(""))
-	assert.Equal(t, "kube_cluster_id_abc-123", clusterIDTag("abc-123"))
+func TestWithClusterIDTag(t *testing.T) {
+	assert.Equal(t, []string{"foo"}, withClusterIDTag([]string{"foo"}, ""))
+	assert.Equal(t, []string{"foo", "kube_cluster_id_abc-123"}, withClusterIDTag([]string{"foo"}, "abc-123"))
+	// already present, no duplicate
+	assert.Equal(t, []string{"kube_cluster_id_abc-123"}, withClusterIDTag([]string{"kube_cluster_id_abc-123"}, "abc-123"))
 	assert.True(t, len(clusterIDTagPrefix) > 0)
 }
 
