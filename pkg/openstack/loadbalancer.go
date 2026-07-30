@@ -121,14 +121,19 @@ const (
 	clusterIDTagPrefix = "kube_cluster_id_"
 )
 
-// clusterIDTag formats the Octavia load balancer tag carrying the cluster
-// identifier. It returns the empty string when uid is empty so callers can
-// safely append the result without a separate nil-check.
-func clusterIDTag(uid string) string {
+// withClusterIDTag appends the Octavia load balancer tag carrying the cluster
+// identifier to tags. It is a no-op when uid is empty (the cluster identity
+// could not be determined) or when the tag is already present, so callers
+// don't need any guard logic of their own.
+func withClusterIDTag(tags []string, uid string) []string {
 	if uid == "" {
-		return ""
+		return tags
 	}
-	return clusterIDTagPrefix + uid
+	tag := clusterIDTagPrefix + uid
+	if slices.Contains(tags, tag) {
+		return tags
+	}
+	return append(tags, tag)
 }
 
 // LbaasV2 is a LoadBalancer implementation based on Octavia
@@ -293,7 +298,7 @@ func filterLoadBalancersByClusterID(lbs []loadbalancers.LoadBalancer, clusterUID
 	if clusterUID == "" || len(lbs) == 0 {
 		return lbs, false
 	}
-	wantTag := clusterIDTag(clusterUID)
+	wantTag := clusterIDTagPrefix + clusterUID
 	var owned []loadbalancers.LoadBalancer
 	taggedAny := false
 	for _, lb := range lbs {
@@ -363,10 +368,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clust
 	}
 
 	if svcConf.supportLBTags {
-		createOpts.Tags = withLBNameTag(svcConf.lbName, svcConf.lbTags)
-		if tag := clusterIDTag(lbaas.clusterUID); tag != "" && !slices.Contains(createOpts.Tags, tag) {
-			createOpts.Tags = append(createOpts.Tags, tag)
-		}
+		createOpts.Tags = withClusterIDTag(withLBNameTag(svcConf.lbName, svcConf.lbTags), lbaas.clusterUID)
 	}
 
 	if svcConf.flavorID != "" {
@@ -1981,10 +1983,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// Ensure the LB name tag, the cluster-identity tag, plus any tags from the
 	// Service annotation in a single update.
 	if svcConf.supportLBTags {
-		lbTags := withLBNameTag(lbName, svcConf.lbTags)
-		if tag := clusterIDTag(lbaas.clusterUID); tag != "" && !slices.Contains(lbTags, tag) {
-			lbTags = append(lbTags, tag)
-		}
+		lbTags := withClusterIDTag(withLBNameTag(lbName, svcConf.lbTags), lbaas.clusterUID)
 		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
 		if tags, changed := cpoutil.Merge(loadbalancer.Tags, lbTags); changed {
 			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", tags)
