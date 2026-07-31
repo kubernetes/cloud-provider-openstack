@@ -651,10 +651,7 @@ and use the same `--cluster-name`, namespace and service name, the resulting loa
 names collide. OpenStack does not require load balancer names to be unique, so previously
 the second cluster could "adopt" the load balancer that the first cluster owned and start
 overwriting its configuration. The recommended way to avoid this remains to set a unique
-`--cluster-name` on every Kubernetes cluster (see issues
-[#2241](https://github.com/kubernetes/cloud-provider-openstack/issues/2241),
-[#2571](https://github.com/kubernetes/cloud-provider-openstack/issues/2571),
-[#2624](https://github.com/kubernetes/cloud-provider-openstack/issues/2624)).
+`--cluster-name` on every Kubernetes cluster.
 
 To make OCCM resilient even when that recommendation isn't followed, OCCM also tags
 every load balancer it creates with the UID of the cluster's `kube-system` namespace,
