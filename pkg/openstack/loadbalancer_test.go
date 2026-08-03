@@ -2115,7 +2115,7 @@ func Test_getSubnetID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.args.lbaasV2.getSubnetID(tt.args.service, tt.args.svcConf)
+			got, err := tt.args.lbaasV2.getSubnetID(tt.args.service)
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			}
@@ -2208,7 +2208,7 @@ func TestLbaasV2_getNetworkID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.lbaas.getNetworkID(tt.arg.service, &serviceConfig{})
+			got, err := tt.lbaas.getNetworkID(tt.arg.service)
 
 			if tt.wantErr != "" {
 				assert.EqualError(t, err, tt.wantErr)
