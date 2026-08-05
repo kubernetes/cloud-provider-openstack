@@ -62,7 +62,7 @@ spec:
             --drivername=$(DRIVER_NAME)
             --share-protocol-selector=$(MANILA_SHARE_PROTO)
             --fwdendpoint=$(FWD_CSI_ENDPOINT)
-            --cluster-id="{{ $.Values.csimanila.clusterID }}"
+            --cluster-id=$(CLUSTER_NAME)
             {{- if $.Values.csimanila.searchOrder }}
             --search-order="{{ $.Values.csimanila.searchOrder }}"
             {{- end }}'
