@@ -141,6 +141,7 @@ type NetworkingOpts struct {
 	IPv6SupportDisabled bool     `gcfg:"ipv6-support-disabled"`
 	PublicNetworkName   []string `gcfg:"public-network-name"`
 	InternalNetworkName []string `gcfg:"internal-network-name"`
+	ExcludeNetworkName  []string `gcfg:"exclude-network-name"`
 	AddressSortOrder    string   `gcfg:"address-sort-order"`
 }
 

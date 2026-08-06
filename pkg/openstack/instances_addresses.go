@@ -249,6 +249,15 @@ func nodeAddresses(ctx context.Context, srv *servers.Server, ports []PortWithTru
 			var addressType v1.NodeAddressType
 			if props.IPType == "floating" {
 				addressType = v1.NodeExternalIP
+			} else if slices.Contains(networkingOpts.ExcludeNetworkName,network) {
+				// Skip networks that are in the exclude list
+				klog.V(5).Infof("Node '%s' network '%s' excluded due to 'exclude-network-name' option", srv.Name, network)
+				removeFromNodeAddresses(&addrs,
+					v1.NodeAddress{
+						Address: props.Addr,
+					},
+				)
+				continue
 			} else if slices.Contains(networkingOpts.PublicNetworkName, network) {
 				addressType = v1.NodeExternalIP
 				// removing already added address to avoid listing it as both ExternalIP and InternalIP
