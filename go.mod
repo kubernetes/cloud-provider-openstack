@@ -39,7 +39,7 @@ require (
 	k8s.io/kubernetes v1.36.0
 	k8s.io/mount-utils v0.36.0
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
-	software.sslmate.com/src/go-pkcs12 v0.7.1
+	software.sslmate.com/src/go-pkcs12 v0.7.2
 )
 
 // the below fixes the "go list -m all" execution
