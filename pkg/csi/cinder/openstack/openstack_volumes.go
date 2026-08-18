@@ -54,6 +54,10 @@ const (
 	diskDetachFactor         = 1.2
 	diskDetachSteps          = 13
 	volumeDescription        = "Created by OpenStack Cinder CSI driver"
+
+	VolumeType                 = "type"
+	VolumeAvailabilityZone     = "availability"
+	VolumeAppendVolumeMetadata = "appendVolumeMetadata"
 )
 
 var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}

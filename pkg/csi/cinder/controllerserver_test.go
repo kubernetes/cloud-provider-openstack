@@ -372,6 +372,50 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 	}
 }
 
+func TestCreateVolumeWithAppendVolumeMetadata(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedProperties := map[string]string{
+		cinderCSIClusterIDKey:     "override",
+		sharedcsi.PvNameKey:       FakePVName,
+		sharedcsi.PvcNameKey:      FakePVCName,
+		sharedcsi.PvcNamespaceKey: FakePVCNamespace,
+		"key1":                    "value1",
+		"key2":                    "value2",
+	}
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), "", "", "", "", "", expectedProperties).Return(&FakeVol, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+
+		Parameters: map[string]string{
+			sharedcsi.PvNameKey:       FakePVName,
+			sharedcsi.PvcNameKey:      FakePVCName,
+			sharedcsi.PvcNamespaceKey: FakePVCNamespace,
+			openstack.VolumeAppendVolumeMetadata: `{
+  "key1": "value1",
+  "key2": "value2",
+  "csi.storage.k8s.io/pvc/namespace": "ignored",
+  "cinder.csi.openstack.org/cluster": "override"
+}`,
+		},
+	}
+
+	_, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+}
+
 func TestCreateVolumeFromSnapshot(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
@@ -1052,6 +1096,40 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 	assert.NotNil(FakeSnapshotID, actualRes.Snapshot.SnapshotId)
 }
 
+func TestCreateSnapshotWithAppendVolumeMetadata(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedProperties := map[string]string{
+		cinderCSIClusterIDKey:             "override",
+		sharedcsi.VolSnapshotNamespaceKey: FakeSnapshotNamespace,
+		"key1":                            "value1",
+		"key2":                            "value2",
+	}
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, expectedProperties).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			sharedcsi.VolSnapshotNamespaceKey: FakeSnapshotNamespace,
+			openstack.SnapshotAppendVolumeMetadata: `{
+  "key1": "value1",
+  "key2": "value2",
+  "csi.storage.k8s.io/volumesnapshot/namespace": "ignored",
+  "cinder.csi.openstack.org/cluster": "override"
+}`,
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot with appendVolumeMetadata: %v", err)
+	}
+}
+
 func TestCreateSnapshotBackupGetBackupByIDError(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
@@ -1084,6 +1162,49 @@ func TestCreateSnapshotBackupGetBackupByIDError(t *testing.T) {
 
 	assert.Equal(t, codes.Internal, statusErr.Code())
 	assert.Equal(t, "Failed to get backup by ID", statusErr.Message())
+}
+
+func TestCreateSnapshotBackupWithAppendVolumeMetadata(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedSnapshotProperties := map[string]string{
+		cinderCSIClusterIDKey: FakeCluster,
+		"key1":                "value1",
+		"key2":                "value2",
+	}
+
+	expectedBackupProperties := map[string]string{
+		cinderCSIClusterIDKey: FakeCluster,
+		"key1":                "value1",
+		"key2":                "value2",
+		"type":                "backup",
+	}
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, expectedSnapshotProperties).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
+	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
+
+	osmock.On("CreateBackup", FakeSnapshotName, FakeVolID, FakeSnapshotID, "", expectedBackupProperties).Return(&FakeBackupRes, nil)
+	osmock.On("ListBackups", map[string]string{"Name": FakeSnapshotName}).Return(FakeBackupListEmpty, nil)
+	osmock.On("WaitBackupReady", FakeBackupID).Return(FakeBackupRes.Status, nil)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			openstack.SnapshotType: "backup",
+			openstack.SnapshotAppendVolumeMetadata: `{
+  "key1": "value1",
+  "key2": "value2"
+}`,
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot backup with appendVolumeMetadata: %v", err)
+	}
 }
 
 // Test DeleteSnapshot
@@ -1274,4 +1395,87 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	// assert
 	assert.Equal(expectedRes, actualRes)
 	assert.Equal(expectedRes2, actualRes2)
+}
+
+func TestAppendVolumeMetadata(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []struct {
+		properties  map[string]string
+		metadataStr string
+		classType   string
+		name        string
+
+		expectedProperties    map[string]string
+		expectedErrStrPattern string
+	}{
+		{
+			properties:  map[string]string{},
+			metadataStr: `{"key1": "value1"}`,
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties: map[string]string{
+				"key1": "value1",
+			},
+			expectedErrStrPattern: "",
+		},
+		{
+			properties:  map[string]string{},
+			metadataStr: "",
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties:    map[string]string{},
+			expectedErrStrPattern: "",
+		},
+		{
+			properties: map[string]string{
+				"existingKey": "existingValue",
+			},
+			metadataStr: "",
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties: map[string]string{
+				"existingKey": "existingValue",
+			},
+			expectedErrStrPattern: "",
+		},
+		{
+			properties:  map[string]string{},
+			metadataStr: "invalid metadata",
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties:    nil,
+			expectedErrStrPattern: `invalid appendVolumeMetadata "invalid metadata" in StorageClass parameters, must be a string of a valid JSON object consisting of key-value pairs of type string`,
+		},
+		{
+			properties: map[string]string{
+				"existingKey":         "existingValue",
+				cinderCSIClusterIDKey: "origin",
+			},
+			metadataStr: `{"key1": "value1", "existingKey": "newValue", "cinder.csi.openstack.org/cluster": "override"}`,
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties: map[string]string{
+				"existingKey":         "existingValue",
+				"key1":                "value1",
+				cinderCSIClusterIDKey: "override",
+			},
+			expectedErrStrPattern: "",
+		},
+	}
+
+	for _, c := range cases {
+		properties, err := appendVolumeMetadata(c.properties, c.metadataStr, c.classType, c.name)
+		assert.Equal(c.expectedProperties, properties)
+		if c.expectedErrStrPattern == "" {
+			assert.NoError(err)
+		} else {
+			assert.ErrorContains(err, c.expectedErrStrPattern)
+		}
+	}
 }

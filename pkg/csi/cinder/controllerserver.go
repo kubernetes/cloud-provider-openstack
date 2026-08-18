@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -84,7 +85,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
 	// Volume Type
-	volType := volParams["type"]
+	volType := volParams[openstack.VolumeType]
 
 	// Volume AZ
 
@@ -94,8 +95,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, in case vol AZ is different from node AZ
 	var volAvailability string
-	if volParams["availability"] != "" {
-		volAvailability = volParams["availability"]
+	if volParams[openstack.VolumeAvailabilityZone] != "" {
+		volAvailability = volParams[openstack.VolumeAvailabilityZone]
 	} else if cs.Driver.withTopology && accessibleTopologyReq != nil {
 		volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
 	}
@@ -135,6 +136,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			properties[mKey] = v
 		}
 	}
+	// Append metadata specified in parameters.appendVolumeMetadata
+	properties, err = appendVolumeMetadata(properties, volParams[openstack.VolumeAppendVolumeMetadata], "StorageClass", volName)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "append properties for volume %q: %v", volName, err)
+	}
+
 	content := req.GetVolumeContentSource()
 	var snapshotID string
 	var sourceVolID string
@@ -714,6 +721,11 @@ func (cs *controllerServer) createSnapshot(ctx context.Context, cloud openstack.
 			properties[mKey] = v
 		}
 	}
+	// Append metadata specified in parameters.appendVolumeMetadata
+	properties, err = appendVolumeMetadata(properties, parameters[openstack.SnapshotAppendVolumeMetadata], "VolumeSnapshotClass", name)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "append properties for snapshot %q: %v", name, err)
+	}
 
 	// TODO: Delegate the check to openstack itself and ignore the conflict
 	snap, err = cloud.CreateSnapshot(ctx, name, volumeID, properties)
@@ -739,6 +751,11 @@ func (cs *controllerServer) createBackup(ctx context.Context, cloud openstack.IO
 		if v, ok := parameters[mKey]; ok {
 			properties[mKey] = v
 		}
+	}
+	// Append metadata specified in parameters.appendVolumeMetadata
+	properties, err := appendVolumeMetadata(properties, parameters[openstack.SnapshotAppendVolumeMetadata], "VolumeSnapshotClass", name)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "append properties for snapshot(backup) %q: %v", name, err)
 	}
 
 	backup, err := cloud.CreateBackup(ctx, name, volumeID, snap.ID, parameters[openstack.SnapshotAvailabilityZone], properties)
@@ -1121,4 +1138,45 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 	}
 
 	return resp
+}
+
+func appendVolumeMetadata(properties map[string]string, metadataStr, classType, name string) (_ map[string]string, retErr error) {
+	defer func() {
+		if retErr == nil {
+			klog.V(4).Infof("volume/snapshot/backup (%s) properties: %q", name, properties)
+		}
+	}()
+
+	if metadataStr == "" {
+		return properties, nil
+	}
+
+	metadata := map[string]string{}
+	if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
+		return nil, fmt.Errorf("invalid appendVolumeMetadata %q in %s parameters, must be a string of a valid JSON object consisting of key-value pairs of type string: %w", metadataStr, classType, err)
+	}
+
+	for k, v := range metadata {
+		// This aligns with the implementation of manila, which ignores reserved keys
+		// that are duplicated in appendVolumeMetadata except the cluster id.
+		// It allows admin to specify a custom cluster id for the volume/snapshot/backup
+		// but honors other recognized CSI params.
+		// Manila PRs:
+		//   https://github.com/kubernetes/cloud-provider-openstack/pull/1459
+		//   https://github.com/kubernetes/cloud-provider-openstack/pull/2023
+		if existingValue, ok := properties[k]; ok {
+			if k != cinderCSIClusterIDKey {
+				klog.Warningf("ignore metadata key %q from appendVolumeMetadata because it already exists with value %q", k, existingValue)
+				continue
+			}
+
+			if existingValue != v {
+				klog.Warningf("override cluster ID %q with %q from appendVolumeMetadata", existingValue, v)
+			}
+		}
+
+		properties[k] = v
+	}
+
+	return properties, nil
 }
