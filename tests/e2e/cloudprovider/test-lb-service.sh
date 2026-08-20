@@ -283,13 +283,19 @@ EOF
 
 ########################################################################
 ## Name: test_forwarded
-## Desc: Create a k8s service that gets the original client IP
+## Desc: Create a k8s service that adds the X-Forwarded headers
 ## Params: None
 ########################################################################
 function test_forwarded {
-    local service="test-x-forwarded-for"
-    local public_ip=$(curl -sS ifconfig.me)
-    local local_ip=$(ip route get 8.8.8.8 | head -1 | awk '{print $7}')
+    local service="test-x-forwarded-headers"
+    local public_ip
+    local local_ip
+    local response
+    local ip_in_header
+    local port_in_header
+    local proto_in_header
+    public_ip=$(curl -sS ifconfig.me)
+    local_ip=$(ip route get 8.8.8.8 | head -1 | awk '{print $7}')
 
     if [[ ${OCTAVIA_PROVIDER} == "ovn" ]]; then
         printf "\n>>>>>>> Skipping Service ${service} test for OVN provider\n"
@@ -305,6 +311,8 @@ metadata:
   namespace: $NAMESPACE
   annotations:
     loadbalancer.openstack.org/x-forwarded-for: "true"
+    loadbalancer.openstack.org/x-forwarded-port: "true"
+    loadbalancer.openstack.org/x-forwarded-proto: "true"
 spec:
   type: LoadBalancer
   loadBalancerIP: ${FLOATING_IP}
@@ -321,14 +329,26 @@ EOF
     wait_address_accessible $ipaddr
 
     printf "\n>>>>>>> Sending request to the Service ${service}\n"
-    ip_in_header=$(curl -sS http://${ipaddr} | grep  x-forwarded-for | awk -F'=' '{print $2}')
+    response=$(curl -sS http://${ipaddr})
+    ip_in_header=$(printf '%s\n' "${response}" | grep x-forwarded-for | awk -F'=' '{print $2}')
+    port_in_header=$(printf '%s\n' "${response}" | grep x-forwarded-port | awk -F'=' '{print $2}')
+    proto_in_header=$(printf '%s\n' "${response}" | grep x-forwarded-proto | awk -F'=' '{print $2}')
     if [[ "${ip_in_header}" != "${local_ip}" && "${ip_in_header}" != "${public_ip}" && "${ip_in_header}" != "${GATEWAY_IP}" ]]; then
         printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, ip_in_header: ${ip_in_header}, local_ip: ${local_ip}, gateway_ip: ${GATEWAY_IP}, public_ip: ${public_ip}\n"
-        curl -sS http://${ipaddr}
+        printf '%s\n' "${response}"
         exit 1
-    else
-        printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
     fi
+    if [[ "${port_in_header}" != "80" ]]; then
+        printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, port_in_header: ${port_in_header}, expected: 80\n"
+        printf '%s\n' "${response}"
+        exit 1
+    fi
+    if [[ "${proto_in_header}" != "http" ]]; then
+        printf "\n>>>>>>> FAIL: Get incorrect response from Service ${service}, proto_in_header: ${proto_in_header}, expected: http\n"
+        printf '%s\n' "${response}"
+        exit 1
+    fi
+    printf "\n>>>>>>> Expected: Get correct response from Service ${service}\n"
 
     printf "\n>>>>>>> Delete Service ${service}\n"
     kubectl -n $NAMESPACE delete service ${service}
