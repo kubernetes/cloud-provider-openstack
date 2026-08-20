@@ -560,7 +560,7 @@ func Test_getListenerProtocol(t *testing.T) {
 			name: "not nil svcConf and keepClientIP is true",
 			testArg: testArg{
 				svcConf: &serviceConfig{
-					keepClientIP: true,
+					xForwardedFor: true,
 				},
 			},
 			expected: listeners.ProtocolHTTP,
@@ -594,7 +594,7 @@ func Test_getListenerProtocol(t *testing.T) {
 			testArg: testArg{
 				svcConf: &serviceConfig{
 					tlsContainerRef: "tls-container-ref",
-					keepClientIP:    true,
+					xForwardedFor:   true,
 				},
 			},
 			expected: listeners.ProtocolTerminatedHTTPS,
@@ -609,172 +609,6 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 }
 
-func TestLbaasV2_checkListenerPorts(t *testing.T) {
-	type args struct {
-		service            *corev1.Service
-		curListenerMapping map[listenerKey]*listeners.Listener
-		isLBOwner          bool
-		lbName             string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "error is not thrown if loadbalancer matches & if port is already in use by a lb",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "https",
-								Port:     9090,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb"},
-					},
-				},
-				isLBOwner: false,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
-		},
-		{
-			name: "error is thrown if loadbalancer doesn't matches & if port is already in use by a service",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "https",
-								Port:     9090,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb", "test-lb1"},
-					},
-				},
-				isLBOwner: false,
-				lbName:    "test-lb2",
-			},
-			wantErr: true,
-		},
-		{
-			name: "error is not thrown if lbOwner is present & no tags on service",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "https",
-								Port:     9090,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID: "listenerid",
-					},
-				},
-				isLBOwner: true,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
-		},
-		{
-			name: "error is not thrown if lbOwner is true & there are tags on service",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "http",
-								Port:     9091,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb"},
-					},
-				},
-				isLBOwner: true,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
-		},
-		{
-			name: "error is not thrown if listener key doesn't match port & protocol",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "http",
-								Port:     9091,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb"},
-					},
-				},
-				isLBOwner: false,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lbaas := &LbaasV2{
-				LoadBalancer: LoadBalancer{},
-			}
-			err := lbaas.checkListenerPorts(tt.args.service, tt.args.curListenerMapping, tt.args.isLBOwner, tt.args.lbName)
-			if tt.wantErr == true {
-				assert.ErrorContains(t, err, "already exists")
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 	ipmodeProxy := corev1.LoadBalancerIPModeProxy
 	ipmodeVIP := corev1.LoadBalancerIPModeVIP
@@ -1048,7 +882,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
+					xForwardedFor:        true,
 					tlsContainerRef:      "tls-container-ref",
 					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
 				},
@@ -1078,7 +912,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "HTTP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
+					xForwardedFor:        true,
 					tlsContainerRef:      "tls-container-ref",
 					proxyProtocolVersion: nil,
 				},
@@ -1108,7 +942,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "UDP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
+					xForwardedFor:        true,
 					tlsContainerRef:      "tls-container-ref",
 					proxyProtocolVersion: nil,
 				},
@@ -1138,7 +972,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:    true,
+					xForwardedFor:   true,
 					tlsContainerRef: "tls-container-ref",
 				},
 				lbaasV2: &LbaasV2{
@@ -1167,7 +1001,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:    true,
+					xForwardedFor:   true,
 					tlsContainerRef: "tls-container-ref",
 				},
 				lbaasV2: &LbaasV2{
@@ -1196,7 +1030,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
+					xForwardedFor:        true,
 					tlsContainerRef:      "tls-container-ref",
 					proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2),
 				},
@@ -2473,7 +2307,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				connLimit:       100,
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
-				keepClientIP:    true,
+				xForwardedFor:   true,
 			},
 			expectedCreateOpt: listeners.CreateOpts{
 				Name:                   "Test with TLSContainerRef and X-Forwarded-For",
@@ -2495,7 +2329,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				connLimit:       100,
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
-				keepClientIP:    false,
+				xForwardedFor:   false,
 			},
 			expectedCreateOpt: listeners.CreateOpts{
 				Name:                   "Test with TLSContainerRef but without X-Forwarded-For",
@@ -2516,7 +2350,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				connLimit:       100,
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
-				keepClientIP:    true,
+				xForwardedFor:   true,
 				allowedCIDR:     []string{"192.168.1.0/24", "10.0.0.0/8"},
 			},
 			expectedCreateOpt: listeners.CreateOpts{
@@ -2539,7 +2373,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			svcConf: &serviceConfig{
 				connLimit:       100,
 				lbName:          "my-lb",
-				keepClientIP:    true,
+				xForwardedFor:   true,
 				tlsContainerRef: "",
 			},
 			expectedCreateOpt: listeners.CreateOpts{
