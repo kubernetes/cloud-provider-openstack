@@ -29,7 +29,11 @@ rules:
   resources:
   - nodes
   verbs:
-  - '*'
+  - get
+  - list
+  - watch
+  - patch
+  - update
 - apiGroups:
   - ""
   resources:
