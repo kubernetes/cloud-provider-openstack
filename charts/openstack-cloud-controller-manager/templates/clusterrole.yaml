@@ -71,12 +71,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - persistentvolumes
-  verbs:
-  - '*'
-- apiGroups:
-  - ""
-  resources:
   - endpoints
   verbs:
   - create
