@@ -251,43 +251,6 @@ func (lbaas *LbaasV2) getLoadBalancerByName(ctx context.Context, name string, le
 	return &validLBs[0], nil
 }
 
-// stripReservedTags drops any user-supplied tag that begins with servicePrefix.
-//
-// Tags with this prefix are how OCCM marks resource ownership: the ownership tag
-// written to a resource is always a GetLoadBalancerName value, which always
-// starts with servicePrefix. Every ownership check in this file matches tags
-// exclusively on that form -- either an exact match against the prefixed lbName
-// (e.g. slices.Contains(tags, lbName)) or a strings.HasPrefix(tag, servicePrefix)
-// scan (used for shared-LB counting and deletion decisions).
-//
-// Because of that, keeping user tags out of the servicePrefix subspace fully
-// partitions the tag namespace: ownership tags live in the kube_service_* space,
-// user tags live in its complement, and no user tag can ever satisfy an ownership
-// check. This prevents a Service from injecting a tag matching another (possibly
-// cross-tenant) load balancer's name to hijack ownership, shared-LB limits, or
-// deletion. INVARIANT: any new tag-based ownership check must also key on
-// servicePrefix, or this guarantee no longer holds.
-func stripReservedTags(tags []string) []string {
-	result := make([]string, 0, len(tags))
-	for _, t := range tags {
-		if strings.HasPrefix(t, servicePrefix) {
-			klog.Warningf("Ignoring reserved tag %q: tags starting with %q are reserved for OCCM ownership tracking", t, servicePrefix)
-			continue
-		}
-		result = append(result, t)
-	}
-	return result
-}
-
-// withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
-// comma-separated tags from the given Service annotation value. Any user tag
-// using the reserved servicePrefix is stripped, and duplicate tags are removed
-// (including ones that duplicate the LB name) so no tag can appear twice.
-func withLBNameTag(lbName, annotation string) []string {
-	userTags := stripReservedTags(cpoutil.SplitTrim(annotation, ','))
-	return cpoutil.Unique(append([]string{lbName}, userTags...))
-}
-
 // EnsureLoadBalancer creates a new load balancer or updates the existing one.
 func (lbaas *LbaasV2) EnsureLoadBalancer(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node) (*corev1.LoadBalancerStatus, error) {
 	mc := metrics.NewMetricContext("loadbalancer", "ensure")
@@ -899,7 +862,7 @@ func (lbaas *LbaasV2) updateListener(ctx context.Context, lbID string, listener 
 		if tags, changed := cpoutil.Merge(listener.Tags, listenerTags); changed {
 			klog.V(4).Infof("Will update listener tags, current listener tags: %+v, desired tags: %+v", listener.Tags, tags)
 			updateOpts.Tags = &tags
-			listenerChanged = true
+		listenerChanged = true
 		}
 	}
 
@@ -971,7 +934,8 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(ctx context.Context, port corev1.Se
 	}
 
 	if svcConf.supportLBTags {
-		listenerCreateOpt.Tags = []string{svcConf.lbName}
+		// The LB name is always tagged, plus any desired tags from the Service annotation.
+		listenerCreateOpt.Tags = withLBNameTag(svcConf.lbName, svcConf.listenerTags)
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
@@ -1968,6 +1932,7 @@ func (lbaas *LbaasV2) checkServiceDelete(ctx context.Context, service *corev1.Se
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
+
 	// This affects the protocol of listener and pool
 	svcConf.keepClientIP = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
 	svcConf.proxyProtocolVersion = getProxyProtocolFromServiceAnnotation(service)
@@ -2605,4 +2570,41 @@ func PreserveGopherError(rawError error) error {
 	}
 
 	return rawError
+}
+
+// stripReservedTags drops any user-supplied tag that begins with servicePrefix.
+//
+// Tags with this prefix are how OCCM marks resource ownership: the ownership tag
+// written to a resource is always a GetLoadBalancerName value, which always
+// starts with servicePrefix. Every ownership check in this file matches tags
+// exclusively on that form -- either an exact match against the prefixed lbName
+// (e.g. slices.Contains(tags, lbName)) or a strings.HasPrefix(tag, servicePrefix)
+// scan (used for shared-LB counting and deletion decisions).
+//
+// Because of that, keeping user tags out of the servicePrefix subspace fully
+// partitions the tag namespace: ownership tags live in the kube_service_* space,
+// user tags live in its complement, and no user tag can ever satisfy an ownership
+// check. This prevents a Service from injecting a tag matching another (possibly
+// cross-tenant) load balancer's name to hijack ownership, shared-LB limits, or
+// deletion. INVARIANT: any new tag-based ownership check must also key on
+// servicePrefix, or this guarantee no longer holds.
+func stripReservedTags(tags []string) []string {
+	result := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if strings.HasPrefix(t, servicePrefix) {
+			klog.Warningf("Ignoring reserved tag %q: tags starting with %q are reserved for OCCM ownership tracking", t, servicePrefix)
+			continue
+		}
+		result = append(result, t)
+	}
+	return result
+}
+
+// withLBNameTag returns the LB name (OCCM's ownership tag) followed by the
+// comma-separated tags from the given Service annotation value. Any user tag
+// using the reserved servicePrefix is stripped, and duplicate tags are removed
+// (including ones that duplicate the LB name) so no tag can appear twice.
+func withLBNameTag(lbName, annotation string) []string {
+	userTags := stripReservedTags(cpoutil.SplitTrim(annotation, ','))
+	return cpoutil.Unique(append([]string{lbName}, userTags...))
 }
