@@ -860,7 +860,8 @@ func (lbaas *LbaasV2) updateListener(ctx context.Context, lbID string, listener 
 		if tags, changed := cpoutil.Merge(listener.Tags, listenerTags); changed {
 			klog.V(4).Infof("Will update listener tags, current listener tags: %+v, desired tags: %+v", listener.Tags, tags)
 			updateOpts.Tags = &tags
-		listenerChanged = true
+			listenerChanged = true
+		}
 	}
 
 	if svcConf.connLimit != listener.ConnLimit {
@@ -1930,7 +1931,6 @@ func (lbaas *LbaasV2) resolveMemberSubnetID(ctx context.Context, service *corev1
 func (lbaas *LbaasV2) checkServiceDelete(ctx context.Context, service *corev1.Service, svcConf *serviceConfig) error {
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
-
 
 	// This affects the protocol of listener and pool
 	svcConf.keepClientIP = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)

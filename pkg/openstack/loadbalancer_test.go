@@ -153,6 +153,72 @@ type testGetRulesToCreateAndDelete struct {
 	toDelete      []rules.SecGroupRule
 }
 
+func TestWithLBNameTag(t *testing.T) {
+	lbName := servicePrefix + "cluster_ns_svc"
+	testCases := []struct {
+		name       string
+		annotation string
+		expected   []string
+	}{
+		{
+			name:       "empty annotation returns only the LB name",
+			annotation: "",
+			expected:   []string{lbName},
+		},
+		{
+			name:       "user tags are appended after the LB name",
+			annotation: "team=foo,env=prod",
+			expected:   []string{lbName, "team=foo", "env=prod"},
+		},
+		{
+			name:       "user tag using the reserved prefix is stripped",
+			annotation: servicePrefix + "cluster_ns_other,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "user tag equal to this LB name is stripped, not duplicated",
+			annotation: lbName + ",team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "duplicate user tags are removed",
+			annotation: "team=foo,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "whitespace-padded reserved tag is trimmed then stripped",
+			annotation: "  " + servicePrefix + "cluster_ns_other  ,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "bare reserved prefix is stripped",
+			annotation: servicePrefix + ",team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "multiple reserved tags are all stripped",
+			annotation: servicePrefix + "a," + servicePrefix + "b,team=foo",
+			expected:   []string{lbName, "team=foo"},
+		},
+		{
+			name:       "prefix appearing mid-string is not stripped",
+			annotation: "owner=" + servicePrefix + "x,team=foo",
+			expected:   []string{lbName, "owner=" + servicePrefix + "x", "team=foo"},
+		},
+		{
+			name:       "only reserved tags leaves just the LB name",
+			annotation: servicePrefix + "a," + servicePrefix + "b",
+			expected:   []string{lbName},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, withLBNameTag(lbName, tc.annotation))
+		})
+	}
+}
+
 func TestGetRulesToCreateAndDelete(t *testing.T) {
 	tests := []testGetRulesToCreateAndDelete{
 		{
@@ -2541,6 +2607,85 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				ConnLimit:     &svcConf.connLimit,
 				InsertHeaders: map[string]string{"X-Forwarded-For": "true"},
 				Tags:          nil,
+			},
+		},
+		{
+			name: "Test with LB tags support and no listener-tags annotation",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with LB tags support and no listener-tags annotation",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"my-lb"},
+			},
+		},
+		{
+			name: "Test with LB tags support and listener-tags annotation",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+				listenerTags:  "foo, bar",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with LB tags support and listener-tags annotation",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"my-lb", "foo", "bar"},
+			},
+		},
+		{
+			name: "Test with listener-tags annotation duplicating the LB name",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+				listenerTags:  "foo, my-lb, bar",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with listener-tags annotation duplicating the LB name",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"my-lb", "foo", "bar"},
+			},
+		},
+		{
+			name: "Test with duplicate tags within the listener-tags annotation",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:     100,
+				lbName:        "my-lb",
+				supportLBTags: true,
+				listenerTags:  "foo, foo, bar, foo",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:         "Test with duplicate tags within the listener-tags annotation",
+				Protocol:     listeners.ProtocolTCP,
+				ProtocolPort: 80,
+				ConnLimit:    &svcConf.connLimit,
+				Tags:         []string{"my-lb", "foo", "bar"},
 			},
 		},
 	}
