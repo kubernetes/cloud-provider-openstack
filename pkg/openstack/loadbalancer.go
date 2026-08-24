@@ -1021,13 +1021,16 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 		return nil, err
 	}
 
-	if !curMembers.Equal(newMembers) {
+	if !curMembers.Equal(newMembers) && !lbaas.opts.BatchPoolsMembersUpdate {
 		klog.V(2).Infof("Updating %d members for pool %s", len(members), pool.ID)
 		if err := openstackutil.BatchUpdatePoolMembers(ctx, lbaas.lb, lbID, pool.ID, members); err != nil {
 			return nil, err
 		}
 		klog.V(2).Infof("Successfully updated %d members for pool %s", len(members), pool.ID)
 	}
+
+	// set the updated members to the pool for further batch update
+	pool.Members = batchUpdateMemberOptsToMembers(members)
 
 	return pool, nil
 }
@@ -1110,6 +1113,20 @@ func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(ctx context.Context, port corev
 		}
 	}
 	return members, newMembers, nil
+}
+
+func batchUpdateMemberOptsToMembers(opts []v2pools.BatchUpdateMemberOpts) []v2pools.Member {
+	members := make([]v2pools.Member, len(opts))
+	for i := range opts {
+		members[i] = v2pools.Member{
+			Address:      opts[i].Address,
+			ProtocolPort: opts[i].ProtocolPort,
+			Name:         ptr.Deref(opts[i].Name, ""),
+			SubnetID:     ptr.Deref(opts[i].SubnetID, ""),
+			MonitorPort:  ptr.Deref(opts[i].MonitorPort, 0),
+		}
+	}
+	return members
 }
 
 func (lbaas *LbaasV2) buildCreateMemberOpts(ctx context.Context, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.CreateMemberOpts, sets.Set[string], error) {
@@ -1851,6 +1868,8 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, err
 		}
 
+		// a list of pools to update
+		pools := make([]v2pools.Pool, 0, len(service.Spec.Ports))
 		for portIndex, port := range service.Spec.Ports {
 			listener, err := lbaas.ensureOctaviaListener(ctx, loadbalancer.ID, cpoutil.Sprintf255(listenerFormat, portIndex, lbName), curListenerMapping, port, svcConf)
 			if err != nil {
@@ -1861,6 +1880,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			if err != nil {
 				return nil, err
 			}
+			pools = append(pools, *pool)
 
 			if err := lbaas.ensureOctaviaHealthMonitor(ctx, loadbalancer.ID, cpoutil.Sprintf255(monitorFormat, portIndex, lbName), pool, port, svcConf); err != nil {
 				return nil, err
@@ -1870,6 +1890,16 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			// The remove of the listener must always happen at the end of the loop to avoid wrong assignment.
 			// Modifying the curListeners would also change the mapping.
 			curListeners = popListener(curListeners, listener.ID)
+		}
+
+		if lbaas.opts.BatchPoolsMembersUpdate {
+			err := openstackutil.BatchUpdatePoolsMembers(ctx, lbaas.lb, loadbalancer.ID, pools)
+			if err != nil {
+				err = PreserveGopherError(err)
+				msg := fmt.Sprintf("Error updating batch pools members for LoadBalancer: %v", err)
+				klog.Errorf(msg, "lbID", loadbalancer.ID)
+				return nil, err
+			}
 		}
 
 		// Deal with the remaining listeners, delete the listener if it was created by this Service previously.
@@ -2004,6 +2034,9 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		lbListeners[key] = l
 	}
 
+	// a list of pools to update
+	pools := make([]v2pools.Pool, 0, len(service.Spec.Ports))
+
 	// Update pool members for each listener.
 	for portIndex, port := range service.Spec.Ports {
 		proto := getListenerProtocol(port.Protocol, svcConf)
@@ -2019,9 +2052,20 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		if err != nil {
 			return err
 		}
+		pools = append(pools, *pool)
 
 		err = lbaas.ensureOctaviaHealthMonitor(ctx, loadbalancer.ID, cpoutil.Sprintf255(monitorFormat, portIndex, loadbalancer.Name), pool, port, svcConf)
 		if err != nil {
+			return err
+		}
+	}
+
+	if lbaas.opts.BatchPoolsMembersUpdate {
+		err := openstackutil.BatchUpdatePoolsMembers(ctx, lbaas.lb, loadbalancer.ID, pools)
+		if err != nil {
+			err = PreserveGopherError(err)
+			msg := fmt.Sprintf("Error updating batch pools members for LoadBalancer: %v", err)
+			klog.Errorf(msg, "lbID", loadbalancer.ID)
 			return err
 		}
 	}
