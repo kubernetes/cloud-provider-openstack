@@ -76,6 +76,10 @@ type IOpenStack interface {
 	GetMetadataOpts() metadata.Opts
 	GetBlockStorageOpts() BlockStorageOpts
 	ResolveVolumeListToUUIDs(ctx context.Context, volumes string) (string, error)
+	AttachmentCreate(ctx context.Context, volumeID string, instanceID string, connectorProperties map[string]any) (string, map[string]any, error)
+	AttachmentDelete(ctx context.Context, attachmentID string) error
+	AttachmentComplete(ctx context.Context, attachmentID string) error
+	ResetVolumeStatus(ctx context.Context, volumeID string, targetStatus string) error
 }
 
 type OpenStack struct {

@@ -363,3 +363,23 @@ func (cloud *cloud) GetBlockStorageOpts() openstack.BlockStorageOpts {
 func (cloud *cloud) ResolveVolumeListToUUIDs(_ context.Context, v string) (string, error) {
 	return v, nil
 }
+
+func (cloud *cloud) AttachmentCreate(_ context.Context, volumeID string, instanceID string, connectorProperties map[string]any) (string, map[string]any, error) {
+	return randString(10), map[string]any{}, nil
+}
+
+func (cloud *cloud) AttachmentGet(_ context.Context, attachmentID string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+
+func (cloud *cloud) AttachmentDelete(_ context.Context, attachmentID string) error {
+	return nil
+}
+
+func (cloud *cloud) AttachmentComplete(_ context.Context, attachmentID string) error {
+	return nil
+}
+
+func (cloud *cloud) ResetVolumeStatus(_ context.Context, volumeID string, targetStatus string) error {
+	return nil
+}
