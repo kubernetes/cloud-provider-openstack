@@ -42,6 +42,7 @@ import (
 const (
 	RegionalProviderIDEnv = "OS_CCM_REGIONAL"
 	instanceShutoff       = "SHUTOFF"
+	labelHostID           = "topology.openstack.org/host-id"
 )
 
 // InstancesV2 encapsulates an implementation of InstancesV2 for OpenStack.
@@ -147,6 +148,7 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 		NodeAddresses: addresses,
 		Zone:          availabilityZone,
 		Region:        i.region,
+		AdditionalLabels: getAdditionalLabels(&server),
 	}, nil
 }
 
@@ -283,6 +285,16 @@ func srvInstanceType(ctx context.Context, client *gophercloud.ServiceClient, srv
 		}
 	}
 	return "", fmt.Errorf("flavor original_name/id not found")
+}
+
+func getAdditionalLabels(srv *servers.Server) map[string]string {
+	if srv.HostID == "" {
+		return nil
+	}
+
+	return map[string]string{
+		labelHostID: srv.HostID,
+	}
 }
 
 func isValidLabelValue(v string) bool {
