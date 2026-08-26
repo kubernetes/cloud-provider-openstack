@@ -1,0 +1,5 @@
+# Test dependencies for the os-brick sidecar.
+-r requirements.txt
+
+grpcio-testing>=1.62.0
+pytest>=7.0.0

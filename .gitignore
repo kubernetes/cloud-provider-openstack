@@ -159,3 +159,6 @@ zz_generated.openapi.go
 
 # local gopath
 .go
+
+# Generated Python gRPC stubs (built by sidecar/generate_proto.sh)
+sidecar/osbrick/gen/
