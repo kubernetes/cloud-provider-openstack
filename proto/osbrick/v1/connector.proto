@@ -1,0 +1,126 @@
+// Copyright 2026 The Kubernetes Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package osbrick.v1 defines the gRPC API between the Cinder CSI driver
+// (Go) and the os-brick sidecar (Python).  The sidecar handles low-level
+// volume attach/detach operations (iSCSI, FC, NVMe-oF, etc.) for nodes
+// using direct attachment mode (typically bare-metal nodes).
+
+syntax = "proto3";
+
+package osbrick.v1;
+
+option go_package = "k8s.io/cloud-provider-openstack/pkg/util/brick/gen/osbrickv1";
+
+// OsBrickConnector exposes os-brick volume operations over gRPC.
+//
+// The Go CSI driver calls this service to:
+//   - discover host initiator information (GetConnectorProperties)
+//   - attach a Cinder volume to the local host (ConnectVolume)
+//   - detach a previously attached volume (DisconnectVolume)
+//   - rescan/extend a connected volume after online resize (ExtendVolume)
+service OsBrickConnector {
+  // GetConnectorProperties returns host-side initiator information
+  // (iSCSI IQN, FC WWPNs, hostname, etc.) that Cinder needs to set up
+  // a volume connection via InitializeConnection.
+  rpc GetConnectorProperties(GetConnectorPropertiesRequest) returns (ConnectorProperties);
+
+  // ConnectVolume asks os-brick to attach a volume described by
+  // connection_info (the JSON dict returned by Cinder's
+  // InitializeConnection API).  Returns the local device path.
+  rpc ConnectVolume(ConnectVolumeRequest) returns (ConnectVolumeResponse);
+
+  // DisconnectVolume asks os-brick to detach a previously connected
+  // volume described by connection_info.
+  rpc DisconnectVolume(DisconnectVolumeRequest) returns (DisconnectVolumeResponse);
+
+  // ExtendVolume asks os-brick to rescan/extend a connected volume
+  // after an online resize, so the OS sees the new size.
+  rpc ExtendVolume(ExtendVolumeRequest) returns (ExtendVolumeResponse);
+}
+
+// GetConnectorPropertiesRequest is intentionally empty.  The sidecar
+// reads initiator information from the local host.
+message GetConnectorPropertiesRequest {}
+
+// ConnectorProperties describes the host-side initiator information
+// that Cinder needs to set up a volume connection.
+message ConnectorProperties {
+  // iSCSI Qualified Name (IQN) of the host initiator.
+  string initiator = 1;
+
+  // Fibre Channel World Wide Port Names of the host HBAs.
+  repeated string wwpns = 2;
+
+  // Hostname reported to Cinder (used for logging and connection
+  // tracking).
+  string host = 3;
+
+  // Whether multipath is enabled on this host.
+  bool multipath = 4;
+
+  // Protocol-specific fields (e.g. "sdc_guid" for PowerFlex,
+  // "nqn" for NVMe-oF) that don't warrant dedicated proto fields.
+  map<string, string> extras = 5;
+
+  // The complete connector properties dict from os-brick, serialized
+  // as JSON.  This preserves the original Python types (bools, lists,
+  // ints) that would otherwise be lost through the typed proto fields
+  // and the string-valued extras map.  The Go side uses this directly
+  // as the node annotation value and passes it to Cinder's
+  // InitializeConnection / TerminateConnection.
+  string raw_json = 6;
+}
+
+// ConnectVolumeRequest wraps the Cinder connection_info as an opaque
+// JSON string.  The Go side does not interpret this dict — os-brick
+// parses it based on the driver_volume_type field inside.
+message ConnectVolumeRequest {
+  // JSON-encoded connection_info dict from Cinder's
+  // InitializeConnection response.
+  string connection_info = 1;
+}
+
+// ConnectVolumeResponse contains the local device path(s) resulting
+// from a successful volume connection.
+message ConnectVolumeResponse {
+  // Primary block device path (e.g. "/dev/sdb").
+  string device_path = 1;
+
+  // Multipath device path, if multipath is active
+  // (e.g. "/dev/dm-3").  Empty when multipath is not in use.
+  string multipath_device = 2;
+}
+
+// DisconnectVolumeRequest identifies the volume to disconnect.
+message DisconnectVolumeRequest {
+  // JSON-encoded connection_info dict (same as passed to
+  // ConnectVolume).
+  string connection_info = 1;
+}
+
+// DisconnectVolumeResponse is intentionally empty.  A successful
+// response means the volume has been disconnected.
+message DisconnectVolumeResponse {}
+
+// ExtendVolumeRequest identifies the volume to rescan/extend.
+message ExtendVolumeRequest {
+  // JSON-encoded connection_info dict (same as passed to
+  // ConnectVolume).
+  string connection_info = 1;
+}
+
+// ExtendVolumeResponse is intentionally empty.  A successful response
+// means the OS now sees the updated volume size.
+message ExtendVolumeResponse {}
