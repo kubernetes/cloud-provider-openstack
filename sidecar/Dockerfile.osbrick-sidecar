@@ -1,0 +1,101 @@
+# Copyright 2026 The Kubernetes Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Dockerfile for the os-brick gRPC sidecar.
+#
+# This container wraps the Python os-brick library behind a gRPC service
+# that the Cinder CSI driver calls for volume attach/detach operations
+# for nodes using direct attachment mode (typically bare-metal nodes).
+#
+# Build:
+#   docker build -f sidecar/Dockerfile.osbrick-sidecar -t osbrick-sidecar .
+#
+# The build context must be the repository root so the proto file is
+# accessible.
+
+# Use Debian Trixie for both builder and runtime stages so that
+# wheels are compiled against the same CPython as the runtime.
+FROM debian:trixie-slim AS builder
+
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# Install system packages required by os-brick at build time.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-minimal \
+    python3-pip \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Build wheels for all Python dependencies (layer caching).
+COPY sidecar/requirements.txt .
+RUN pip3 wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
+
+# Install grpcio-tools from the wheels we just built so protoc is
+# available for stub generation.
+RUN pip3 install --no-cache-dir --no-index --find-links=/wheels grpcio-tools
+
+# Generate Python gRPC stubs from the proto file.
+COPY proto/osbrick/v1/connector.proto /proto/connector.proto
+RUN mkdir -p /build/gen && touch /build/gen/__init__.py && python3 -m grpc_tools.protoc \
+    --proto_path=/proto \
+    --python_out=/build/gen \
+    --grpc_python_out=/build/gen \
+    /proto/connector.proto \
+    && sed -i 's/^import connector_pb2/from os_brick_grpc.gen import connector_pb2/' /build/gen/connector_pb2_grpc.py
+
+# ---
+
+FROM debian:trixie-slim
+
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# Install system packages required at runtime for storage operations.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-minimal \
+    python3-pip \
+    open-iscsi \
+    multipath-tools \
+    sg3-utils \
+    sysfsutils \
+    sudo \
+    ceph-common \
+    python3-rbd \
+    python3-rados \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pre-built wheels from the builder stage.
+COPY --from=builder /wheels /tmp/wheels
+COPY sidecar/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --no-index --find-links=/tmp/wheels \
+    -r /tmp/requirements.txt \
+    && rm -rf /tmp/wheels /tmp/requirements.txt
+
+WORKDIR /app
+
+# Copy generated gRPC stubs.
+COPY --from=builder /build/gen/ /app/os_brick_grpc/gen/
+
+# Copy application source.
+COPY sidecar/os_brick_grpc/ /app/os_brick_grpc/
+
+# Entrypoint wrapper that symlinks host /run subdirectories from
+# /host/run into /run so os-brick tools find them, then starts the
+# gRPC server. See entrypoint.sh for details.
+COPY sidecar/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
