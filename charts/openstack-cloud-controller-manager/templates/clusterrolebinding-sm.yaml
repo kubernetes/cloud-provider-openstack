@@ -1,4 +1,4 @@
-{{- if .Values.serviceMonitor.enabled }}
+{{- if and .Values.serviceMonitor.enabled (or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "management")) }}
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
