@@ -22,6 +22,7 @@ spec:
       # since not all CNIs support link-local addresses, or if the OpenStack
       # control plane is on a management network that is not advertised to pods
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: node-driver-registrar
           securityContext:
