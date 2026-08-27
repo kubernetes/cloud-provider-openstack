@@ -83,7 +83,7 @@ nodeplugin:
   #   - ip: "10.0.0.1"
   #     hostnames:
   #     - "keystone.hostname.com"
-  priorityClassName: ""
+  priorityClassName: "system-node-critical"
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
   podSecurityContext: {}
@@ -135,6 +135,7 @@ controllerplugin:
   #   - ip: "10.0.0.1"
   #     hostnames:
   #     - "keystone.hostname.com"
+  priorityClassName: "system-cluster-critical"
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
   podSecurityContext: {}

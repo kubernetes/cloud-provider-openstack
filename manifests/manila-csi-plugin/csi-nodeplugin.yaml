@@ -22,6 +22,7 @@ spec:
       # control plane is on a management network that is not advertised to pods
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-node-critical
       containers:
         - name: registrar
           securityContext:
