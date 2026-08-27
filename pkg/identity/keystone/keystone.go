@@ -286,7 +286,7 @@ func (k *Auth) Handler(w http.ResponseWriter, r *http.Request) {
 
 func (k *Auth) authenticateToken(ctx context.Context, w http.ResponseWriter, r *http.Request, token string, data map[string]interface{}) *userInfo {
 	user, authenticated, err := k.authn.AuthenticateToken(ctx, token)
-	klog.V(4).Infof("authenticateToken : %v, %v, %v\n", token, user, err)
+	klog.V(4).Infof("authenticateToken : %v, %v\n", user, err)
 
 	if !authenticated {
 		var response status
