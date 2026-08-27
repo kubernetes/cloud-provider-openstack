@@ -81,8 +81,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-nodeplugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",
