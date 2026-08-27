@@ -24,6 +24,13 @@ spec:
       hostNetwork: true
       containers:
         - name: node-driver-registrar
+          securityContext:
+            # Images use distroless/static:latest which runs as root; runAsNonRoot
+            # and allowPrivilegeEscalation cannot be set until upstream switches to
+            # a nonroot base image.
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0
           args:
             - "--csi-address=$(ADDRESS)"
@@ -44,6 +51,10 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: liveness-probe
+          securityContext:
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: registry.k8s.io/sig-storage/livenessprobe:v2.17.0
           args:
             - --csi-address=/csi/csi.sock
