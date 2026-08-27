@@ -288,12 +288,13 @@ func srvInstanceType(ctx context.Context, client *gophercloud.ServiceClient, srv
 }
 
 func getAdditionalLabels(srv *servers.Server) map[string]string {
-	if srv.HostID == "" {
+	hostID := util.SanitizeLabel(srv.HostID)
+	if hostID == "" {
 		return nil
 	}
 
 	return map[string]string{
-		labelHostID: srv.HostID,
+		labelHostID: hostID,
 	}
 }
 
