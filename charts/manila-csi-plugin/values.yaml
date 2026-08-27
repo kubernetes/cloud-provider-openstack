@@ -55,6 +55,14 @@ csimanila:
 nodeplugin:
   # Component name
   name: nodeplugin
+  # Security context for sidecar containers
+  securityContext:
+    # Images use distroless/static:latest which runs as root; runAsNonRoot
+    # and allowPrivilegeEscalation cannot be set until upstream switches to
+    # a nonroot base image.
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
   # CSI Manila container compute resources constraints
   nodeplugin:
     resources: {}
