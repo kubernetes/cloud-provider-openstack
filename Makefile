@@ -1,9 +1,3 @@
-# golang-client Makefile
-# Follows the interface defined in the Golang CTI proposed
-# in https://review.openstack.org/410355
-
-#REPO_VERSION?=$(shell git describe --tags)
-
 GIT_HOST = k8s.io
 
 CONTAINER_ENGINE ?= docker
