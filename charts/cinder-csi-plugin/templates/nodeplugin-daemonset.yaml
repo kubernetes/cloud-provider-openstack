@@ -179,8 +179,8 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-    {{- if .Values.priorityClassName }}
-      priorityClassName: {{ .Values.priorityClassName }}
+    {{- if .Values.csi.plugin.nodePlugin.priorityClassName }}
+      priorityClassName: {{ .Values.csi.plugin.nodePlugin.priorityClassName }}
     {{- end }}
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

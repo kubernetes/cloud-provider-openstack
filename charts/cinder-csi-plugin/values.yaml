@@ -91,6 +91,7 @@ csi:
         readOnly: true
     nodePlugin:
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: "system-node-critical"
       # Optional additional annotations to add to the nodePlugin Pods.
       podAnnotations: {}
       # Optional additional labels to add to the nodePlugin Pods.
@@ -127,6 +128,7 @@ csi:
           # maxSurge is the maximum number of pods that can be
           # created over the desired number of pods.
           maxSurge: 1
+      priorityClassName: "system-cluster-critical"
       # Optional additional annotations to add to the controllerPlugin Pods.
       podAnnotations: {}
       # Optional additional labels to add to the controllerPlugin Pods.
@@ -224,8 +226,6 @@ clusterID: "kubernetes"
 
 # Enable PVC annotations support to create PVCs with extra parameters
 pvcAnnotations: false
-
-priorityClassName: ""
 
 imagePullSecrets: []
 # - name: my-imagepull-secret
