@@ -24,6 +24,8 @@ spec:
       containers:
         {{- range .Values.shareProtocols }}
         - name: {{ .protocolSelector | lower }}-registrar
+          securityContext:
+            {{- toYaml $.Values.nodeplugin.securityContext | nindent 12 }}
           image: "{{ $.Values.nodeplugin.registrar.image.repository }}:{{ $.Values.nodeplugin.registrar.image.tag }}"
           args:
             - "-v={{ $.Values.logVerbosityLevel }}"
