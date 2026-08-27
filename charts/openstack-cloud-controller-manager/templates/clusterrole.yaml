@@ -29,7 +29,11 @@ rules:
   resources:
   - nodes
   verbs:
-  - '*'
+  - get
+  - list
+  - watch
+  - patch
+  - update
 - apiGroups:
   - ""
   resources:
@@ -67,12 +71,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - persistentvolumes
-  verbs:
-  - '*'
-- apiGroups:
-  - ""
-  resources:
   - endpoints
   verbs:
   - create
@@ -87,12 +85,4 @@ rules:
   verbs:
   - get
   - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - list
-  - get
   - watch

@@ -24,5 +24,18 @@ items:
   - kind: ServiceAccount
     name: cloud-controller-manager
     namespace: kube-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: system:cloud-controller-manager:secret-reader
+    namespace: kube-system
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: system:cloud-controller-manager:secret-reader
+  subjects:
+  - kind: ServiceAccount
+    name: cloud-controller-manager
+    namespace: kube-system
 kind: List
 metadata: {}

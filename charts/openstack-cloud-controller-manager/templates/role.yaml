@@ -1,0 +1,23 @@
+{{- if .Values.secret.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.clusterRoleName }}:secret-reader
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - {{ .Values.secret.name | default "cloud-config" }}
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
