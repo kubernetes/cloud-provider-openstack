@@ -78,7 +78,7 @@
         local_ip_address: "{{ local_ip_output.stdout }}"
 
     - name: Download octavia amphora image
-      when: octavia_amphora_url != ""
+      when: octavia_amphora_url != "" and "octavia" in enable_services
       block:
         - name: Ensure amphora image dest folder
           file:
