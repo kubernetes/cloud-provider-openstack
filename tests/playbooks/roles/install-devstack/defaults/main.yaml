@@ -13,3 +13,10 @@ enable_services:
 octavia_amphora_url: "https://tarballs.opendev.org/openstack/octavia/test-images/test-only-amphora-x64-haproxy-ubuntu-noble.qcow2"
 octavia_amphora_dir: /opt/octavia-amphora
 octavia_amphora_filename: amphora-x64-haproxy.qcow2
+
+# Note, only use alphanumeric characters as some services fail to work when using special characters.
+devstack_password: password
+swift_hash: 1234123412341234
+
+# Additional services can be enabled here, e.g. rabbit,mysql,key,horizon,swift
+default_enabled_services: rabbit,mysql,key

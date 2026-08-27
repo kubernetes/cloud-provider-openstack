@@ -6,6 +6,7 @@
   vars:
     user: stack
     devstack_workdir: /home/{{ user }}/devstack
+    run_e2e: false
 
   roles:
     - role: install-golang
@@ -21,10 +22,11 @@
     - role: install-k3s
       worker_node_count: 0
     - role: install-cpo-occm
-      run_e2e: false
+      run_e2e_ccm: false
     - role: install-helm
     - role: install-csi-manila
       environment:
         GOPATH: '{{ ansible_user_dir }}'
         PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
         KUBECONFIG: '{{ ansible_user_dir }}/.kube/config'
+      run_e2e_manila: "{{ run_e2e | bool }}"
