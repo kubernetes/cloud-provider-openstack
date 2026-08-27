@@ -137,13 +137,10 @@ csi:
         # runAsGroup: 65532
         # fsGroup: 65532
         # fsGroupChangePolicy: OnRootMismatch
-      securityContext: {}
-        # capabilities:
-        #   drop:
-        #   - ALL
-        # seccompProfile:
-        #   type: RuntimeDefault
-        # readOnlyRootFilesystem: true
+      securityContext:
+        readOnlyRootFilesystem: true
+        seccompProfile:
+          type: RuntimeDefault
       affinity: {}
       nodeSelector: {}
       tolerations: []
