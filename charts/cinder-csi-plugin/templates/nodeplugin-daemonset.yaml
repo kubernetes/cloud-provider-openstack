@@ -85,8 +85,6 @@ spec:
         - name: cinder-csi-plugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
