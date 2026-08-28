@@ -39,6 +39,9 @@ tests:
       serviceMonitor.enabled: true
     asserts:
       - isKind:
+          of: ClusterRoleBinding
+        template: templates/clusterrolebinding-sm.yaml
+      - isKind:
           of: ServiceMonitor
         template: templates/servicemonitor.yaml
       - equal:
