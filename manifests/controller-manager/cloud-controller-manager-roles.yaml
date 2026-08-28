@@ -26,7 +26,11 @@ items:
     resources:
     - nodes
     verbs:
-    - '*'
+    - get
+    - list
+    - watch
+    - patch
+    - update
   - apiGroups:
     - ""
     resources:
@@ -64,12 +68,6 @@ items:
   - apiGroups:
     - ""
     resources:
-    - persistentvolumes
-    verbs:
-    - '*'
-  - apiGroups:
-    - ""
-    resources:
     - endpoints
     verbs:
     - create
@@ -85,13 +83,21 @@ items:
     - get
     - list
     - watch
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: system:cloud-controller-manager:secret-reader
+    namespace: kube-system
+  rules:
   - apiGroups:
     - ""
     resources:
     - secrets
+    resourceNames:
+    - cloud-config
     verbs:
-    - list
     - get
+    - list
     - watch
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole

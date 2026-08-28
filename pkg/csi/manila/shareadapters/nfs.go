@@ -65,7 +65,11 @@ func (NFS) GetOrGrantAccesses(ctx context.Context, args *GrantAccessArgs) ([]sha
 			if err != nil {
 				return nil, fmt.Errorf("failed to grant access right: %v", err)
 			}
-			rights = append(rights, *right)
+			activeRight, err := waitForAccessRuleActive(ctx, args.ManilaClient, args.Share.ID, right.ID)
+			if err != nil {
+				return nil, err
+			}
+			rights = append(rights, *activeRight)
 		}
 	}
 

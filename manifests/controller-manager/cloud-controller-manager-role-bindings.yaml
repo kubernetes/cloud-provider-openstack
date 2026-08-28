@@ -10,7 +10,7 @@ items:
     name: system:cloud-node-controller
   subjects:
   - kind: ServiceAccount
-    name: cloud-node-controller
+    name: cloud-controller-manager
     namespace: kube-system
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
@@ -20,6 +20,19 @@ items:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
     name: system:cloud-controller-manager
+  subjects:
+  - kind: ServiceAccount
+    name: cloud-controller-manager
+    namespace: kube-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: system:cloud-controller-manager:secret-reader
+    namespace: kube-system
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: system:cloud-controller-manager:secret-reader
   subjects:
   - kind: ServiceAccount
     name: cloud-controller-manager
