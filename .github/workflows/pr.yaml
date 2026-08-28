@@ -3,7 +3,9 @@ name: Lint Charts
 on:
   pull_request:
     paths:
+      - '.github/workflows/pr.yaml'
       - 'charts/**'
+      - 'tests/helm/**'
 
 jobs:
   lint:
@@ -30,3 +32,18 @@ jobs:
 
       - name: Run chart-testing (lint)
         run: ct lint --target-branch ${GITHUB_BASE_REF}
+
+      # v1.0.3 is the latest release compatible with Helm v3.10.0.
+      - name: Install helm-unittest v1.0.3
+        run: >-
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git
+          --version 6f82a998e0b5461762ca959f87f5dd344af5e4eb
+
+      - name: Build OCCM chart dependencies
+        run: helm dependency build charts/openstack-cloud-controller-manager
+
+      - name: Run OCCM Helm unit tests
+        run: >-
+          helm unittest --strict --with-subchart=false
+          --file '../../tests/helm/openstack-cloud-controller-manager/*_test.yaml'
+          charts/openstack-cloud-controller-manager
