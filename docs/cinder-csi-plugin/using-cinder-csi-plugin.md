@@ -283,10 +283,12 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 |-------------------------   |-----------------------|-----------------|-----------------|
 | StorageClass `parameters`  | `availability`          | `nova`          | String. Volume Availability Zone |
 | StorageClass `parameters`  | `type`                  | Empty String    | String. Name/ID of Volume type. Corresponding volume type should exist in cinder     |
+| StorageClass `parameters`  | `appendVolumeMetadata`   | Empty String    | Append user-defined metadata to the provisioned volume. If not empty, this field must be a string of a valid JSON object. The object must consist of key-value pairs of type string. Example: "{..., \"key\": \"value\"}". |
 | VolumeSnapshotClass `parameters` | `force-create`    | `false`         | Enable to support creating snapshot for a volume in in-use status |
 | VolumeSnapshotClass `parameters` | `type`            | Empty String    | `snapshot` creates a VolumeSnapshot object linked to a Cinder volume snapshot. `backup` creates a VolumeSnapshot object linked to a cinder volume backup. Defaults to `snapshot` if not defined |
 | VolumeSnapshotClass `parameters` | `backup-max-duration-seconds-per-gb`  | `20`    | Defines the amount of time to wait for a backup to complete in seconds per GB of volume size |
 | VolumeSnapshotClass `parameters`  | `availability`          | Same as volume | String. Backup Availability Zone |
+| VolumeSnapshotClass `parameters`  | `appendVolumeMetadata`   | Empty String   | Append user-defined metadata to the created snapshot/backup. If not empty, this field must be a string of a valid JSON object. The object must consist of key-value pairs of type string. Example: "{..., \"key\": \"value\"}". |
 | Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes|
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |
 
