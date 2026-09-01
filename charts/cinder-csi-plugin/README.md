@@ -6,6 +6,7 @@ Deploys a Cinder csi provisioner to your cluster, with the appropriate storageCl
 - Enable deployment of storageclasses using `storageClass.enabled`
 - Tag the retain or delete class as default class using `storageClass.delete.isDefault` in your value yaml
 - Set `storageClass.<reclaim-policy>.allowVolumeExpansion` to `true` or `false`
+- Set `storageClass.<reclaim-policy>.parameters` to add parameters (e.g. `availability` or `type`) to the storageclass
 
 First add the repo:
 
