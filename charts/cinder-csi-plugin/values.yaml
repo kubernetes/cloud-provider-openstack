@@ -197,9 +197,13 @@ storageClass:
   delete:
     isDefault: false
     allowVolumeExpansion: true
+    # optional parameters for the StorageClass, e.g. availability or type
+    parameters: {}
   retain:
     isDefault: false
     allowVolumeExpansion: true
+    # optional parameters for the StorageClass, e.g. availability or type
+    parameters: {}
 # any kind of custom StorageClasses
 #   custom: |-
 #     ---
