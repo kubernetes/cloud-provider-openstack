@@ -3,10 +3,11 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/ptr"
 	"reflect"
 	"sort"
 	"testing"
+
+	"k8s.io/utils/ptr"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
@@ -1971,16 +1972,22 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 			},
 		},
 	}
+
+	defaultLBaasOpts := LoadBalancerOpts{
+		ProviderRequiresNodeports: true,
+	}
+
 	testCases := []struct {
 		name                    string
 		nodes                   []*corev1.Node
 		port                    corev1.ServicePort
 		svcConf                 *serviceConfig
+		lbOpts                  *LoadBalancerOpts
 		expectedLen             int
 		expectedNewMembersCount int
 	}{
 		{
-			name:  "NodePortequalszero",
+			name:  "NodePort equals zero",
 			nodes: []*corev1.Node{node1, node2},
 			port:  corev1.ServicePort{NodePort: 0},
 			svcConf: &serviceConfig{
@@ -1990,6 +1997,21 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 			},
 			expectedLen:             0,
 			expectedNewMembersCount: 0,
+		},
+		{
+			name:  "NodesPort equals zero, providerRequiresNodeports=false",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 0, Port: 80},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+			},
+			lbOpts: &LoadBalancerOpts{
+				ProviderRequiresNodeports: false,
+			},
+			expectedLen:             2,
+			expectedNewMembersCount: 2,
 		},
 		{
 			name:  "Valid nodes, canUseHTTPMonitor=false",
@@ -2053,7 +2075,15 @@ func TestBuildBatchUpdateMemberOpts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			lbaas := &LbaasV2{}
+			lbaas := &LbaasV2{
+				LoadBalancer: LoadBalancer{
+					opts: defaultLBaasOpts,
+				},
+			}
+			// overwrite default options
+			if tc.lbOpts != nil {
+				lbaas.opts = *tc.lbOpts
+			}
 			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(context.TODO(), tc.port, tc.nodes, tc.svcConf)
 			assert.Len(t, members, tc.expectedLen)
 			assert.NoError(t, err)

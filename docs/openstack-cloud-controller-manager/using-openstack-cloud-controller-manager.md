@@ -327,6 +327,9 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   loadbalancer, then populate its listeners, pools and members. This is a compatibility option at the expense of
   increased load on the OpenStack API. Default: false
 
+* `provider-requires-nodeports`
+  This option is for cloud providers that do not require nodeport access for accessing nodes from their externalLBs. E.g. when using IPIP tunneling where k8s node IP is only used for filling the outer IP header (inner dstIP is the VIP itself). Default: true
+
 NOTE:
 
 * environment variable `OCCM_WAIT_LB_ACTIVE_STEPS` is used to provide steps of waiting loadbalancer to be ready. Current default wait steps is 23 and setup the environment variable overrides default value. Refer to [Backoff.Steps](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/wait#Backoff) for further information.

@@ -62,4 +62,9 @@ type octaviaConfig struct {
 	// the load balancer instead of the bulk update API call.
 	// Default is false.
 	ProviderRequiresSerialAPICalls bool `mapstructure:"provider-requires-serial-api-calls"`
+
+	// (Optional) If the provider requires nodeports for accessing the nodes or allows usage
+	// of `allocateLoadBalancerNodePorts=false`.
+	// Default is true.
+	ProviderRequiresNodeports bool `mapstructure:"provider-requires-nodeports"`
 }
