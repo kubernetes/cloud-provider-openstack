@@ -43,6 +43,7 @@ const (
 	SnapshotType                 = "type"
 	SnapshotAvailabilityZone     = "availability"
 	SnapshotAppendVolumeMetadata = "appendVolumeMetadata"
+	SnapshotIncremental          = "incremental"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and

@@ -1207,6 +1207,46 @@ func TestCreateSnapshotBackupWithAppendVolumeMetadata(t *testing.T) {
 	}
 }
 
+// Test CreateSnapshot with snapshot type 'backup' and the incremental parameter
+func TestCreateSnapshotBackupWithIncremental(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedSnapshotProperties := map[string]string{
+		cinderCSIClusterIDKey: FakeCluster,
+	}
+
+	expectedBackupProperties := map[string]string{
+		cinderCSIClusterIDKey:         FakeCluster,
+		"type":                        "backup",
+		openstack.SnapshotIncremental: "true",
+	}
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, expectedSnapshotProperties).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
+	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
+
+	osmock.On("CreateBackup", FakeSnapshotName, FakeVolID, FakeSnapshotID, "", expectedBackupProperties).Return(&FakeBackupRes, nil)
+	osmock.On("ListBackups", map[string]string{"Name": FakeSnapshotName}).Return(FakeBackupListEmpty, nil)
+	osmock.On("WaitBackupReady", FakeBackupID).Return(FakeBackupRes.Status, nil)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			openstack.SnapshotType:        "backup",
+			openstack.SnapshotIncremental: "true",
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot backup with incremental: %v", err)
+	}
+
+	osmock.AssertCalled(t, "CreateBackup", FakeSnapshotName, FakeVolID, FakeSnapshotID, "", expectedBackupProperties)
+}
+
 // Test DeleteSnapshot
 func TestDeleteSnapshot(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
