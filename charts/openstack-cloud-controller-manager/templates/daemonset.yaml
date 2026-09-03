@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: DaemonSet
+kind: {{ .Values.controllerKind }}
 metadata:
   name: {{ include "occm.name" . }}
   labels: {{- include "common.labels.standard" . | nindent 4 }}
@@ -12,8 +12,14 @@ spec:
   selector:
     matchLabels:
       {{- include "occm.controllermanager.matchLabels" . | nindent 6 }}
+  {{- if eq .Values.controllerKind "Deployment" }}
+  replicas: {{ .Values.controllerReplicas }}
+  strategy:
+    type: RollingUpdate
+  {{- else }}
   updateStrategy:
     type: RollingUpdate
+  {{- end }}
   template:
     metadata:
       annotations:
@@ -26,9 +32,16 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if eq .Values.controllerKind "Deployment" }}
+      {{- with .Values.deploymentNodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- else }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
