@@ -1,9 +1,3 @@
-# golang-client Makefile
-# Follows the interface defined in the Golang CTI proposed
-# in https://review.openstack.org/410355
-
-#REPO_VERSION?=$(shell git describe --tags)
-
 GIT_HOST = k8s.io
 
 CONTAINER_ENGINE ?= docker
@@ -57,6 +51,7 @@ BUILD_CMDS	?= openstack-cloud-controller-manager \
 				barbican-kms-plugin \
 				magnum-auto-healer \
 				client-keystone-auth
+GOLANGCI_LINT_VERSION?=v2.12.1
 
 # CTI targets
 
@@ -80,8 +75,39 @@ $(BUILD_CMDS): $(SOURCES)
 
 test: unit functional
 
-check: work
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.1 run --timeout=20m ./...
+# if the golangci-lint steps fails with one of the following error messages:
+#
+#   directory prefix . does not contain main module or its selected dependencies
+#
+#   failed to initialize build cache at /root/.cache/golangci-lint: mkdir /root/.cache/golangci-lint: permission denied
+#
+# you probably have to fix the SELinux security context for root directory plus your cache
+#
+#   chcon -Rt svirt_sandbox_file_t .
+#   chcon -Rt svirt_sandbox_file_t ~/.cache/golangci-lint
+check:
+ifdef CI
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run \
+		-v --max-same-issues=50 --timeout=20m
+else
+	mkdir -p ~/.cache/golangci-lint/$(GOLANGCI_LINT_VERSION)
+	$(CONTAINER_ENGINE) run -t --rm \
+		--volume $(shell pwd):/data \
+		--volume ~/.cache/golangci-lint/$(GOLANGCI_LINT_VERSION):/root/.cache \
+		--workdir /data \
+		--env GOFLAGS="-tags=acceptance" \
+		golangci/golangci-lint:$(GOLANGCI_LINT_VERSION) golangci-lint run \
+		-v --max-same-issues=50 --timeout=20m
+	$(CONTAINER_ENGINE) run -t --rm \
+		--volume $(shell pwd):/data \
+		--workdir=/data \
+		quay.io/helmpack/chart-testing:v3.14.0 ct lint \
+		--all \
+		--chart-dirs charts/cinder-csi-plugin \
+		--chart-dirs charts/manila-csi-plugin \
+		--chart-dirs charts/openstack-cloud-controller-manager
+endif
+.PHONY: check
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
