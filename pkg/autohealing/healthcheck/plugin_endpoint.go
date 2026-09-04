@@ -19,6 +19,7 @@ package healthcheck
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"k8s.io/client-go/util/cert"
 	log "k8s.io/klog/v2"
 
 	"k8s.io/cloud-provider-openstack/pkg/autohealing/utils"
@@ -34,6 +36,7 @@ import (
 const (
 	EndpointType = "Endpoint"
 	TokenPath    = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	CAPath       = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	TimeLayout   = "2006-01-02 15:04:05"
 )
 
@@ -61,6 +64,13 @@ type EndpointCheck struct {
 
 	// (Optional) Token to use in the request header. Default: read from TokenPath file
 	Token string `mapstructure:"token"`
+
+	// (Optional) Path to a CA certificate file used to verify the node's TLS certificate. Only used when Protocol is HTTPS.
+	// Default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+	CAFile string `mapstructure:"ca-file"`
+
+	// (Optional) If true, skip TLS certificate verification. Default: false
+	TLSInsecure bool `mapstructure:"tls-insecure"`
 }
 
 // GetName returns name of the health check
@@ -141,9 +151,18 @@ func (check *EndpointCheck) Check(ctx context.Context, node NodeInfo, controller
 	protocol := strings.ToLower(check.Protocol)
 	switch protocol {
 	case "https":
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		tlsConfig := &tls.Config{InsecureSkipVerify: check.TLSInsecure}
+		if check.CAFile != "" && !check.TLSInsecure {
+			var caPool *x509.CertPool
+			var err error
+			caPool, err = cert.NewPool(check.CAFile)
+			if err != nil {
+				log.Errorf("Node %s, failed to load CA file %s, error: %v", nodeName, check.CAFile, err)
+				return check.checkDuration(ctx, node, controller, false)
+			}
+			tlsConfig.RootCAs = caPool
 		}
+		tr := &http.Transport{TLSClientConfig: tlsConfig}
 		client = &http.Client{Transport: tr, Timeout: time.Second * 5}
 	case "http":
 		client = &http.Client{Timeout: time.Second * 5}
@@ -195,6 +214,7 @@ func NewEndpointCheck(config interface{}) (HealthCheck, error) {
 		OKCodes:             []int{200},
 		RequireToken:        false,
 		UnhealthyAnnotation: "autohealing.openstack.org/unhealthy-timestamp",
+		CAFile:              CAPath,
 	}
 
 	decConfig := mapstructure.DecoderConfig{
