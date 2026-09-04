@@ -14,12 +14,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# example usage:
-# ./release-image-digests.sh registry.k8s.io/images/k8s-staging-provider-os/images.yaml v1.36.0 v1.35.0
-# will replace all instances of the v1.35.0 tag with v1.36.0
+usage() {
+  cat <<EOF
+Usage: $0 <yaml_file> [<tag>...]
+
+Populate an image promoter manifest with content-digest-to-tag mappings for
+staged container images.
+
+The Kubernetes image promoter promotes images from staging to production using
+a manifest that maps content digests (sha256:...) to tags. This script
+automates the step of looking up those digests from the GCR staging registry
+(gcr.io/k8s-staging-provider-os) after images have been pushed, and writing
+the dmap entries into the manifest YAML.
+
+Run this after cutting a release to update the promoter manifest before opening
+the promotion PR.
+
+Arguments:
+  yaml_file   Path to the image promoter manifest, e.g.
+              registry.k8s.io/images/k8s-staging-provider-os/images.yaml
+  tag         One or more release tags to process, e.g. v1.35.0 v1.34.1.
+              If omitted, all tags already present in the manifest are used.
+
+Examples:
+  $0 registry.k8s.io/images/k8s-staging-provider-os/images.yaml v1.35.0
+  $0 registry.k8s.io/images/k8s-staging-provider-os/images.yaml v1.35.0 v1.34.1
+  $0 registry.k8s.io/images/k8s-staging-provider-os/images.yaml
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0;;
+    --) shift; break;;
+    -*) echo "$0: unknown option: $1" >&2; usage >&2; exit 1;;
+    *) break;;
+  esac
+  shift
+done
 
 YAML_FILE=${1:?Usage: $0 <yaml_file> [<tag>...]}
-TAGS="${@:2}"
+shift
+TAGS="$*"
 
 # fail if file does not exist
 if [ ! -f "${YAML_FILE}" ]; then
