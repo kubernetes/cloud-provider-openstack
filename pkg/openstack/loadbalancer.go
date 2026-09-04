@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
 	"slices"
@@ -56,7 +57,9 @@ const (
 	defaultLoadBalancerSourceRangesIPv6 = "::/0"
 	activeStatus                        = "ACTIVE"
 	errorStatus                         = "ERROR"
-	annotationXForwardedFor             = "X-Forwarded-For"
+	xForwardedForHeader                 = "X-Forwarded-For"
+	xForwardedPortHeader                = "X-Forwarded-Port"
+	xForwardedProtoHeader               = "X-Forwarded-Proto"
 
 	ServiceAnnotationLoadBalancerInternal             = "service.beta.kubernetes.io/openstack-internal-load-balancer"
 	ServiceAnnotationLoadBalancerNodeSelector         = "loadbalancer.openstack.org/node-selector"
@@ -78,6 +81,8 @@ const (
 	ServiceAnnotationLoadBalancerTimeoutMemberData    = "loadbalancer.openstack.org/timeout-member-data"
 	ServiceAnnotationLoadBalancerTimeoutTCPInspect    = "loadbalancer.openstack.org/timeout-tcp-inspect"
 	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
+	ServiceAnnotationLoadBalancerXForwardedPort       = "loadbalancer.openstack.org/x-forwarded-port"
+	ServiceAnnotationLoadBalancerXForwardedProto      = "loadbalancer.openstack.org/x-forwarded-proto"
 	ServiceAnnotationLoadBalancerFlavorID             = "loadbalancer.openstack.org/flavor-id"
 	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether to create health monitor for the load balancer
@@ -132,7 +137,9 @@ type serviceConfig struct {
 	lbPublicNetworkID           string
 	lbPublicSubnetSpec          *floatingSubnetSpec
 	nodeSelectors               map[string]string
-	keepClientIP                bool
+	xForwardedFor               bool
+	xForwardedPort              bool
+	xForwardedProto             bool
 	poolLbMethod                string
 	proxyProtocolVersion        *v2pools.Protocol
 	timeoutClientData           int
@@ -254,12 +261,44 @@ func popListener(existingListeners []listeners.Listener, id string) []listeners.
 	return newListeners
 }
 
+func isListenerOwnedByService(listener listeners.Listener, isLBOwner bool, lbName string) bool {
+	return slices.Contains(listener.Tags, lbName) || (isLBOwner && len(listener.Tags) == 0)
+}
+
+func getListenersOwnedByService(currentListeners []listeners.Listener, isLBOwner bool, lbName string) []listeners.Listener {
+	var ownedListeners []listeners.Listener
+	for _, listener := range currentListeners {
+		if isListenerOwnedByService(listener, isLBOwner, lbName) {
+			ownedListeners = append(ownedListeners, listener)
+		}
+	}
+	return ownedListeners
+}
+
+func listenerProtocolFamily(protocol listeners.Protocol) listeners.Protocol {
+	switch protocol {
+	case listeners.ProtocolTCP,
+		listeners.ProtocolHTTP,
+		listeners.ProtocolHTTPS,
+		listeners.ProtocolTerminatedHTTPS,
+		listeners.ProtocolPROXY,
+		listeners.ProtocolPrometheus:
+		return listeners.ProtocolTCP
+	default:
+		return protocol
+	}
+}
+
+func listenerProtocolsConflict(protocolA, protocolB listeners.Protocol) bool {
+	return listenerProtocolFamily(protocolA) == listenerProtocolFamily(protocolB)
+}
+
 func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) listeners.Protocol {
-	// Make neutron-lbaas code work
 	if svcConf != nil {
 		if svcConf.tlsContainerRef != "" {
 			return listeners.ProtocolTerminatedHTTPS
-		} else if svcConf.keepClientIP {
+		}
+		if hasXForwardedHeaders(svcConf) {
 			return listeners.ProtocolHTTP
 		}
 	}
@@ -272,6 +311,46 @@ func getListenerProtocol(protocol corev1.Protocol, svcConf *serviceConfig) liste
 	default:
 		return listeners.Protocol(protocol)
 	}
+}
+
+// planListenerReplacements validates listener port ownership and returns listeners
+// whose immutable protocol must change before their replacements can be created.
+func planListenerReplacements(service *corev1.Service, svcConf *serviceConfig, currentListeners []listeners.Listener, isLBOwner bool, lbName string) ([]listeners.Listener, error) {
+	var listenersToReplace []listeners.Listener
+
+	for _, listener := range currentListeners {
+		currentProtocol := listeners.Protocol(listener.Protocol)
+		for _, servicePort := range service.Spec.Ports {
+			desiredProtocol := getListenerProtocol(servicePort.Protocol, svcConf)
+			if listener.ProtocolPort != int(servicePort.Port) || !listenerProtocolsConflict(currentProtocol, desiredProtocol) {
+				continue
+			}
+
+			if !isListenerOwnedByService(listener, isLBOwner, lbName) {
+				return nil, fmt.Errorf("the listener port %d already exists with protocol %s", servicePort.Port, listener.Protocol)
+			}
+
+			if currentProtocol != desiredProtocol {
+				listenersToReplace = append(listenersToReplace, listener)
+			}
+			break
+		}
+	}
+
+	return listenersToReplace, nil
+}
+
+func getPoolProtocol(listenerProtocol string, svcConf *serviceConfig) v2pools.Protocol {
+	if svcConf != nil && svcConf.proxyProtocolVersion != nil {
+		return *svcConf.proxyProtocolVersion
+	}
+
+	protocol := v2pools.Protocol(listenerProtocol)
+	if svcConf != nil && (hasXForwardedHeaders(svcConf) || svcConf.tlsContainerRef != "") && protocol != v2pools.ProtocolHTTP {
+		return v2pools.ProtocolHTTP
+	}
+
+	return protocol
 }
 
 func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clusterName string, service *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) (*loadbalancers.LoadBalancer, error) {
@@ -607,7 +686,7 @@ func (lbaas *LbaasV2) deleteListeners(ctx context.Context, lbID string, listener
 func (lbaas *LbaasV2) deleteOctaviaListeners(ctx context.Context, lbID string, listenerList []listeners.Listener, isLBOwner bool, lbName string) error {
 	for _, listener := range listenerList {
 		// If the listener was created by this Service before or after supporting shared LB.
-		if (isLBOwner && len(listener.Tags) == 0) || slices.Contains(listener.Tags, lbName) {
+		if isListenerOwnedByService(listener, isLBOwner, lbName) {
 			klog.InfoS("Deleting listener", "listenerID", listener.ID, "lbID", lbID)
 
 			pool, err := openstackutil.GetPoolByListener(ctx, lbaas.lb, lbID, listener.ID)
@@ -929,14 +1008,7 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 	if err != nil && err != cpoerrors.ErrNotFound {
 		return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 	}
-
-	// By default, use the protocol of the listener
-	poolProto := v2pools.Protocol(listener.Protocol)
-	if svcConf.proxyProtocolVersion != nil {
-		poolProto = *svcConf.proxyProtocolVersion
-	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
-		poolProto = v2pools.ProtocolHTTP
-	}
+	poolProto := getPoolProtocol(listener.Protocol, svcConf)
 
 	// Delete the pool and its members if it already exists and has the wrong protocol
 	if pool != nil && v2pools.Protocol(pool.Protocol) != poolProto {
@@ -1033,19 +1105,9 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 }
 
 func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev1.Service, svcConf *serviceConfig, name string) v2pools.CreateOpts {
-	// By default, use the protocol of the listener
-	poolProto := v2pools.Protocol(listenerProtocol)
-	if svcConf.proxyProtocolVersion != nil {
-		poolProto = *svcConf.proxyProtocolVersion
-	} else if (svcConf.keepClientIP || svcConf.tlsContainerRef != "") && poolProto != v2pools.ProtocolHTTP {
-		if svcConf.keepClientIP && svcConf.tlsContainerRef != "" {
-			klog.V(4).Infof("Forcing to use %q protocol for pool because annotations %q %q are set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor, ServiceAnnotationTlsContainerRef)
-		} else if svcConf.keepClientIP {
-			klog.V(4).Infof("Forcing to use %q protocol for pool because annotation %q is set", v2pools.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-		} else {
-			klog.V(4).Infof("Forcing to use %q protocol for pool because annotations %q is set", v2pools.ProtocolHTTP, ServiceAnnotationTlsContainerRef)
-		}
-		poolProto = v2pools.ProtocolHTTP
+	poolProto := getPoolProtocol(listenerProtocol, svcConf)
+	if svcConf.proxyProtocolVersion == nil && poolProto != v2pools.Protocol(listenerProtocol) {
+		klog.V(4).InfoS("Forcing pool protocol", "poolProtocol", poolProto, "listenerProtocol", listenerProtocol, "xForwardedAnnotations", enabledXForwardedAnnotations(svcConf), "tlsTermination", svcConf.tlsContainerRef != "")
 	}
 
 	affinity := service.Spec.SessionAffinity
@@ -1175,17 +1237,9 @@ func (lbaas *LbaasV2) ensureOctaviaListener(ctx context.Context, lbID string, na
 			listenerChanged = true
 		}
 
-		listenerKeepClientIP := listener.InsertHeaders[annotationXForwardedFor] == "true"
-		if svcConf.keepClientIP != listenerKeepClientIP {
-			updateOpts.InsertHeaders = &listener.InsertHeaders
-			if svcConf.keepClientIP {
-				if *updateOpts.InsertHeaders == nil {
-					*updateOpts.InsertHeaders = make(map[string]string)
-				}
-				(*updateOpts.InsertHeaders)[annotationXForwardedFor] = "true"
-			} else {
-				delete(*updateOpts.InsertHeaders, annotationXForwardedFor)
-			}
+		desiredHeaders := buildXForwardedHeaders(svcConf)
+		if insertHeaders, changed := reconcileXForwardedHeaders(listener.InsertHeaders, desiredHeaders); changed {
+			updateOpts.InsertHeaders = &insertHeaders
 			listenerChanged = true
 		}
 		if svcConf.tlsContainerRef != listener.DefaultTlsContainerRef {
@@ -1250,21 +1304,16 @@ func (lbaas *LbaasV2) buildListenerCreateOpt(ctx context.Context, port corev1.Se
 		listenerCreateOpt.TimeoutTCPInspect = &svcConf.timeoutTCPInspect
 	}
 
-	if svcConf.keepClientIP {
-		listenerCreateOpt.InsertHeaders = map[string]string{annotationXForwardedFor: "true"}
-	}
+	listenerCreateOpt.InsertHeaders = buildXForwardedHeaders(svcConf)
 
 	if svcConf.tlsContainerRef != "" {
 		listenerCreateOpt.DefaultTlsContainerRef = svcConf.tlsContainerRef
 	}
 
-	// protocol selection
-	if svcConf.tlsContainerRef != "" && listenerCreateOpt.Protocol != listeners.ProtocolTerminatedHTTPS {
-		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolTerminatedHTTPS, ServiceAnnotationTlsContainerRef)
-		listenerCreateOpt.Protocol = listeners.ProtocolTerminatedHTTPS
-	} else if svcConf.keepClientIP && listenerCreateOpt.Protocol != listeners.ProtocolHTTP {
-		klog.V(4).Infof("Forcing to use %q protocol for listener because %q annotation is set", listeners.ProtocolHTTP, ServiceAnnotationLoadBalancerXForwardedFor)
-		listenerCreateOpt.Protocol = listeners.ProtocolHTTP
+	desiredProtocol := getListenerProtocol(port.Protocol, svcConf)
+	if desiredProtocol != listenerCreateOpt.Protocol {
+		klog.V(4).InfoS("Forcing listener protocol", "listenerProtocol", desiredProtocol, "xForwardedAnnotations", enabledXForwardedAnnotations(svcConf), "tlsTermination", svcConf.tlsContainerRef != "")
+		listenerCreateOpt.Protocol = desiredProtocol
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureVIPACL, lbaas.opts.LBProvider) {
@@ -1410,7 +1459,9 @@ func (lbaas *LbaasV2) checkServiceDelete(ctx context.Context, service *corev1.Se
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// This affects the protocol of listener and pool
-	svcConf.keepClientIP = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
+	svcConf.xForwardedFor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
+	svcConf.xForwardedPort = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedPort, false)
+	svcConf.xForwardedProto = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedProto, false)
 	svcConf.proxyProtocolVersion = getProxyProtocolFromServiceAnnotation(service)
 	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
 
@@ -1621,12 +1672,16 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 		}
 	}
 
-	keepClientIP := getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
+	svcConf.xForwardedFor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedFor, false)
+	svcConf.xForwardedPort = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedPort, false)
+	svcConf.xForwardedProto = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerXForwardedProto, false)
 	svcConf.proxyProtocolVersion = getProxyProtocolFromServiceAnnotation(service)
-	if svcConf.proxyProtocolVersion != nil && keepClientIP {
-		return fmt.Errorf("annotation %s and %s cannot be used together", ServiceAnnotationLoadBalancerProxyEnabled, ServiceAnnotationLoadBalancerXForwardedFor)
+	if err := validateXForwardedAnnotations(service, svcConf, lbaas.opts.LBProvider); err != nil {
+		return err
 	}
-	svcConf.keepClientIP = keepClientIP
+	if svcConf.xForwardedProto && !openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureXForwardedProto, lbaas.opts.LBProvider) {
+		return fmt.Errorf("annotation %q requires Octavia API version 2.1 or later", ServiceAnnotationLoadBalancerXForwardedProto)
+	}
 
 	if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTimeout, lbaas.opts.LBProvider) {
 		svcConf.timeoutClientData = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerTimeoutClientData, 50000)
@@ -1673,25 +1728,6 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
 	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
-	return nil
-}
-
-// checkListenerPorts checks if there is conflict for ports.
-func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMapping map[listenerKey]*listeners.Listener, isLBOwner bool, lbName string) error {
-	for _, svcPort := range service.Spec.Ports {
-		key := listenerKey{Protocol: listeners.Protocol(svcPort.Protocol), Port: int(svcPort.Port)}
-
-		if listener, isPresent := curListenerMapping[key]; isPresent {
-			// The listener is used by this Service if LB name is in the tags, or
-			// the listener was created by this Service.
-			if slices.Contains(listener.Tags, lbName) || (len(listener.Tags) == 0 && isLBOwner) {
-				continue
-			} else {
-				return fmt.Errorf("the listener port %d already exists", svcPort.Port)
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -1839,17 +1875,26 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// a newly created, unpopulated loadbalancer that needs populating.
 	if !createNewLB || (lbaas.opts.ProviderRequiresSerialAPICalls && createNewLB) {
 		curListeners := loadbalancer.Listeners
+		listenersToReplace, err := planListenerReplacements(service, svcConf, curListeners, isLBOwner, lbName)
+		if err != nil {
+			return nil, err
+		}
+		for _, listener := range listenersToReplace {
+			klog.V(4).InfoS("Replacing listener to change its protocol", "listenerID", listener.ID, "listenerProtocol", listener.Protocol, "listenerPort", listener.ProtocolPort)
+		}
+		if err := lbaas.deleteListeners(ctx, loadbalancer.ID, listenersToReplace); err != nil {
+			return nil, err
+		}
+		for _, listener := range listenersToReplace {
+			curListeners = popListener(curListeners, listener.ID)
+		}
+
 		curListenerMapping := make(map[listenerKey]*listeners.Listener)
 		for i, l := range curListeners {
 			key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
 			curListenerMapping[key] = &curListeners[i]
 		}
 		klog.V(4).InfoS("Existing listeners", "portProtocolMapping", curListenerMapping)
-
-		// Check port conflicts
-		if err := lbaas.checkListenerPorts(service, curListenerMapping, isLBOwner, lbName); err != nil {
-			return nil, err
-		}
 
 		for portIndex, port := range service.Spec.Ports {
 			listener, err := lbaas.ensureOctaviaListener(ctx, loadbalancer.ID, cpoutil.Sprintf255(listenerFormat, portIndex, lbName), curListenerMapping, port, svcConf)
@@ -2089,24 +2134,9 @@ func (lbaas *LbaasV2) deleteLoadBalancer(ctx context.Context, loadbalancer *load
 		}
 
 		if !needDeleteLB {
-			var listenersToDelete []listeners.Listener
-			curListenerMapping := make(map[listenerKey]*listeners.Listener)
-			for i, l := range listenerList {
-				key := listenerKey{Protocol: listeners.Protocol(l.Protocol), Port: l.ProtocolPort}
-				curListenerMapping[key] = &listenerList[i]
-			}
-
-			for _, port := range service.Spec.Ports {
-				proto := getListenerProtocol(port.Protocol, svcConf)
-				listener, isPresent := curListenerMapping[listenerKey{
-					Protocol: proto,
-					Port:     int(port.Port),
-				}]
-				if isPresent && slices.Contains(listener.Tags, svcConf.lbName) {
-					listenersToDelete = append(listenersToDelete, *listener)
-				}
-			}
-			listenerList = listenersToDelete
+			// Ownership tags are the source of truth here. The Service ports may
+			// already differ if a preceding update did not finish successfully.
+			listenerList = getListenersOwnedByService(listenerList, false, svcConf.lbName)
 		}
 
 		// get all pools (and health monitors) associated with this loadbalancer
@@ -2367,4 +2397,83 @@ func matchNodeLabels(node *corev1.Node, filterLabels map[string]string) bool {
 	}
 
 	return true
+}
+
+func hasXForwardedHeaders(svcConf *serviceConfig) bool {
+	return svcConf != nil && (svcConf.xForwardedFor || svcConf.xForwardedPort || svcConf.xForwardedProto)
+}
+
+func validateXForwardedAnnotations(service *corev1.Service, svcConf *serviceConfig, lbProvider string) error {
+	if !hasXForwardedHeaders(svcConf) {
+		return nil
+	}
+
+	annotations := enabledXForwardedAnnotations(svcConf)
+	if svcConf.proxyProtocolVersion != nil {
+		return fmt.Errorf("annotation %q cannot be used with any of the following annotations: %s", ServiceAnnotationLoadBalancerProxyEnabled, strings.Join(annotations, ", "))
+	}
+	if lbProvider == "ovn" {
+		return fmt.Errorf("annotations %s are not supported by the OVN provider", strings.Join(annotations, ", "))
+	}
+	for _, port := range service.Spec.Ports {
+		if port.Protocol != corev1.ProtocolTCP {
+			return fmt.Errorf("annotations %s require TCP Service ports, but port %d uses protocol %s", strings.Join(annotations, ", "), port.Port, port.Protocol)
+		}
+	}
+
+	return nil
+}
+
+func enabledXForwardedAnnotations(svcConf *serviceConfig) []string {
+	var annotations []string
+	if svcConf == nil {
+		return annotations
+	}
+	if svcConf.xForwardedFor {
+		annotations = append(annotations, ServiceAnnotationLoadBalancerXForwardedFor)
+	}
+	if svcConf.xForwardedPort {
+		annotations = append(annotations, ServiceAnnotationLoadBalancerXForwardedPort)
+	}
+	if svcConf.xForwardedProto {
+		annotations = append(annotations, ServiceAnnotationLoadBalancerXForwardedProto)
+	}
+	return annotations
+}
+
+func buildXForwardedHeaders(svcConf *serviceConfig) map[string]string {
+	if !hasXForwardedHeaders(svcConf) {
+		return nil
+	}
+
+	headers := make(map[string]string, 3)
+	if svcConf.xForwardedFor {
+		headers[xForwardedForHeader] = "true"
+	}
+	if svcConf.xForwardedPort {
+		headers[xForwardedPortHeader] = "true"
+	}
+	if svcConf.xForwardedProto {
+		headers[xForwardedProtoHeader] = "true"
+	}
+	return headers
+}
+
+// reconcileXForwardedHeaders returns a copy of currentHeaders with the
+// OCCM-managed X-Forwarded headers reconciled and all other headers preserved
+// when the listener can be updated in place.
+func reconcileXForwardedHeaders(currentHeaders, desiredHeaders map[string]string) (map[string]string, bool) {
+	updatedHeaders := maps.Clone(currentHeaders)
+	for _, header := range []string{xForwardedForHeader, xForwardedPortHeader, xForwardedProtoHeader} {
+		if value, ok := desiredHeaders[header]; ok {
+			if updatedHeaders == nil {
+				updatedHeaders = make(map[string]string, len(desiredHeaders))
+			}
+			updatedHeaders[header] = value
+		} else {
+			delete(updatedHeaders, header)
+		}
+	}
+
+	return updatedHeaders, !maps.Equal(currentHeaders, updatedHeaders)
 }

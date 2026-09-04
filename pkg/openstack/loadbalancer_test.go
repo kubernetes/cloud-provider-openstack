@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"k8s.io/utils/ptr"
-	"reflect"
+	"maps"
 	"sort"
 	"testing"
 
@@ -536,7 +536,7 @@ func TestGetRulesToCreateAndDelete(t *testing.T) {
 	}
 }
 
-func Test_getListenerProtocol(t *testing.T) {
+func TestGetListenerProtocol(t *testing.T) {
 	type testArg struct {
 		protocol corev1.Protocol
 		svcConf  *serviceConfig
@@ -557,10 +557,28 @@ func Test_getListenerProtocol(t *testing.T) {
 			expected: listeners.ProtocolTerminatedHTTPS,
 		},
 		{
-			name: "not nil svcConf and keepClientIP is true",
+			name: "X-Forwarded-For uses HTTP",
 			testArg: testArg{
 				svcConf: &serviceConfig{
-					keepClientIP: true,
+					xForwardedFor: true,
+				},
+			},
+			expected: listeners.ProtocolHTTP,
+		},
+		{
+			name: "X-Forwarded-Port uses HTTP",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					xForwardedPort: true,
+				},
+			},
+			expected: listeners.ProtocolHTTP,
+		},
+		{
+			name: "X-Forwarded-Proto uses HTTP",
+			testArg: testArg{
+				svcConf: &serviceConfig{
+					xForwardedProto: true,
 				},
 			},
 			expected: listeners.ProtocolHTTP,
@@ -590,11 +608,11 @@ func Test_getListenerProtocol(t *testing.T) {
 			expected: listeners.ProtocolSCTP,
 		},
 		{
-			name: "passing a svcConf tls container ref with a keep client IP",
+			name: "TLS termination takes precedence over X-Forwarded headers",
 			testArg: testArg{
 				svcConf: &serviceConfig{
 					tlsContainerRef: "tls-container-ref",
-					keepClientIP:    true,
+					xForwardedFor:   true,
 				},
 			},
 			expected: listeners.ProtocolTerminatedHTTPS,
@@ -602,179 +620,305 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getListenerProtocol(tt.testArg.protocol, tt.testArg.svcConf); !reflect.DeepEqual(got, tt.expected) {
-				t.Errorf("getListenerProtocol() = %v, expected %v", got, tt.expected)
-			}
+			assert.Equal(t, tt.expected, getListenerProtocol(tt.testArg.protocol, tt.testArg.svcConf))
 		})
 	}
 }
 
-func TestLbaasV2_checkListenerPorts(t *testing.T) {
-	type args struct {
-		service            *corev1.Service
-		curListenerMapping map[listenerKey]*listeners.Listener
-		isLBOwner          bool
-		lbName             string
-	}
+func TestGetPoolProtocol(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name             string
+		listenerProtocol string
+		svcConf          *serviceConfig
+		expected         pools.Protocol
 	}{
 		{
-			name: "error is not thrown if loadbalancer matches & if port is already in use by a lb",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "https",
-								Port:     9090,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb"},
-					},
-				},
-				isLBOwner: false,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
+			name:             "nil configuration uses listener protocol",
+			listenerProtocol: "TCP",
+			expected:         pools.ProtocolTCP,
 		},
 		{
-			name: "error is thrown if loadbalancer doesn't matches & if port is already in use by a service",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "https",
-								Port:     9090,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb", "test-lb1"},
-					},
-				},
-				isLBOwner: false,
-				lbName:    "test-lb2",
-			},
-			wantErr: true,
+			name:             "empty configuration uses listener protocol",
+			listenerProtocol: "TCP",
+			svcConf:          &serviceConfig{},
+			expected:         pools.ProtocolTCP,
 		},
 		{
-			name: "error is not thrown if lbOwner is present & no tags on service",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "https",
-								Port:     9090,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID: "listenerid",
-					},
-				},
-				isLBOwner: true,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
+			name:             "X-Forwarded-Port uses HTTP",
+			listenerProtocol: "TCP",
+			svcConf:          &serviceConfig{xForwardedPort: true},
+			expected:         pools.ProtocolHTTP,
 		},
 		{
-			name: "error is not thrown if lbOwner is true & there are tags on service",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "http",
-								Port:     9091,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb"},
-					},
-				},
-				isLBOwner: true,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
+			name:             "X-Forwarded-Proto uses HTTP",
+			listenerProtocol: "TCP",
+			svcConf:          &serviceConfig{xForwardedProto: true},
+			expected:         pools.ProtocolHTTP,
 		},
 		{
-			name: "error is not thrown if listener key doesn't match port & protocol",
-			args: args{
-				service: &corev1.Service{
-					Spec: corev1.ServiceSpec{
-						Ports: []corev1.ServicePort{
-							{
-								Name:     "service",
-								Protocol: "http",
-								Port:     9091,
-							},
-						},
-					},
-				},
-				curListenerMapping: map[listenerKey]*listeners.Listener{
-					{
-						Protocol: "https",
-						Port:     9090,
-					}: {
-						ID:   "listenerid",
-						Tags: []string{"test-lb"},
-					},
-				},
-				isLBOwner: false,
-				lbName:    "test-lb",
-			},
-			wantErr: false,
+			name:             "TLS termination uses an HTTP pool",
+			listenerProtocol: string(listeners.ProtocolTerminatedHTTPS),
+			svcConf:          &serviceConfig{tlsContainerRef: "tls-container-ref"},
+			expected:         pools.ProtocolHTTP,
+		},
+		{
+			name:             "proxy protocol takes precedence",
+			listenerProtocol: "TCP",
+			svcConf:          &serviceConfig{proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2)},
+			expected:         pools.ProtocolPROXYV2,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lbaas := &LbaasV2{
-				LoadBalancer: LoadBalancer{},
-			}
-			err := lbaas.checkListenerPorts(tt.args.service, tt.args.curListenerMapping, tt.args.isLBOwner, tt.args.lbName)
-			if tt.wantErr == true {
-				assert.ErrorContains(t, err, "already exists")
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.Equal(t, tt.expected, getPoolProtocol(tt.listenerProtocol, tt.svcConf))
 		})
 	}
 }
+
+func TestValidateXForwardedAnnotations(t *testing.T) {
+	tests := []struct {
+		name          string
+		ports         []corev1.ServicePort
+		svcConf       *serviceConfig
+		lbProvider    string
+		errorContains string
+	}{
+		{
+			name:    "disabled annotations allow UDP",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolUDP, Port: 53}},
+			svcConf: &serviceConfig{},
+		},
+		{
+			name:    "enabled annotation allows TCP",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{xForwardedPort: true},
+		},
+		{
+			name:          "proxy protocol is mutually exclusive",
+			ports:         []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf:       &serviceConfig{xForwardedProto: true, proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2)},
+			errorContains: ServiceAnnotationLoadBalancerProxyEnabled,
+		},
+		{
+			name:          "OVN provider is unsupported",
+			ports:         []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf:       &serviceConfig{xForwardedFor: true},
+			lbProvider:    "ovn",
+			errorContains: "OVN provider",
+		},
+		{
+			name:          "UDP port is unsupported",
+			ports:         []corev1.ServicePort{{Protocol: corev1.ProtocolUDP, Port: 53}},
+			svcConf:       &serviceConfig{xForwardedPort: true},
+			errorContains: "require TCP Service ports",
+		},
+		{
+			name:          "SCTP port is unsupported",
+			ports:         []corev1.ServicePort{{Protocol: corev1.ProtocolSCTP, Port: 3868}},
+			svcConf:       &serviceConfig{xForwardedProto: true},
+			errorContains: "require TCP Service ports",
+		},
+		{
+			name: "mixed TCP and UDP ports are unsupported",
+			ports: []corev1.ServicePort{
+				{Protocol: corev1.ProtocolTCP, Port: 53},
+				{Protocol: corev1.ProtocolUDP, Port: 53},
+			},
+			svcConf:       &serviceConfig{xForwardedFor: true},
+			errorContains: "require TCP Service ports",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &corev1.Service{Spec: corev1.ServiceSpec{Ports: tt.ports}}
+			err := validateXForwardedAnnotations(service, tt.svcConf, tt.lbProvider)
+			if tt.errorContains == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tt.errorContains)
+		})
+	}
+}
+
+func TestListenerProtocolFamily(t *testing.T) {
+	tests := []struct {
+		protocol listeners.Protocol
+		expected listeners.Protocol
+	}{
+		{protocol: listeners.ProtocolTCP, expected: listeners.ProtocolTCP},
+		{protocol: listeners.ProtocolHTTP, expected: listeners.ProtocolTCP},
+		{protocol: listeners.ProtocolHTTPS, expected: listeners.ProtocolTCP},
+		{protocol: listeners.ProtocolTerminatedHTTPS, expected: listeners.ProtocolTCP},
+		{protocol: listeners.ProtocolPROXY, expected: listeners.ProtocolTCP},
+		{protocol: listeners.ProtocolPrometheus, expected: listeners.ProtocolTCP},
+		{protocol: listeners.ProtocolUDP, expected: listeners.ProtocolUDP},
+		{protocol: listeners.ProtocolSCTP, expected: listeners.ProtocolSCTP},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.protocol), func(t *testing.T) {
+			assert.Equal(t, tt.expected, listenerProtocolFamily(tt.protocol))
+		})
+	}
+}
+
+func TestGetListenersOwnedByService(t *testing.T) {
+	const lbName = "test-lb"
+	currentListeners := []listeners.Listener{
+		{ID: "old-port", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80, Tags: []string{lbName}},
+		{ID: "old-protocol", Protocol: string(listeners.ProtocolHTTP), ProtocolPort: 443, Tags: []string{lbName}},
+		{ID: "foreign", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 81, Tags: []string{"other-lb"}},
+		{ID: "legacy", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 82},
+	}
+
+	tests := []struct {
+		name        string
+		isLBOwner   bool
+		expectedIDs []string
+	}{
+		{
+			name:        "shared load balancer includes every tagged listener",
+			expectedIDs: []string{"old-port", "old-protocol"},
+		},
+		{
+			name:        "load balancer owner also includes legacy untagged listeners",
+			isLBOwner:   true,
+			expectedIDs: []string{"old-port", "old-protocol", "legacy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := getListenersOwnedByService(currentListeners, tt.isLBOwner, lbName)
+			actualIDs := make([]string, 0, len(actual))
+			for _, listener := range actual {
+				actualIDs = append(actualIDs, listener.ID)
+			}
+			assert.ElementsMatch(t, tt.expectedIDs, actualIDs)
+		})
+	}
+}
+
+func TestPlanListenerReplacements(t *testing.T) {
+	const lbName = "test-lb"
+	tests := []struct {
+		name             string
+		ports            []corev1.ServicePort
+		svcConf          *serviceConfig
+		currentListeners []listeners.Listener
+		isLBOwner        bool
+		expectedIDs      []string
+		wantErr          bool
+	}{
+		{
+			name:    "unchanged owned listener is reused",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{},
+			currentListeners: []listeners.Listener{{
+				ID: "tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80, Tags: []string{lbName},
+			}},
+		},
+		{
+			name:    "foreign listener with the desired protocol conflicts",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{xForwardedFor: true},
+			currentListeners: []listeners.Listener{{
+				ID: "http", Protocol: string(listeners.ProtocolHTTP), ProtocolPort: 80, Tags: []string{"other-lb"},
+			}},
+			wantErr: true,
+		},
+		{
+			name:    "foreign listener in the same L4 protocol family conflicts",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{xForwardedPort: true},
+			currentListeners: []listeners.Listener{{
+				ID: "tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80, Tags: []string{"other-lb"},
+			}},
+			wantErr: true,
+		},
+		{
+			name:    "foreign listener in a different L4 protocol family is allowed",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{xForwardedProto: true},
+			currentListeners: []listeners.Listener{{
+				ID: "udp", Protocol: string(listeners.ProtocolUDP), ProtocolPort: 80, Tags: []string{"other-lb"},
+			}},
+		},
+		{
+			name:    "owned TCP listener is replaced with HTTP",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{xForwardedFor: true},
+			currentListeners: []listeners.Listener{{
+				ID: "tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80, Tags: []string{lbName},
+			}},
+			expectedIDs: []string{"tcp"},
+		},
+		{
+			name:    "owned HTTP listener is replaced with TCP",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{},
+			currentListeners: []listeners.Listener{{
+				ID: "http", Protocol: string(listeners.ProtocolHTTP), ProtocolPort: 80, Tags: []string{lbName},
+			}},
+			expectedIDs: []string{"http"},
+		},
+		{
+			name:      "untagged listener is replaced for the load balancer owner",
+			ports:     []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf:   &serviceConfig{xForwardedFor: true},
+			isLBOwner: true,
+			currentListeners: []listeners.Listener{{
+				ID: "tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80,
+			}},
+			expectedIDs: []string{"tcp"},
+		},
+		{
+			name:    "untagged listener conflicts for a shared load balancer user",
+			ports:   []corev1.ServicePort{{Protocol: corev1.ProtocolTCP, Port: 80}},
+			svcConf: &serviceConfig{xForwardedFor: true},
+			currentListeners: []listeners.Listener{{
+				ID: "tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80,
+			}},
+			wantErr: true,
+		},
+		{
+			name: "all ports are validated before replacements are returned",
+			ports: []corev1.ServicePort{
+				{Protocol: corev1.ProtocolTCP, Port: 80},
+				{Protocol: corev1.ProtocolTCP, Port: 81},
+			},
+			svcConf: &serviceConfig{xForwardedFor: true},
+			currentListeners: []listeners.Listener{
+				{ID: "owned-tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 80, Tags: []string{lbName}},
+				{ID: "foreign-tcp", Protocol: string(listeners.ProtocolTCP), ProtocolPort: 81, Tags: []string{"other-lb"}},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &corev1.Service{Spec: corev1.ServiceSpec{Ports: tt.ports}}
+			actual, err := planListenerReplacements(service, tt.svcConf, tt.currentListeners, tt.isLBOwner, lbName)
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "already exists")
+				assert.Nil(t, actual)
+				return
+			}
+
+			assert.NoError(t, err)
+			actualIDs := make([]string, 0, len(actual))
+			for _, listener := range actual {
+				actualIDs = append(actualIDs, listener.ID)
+			}
+			assert.ElementsMatch(t, tt.expectedIDs, actualIDs)
+		})
+	}
+}
+
 func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 	ipmodeProxy := corev1.LoadBalancerIPModeProxy
 	ipmodeVIP := corev1.LoadBalancerIPModeVIP
@@ -1048,14 +1192,12 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
-					tlsContainerRef:      "tls-container-ref",
 					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
 				},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
 						opts: LoadBalancerOpts{
-							LBProvider: "ovn",
+							LBProvider: "amphora",
 							LBMethod:   "SOURCE_IP_PORT",
 						},
 					},
@@ -1077,15 +1219,11 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			name: "test for pool protocol http with proxy protocol disabled",
 			args: args{
 				protocol: "HTTP",
-				svcConf: &serviceConfig{
-					keepClientIP:         true,
-					tlsContainerRef:      "tls-container-ref",
-					proxyProtocolVersion: nil,
-				},
+				svcConf:  &serviceConfig{},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
 						opts: LoadBalancerOpts{
-							LBProvider: "ovn",
+							LBProvider: "amphora",
 							LBMethod:   "SOURCE_IP_PORT",
 						},
 					},
@@ -1104,18 +1242,16 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			},
 		},
 		{
-			name: "test for pool protocol UDP with proxy protocol disabled",
+			name: "test for X-Forwarded headers forcing the pool protocol to HTTP",
 			args: args{
-				protocol: "UDP",
+				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
-					tlsContainerRef:      "tls-container-ref",
-					proxyProtocolVersion: nil,
+					xForwardedFor: true,
 				},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
 						opts: LoadBalancerOpts{
-							LBProvider: "ovn",
+							LBProvider: "amphora",
 							LBMethod:   "SOURCE_IP_PORT",
 						},
 					},
@@ -1127,7 +1263,7 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 				},
 			},
 			want: pools.CreateOpts{
-				Name:        "test for pool protocol UDP with proxy protocol disabled",
+				Name:        "test for X-Forwarded headers forcing the pool protocol to HTTP",
 				Protocol:    pools.ProtocolHTTP,
 				LBMethod:    "SOURCE_IP_PORT",
 				Persistence: &pools.SessionPersistence{Type: "SOURCE_IP"},
@@ -1136,15 +1272,12 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 		{
 			name: "test for session affinity none",
 			args: args{
-				protocol: "TCP",
-				svcConf: &serviceConfig{
-					keepClientIP:    true,
-					tlsContainerRef: "tls-container-ref",
-				},
+				protocol: "HTTP",
+				svcConf:  &serviceConfig{},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
 						opts: LoadBalancerOpts{
-							LBProvider: "ovn",
+							LBProvider: "amphora",
 							LBMethod:   "SOURCE_IP_PORT",
 						},
 					},
@@ -1165,15 +1298,12 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 		{
 			name: "test for session affinity client ip",
 			args: args{
-				protocol: "TCP",
-				svcConf: &serviceConfig{
-					keepClientIP:    true,
-					tlsContainerRef: "tls-container-ref",
-				},
+				protocol: "HTTP",
+				svcConf:  &serviceConfig{},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
 						opts: LoadBalancerOpts{
-							LBProvider: "ovn",
+							LBProvider: "amphora",
 							LBMethod:   "SOURCE_IP_PORT",
 						},
 					},
@@ -1196,14 +1326,12 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 			args: args{
 				protocol: "TCP",
 				svcConf: &serviceConfig{
-					keepClientIP:         true,
-					tlsContainerRef:      "tls-container-ref",
 					proxyProtocolVersion: ptr.To(pools.ProtocolPROXYV2),
 				},
 				lbaasV2: &LbaasV2{
 					LoadBalancer{
 						opts: LoadBalancerOpts{
-							LBProvider: "ovn",
+							LBProvider: "amphora",
 							LBMethod:   "SOURCE_IP_PORT",
 						},
 					},
@@ -2473,7 +2601,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				connLimit:       100,
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
-				keepClientIP:    true,
+				xForwardedFor:   true,
 			},
 			expectedCreateOpt: listeners.CreateOpts{
 				Name:                   "Test with TLSContainerRef and X-Forwarded-For",
@@ -2486,7 +2614,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			},
 		},
 		{
-			name: "Test with TLSContainerRef but without X-Forwarded-For",
+			name: "Test with TLSContainerRef and X-Forwarded-Proto",
 			port: corev1.ServicePort{
 				Protocol: "TCP",
 				Port:     443,
@@ -2495,10 +2623,31 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				connLimit:       100,
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
-				keepClientIP:    false,
+				xForwardedProto: true,
 			},
 			expectedCreateOpt: listeners.CreateOpts{
-				Name:                   "Test with TLSContainerRef but without X-Forwarded-For",
+				Name:                   "Test with TLSContainerRef and X-Forwarded-Proto",
+				Protocol:               listeners.ProtocolTerminatedHTTPS,
+				ProtocolPort:           443,
+				ConnLimit:              &svcConf.connLimit,
+				DefaultTlsContainerRef: "tls-container-ref",
+				InsertHeaders:          map[string]string{"X-Forwarded-Proto": "true"},
+				Tags:                   nil,
+			},
+		},
+		{
+			name: "Test with TLSContainerRef but without X-Forwarded-*",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     443,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				tlsContainerRef: "tls-container-ref",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:                   "Test with TLSContainerRef but without X-Forwarded-*",
 				Protocol:               listeners.ProtocolTerminatedHTTPS,
 				ProtocolPort:           443,
 				ConnLimit:              &svcConf.connLimit,
@@ -2516,7 +2665,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				connLimit:       100,
 				lbName:          "my-lb",
 				tlsContainerRef: "tls-container-ref",
-				keepClientIP:    true,
+				xForwardedFor:   true,
 				allowedCIDR:     []string{"192.168.1.0/24", "10.0.0.0/8"},
 			},
 			expectedCreateOpt: listeners.CreateOpts{
@@ -2539,7 +2688,7 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			svcConf: &serviceConfig{
 				connLimit:       100,
 				lbName:          "my-lb",
-				keepClientIP:    true,
+				xForwardedFor:   true,
 				tlsContainerRef: "",
 			},
 			expectedCreateOpt: listeners.CreateOpts{
@@ -2548,6 +2697,27 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 				ProtocolPort:  80,
 				ConnLimit:     &svcConf.connLimit,
 				InsertHeaders: map[string]string{"X-Forwarded-For": "true"},
+				Tags:          nil,
+			},
+		},
+		{
+			name: "Test with Protocol forced to HTTP with X-Forwarded-Port",
+			port: corev1.ServicePort{
+				Protocol: "TCP",
+				Port:     80,
+			},
+			svcConf: &serviceConfig{
+				connLimit:       100,
+				lbName:          "my-lb",
+				xForwardedPort:  true,
+				tlsContainerRef: "",
+			},
+			expectedCreateOpt: listeners.CreateOpts{
+				Name:          "Test with Protocol forced to HTTP with X-Forwarded-Port",
+				Protocol:      listeners.ProtocolHTTP,
+				ProtocolPort:  80,
+				ConnLimit:     &svcConf.connLimit,
+				InsertHeaders: map[string]string{"X-Forwarded-Port": "true"},
 				Tags:          nil,
 			},
 		},
@@ -2648,6 +2818,174 @@ func TestBuildListenerCreateOpt(t *testing.T) {
 			createOpt := lbaas.buildListenerCreateOpt(context.TODO(), tc.port, tc.svcConf, tc.name)
 			assert.Equal(t, tc.expectedCreateOpt, createOpt)
 
+		})
+	}
+}
+
+func TestBuildXForwardedHeaders(t *testing.T) {
+	tests := []struct {
+		name     string
+		svcConf  *serviceConfig
+		expected map[string]string
+	}{
+		{
+			name:     "all annotations disabled",
+			svcConf:  &serviceConfig{},
+			expected: nil,
+		},
+		{
+			name:     "X-Forwarded-For enabled",
+			svcConf:  &serviceConfig{xForwardedFor: true},
+			expected: map[string]string{xForwardedForHeader: "true"},
+		},
+		{
+			name:     "X-Forwarded-Port enabled",
+			svcConf:  &serviceConfig{xForwardedPort: true},
+			expected: map[string]string{xForwardedPortHeader: "true"},
+		},
+		{
+			name:     "X-Forwarded-Proto enabled",
+			svcConf:  &serviceConfig{xForwardedProto: true},
+			expected: map[string]string{xForwardedProtoHeader: "true"},
+		},
+		{
+			name: "all annotations enabled",
+			svcConf: &serviceConfig{
+				xForwardedFor:   true,
+				xForwardedPort:  true,
+				xForwardedProto: true,
+			},
+			expected: map[string]string{
+				xForwardedForHeader:   "true",
+				xForwardedPortHeader:  "true",
+				xForwardedProtoHeader: "true",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, buildXForwardedHeaders(tt.svcConf))
+		})
+	}
+}
+
+func TestReconcileXForwardedHeaders(t *testing.T) {
+	tests := []struct {
+		name           string
+		currentHeaders map[string]string
+		desiredHeaders map[string]string
+		expected       map[string]string
+		changed        bool
+	}{
+		{
+			name:           "no headers and all annotations disabled",
+			currentHeaders: nil,
+			desiredHeaders: nil,
+			expected:       nil,
+			changed:        false,
+		},
+		{
+			name:           "empty headers and all annotations disabled",
+			currentHeaders: map[string]string{},
+			desiredHeaders: nil,
+			expected:       map[string]string{},
+			changed:        false,
+		},
+		{
+			name:           "add X-Forwarded-For",
+			desiredHeaders: map[string]string{xForwardedForHeader: "true"},
+			expected:       map[string]string{xForwardedForHeader: "true"},
+			changed:        true,
+		},
+		{
+			name:           "add X-Forwarded-Port",
+			desiredHeaders: map[string]string{xForwardedPortHeader: "true"},
+			expected:       map[string]string{xForwardedPortHeader: "true"},
+			changed:        true,
+		},
+		{
+			name:           "add X-Forwarded-Proto",
+			desiredHeaders: map[string]string{xForwardedProtoHeader: "true"},
+			expected:       map[string]string{xForwardedProtoHeader: "true"},
+			changed:        true,
+		},
+		{
+			name:           "remove X-Forwarded-For",
+			currentHeaders: map[string]string{xForwardedForHeader: "true"},
+			expected:       map[string]string{},
+			changed:        true,
+		},
+		{
+			name:           "remove X-Forwarded-Port",
+			currentHeaders: map[string]string{xForwardedPortHeader: "true"},
+			expected:       map[string]string{},
+			changed:        true,
+		},
+		{
+			name:           "remove X-Forwarded-Proto",
+			currentHeaders: map[string]string{xForwardedProtoHeader: "true"},
+			expected:       map[string]string{},
+			changed:        true,
+		},
+		{
+			name: "add and remove multiple headers",
+			currentHeaders: map[string]string{
+				xForwardedForHeader:  "true",
+				xForwardedPortHeader: "true",
+			},
+			desiredHeaders: map[string]string{
+				xForwardedPortHeader:  "true",
+				xForwardedProtoHeader: "true",
+			},
+			expected: map[string]string{
+				xForwardedPortHeader:  "true",
+				xForwardedProtoHeader: "true",
+			},
+			changed: true,
+		},
+		{
+			name: "preserve unrelated headers during in-place reconciliation",
+			currentHeaders: map[string]string{
+				"X-SSL-Client-Verify": "true",
+				xForwardedForHeader:   "true",
+			},
+			desiredHeaders: map[string]string{xForwardedProtoHeader: "true"},
+			expected: map[string]string{
+				"X-SSL-Client-Verify": "true",
+				xForwardedProtoHeader: "true",
+			},
+			changed: true,
+		},
+		{
+			name: "unchanged headers are a no-op",
+			currentHeaders: map[string]string{
+				"X-SSL-Client-Verify": "true",
+				xForwardedPortHeader:  "true",
+			},
+			desiredHeaders: map[string]string{xForwardedPortHeader: "true"},
+			expected: map[string]string{
+				"X-SSL-Client-Verify": "true",
+				xForwardedPortHeader:  "true",
+			},
+			changed: false,
+		},
+		{
+			name:           "remove a disabled managed header value",
+			currentHeaders: map[string]string{xForwardedForHeader: "false"},
+			expected:       map[string]string{},
+			changed:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalHeaders := maps.Clone(tt.currentHeaders)
+			actual, changed := reconcileXForwardedHeaders(tt.currentHeaders, tt.desiredHeaders)
+
+			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.changed, changed)
+			assert.Equal(t, originalHeaders, tt.currentHeaders, "current headers must not be mutated")
 		})
 	}
 }
