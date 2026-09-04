@@ -158,7 +158,7 @@ func (check *EndpointCheck) Check(ctx context.Context, node NodeInfo, controller
 			caPool, err = cert.NewPool(check.CAFile)
 			if err != nil {
 				log.Errorf("Node %s, failed to load CA file %s, error: %v", nodeName, check.CAFile, err)
-				return false
+				return check.checkDuration(ctx, node, controller, false)
 			}
 			tlsConfig.RootCAs = caPool
 		}
