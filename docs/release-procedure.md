@@ -89,7 +89,7 @@ dependency or sidecar container.
 
 3. Update the Helm Chart version with the expected version.
 
-    Make changes in the `charts` directory using the `hack/bump-release.sh` script by
+    Make changes in the `charts` directory using the `hack/bump-charts.sh` script by
     running the following command:
 
     ```bash
@@ -127,7 +127,7 @@ dependency or sidecar container.
     and will result in new container images being pushed to [the staging
     area](https://console.cloud.google.com/artifacts/docker/k8s-staging-provider-os/us/gcr.io).
 
-7. Make PR modifying
+6. Make PR modifying
    [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml)
    to promote staging images to registry.k8s.io. The point is to copy the proper image
    sha256 hashes from the staging repository to the `images.yaml`.
@@ -146,7 +146,7 @@ dependency or sidecar container.
    "Generate release notes" button in the GitHub "New release" UI and publish the
    release.
 
-9. Update `kubernetes/test-infra` to add jobs for the new release branch in the
+8. Update `kubernetes/test-infra` to add jobs for the new release branch in the
    [`config/jobs/kubernetes/cloud-provider-openstack`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack)
    directory.
 
