@@ -125,7 +125,8 @@ ansible-playbook -v \
   --private-key ~/.ssh/google_compute_engine \
   --inventory ${PUBLIC_IP}, \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
-  tests/playbooks/test-csi-manila-e2e.yaml
+  tests/playbooks/test-csi-manila-e2e.yaml \
+  -e run_e2e=true
 exit_code=$?
 
 # Fetch logs for debugging purpose

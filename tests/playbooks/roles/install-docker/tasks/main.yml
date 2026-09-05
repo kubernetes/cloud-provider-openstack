@@ -46,3 +46,7 @@
     dest: /etc/docker/daemon.json
     mode: 0644
   notify: "Restart Docker"
+
+# Trigger docker restart immediately
+- name: Flush handlers
+  meta: flush_handlers
