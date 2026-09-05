@@ -154,6 +154,18 @@
   retries: 100
   delay: 5
 
+- name: Check k3s kernel config
+  shell:
+    executable: /bin/bash
+    cmd: |
+      ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i {{ ansible_user_dir }}/.ssh/id_rsa ubuntu@{{ k3s_fip }} sudo k3s check-config | sed 's/\x1b\[[0-9;]*m//g'
+  register: k3s_check_config
+  ignore_errors: yes
+
+- name: Report k3s kernel config
+  debug:
+    msg: "{{ k3s_check_config.stdout_lines }}"
+
 - name: Prepare kubeconfig file
   shell:
     executable: /bin/bash
