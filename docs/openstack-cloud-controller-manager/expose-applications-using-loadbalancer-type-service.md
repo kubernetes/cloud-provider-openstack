@@ -239,6 +239,20 @@ Request Body:
 
   If this annotation is specified, the other annotations which define the load balancer features will be ignored.
 
+- `loadbalancer.openstack.org/load-balancer-tags`
+
+  A comma-separated list of tags to add to the load balancer resource in addition to the tags managed by OCCM. Example: `env=prod,team=network`.
+
+  > NOTE: Tags starting with `kube_service_` are reserved for OCCM's own ownership and shared-load-balancer tracking. Any such tag supplied through this annotation is ignored (a warning is logged) to avoid conflicting with the tags OCCM manages. This applies to all three tag annotations.
+
+- `loadbalancer.openstack.org/listener-tags`
+
+  A comma-separated list of tags to add to the load balancer listener resources in addition to the tags managed by OCCM. Example: `env=prod,team=network`. Tags starting with the reserved `kube_service_` prefix are ignored (see the note above).
+
+- `loadbalancer.openstack.org/pool-tags`
+
+  A comma-separated list of tags to add to the load balancer pool resources. Example: `env=prod,team=network`. Tags starting with the reserved `kube_service_` prefix are ignored (see the note above).
+
 - `loadbalancer.openstack.org/hostname`
 
   This annotations explicitly sets a hostname in the status of the load balancer service.

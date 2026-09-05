@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2023 The Kubernetes Authors.
 #
@@ -32,4 +32,4 @@ else
   SED_EXTENDED=(-E)
 fi
 
-find docs manifests tests examples -type f -exec sed "${SED_INPLACE[@]}" "${SED_EXTENDED[@]}" -e 's/((ersion)?: ?v?)?([1-2]\.)'${FROM_MAJOR}'\.([0-9][0-9a-zA-Z.-]*)/\1\3'${TO_MAJOR}'.'${TO_MINOR}'/g' "{}" \;
+find docs manifests tests examples -type f -exec sed "${SED_INPLACE[@]}" "${SED_EXTENDED[@]}" -e 's/((ersion)?: ?v?)?([1-2]\.)'"${FROM_MAJOR}"'\.([0-9][0-9a-zA-Z.-]*)/\1\3'"${TO_MAJOR}"'.'"${TO_MINOR}"'/g' "{}" \;

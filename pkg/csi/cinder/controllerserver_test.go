@@ -17,9 +17,11 @@ limitations under the License.
 package cinder
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -364,6 +366,50 @@ func TestCreateVolumeWithExtraMetadata(t *testing.T) {
 	}
 
 	// Invoke CreateVolume
+	_, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateVolume: %v", err)
+	}
+}
+
+func TestCreateVolumeWithAppendVolumeMetadata(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedProperties := map[string]string{
+		cinderCSIClusterIDKey:     "override",
+		sharedcsi.PvNameKey:       FakePVName,
+		sharedcsi.PvcNameKey:      FakePVCName,
+		sharedcsi.PvcNamespaceKey: FakePVCNamespace,
+		"key1":                    "value1",
+		"key2":                    "value2",
+	}
+	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), "", "", "", "", "", expectedProperties).Return(&FakeVol, nil)
+	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+
+	fakeReq := &csi.CreateVolumeRequest{
+		Name: FakeVolName,
+		VolumeCapabilities: []*csi.VolumeCapability{
+			{
+				AccessMode: &csi.VolumeCapability_AccessMode{
+					Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				},
+			},
+		},
+
+		Parameters: map[string]string{
+			sharedcsi.PvNameKey:       FakePVName,
+			sharedcsi.PvcNameKey:      FakePVCName,
+			sharedcsi.PvcNamespaceKey: FakePVCNamespace,
+			openstack.VolumeAppendVolumeMetadata: `{
+  "key1": "value1",
+  "key2": "value2",
+  "csi.storage.k8s.io/pvc/namespace": "ignored",
+  "cinder.csi.openstack.org/cluster": "override"
+}`,
+		},
+	}
+
 	_, err := fakeCs.CreateVolume(FakeCtx, fakeReq)
 	if err != nil {
 		t.Errorf("failed to CreateVolume: %v", err)
@@ -1050,12 +1096,123 @@ func TestCreateSnapshotWithExtraMetadata(t *testing.T) {
 	assert.NotNil(FakeSnapshotID, actualRes.Snapshot.SnapshotId)
 }
 
+func TestCreateSnapshotWithAppendVolumeMetadata(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedProperties := map[string]string{
+		cinderCSIClusterIDKey:             "override",
+		sharedcsi.VolSnapshotNamespaceKey: FakeSnapshotNamespace,
+		"key1":                            "value1",
+		"key2":                            "value2",
+	}
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, expectedProperties).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			sharedcsi.VolSnapshotNamespaceKey: FakeSnapshotNamespace,
+			openstack.SnapshotAppendVolumeMetadata: `{
+  "key1": "value1",
+  "key2": "value2",
+  "csi.storage.k8s.io/volumesnapshot/namespace": "ignored",
+  "cinder.csi.openstack.org/cluster": "override"
+}`,
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot with appendVolumeMetadata: %v", err)
+	}
+}
+
+func TestCreateSnapshotBackupGetBackupByIDError(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	backendErr := errors.New("backend lookup failed")
+	existingBackup := backups.Backup{
+		ID:   "existing-backup-id",
+		Name: FakeSnapshotName,
+	}
+
+	osmock.On("ListBackups", map[string]string{"Name": FakeSnapshotName}).Return([]backups.Backup{existingBackup}, nil)
+	osmock.On("GetBackupByID", existingBackup.ID).Return((*backups.Backup)(nil), backendErr)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			openstack.SnapshotType: "backup",
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err == nil {
+		t.Fatal("expected CreateSnapshot to return an error")
+	}
+
+	statusErr, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected grpc status error, got %v", err)
+	}
+
+	assert.Equal(t, codes.Internal, statusErr.Code())
+	assert.Equal(t, "Failed to get backup by ID", statusErr.Message())
+}
+
+func TestCreateSnapshotBackupWithAppendVolumeMetadata(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	expectedSnapshotProperties := map[string]string{
+		cinderCSIClusterIDKey: FakeCluster,
+		"key1":                "value1",
+		"key2":                "value2",
+	}
+
+	expectedBackupProperties := map[string]string{
+		cinderCSIClusterIDKey: FakeCluster,
+		"key1":                "value1",
+		"key2":                "value2",
+		"type":                "backup",
+	}
+
+	osmock.On("CreateSnapshot", FakeSnapshotName, FakeVolID, expectedSnapshotProperties).Return(&FakeSnapshotRes, nil)
+	osmock.On("ListSnapshots", map[string]string{"Name": FakeSnapshotName}).Return(FakeSnapshotListEmpty, "", nil)
+	osmock.On("WaitSnapshotReady", FakeSnapshotID).Return(FakeSnapshotRes.Status, nil)
+	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
+
+	osmock.On("CreateBackup", FakeSnapshotName, FakeVolID, FakeSnapshotID, "", expectedBackupProperties).Return(&FakeBackupRes, nil)
+	osmock.On("ListBackups", map[string]string{"Name": FakeSnapshotName}).Return(FakeBackupListEmpty, nil)
+	osmock.On("WaitBackupReady", FakeBackupID).Return(FakeBackupRes.Status, nil)
+
+	fakeReq := &csi.CreateSnapshotRequest{
+		Name:           FakeSnapshotName,
+		SourceVolumeId: FakeVolID,
+		Parameters: map[string]string{
+			openstack.SnapshotType: "backup",
+			openstack.SnapshotAppendVolumeMetadata: `{
+  "key1": "value1",
+  "key2": "value2"
+}`,
+		},
+	}
+
+	_, err := fakeCs.CreateSnapshot(FakeCtx, fakeReq)
+	if err != nil {
+		t.Errorf("failed to CreateSnapshot backup with appendVolumeMetadata: %v", err)
+	}
+}
+
 // Test DeleteSnapshot
 func TestDeleteSnapshot(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
+	osmock.On("GetBackupByID", FakeSnapshotID).Return((*backups.Backup)(nil), cpoerrors.ErrNotFound)
 	osmock.On("DeleteSnapshot", FakeSnapshotID).Return(nil)
-	osmock.On("DeleteBackup", FakeSnapshotID).Return(nil)
 
 	assert := assert.New(t)
 
@@ -1075,6 +1232,56 @@ func TestDeleteSnapshot(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+}
+
+func TestDeleteSnapshotDeletesBackupWithoutDeletingSnapshot(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	osmock.On("GetBackupByID", FakeSnapshotID).Return(&backups.Backup{ID: FakeSnapshotID}, nil)
+	osmock.On("DeleteBackup", FakeSnapshotID).Return(nil)
+
+	actualRes, err := fakeCs.DeleteSnapshot(FakeCtx, &csi.DeleteSnapshotRequest{SnapshotId: FakeSnapshotID})
+	if err != nil {
+		t.Fatalf("DeleteSnapshot returned an error: %v", err)
+	}
+
+	assert.Equal(t, &csi.DeleteSnapshotResponse{}, actualRes)
+	osmock.AssertNotCalled(t, "DeleteSnapshot", FakeSnapshotID)
+}
+
+func TestDeleteSnapshotIgnoresBackupNotFoundDuringDelete(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	osmock.On("GetBackupByID", FakeSnapshotID).Return(&backups.Backup{ID: FakeSnapshotID}, nil)
+	osmock.On("DeleteBackup", FakeSnapshotID).Return(cpoerrors.ErrNotFound)
+
+	actualRes, err := fakeCs.DeleteSnapshot(FakeCtx, &csi.DeleteSnapshotRequest{SnapshotId: FakeSnapshotID})
+	if err != nil {
+		t.Fatalf("DeleteSnapshot returned an error: %v", err)
+	}
+
+	assert.Equal(t, &csi.DeleteSnapshotResponse{}, actualRes)
+	osmock.AssertNotCalled(t, "DeleteSnapshot", FakeSnapshotID)
+}
+
+func TestDeleteSnapshotReturnsErrorWhenBackupLookupFails(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+	lookupErr := errors.New("cinder backup service unavailable")
+
+	osmock.On("GetBackupByID", FakeSnapshotID).Return((*backups.Backup)(nil), lookupErr)
+	osmock.On("DeleteSnapshot", FakeSnapshotID).Maybe().Return(cpoerrors.ErrNotFound)
+
+	_, err := fakeCs.DeleteSnapshot(FakeCtx, &csi.DeleteSnapshotRequest{SnapshotId: FakeSnapshotID})
+	if err == nil {
+		t.Fatal("expected DeleteSnapshot to return an error")
+	}
+
+	statusErr, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected grpc status error, got %v", err)
+	}
+	assert.Equal(t, codes.Internal, statusErr.Code())
+	osmock.AssertNotCalled(t, "DeleteSnapshot", FakeSnapshotID)
 }
 
 func TestListSnapshots(t *testing.T) {
@@ -1188,4 +1395,87 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	// assert
 	assert.Equal(expectedRes, actualRes)
 	assert.Equal(expectedRes2, actualRes2)
+}
+
+func TestAppendVolumeMetadata(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []struct {
+		properties  map[string]string
+		metadataStr string
+		classType   string
+		name        string
+
+		expectedProperties    map[string]string
+		expectedErrStrPattern string
+	}{
+		{
+			properties:  map[string]string{},
+			metadataStr: `{"key1": "value1"}`,
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties: map[string]string{
+				"key1": "value1",
+			},
+			expectedErrStrPattern: "",
+		},
+		{
+			properties:  map[string]string{},
+			metadataStr: "",
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties:    map[string]string{},
+			expectedErrStrPattern: "",
+		},
+		{
+			properties: map[string]string{
+				"existingKey": "existingValue",
+			},
+			metadataStr: "",
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties: map[string]string{
+				"existingKey": "existingValue",
+			},
+			expectedErrStrPattern: "",
+		},
+		{
+			properties:  map[string]string{},
+			metadataStr: "invalid metadata",
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties:    nil,
+			expectedErrStrPattern: `invalid appendVolumeMetadata "invalid metadata" in StorageClass parameters, must be a string of a valid JSON object consisting of key-value pairs of type string`,
+		},
+		{
+			properties: map[string]string{
+				"existingKey":         "existingValue",
+				cinderCSIClusterIDKey: "origin",
+			},
+			metadataStr: `{"key1": "value1", "existingKey": "newValue", "cinder.csi.openstack.org/cluster": "override"}`,
+			classType:   "StorageClass",
+			name:        "vol1",
+
+			expectedProperties: map[string]string{
+				"existingKey":         "existingValue",
+				"key1":                "value1",
+				cinderCSIClusterIDKey: "override",
+			},
+			expectedErrStrPattern: "",
+		},
+	}
+
+	for _, c := range cases {
+		properties, err := appendVolumeMetadata(c.properties, c.metadataStr, c.classType, c.name)
+		assert.Equal(c.expectedProperties, properties)
+		if c.expectedErrStrPattern == "" {
+			assert.NoError(err)
+		} else {
+			assert.ErrorContains(err, c.expectedErrStrPattern)
+		}
+	}
 }

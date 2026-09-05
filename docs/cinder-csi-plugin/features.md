@@ -34,8 +34,8 @@ This feature enables driver to consider the topology constraints while creating 
 * Supported topology keys:
   `topology.cinder.csi.openstack.org/zone` : Availability by Zone
 * `allowedTopologies` can be specified in storage class to restrict the topology of provisioned volumes to specific zones and should be used as replacement of `availability` parameter.
-* To disable: set `--feature-gates=Topology=false` in external-provisioner (container `csi-provisioner` of `csi-cinder-controllerplugin`).
-  * If using Helm, it can be disabled by setting `Values.csi.provisioner.topology: "false"` 
+* To disable, pass `--with-topology=false` to both the controller and node Cinder CSI driver services.
+  * With Helm, set `.Values.csi.provisioner.topology: "false"`.
 
 For usage, refer [sample app](./examples.md#use-topology)
 

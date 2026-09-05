@@ -38,10 +38,11 @@ const (
 	snapReadyFactor     = 1.2
 	snapReadySteps      = 10
 
-	snapshotDescription      = "Created by OpenStack Cinder CSI driver"
-	SnapshotForceCreate      = "force-create"
-	SnapshotType             = "type"
-	SnapshotAvailabilityZone = "availability"
+	snapshotDescription          = "Created by OpenStack Cinder CSI driver"
+	SnapshotForceCreate          = "force-create"
+	SnapshotType                 = "type"
+	SnapshotAvailabilityZone     = "availability"
+	SnapshotAppendVolumeMetadata = "appendVolumeMetadata"
 )
 
 // CreateSnapshot issues a request to take a Snapshot of the specified Volume with the corresponding ID and

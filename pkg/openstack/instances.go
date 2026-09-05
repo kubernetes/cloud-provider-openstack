@@ -42,6 +42,7 @@ import (
 const (
 	RegionalProviderIDEnv = "OS_CCM_REGIONAL"
 	instanceShutoff       = "SHUTOFF"
+	labelHostID           = "topology.openstack.org/host-id"
 )
 
 // InstancesV2 encapsulates an implementation of InstancesV2 for OpenStack.
@@ -142,11 +143,12 @@ func (i *InstancesV2) InstanceMetadata(ctx context.Context, node *v1.Node) (*clo
 	availabilityZone := util.SanitizeLabel(server.AvailabilityZone)
 
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    i.makeInstanceID(&server),
-		InstanceType:  instanceType,
-		NodeAddresses: addresses,
-		Zone:          availabilityZone,
-		Region:        i.region,
+		ProviderID:       i.makeInstanceID(&server),
+		InstanceType:     instanceType,
+		NodeAddresses:    addresses,
+		Zone:             availabilityZone,
+		Region:           i.region,
+		AdditionalLabels: getAdditionalLabels(&server),
 	}, nil
 }
 
@@ -208,7 +210,7 @@ func getServerByName(ctx context.Context, client *gophercloud.ServiceClient, nam
 	}
 
 	if len(serverList) == 0 {
-		return nil, errors.ErrNotFound
+		return nil, cloudprovider.InstanceNotFound
 	}
 
 	return &serverList[0], nil
@@ -283,6 +285,17 @@ func srvInstanceType(ctx context.Context, client *gophercloud.ServiceClient, srv
 		}
 	}
 	return "", fmt.Errorf("flavor original_name/id not found")
+}
+
+func getAdditionalLabels(srv *servers.Server) map[string]string {
+	hostID := util.SanitizeLabel(srv.HostID)
+	if hostID == "" {
+		return nil
+	}
+
+	return map[string]string{
+		labelHostID: hostID,
+	}
 }
 
 func isValidLabelValue(v string) bool {
