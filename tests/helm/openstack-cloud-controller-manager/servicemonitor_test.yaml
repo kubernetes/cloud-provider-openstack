@@ -1,0 +1,105 @@
+suite: OCCM ServiceMonitor
+templates:
+  - templates/clusterrolebinding-sm.yaml
+  - templates/daemonset.yaml
+  - templates/service-sm.yaml
+  - templates/servicemonitor.yaml
+
+release:
+  name: test-release
+  namespace: test-namespace
+
+chart:
+  version: 1.2.3
+  appVersion: v4.5.6
+
+tests:
+  - it: keeps the metrics endpoint private by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/servicemonitor.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/service-sm.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/clusterrolebinding-sm.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --bind-address=127.0.0.1
+        template: templates/daemonset.yaml
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --authorization-always-allow-paths=/metrics
+        template: templates/daemonset.yaml
+
+  - it: wires the ServiceMonitor to the OCCM metrics endpoint
+    set:
+      serviceMonitor.enabled: true
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+        template: templates/servicemonitor.yaml
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/instance: test-release
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: openstack-cloud-controller-manager
+            app.kubernetes.io/version: v4.5.6
+            helm.sh/chart: openstack-cloud-controller-manager-1.2.3
+        template: templates/servicemonitor.yaml
+      - notExists:
+          path: spec.endpoints[0].bearerTokenFile
+        template: templates/servicemonitor.yaml
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+        template: templates/servicemonitor.yaml
+      - equal:
+          path: metadata.labels
+          value:
+            app.kubernetes.io/instance: test-release
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: openstack-cloud-controller-manager
+            app.kubernetes.io/version: v4.5.6
+            helm.sh/chart: openstack-cloud-controller-manager-1.2.3
+        template: templates/service-sm.yaml
+      - equal:
+          path: spec.ports[0].name
+          value: http
+        template: templates/service-sm.yaml
+      - equal:
+          path: spec.ports[0].port
+          value: 10258
+        template: templates/service-sm.yaml
+      - equal:
+          path: spec.selector
+          value:
+            app: openstack-cloud-controller-manager
+            component: controllermanager
+            release: test-release
+        template: templates/service-sm.yaml
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            app: openstack-cloud-controller-manager
+            component: controllermanager
+            release: test-release
+        template: templates/daemonset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --authorization-always-allow-paths=/metrics
+        template: templates/daemonset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --bind-address=0.0.0.0
+        template: templates/daemonset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 10258
+            name: http
+          any: true
+        template: templates/daemonset.yaml
