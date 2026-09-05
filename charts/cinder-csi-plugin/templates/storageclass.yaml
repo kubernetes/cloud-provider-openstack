@@ -10,6 +10,10 @@ metadata:
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 allowVolumeExpansion: {{ .Values.storageClass.delete.allowVolumeExpansion }}
+{{- with .Values.storageClass.delete.parameters }}
+parameters:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -22,4 +26,8 @@ metadata:
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Retain
 allowVolumeExpansion: {{ .Values.storageClass.retain.allowVolumeExpansion }}
+{{- with .Values.storageClass.retain.parameters }}
+parameters:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end }}
