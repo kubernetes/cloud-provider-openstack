@@ -21,6 +21,8 @@ spec:
       containers:
         {{- range .Values.shareProtocols }}
         - name: {{ .protocolSelector | lower }}-provisioner
+          securityContext:
+            {{- toYaml $.Values.controllerplugin.securityContext | nindent 12 }}
           image: "{{ $.Values.controllerplugin.provisioner.image.repository }}:{{ $.Values.controllerplugin.provisioner.image.tag }}"
           args:
             - "-v={{ $.Values.logVerbosityLevel }}"
@@ -44,6 +46,8 @@ spec:
           resources:
 {{ toYaml $.Values.controllerplugin.provisioner.resources | indent 12 }}
         - name: {{ .protocolSelector | lower }}-snapshotter
+          securityContext:
+            {{- toYaml $.Values.controllerplugin.securityContext | nindent 12 }}
           image: "{{ $.Values.controllerplugin.snapshotter.image.repository }}:{{ $.Values.controllerplugin.snapshotter.image.tag }}"
           args:
             - "-v={{ $.Values.logVerbosityLevel }}"
@@ -61,6 +65,8 @@ spec:
           resources:
 {{ toYaml $.Values.controllerplugin.snapshotter.resources | indent 12 }}
         - name: {{ .protocolSelector | lower }}-resizer
+          securityContext:
+            {{- toYaml $.Values.controllerplugin.securityContext | nindent 12 }}
           image: "{{ $.Values.controllerplugin.resizer.image.repository }}:{{ $.Values.controllerplugin.resizer.image.tag }}"
           args:
             - "-v={{ $.Values.logVerbosityLevel }}"
@@ -81,8 +87,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-nodeplugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",
@@ -181,6 +185,9 @@ spec:
     {{- with .Values.controllerplugin.hostAliases }}
       hostAliases:
         {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- if .Values.nodeplugin.priorityClassName }}
+      priorityClassName: {{ .Values.nodeplugin.priorityClassName }}
     {{- end }}
     {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
