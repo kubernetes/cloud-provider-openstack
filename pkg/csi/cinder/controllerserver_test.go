@@ -470,6 +470,7 @@ func TestCreateVolumeFromSourceVolume(t *testing.T) {
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, "", properties).Return(&FakeVolFromSourceVolume, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 
 	assert := assert.New(t)
 
@@ -575,6 +576,13 @@ func TestDeleteVolume(t *testing.T) {
 func TestControllerPublishVolume(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
+	fakeAvailableVol := &volumes.Volume{
+		ID:     FakeVolID,
+		Name:   FakeVolName,
+		Status: "available",
+	}
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+	osmock.On("GetVolume", FakeVolID).Return(fakeAvailableVol, nil)
 	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	osmock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	osmock.On("GetAttachmentDiskPath", FakeNodeID, FakeVolID).Return(FakeDevicePath, nil)
@@ -608,6 +616,84 @@ func TestControllerPublishVolume(t *testing.T) {
 
 	// Assert
 	assert.Equal(expectedRes, actualRes)
+}
+
+// TestControllerPublishVolumeIdempotentSameNode verifies that repeating a
+// ControllerPublishVolume request for the same volume+node after the volume is
+// already in-use returns success (CSI spec idempotency requirement).
+func TestControllerPublishVolumeIdempotentSameNode(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	// Volume is already in-use with an attachment to the same node.
+	fakeInUseVol := &volumes.Volume{
+		ID:     FakeVolID,
+		Name:   FakeVolName,
+		Status: "in-use",
+		Attachments: []volumes.Attachment{
+			{ServerID: FakeNodeID},
+		},
+	}
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+	osmock.On("GetVolume", FakeVolID).Return(fakeInUseVol, nil)
+	osmock.On("GetAttachmentDiskPath", FakeNodeID, FakeVolID).Return(FakeDevicePath, nil)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.ControllerPublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+		Readonly: false,
+	}
+
+	expectedRes := &csi.ControllerPublishVolumeResponse{
+		PublishContext: map[string]string{
+			"DevicePath": FakeDevicePath,
+		},
+	}
+
+	actualRes, err := fakeCs.ControllerPublishVolume(FakeCtx, fakeReq)
+	assert.Nil(err)
+	assert.Equal(expectedRes, actualRes)
+}
+
+// TestControllerPublishVolumeInUseDifferentNode verifies that attempting to
+// attach a non-multiattach volume already in-use on a different node returns
+// FailedPrecondition.
+func TestControllerPublishVolumeInUseDifferentNode(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	// Volume is in-use on a different node, not multiattach.
+	fakeInUseVol := &volumes.Volume{
+		ID:     FakeVolID,
+		Name:   FakeVolName,
+		Status: "in-use",
+		Attachments: []volumes.Attachment{
+			{ServerID: "different-node-id"},
+		},
+	}
+	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+	osmock.On("GetVolume", FakeVolID).Return(fakeInUseVol, nil)
+
+	fakeReq := &csi.ControllerPublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+		Readonly: false,
+	}
+
+	_, err := fakeCs.ControllerPublishVolume(FakeCtx, fakeReq)
+	assert := assert.New(t)
+	assert.NotNil(err)
+	assert.Contains(err.Error(), "already attached to a different node")
 }
 
 // Test ControllerUnpublishVolume
@@ -1308,6 +1394,12 @@ func TestControllerExpandVolume(t *testing.T) {
 	tState := []string{"available", "in-use"}
 	osmock.On("ExpandVolume", FakeVolID, openstack.VolumeAvailableStatus, 5).Return(nil)
 	osmock.On("WaitVolumeTargetStatus", FakeVolID, tState).Return(nil)
+	osmock.On("GetVolume", FakeVolID).Return(&volumes.Volume{
+		ID:     FakeVolID,
+		Name:   FakeVolName,
+		Size:   FakeCapacityGiB,
+		Status: "available",
+	}, nil)
 
 	assert := assert.New(t)
 
@@ -1338,7 +1430,7 @@ func TestControllerExpandVolume(t *testing.T) {
 func TestValidateVolumeCapabilities(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
-	osmock.On("GetVolume", FakeVolID).Return(FakeVol1)
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol1, nil)
 
 	assert := assert.New(t)
 

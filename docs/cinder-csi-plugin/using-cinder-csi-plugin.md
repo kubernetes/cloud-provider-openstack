@@ -158,6 +158,8 @@ These configuration options pertain to block storage and should appear in the `[
   Optional. Set to `true` if your set of Block Storage (Cinder) AZs does not match your set of Compute (Nova) AZs and you are manually setting the `topology` parameter on your Storage Class(es). For more information, refer to [When trying to use the topology feature, pods are not able to schedule](./troubleshooting.md#when-trying-to-use-the-topology-feature-pods-are-not-able-to-schedule). Defaults to `false`.
 * `ignore-volume-microversion`
   Optional. Set to `true` only when your cinder microversion is older than 3.34. This might cause some features to not work as expected, but aims to allow basic operations like creating a volume. Defaults to `false`
+* `volume-status-poll-delay`
+  Optional. The interval in seconds between volume status polls when waiting for a volume to become available before attaching. Value must be a positive integer representing whole seconds (e.g. `3`, `5`, `10`). Defaults to `3`.
 
 ### Metadata
 These configuration options pertain to metadata and should appear in the `[Metadata]` section of the `$CLOUD_CONFIG` file.

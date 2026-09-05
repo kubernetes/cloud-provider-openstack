@@ -92,7 +92,7 @@ func TestNodePublishVolume(t *testing.T) {
 
 	mmock.On("ScanForAttach", FakeDevicePath).Return(nil)
 	mmock.On("IsLikelyNotMountPointAttach", FakeTargetPath).Return(true, nil)
-	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
+	omock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 
 	assert := assert.New(t)
 
@@ -167,7 +167,7 @@ func TestNodeStageVolume(t *testing.T) {
 
 	mmock.On("GetDevicePath", FakeVolID).Return(FakeDevicePath, nil)
 	mmock.On("IsLikelyNotMountPointAttach", FakeStagingTargetPath).Return(true, nil)
-	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
+	omock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 
 	assert := assert.New(t)
 
@@ -241,7 +241,7 @@ func TestNodeUnpublishVolume(t *testing.T) {
 	fakeNs, omock, mmock, _ := fakeNodeServer()
 
 	mmock.On("UnmountPath", FakeTargetPath).Return(nil)
-	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
+	omock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 
 	assert := assert.New(t)
 
@@ -269,7 +269,7 @@ func TestNodeUnstageVolume(t *testing.T) {
 	fakeNs, omock, mmock, _ := fakeNodeServer()
 
 	mmock.On("UnmountPath", FakeStagingTargetPath).Return(nil)
-	omock.On("GetVolume", FakeVolID).Return(FakeVol, nil)
+	omock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 
 	assert := assert.New(t)
 
