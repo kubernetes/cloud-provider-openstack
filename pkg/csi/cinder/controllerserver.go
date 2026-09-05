@@ -747,7 +747,7 @@ func (cs *controllerServer) createBackup(ctx context.Context, cloud openstack.IO
 	// Also, we don't want to tag every param but we still want to send the
 	// 'force-create' flag to openstack layer so that we will honor the
 	// force create functions
-	for _, mKey := range append(sharedcsi.RecognizedCSISnapshotterParams, openstack.SnapshotForceCreate, openstack.SnapshotType) {
+	for _, mKey := range append(sharedcsi.RecognizedCSISnapshotterParams, openstack.SnapshotForceCreate, openstack.SnapshotType, openstack.SnapshotIncremental) {
 		if v, ok := parameters[mKey]; ok {
 			properties[mKey] = v
 		}
