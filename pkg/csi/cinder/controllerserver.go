@@ -120,7 +120,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", vols[0].ID, vols[0].AvailabilityZone, vols[0].Size)
 		accessibleTopology := getTopology(&vols[0], accessibleTopologyReq, cs.Driver.withTopology, ignoreVolumeAZ)
-		return getCreateVolumeResponse(&vols[0], nil, accessibleTopology), nil
+		existingVolCtx := map[string]string{}
+		if mkfsOptions := volParams["mkfs-options"]; mkfsOptions != "" {
+			existingVolCtx["mkfs-options"] = mkfsOptions
+		}
+		return getCreateVolumeResponse(&vols[0], existingVolCtx, accessibleTopology), nil
 	}
 
 	if len(vols) > 1 {
@@ -238,6 +242,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 
 		klog.V(4).Infof("CreateVolume: Resolved scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
+	}
+
+	// Pass mkfsOptions to node via volume context
+	if mkfsOptions := volParams["mkfs-options"]; mkfsOptions != "" {
+		volCtx["mkfs-options"] = mkfsOptions
 	}
 
 	vol, err := cloud.CreateVolume(ctx, opts, schedulerHints)
