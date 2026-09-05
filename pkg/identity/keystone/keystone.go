@@ -171,16 +171,16 @@ func (k *Auth) processNextItem() bool {
 	return true
 }
 
-func (k *Auth) updatePolicies(cm *apiv1.ConfigMap, key string) {
+func (k *Auth) updatePolicies(cm *apiv1.ConfigMap, key string) error {
 	klog.Info("ConfigMap created or updated, will update the authorization policy.")
 
 	var policy policyList
 	if err := json.Unmarshal([]byte(cm.Data["policies"]), &policy); err != nil {
-		runtimeutil.HandleError(fmt.Errorf("failed to parse policies defined in the configmap %s: %v", key, err))
+		return fmt.Errorf("failed to parse policies defined in the configmap %s: %w", key, err)
 	}
 	if len(policy) > 0 {
 		if _, err := json.MarshalIndent(policy, "", "  "); err != nil {
-			runtimeutil.HandleError(fmt.Errorf("failed to parse policies defined in the configmap %s: %v", key, err))
+			return fmt.Errorf("failed to parse policies defined in the configmap %s: %w", key, err)
 		}
 	}
 
@@ -189,23 +189,26 @@ func (k *Auth) updatePolicies(cm *apiv1.ConfigMap, key string) {
 	k.authz.mu.Unlock()
 
 	klog.Infof("Authorization policy updated.")
+	return nil
 }
 
-func (k *Auth) updateSyncConfig(cm *apiv1.ConfigMap, key string) {
+func (k *Auth) updateSyncConfig(cm *apiv1.ConfigMap, key string) error {
 	klog.Info("ConfigMap created or updated, will update the sync configuration.")
 
-	var sc *syncConfig
-	newConfig := newSyncConfig()
-	sc = &newConfig
-	if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), sc); err != nil {
-		runtimeutil.HandleError(fmt.Errorf("failed to parse sync config defined in the configmap %s: %v", key, err))
+	sc := newSyncConfig()
+	if err := yaml.Unmarshal([]byte(cm.Data["syncConfig"]), &sc); err != nil {
+		return fmt.Errorf("failed to parse sync config defined in the configmap %s: %w", key, err)
+	}
+	if err := sc.validate(); err != nil {
+		return fmt.Errorf("sync config defined in the configmap %s is invalid: %w", key, err)
 	}
 
 	k.syncer.mu.Lock()
-	k.syncer.syncConfig = sc
+	k.syncer.syncConfig = &sc
 	k.syncer.mu.Unlock()
 
 	klog.Infof("Sync configuration updated.")
+	return nil
 }
 
 func (k *Auth) processItem(key string) error {
@@ -234,10 +237,14 @@ func (k *Auth) processItem(key string) error {
 		return fmt.Errorf("error fetching object with key %s: %v", key, err)
 	default:
 		if name == k.config.PolicyConfigMapName {
-			k.updatePolicies(cm, key)
+			if err := k.updatePolicies(cm, key); err != nil {
+				return err
+			}
 		}
 		if name == k.config.SyncConfigMapName {
-			k.updateSyncConfig(cm, key)
+			if err := k.updateSyncConfig(cm, key); err != nil {
+				return err
+			}
 		}
 	}
 
