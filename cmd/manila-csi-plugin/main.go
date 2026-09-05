@@ -89,6 +89,8 @@ func main() {
 				ManilaClientBuilder: manilaClientBuilder,
 				CSIClientBuilder:    csiClientBuilder,
 				ClusterID:           clusterID,
+				NodeID:              nodeID,
+				NodeAZ:              nodeAZ,
 				PVCLister:           csi.GetPVCLister(),
 			}
 
@@ -105,15 +107,16 @@ func main() {
 			}
 
 			if provideNodeService {
-				err = metadata.CheckMetadataSearchOrder(searchOrder)
-				if err != nil {
-					klog.Fatalf("Invalid search-order: %v", err)
+				var md metadata.IMetadata
+				if nodeID == "" || (withTopology && nodeAZ == "") {
+					err = metadata.CheckMetadataSearchOrder(searchOrder)
+					if err != nil {
+						klog.Fatalf("Invalid search-order: %v", err)
+					}
+					md = metadata.GetMetadataProvider(searchOrder)
 				}
 
-				// Initialize metadata
-				metadata := metadata.GetMetadataProvider(searchOrder)
-
-				err = d.SetupNodeService(metadata)
+				err = d.SetupNodeService(nodeID, nodeAZ, md)
 				if err != nil {
 					klog.Fatalf("Driver node service initialization failed: %v", err)
 				}
@@ -132,15 +135,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&driverName, "drivername", "manila.csi.openstack.org", "name of the driver")
 
-	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID")
-	if err := cmd.PersistentFlags().MarkDeprecated("nodeid", "This option is now ignored by the driver. It will be removed in a future release."); err != nil {
-		klog.Fatalf("Unable to mark flag nodeid to be deprecated: %v", err)
-	}
-
-	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone")
-	if err := cmd.PersistentFlags().MarkDeprecated("nodeaz", "This option is now ignored by the driver. It will be removed in a future release."); err != nil {
-		klog.Fatalf("Unable to mark flag nodeaz to be deprecated: %v", err)
-	}
+	cmd.PersistentFlags().StringVar(&nodeID, "nodeid", "", "this node's ID. When set, the metadata service is not used to retrieve the node ID.")
+	cmd.PersistentFlags().StringVar(&nodeAZ, "nodeaz", "", "this node's availability zone. When set, the metadata service is not used to retrieve the availability zone.")
 
 	cmd.PersistentFlags().StringVar(&runtimeConfigFile, "runtime-config-file", "", "path to the runtime configuration file")
 
