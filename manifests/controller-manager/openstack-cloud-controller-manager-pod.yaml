@@ -12,6 +12,9 @@ spec:
   containers:
     - name: openstack-cloud-controller-manager
       securityContext:
+        capabilities:
+          drop:
+            - ALL
         readOnlyRootFilesystem: true
         seccompProfile:
           type: RuntimeDefault

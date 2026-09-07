@@ -84,6 +84,9 @@ podSecurityContext:
 # Set security settings for the controller container
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#securitycontext-v1-core
 securityContext:
+  capabilities:
+    drop:
+      - ALL
   readOnlyRootFilesystem: true
   seccompProfile:
     type: RuntimeDefault
