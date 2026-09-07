@@ -219,8 +219,16 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			mountFlags := mnt.GetMountFlags()
 			options = append(options, collectMountOptions(fsType, mountFlags)...)
 		}
+
+		// Parse mkfs options from volume context
+		var formatOptions []string
+		if mkfsOpts, ok := volumeContext["mkfs-options"]; ok && mkfsOpts != "" {
+			formatOptions = strings.Fields(mkfsOpts)
+			klog.V(4).Infof("NodeStageVolume: mkfs-options for volume %s: %v", volumeID, formatOptions)
+		}
+
 		// Mount
-		err = ns.formatAndMountRetry(devicePath, stagingTarget, fsType, options)
+		err = ns.formatAndMountRetry(devicePath, stagingTarget, fsType, options, formatOptions)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -248,9 +256,9 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 
 // formatAndMountRetry attempts to format and mount a device at the given path.
 // If the initial mount fails, it rescans the device and retries the mount operation.
-func (ns *nodeServer) formatAndMountRetry(devicePath, stagingTarget, fsType string, options []string) error {
+func (ns *nodeServer) formatAndMountRetry(devicePath, stagingTarget, fsType string, options []string, formatOptions []string) error {
 	m := ns.Mount
-	err := m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+	err := m.Mounter().FormatAndMountSensitiveWithFormatOptions(devicePath, stagingTarget, fsType, options, nil, formatOptions)
 	if err != nil {
 		klog.Infof("Initial format and mount failed: %v. Attempting rescan.", err)
 		// Attempting rescan if the initial mount fails
@@ -260,7 +268,7 @@ func (ns *nodeServer) formatAndMountRetry(devicePath, stagingTarget, fsType stri
 			return err
 		}
 		klog.Infof("Rescan succeeded, retrying format and mount")
-		err = m.Mounter().FormatAndMount(devicePath, stagingTarget, fsType, options)
+		err = m.Mounter().FormatAndMountSensitiveWithFormatOptions(devicePath, stagingTarget, fsType, options, nil, formatOptions)
 	}
 	return err
 }
