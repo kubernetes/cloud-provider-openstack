@@ -62,11 +62,24 @@ func (os *OpenStack) CreateBackup(ctx context.Context, name, volID, snapshotID, 
 		delete(tags, SnapshotForceCreate)
 	}
 
+	incremental := false
+	// if no flag given, then incremental will be false by default
+	// if flag it given , check it
+	if item, ok := (tags)[SnapshotIncremental]; ok {
+		var err error
+		incremental, err = strconv.ParseBool(item)
+		if err != nil {
+			klog.V(5).Infof("Make incremental flag to false due to: %v", err)
+		}
+		delete(tags, SnapshotIncremental)
+	}
+
 	opts := &backups.CreateOpts{
 		VolumeID:         volID,
 		SnapshotID:       snapshotID,
 		Name:             name,
 		Force:            force,
+		Incremental:      incremental,
 		Description:      backupDescription,
 		AvailabilityZone: availabilityZone,
 	}
