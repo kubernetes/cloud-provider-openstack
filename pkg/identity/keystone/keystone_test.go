@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/spf13/pflag"
+	apiv1 "k8s.io/api/core/v1"
 )
 
 func TestUserAgentFlag(t *testing.T) {
@@ -150,5 +151,70 @@ func TestWebhookRouting(t *testing.T) {
 				t.Errorf("Expected status %d, got %d", tc.expectedStatus, rr.Code)
 			}
 		})
+	}
+}
+
+func TestUpdatePolicies(t *testing.T) {
+	existingPolicy := &policy{}
+	auth := &Auth{authz: &Authorizer{pl: policyList{existingPolicy}}}
+
+	err := auth.updatePolicies(&apiv1.ConfigMap{Data: map[string]string{"policies": "{"}}, "kube-system/policy")
+	if err == nil {
+		t.Fatal("expected an invalid policy update to fail")
+	}
+	if len(auth.authz.pl) != 1 || auth.authz.pl[0] != existingPolicy {
+		t.Fatal("invalid policy update replaced the existing policy")
+	}
+
+	err = auth.updatePolicies(&apiv1.ConfigMap{Data: map[string]string{"policies": "[{}]"}}, "kube-system/policy")
+	if err != nil {
+		t.Fatalf("expected a valid policy update to succeed: %v", err)
+	}
+	if len(auth.authz.pl) != 1 || auth.authz.pl[0] == existingPolicy {
+		t.Fatal("valid policy update did not replace the existing policy")
+	}
+}
+
+func TestUpdateSyncConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		syncConfig string
+	}{
+		{
+			name:       "malformed config",
+			syncConfig: "data-types-to-sync: [projects",
+		},
+		{
+			name:       "invalid config",
+			syncConfig: "data-types-to-sync: [unsupported]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existingConfig := &syncConfig{DataTypesToSync: []string{Projects}, NamespaceFormat: "%i"}
+			auth := &Auth{syncer: &Syncer{syncConfig: existingConfig}}
+
+			err := auth.updateSyncConfig(&apiv1.ConfigMap{Data: map[string]string{"syncConfig": tt.syncConfig}}, "kube-system/sync")
+			if err == nil {
+				t.Fatal("expected an invalid sync config update to fail")
+			}
+			if auth.syncer.syncConfig != existingConfig {
+				t.Fatal("invalid sync config update replaced the existing config")
+			}
+		})
+	}
+
+	auth := &Auth{syncer: &Syncer{syncConfig: &syncConfig{}}}
+	err := auth.updateSyncConfig(&apiv1.ConfigMap{Data: map[string]string{
+		"syncConfig": "data-types-to-sync: [projects]\nnamespace-format: prefix-%i"},
+	}, "kube-system/sync")
+	if err != nil {
+		t.Fatalf("expected a valid sync config update to succeed: %v", err)
+	}
+	if auth.syncer.syncConfig.NamespaceFormat != "prefix-%i" ||
+		len(auth.syncer.syncConfig.DataTypesToSync) != 1 ||
+		auth.syncer.syncConfig.DataTypesToSync[0] != Projects {
+		t.Fatalf("valid sync config update was not applied: %#v", auth.syncer.syncConfig)
 	}
 }
