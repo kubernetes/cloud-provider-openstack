@@ -46,13 +46,11 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-# Use host network for the controller pods. This is required if the controller
-# needs to access the node network (e.g. for cloud-node or route controllers),
-# but can be disabled if you only need specific controllers like the service
-# (Octavia LB) controller.
+# Use host network. Can be disabled if only the service (Octavia LB) controller is needed
 hostNetwork: true
 
-dnsPolicy: ClusterFirst
+# Set to ClusterFirst if hostNetwork is disabled
+dnsPolicy: ClusterFirstWithHostNet
 
 # Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:

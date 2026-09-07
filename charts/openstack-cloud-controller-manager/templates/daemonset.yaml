@@ -110,7 +110,7 @@ spec:
       initContainers: {{ toYaml .Values.extraInitContainers | nindent 6 }}
       {{- end }}
       hostNetwork: {{ .Values.hostNetwork }}
-      dnsPolicy: {{ if and .Values.hostNetwork (eq .Values.dnsPolicy "ClusterFirst") }}ClusterFirstWithHostNet{{ else }}{{ .Values.dnsPolicy }}{{ end }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
