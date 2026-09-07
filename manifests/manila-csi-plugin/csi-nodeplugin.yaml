@@ -17,10 +17,21 @@ spec:
         component: nodeplugin
     spec:
       serviceAccountName: openstack-manila-csi-nodeplugin
+      # Host network access is usually necessary if using metadata service,
+      # since not all CNIs support link-local addresses, or if the OpenStack
+      # control plane is on a management network that is not advertised to pods
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-node-critical
       containers:
         - name: registrar
+          securityContext:
+            # Images use distroless/static:latest which runs as root; runAsNonRoot
+            # and allowPrivilegeEscalation cannot be set until upstream switches to
+            # a nonroot base image.
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0"
           args:
             - "--csi-address=/csi/csi.sock"
@@ -47,8 +58,6 @@ spec:
         - name: nodeplugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: registry.k8s.io/provider-os/manila-csi-plugin:v1.36.0
           command: ["/bin/sh", "-c",

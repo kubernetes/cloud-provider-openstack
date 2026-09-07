@@ -16,11 +16,16 @@ spec:
     spec:
       securityContext: {{ toYaml .Values.nodeplugin.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "openstack-manila-csi.serviceAccountName.nodeplugin" . }}
+      # Host network access is usually necessary if using metadata service,
+      # since not all CNIs support link-local addresses, or if the OpenStack
+      # control plane is on a management network that is not advertised to pods
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         {{- range .Values.shareProtocols }}
         - name: {{ .protocolSelector | lower }}-registrar
+          securityContext:
+            {{- toYaml $.Values.nodeplugin.securityContext | nindent 12 }}
           image: "{{ $.Values.nodeplugin.registrar.image.repository }}:{{ $.Values.nodeplugin.registrar.image.tag }}"
           args:
             - "-v={{ $.Values.logVerbosityLevel }}"
@@ -45,8 +50,6 @@ spec:
         - name: {{ .protocolSelector | lower }}-nodeplugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ $.Values.csimanila.image.repository }}:{{ $.Values.csimanila.image.tag | default $.Chart.AppVersion }}"
           command: ["/bin/sh", "-c",

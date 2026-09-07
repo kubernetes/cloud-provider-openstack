@@ -89,8 +89,6 @@
               - name: nfs
                 securityContext:
                   privileged: true
-                  capabilities:
-                    add: ["SYS_ADMIN"]
                   allowPrivilegeEscalation: true
                 image: registry.k8s.io/sig-storage/nfsplugin:v4.12.1
                 args:

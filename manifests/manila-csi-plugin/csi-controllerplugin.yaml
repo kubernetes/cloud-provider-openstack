@@ -36,6 +36,13 @@ spec:
       serviceAccountName: openstack-manila-csi-controllerplugin
       containers:
         - name: provisioner
+          securityContext:
+            # Images use distroless/static:latest which runs as root; runAsNonRoot
+            # and allowPrivilegeEscalation cannot be set until upstream switches to
+            # a nonroot base image.
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-provisioner:v5.3.0"
           args:
             - "--csi-address=$(ADDRESS)"
@@ -50,6 +57,10 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: snapshotter
+          securityContext:
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-snapshotter:v8.4.0"
           args:
             - "--csi-address=$(ADDRESS)"
@@ -61,6 +72,10 @@ spec:
             - name: plugin-dir
               mountPath: /var/lib/kubelet/plugins/manila.csi.openstack.org
         - name: resizer
+          securityContext:
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           image: "registry.k8s.io/sig-storage/csi-resizer:v1.14.0"
           args:
             - "--csi-address=$(ADDRESS)"
@@ -75,8 +90,6 @@ spec:
         - name: nodeplugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: registry.k8s.io/provider-os/manila-csi-plugin:v1.36.0
           command: ["/bin/sh", "-c",
@@ -112,6 +125,7 @@ spec:
             - name: pod-mounts
               mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
+      priorityClassName: system-cluster-critical
       volumes:
         - name: plugin-dir
           hostPath:
