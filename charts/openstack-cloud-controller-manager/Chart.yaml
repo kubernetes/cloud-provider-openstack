@@ -9,7 +9,3 @@ maintainers:
   - name: eumel8
     email: f.kloeker@telekom.de
     url: https://www.telekom.com
-dependencies:
-  - name: common
-    version: 2.14.1
-    repository: https://charts.bitnami.com/bitnami
