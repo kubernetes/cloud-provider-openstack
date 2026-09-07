@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"context"
+	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
@@ -34,6 +35,7 @@ var FakeVolName = "CSIVolumeName"
 var FakeVolID = "CSIVolumeID"
 var FakeSnapshotName = "CSISnapshotName"
 var FakeSnapshotID = "261a8b81-3660-43e5-bab8-6470b65ee4e8"
+var FakeBackupID = "67589b87-91e3-4c2f-8fa8-d53eed89ca56"
 var FakeCapacityGiB = 1
 var FakeVolType = ""
 var FakeAvailability = "nova"
@@ -97,6 +99,17 @@ var FakeSnapshotRes = snapshots.Snapshot{
 	VolumeID: FakeVolID,
 	Size:     1,
 	Status:   "available",
+}
+
+var FakeBackupRes = backups.Backup{
+	ID:         FakeBackupID,
+	Name:       "fake-backup",
+	VolumeID:   FakeVolID,
+	SnapshotID: FakeSnapshotID,
+	CreatedAt:  time.Now(),
+
+	Size:   1,
+	Status: "available",
 }
 
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}

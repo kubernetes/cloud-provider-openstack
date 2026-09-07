@@ -93,6 +93,7 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--provide-controller-service=false"
             - "--cloud-config=$(CLOUD_CONFIG)"
+            - "--with-topology={{ .Values.csi.provisioner.topology }}"
             {{- if .Values.csi.plugin.extraArgs }}
             {{- with .Values.csi.plugin.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}

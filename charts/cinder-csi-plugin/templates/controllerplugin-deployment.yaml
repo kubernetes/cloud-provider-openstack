@@ -69,7 +69,6 @@ spec:
             - "--timeout={{ .Values.timeout }}"
             - "--leader-election=true"
             - "--default-fstype=ext4"
-            - "--feature-gates=Topology={{ .Values.csi.provisioner.topology }}"
             - "--extra-create-metadata"
             {{- if .Values.csi.provisioner.extraArgs }}
             {{- with .Values.csi.provisioner.extraArgs }}
@@ -174,6 +173,7 @@ spec:
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--cluster=$(CLUSTER_NAME)"
             - "--provide-node-service=false"
+            - "--with-topology={{ .Values.csi.provisioner.topology }}"
             {{- if .Values.csi.plugin.httpEndpoint.enabled }}
             - "--http-endpoint=:{{ .Values.csi.plugin.httpEndpoint.port }}"
             {{- end }}
