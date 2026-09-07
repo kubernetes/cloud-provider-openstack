@@ -46,7 +46,11 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-dnsPolicy: ClusterFirst
+# Use host network. Can be disabled if only the service (Octavia LB) controller is needed
+hostNetwork: true
+
+# Set to ClusterFirst if hostNetwork is disabled
+dnsPolicy: ClusterFirstWithHostNet
 
 # Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:
