@@ -143,7 +143,7 @@ cloudConfig:
 
 ## Pod priority settings
 ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
-priorityClassName:
+priorityClassName: "system-node-critical"
 
 # The following three volumes are required to use all OCCM controllers,
 # but might not be needed if you just use a specific controller
