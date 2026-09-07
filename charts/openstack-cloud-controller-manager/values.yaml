@@ -78,18 +78,17 @@ podLabels: {}
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
 podSecurityContext:
   runAsUser: 1001
-  # seccompProfile:
-  #   type: RuntimeDefault
+  seccompProfile:
+    type: RuntimeDefault
 
 # Set security settings for the controller container
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#securitycontext-v1-core
-securityContext: {}
-# securityContext:
-#   capabilities:
-#     drop:
-#     - ALL
-#   readOnlyRootFilesystem: true
-#   allowPrivilegeEscalation: false
+securityContext:
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
 
 # List of controllers should be enabled.
 # Use '*' to enable all controllers.

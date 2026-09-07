@@ -11,6 +11,12 @@ metadata:
 spec:
   containers:
     - name: openstack-cloud-controller-manager
+      securityContext:
+        readOnlyRootFilesystem: true
+        seccompProfile:
+          type: RuntimeDefault
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
       image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.36.0
       args:
         - /bin/openstack-cloud-controller-manager
@@ -45,6 +51,8 @@ spec:
   hostNetwork: true
   securityContext:
     runAsUser: 1001
+    seccompProfile:
+      type: RuntimeDefault
   volumes:
   - hostPath:
       path: /etc/kubernetes/pki
