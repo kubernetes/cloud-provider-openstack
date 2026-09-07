@@ -55,6 +55,14 @@ csimanila:
 nodeplugin:
   # Component name
   name: nodeplugin
+  # Security context for sidecar containers
+  securityContext:
+    # Images use distroless/static:latest which runs as root; runAsNonRoot
+    # and allowPrivilegeEscalation cannot be set until upstream switches to
+    # a nonroot base image.
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
   # CSI Manila container compute resources constraints
   nodeplugin:
     resources: {}
@@ -75,7 +83,7 @@ nodeplugin:
   #   - ip: "10.0.0.1"
   #     hostnames:
   #     - "keystone.hostname.com"
-  priorityClassName: ""
+  priorityClassName: "system-node-critical"
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
   podSecurityContext: {}
@@ -85,6 +93,10 @@ nodeplugin:
 # StatefulSet deployment
 controllerplugin:
   name: controllerplugin
+  securityContext:
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
   # CSI Manila container compute resources constraints
   nodeplugin:
     resources: {}
@@ -123,6 +135,7 @@ controllerplugin:
   #   - ip: "10.0.0.1"
   #     hostnames:
   #     - "keystone.hostname.com"
+  priorityClassName: "system-cluster-critical"
   # Use fullnameOverride to fully override the name of this component
   # fullnameOverride: some-other-name
   podSecurityContext: {}
