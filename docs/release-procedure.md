@@ -76,33 +76,20 @@ dependency or sidecar container.
     $ git pull --rebase upstream master
     ```
 
-1. Update the package version with the expected version.
+1. Bump the release version.
 
-    Make changes in the `docs`, `manifests`, `tests`, and `examples`
-    directories using the `hack/bump-release.sh` script. For example:
-
-    ```bash
-    $ hack/bump-release.sh 28 29 0
-    ```
-
-    This will replace `1.28.x` with `1.29.0` strings in the relevant
-    directories. Ensure that you double-check the diff before committing the
-    changes. Non-related changes must not be shipped.
-
-1. Update the Helm Chart version with the expected version.
-
-    Make changes in the `charts` directory using the `hack/bump-charts.sh` script.
-    For example:
+    Run `hack/bump-release.py`, which detects the current branch automatically
+    and updates the Helm chart versions (`charts/`) and all image references in
+    `docs/`, `manifests/`, and `examples/`:
 
     ```bash
-    $ hack/bump-charts.sh 28 29 0
+    $ uv run hack/bump-release.py
     ```
-
-    This will replace `1.28.0`/`2.28.0-dev` with `1.29.0`/`2.29.0` strings in
-    the `charts` directory.
 
     Ensure that you double-check the diff before committing the changes.
     Non-related changes must not be shipped.
+
+1. Update the k3s and kubernetes-test versions used in our tests with the expected version.
 
 1. Create a new pull request (PR) and make sure all CI checks have passed.
 
