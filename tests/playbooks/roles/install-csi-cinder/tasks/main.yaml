@@ -33,9 +33,9 @@
 
       set -ex
 
-      set +x; source {{ devstack_workdir }}/openrc admin admin > /dev/null; set -x
+      set +x; source {{ ansible_facts["user_dir"] }}/openrc-admin > /dev/null; set -x
       tenant_id=$(openstack project show demo -c id -f value)
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      set +x; source {{ ansible_facts["user_dir"] }}/openrc-demo > /dev/null; set -x
       cat <<EOF > {{ ansible_user_dir }}/cloud.conf
       [Global]
       auth-url=${OS_AUTH_URL}
@@ -144,12 +144,12 @@
           set -x
           set -e
 
-          mkdir -p /var/log/csi-pod
+          mkdir -p {{ ansible_facts["user_dir"] }}/csi-pod
           kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin
           kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin
 
-          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
-          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/csi-cinder-nodeplugin.log
 
     - name: Show openstack-cloud-controller-manager pod logs
       shell:
@@ -157,16 +157,16 @@
         cmd: |
           kubectl -n kube-system logs ds/openstack-cloud-controller-manager
 
-          kubectl -n kube-system logs ds/openstack-cloud-controller-manager > /var/log/csi-pod/occm.log
+          kubectl -n kube-system logs ds/openstack-cloud-controller-manager > {{ ansible_facts["user_dir"] }}/csi-pod/occm.log
 
     - name: Collect pod logs for debug purpose (early collection on deployment failure)
       shell:
         executable: /bin/bash
         cmd: |
           set -x
-          mkdir -p /var/log/csi-pod
-          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/deployment-csi-cinder-controllerplugin.log
-          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/deployment-csi-cinder-nodeplugin.log
+          mkdir -p {{ ansible_facts["user_dir"] }}/csi-pod
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/deployment-csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/deployment-csi-cinder-nodeplugin.log
       ignore_errors: true
 
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
@@ -195,7 +195,7 @@
           set -o pipefail
 
           cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
-          mkdir -p /var/log/csi-pod
+          mkdir -p {{ ansible_facts["user_dir"] }}/csi-pod
           # TODO(chrigl): No idea why both tests fail in CI. On a real OpenStack both pass.
           /tmp/kubernetes/test/bin/e2e.test \
             -storage.testdriver=tests/e2e/csi/cinder/test-driver.yaml \
@@ -206,7 +206,7 @@
             --ginkgo.show-node-events \
             --ginkgo.timeout=1h45m \
             -test.timeout=0 \
-            -report-dir="/var/log/csi-pod" | tee "/var/log/csi-pod/cinder-csi-e2e.log"
+            -report-dir="{{ ansible_facts["user_dir"] }}/csi-pod" | tee "{{ ansible_facts["user_dir"] }}/csi-pod/cinder-csi-e2e.log"
       register: functional_test_result
       ignore_errors: true
       async: 6600 # wait 1h50m (i.e. 5 mins longer than the ginkgo timeout) then fail and fetch the logs
@@ -219,9 +219,9 @@
           set -x
           set -e
 
-          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
-          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
-          kubectl -n kube-system exec $(kubectl -n kube-system get pod -l app=csi-cinder-nodeplugin -o name) -c cinder-csi-plugin -- dmesg -T > /var/log/csi-pod/dmesg.log
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/csi-cinder-nodeplugin.log
+          kubectl -n kube-system exec $(kubectl -n kube-system get pod -l app=csi-cinder-nodeplugin -o name) -c cinder-csi-plugin -- dmesg -T > {{ ansible_facts["user_dir"] }}/csi-pod/dmesg.log
       ignore_errors: true
 
     - name: Show dmesg logs
@@ -229,7 +229,7 @@
       shell:
         executable: /bin/bash
         cmd: |
-          sudo dmesg -T > /var/log/csi-pod/dmesg_local.log
+          sudo dmesg -T > {{ ansible_facts["user_dir"] }}/csi-pod/dmesg_local.log
       ignore_errors: true
 
     - fail: msg="The execution has failed because of errors."

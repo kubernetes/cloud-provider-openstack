@@ -31,12 +31,13 @@
 
       set -ex
 
-      set +x; source {{ devstack_workdir }}/openrc admin admin > /dev/null; set -x
+      set +x; source openrc-admin; set -x
       tenant_id=$(openstack project show demo -c id -f value)
       sudnet_id=$(openstack subnet show private-subnet -c id -f value)
       external_network_id=$(openstack network list --external -c ID -f value)
 
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      set +x; source openrc-demo; set -x
+
       cat <<EOF > {{ ansible_user_dir }}/cloud.conf
       [Global]
       auth-url=${OS_AUTH_URL}/v3
@@ -137,7 +138,7 @@
 
       # GATEWAY_IP is the default value in devstack
       GATEWAY_IP=172.24.5.1 \
-      DEVSTACK_OS_RC={{ devstack_workdir }}/openrc \
+      DEVSTACK_OS_RC={{ ansible_facts["user_dir"] }}/openrc-demo \
       OCTAVIA_PROVIDER={{ octavia_provider }} \
       bash tests/e2e/cloudprovider/test-lb-service.sh
   timeout: 3600

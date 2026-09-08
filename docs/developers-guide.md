@@ -52,9 +52,7 @@ You can also use our CI scripts to setup a simple development environment based 
 Once the VM is up make sure your SSH keys allow logging in as `ubuntu` user and from your PC and cloud-provider-openstack directory run:
 
 ```
-ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM> \
-  sudo git clone https://github.com/kubernetes/cloud-provider-openstack.git \
-  /root/src/k8s.io/cloud-provider-openstack
+ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM> sh -c 'echo; git clone https://github.com/kubernetes/cloud-provider-openstack.git ~/src/k8s.io/cloud-provider-openstack'
 
 ansible-playbook -v \
   --user ubuntu \
@@ -71,11 +69,8 @@ After it finishes you should be able to access both DevStack and Kubernetes:
 # SSH to the VM
 $ ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM>
 
-# Apparently we install K8s in root
-$ sudo su
-
 # Load OpenStack credentials
-$ source /home/stack/devstack/openrc admin admin
+$ source openrc-demo
 
 # List all pods in K8s
 $ kubectl get pods -A
@@ -121,7 +116,9 @@ sshuttle -r ubuntu@<PUBLIC_IP_OF_YOUR_VM> 172.24.0.0/16
 * (Optional) Log in to the k3s master node.
 
 ```sh
-ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM> sudo cat /root/.ssh/id_rsa | cat > _tmp/id_rsa && chmod 0600 _tmp/id_rsa
+mkdir _tmp
+
+scp ubuntu@<PUBLIC_IP_OF_YOUR_VM>:~/.ssh/id_rsa _tmp/id_rsa && chmod 0600 _tmp/id_rsa
 # Get the float IP of the k3s node with `openstack server show k3s-master -c "addresses"`
 ssh -i _tmp/id_rsa  ubuntu@<K3S_NODE_FLOAT_IP>
 ```
@@ -129,7 +126,7 @@ ssh -i _tmp/id_rsa  ubuntu@<K3S_NODE_FLOAT_IP>
 * Fetch k3s kubeconfig file.
 
 ```sh
-ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM> sudo cat /root/.kube/config > _tmp/kubeconfig
+scp ubuntu@<PUBLIC_IP_OF_YOUR_VM>:~/.kube/config _tmp/kubeconfig
 
 export KUBECONFIG=_tmp/kubeconfig
 ```
@@ -137,9 +134,8 @@ export KUBECONFIG=_tmp/kubeconfig
 * Get the image register CA cert from the node and add it into docker certs.
 
 ```sh
-ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM> sudo cat /root/certs/ca.pem
 sudo mkdir -p /etc/docker/certs.d/<PUBLIC_IP_OF_YOUR_VM>
-sudo vi /etc/docker/certs.d/<PUBLIC_IP_OF_YOUR_VM>/ca.crt
+sudo scp ubuntu@<PUBLIC_IP_OF_YOUR_VM>:~/certs/ca.pem /etc/docker/certs.d/<PUBLIC_IP_OF_YOUR_VM>/ca.crt
 ```
 
 * Build image and push to the remote register.

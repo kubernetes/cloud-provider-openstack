@@ -1,4 +1,5 @@
 - name: Install packages
+  become: true
   apt:
     name: "{{ packages }}"
     state: present
@@ -11,10 +12,8 @@
   shell:
     executable: /bin/bash
     cmd: |
+      source openrc-admin
       set -x
-      cd {{ devstack_workdir }}
-
-      set +x; source openrc admin admin > /dev/null; set -x
       openstack image show {{ image_name }} > /dev/null 2>&1
 
       if [[ "$?" != "0" ]]; then
@@ -30,7 +29,7 @@
         openstack image create {{ image_name }} --container-format bare --disk-format qcow2 --public --file {{ image_name }}.img
       fi
 
-      set +x; source openrc demo demo > /dev/null; set -x
+      set +x; source openrc-demo; set -x
       openstack keypair show {{ keypair_name }} > /dev/null 2>&1
       if [[ "$?" != "0" ]]; then
         test -e {{ ansible_user_dir }}/.ssh/id_rsa || ssh-keygen -t rsa -b 4096 -N "" -f {{ ansible_user_dir }}/.ssh/id_rsa
@@ -45,13 +44,13 @@
         openstack security group rule create --protocol udp --dst-port 1:65535 {{ sg_name }}
       fi
 
-      openstack subnet set private-subnet --dns-nameserver 8.8.8.8 || true
+      openstack subnet set private-subnet --dns-nameserver {{ dns_server }} || true
 
 - name: Create port with floating IP
   shell:
     executable: /bin/bash
     cmd: |
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      source openrc-demo; set -x
 
       openstack port show {{ master_port_name }}
       if [ $? -ne 0 ]; then
@@ -64,7 +63,7 @@
   shell:
     executable: /bin/bash
     cmd: |
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null
+      source openrc-demo; set -x
       openstack floating ip list --port {{ master_port_name }} -c "Floating IP Address" -f value
   register: fip
 
@@ -76,14 +75,12 @@
   shell:
     executable: /bin/bash
     cmd: |
-      set -x
-
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      source openrc-demo; set -x
 
       openstack server show k3s-master > /dev/null 2>&1
       if [ $? -ne 0 ]; then
         # Prepare user data file for k3s master
-        cat <<EOF > {{ devstack_workdir }}/init_k3s.yaml
+        cat <<EOF > {{ ansible_user_dir }}/init_k3s.yaml
         #cloud-config
         manage_etc_hosts: "localhost"
         package_update: true
@@ -98,12 +95,12 @@
         write_files:
           - path: /usr/local/share/ca-certificates/registry-ca.crt
             content: |
-      $(awk '{printf "        %s\n", $0}' < /root/certs/ca.pem)
+      $(awk '{printf "        %s\n", $0}' < {{ ansible_user_dir }}/certs/ca.pem)
       EOF
 
         # Create k3s master
         port_id=$(openstack port show {{ master_port_name }} -c id -f value)
-        openstack server create k3s-master --image {{ image_name }} --flavor {{ flavor_name }} --key-name {{ keypair_name }} --nic port-id=$port_id --user-data {{ devstack_workdir }}/init_k3s.yaml --wait
+        openstack server create k3s-master --image {{ image_name }} --flavor {{ flavor_name }} --key-name {{ keypair_name }} --nic port-id=$port_id --user-data {{ ansible_user_dir }}/init_k3s.yaml --wait
       fi
 
 - name: Run k3s workers
@@ -112,14 +109,12 @@
   shell:
     executable: /bin/bash
     cmd: |
-      set -x
-
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      source openrc-demo; set -x
 
       openstack server show k3s-worker{{ item }} > /dev/null 2>&1
       if [ $? -ne 0 ]; then
         # Prepare user data file for k3s worker
-        cat <<EOF > {{ devstack_workdir }}/init_k3s_worker{{ item }}.yaml
+        cat <<EOF > {{ ansible_user_dir }}/init_k3s_worker{{ item }}.yaml
         #cloud-config
         manage_etc_hosts: "localhost"
         package_update: true
@@ -134,11 +129,11 @@
         write_files:
           - path: /usr/local/share/ca-certificates/registry-ca.crt
             content: |
-      $(awk '{printf "        %s\n", $0}' < /root/certs/ca.pem)
+      $(awk '{printf "        %s\n", $0}' < {{ ansible_user_dir }}/certs/ca.pem)
       EOF
 
         # Create k3s worker
-        openstack server create k3s-worker{{ item }} --image {{ image_name }} --flavor {{ flavor_name }} --key-name {{ keypair_name }} --network private --security-group {{ sg_name }} --user-data {{ devstack_workdir }}/init_k3s_worker{{ item }}.yaml --wait
+        openstack server create k3s-worker{{ item }} --image {{ image_name }} --flavor {{ flavor_name }} --key-name {{ keypair_name }} --network private --security-group {{ sg_name }} --user-data {{ ansible_user_dir }}/init_k3s_worker{{ item }}.yaml --wait
       fi
 
 - name: Wait for ssh ready for k3s VM

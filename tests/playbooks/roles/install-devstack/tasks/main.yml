@@ -1,9 +1,11 @@
 - name: Manage stack group
+  become: true
   group:
     name: "{{ user }}"
     state: present
 
 - name: Manage stack user
+  become: true
   user:
     name: "{{ user }}"
     group: "{{ user }}"
@@ -12,16 +14,19 @@
     home: /home/{{ user }}
 
 - name: allow stack user to have passwordless sudo
+  become: true
   lineinfile:
     dest: /etc/sudoers
     line: "{{ user }} ALL=(ALL) NOPASSWD: ALL"
     validate: 'visudo -cf %s'
 
 - name: Update repositories cache
+  become: true
   ansible.builtin.apt:
     update_cache: yes
 
 - name: Check if devstack is already installed
+  become: true
   shell:
     executable: /bin/bash
     cmd: |
@@ -36,6 +41,7 @@
   register: devstack
 
 - name: Install devstack
+  become: true
   when: devstack.stdout != "installed"
   block:
     - name: Install packages
@@ -115,3 +121,16 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
+
+    - name: Prepare RC files for non-root user
+      become: true
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          source openrc admin admin > /dev/null
+          env | grep OS_ | sed 's/\(.*\)/export \1/g' > {{ ansible_facts["user_dir"] }}/openrc-admin
+          source openrc demo demo > /dev/null
+          env | grep OS_ | sed 's/\(.*\)/export \1/g' > {{ ansible_facts["user_dir"] }}/openrc-demo
+          chown {{ ansible_facts["user_id"] }}:{{ ansible_facts["user_gid"] }} {{ ansible_facts["user_dir"] }}/openrc-*
+
