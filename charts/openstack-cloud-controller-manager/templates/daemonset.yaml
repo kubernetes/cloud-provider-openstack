@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: {{ include "occm.name" . }}
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  labels: {{- include "occm.labels.standard" . | nindent 4 }}
   namespace: {{ .Release.Namespace }}
   annotations:
     {{- with .Values.commonAnnotations }}
