@@ -952,6 +952,20 @@ entries:
   openstack-cloud-controller-manager:
   - apiVersion: v2
     appVersion: v1.36.0
+    created: "2026-09-08T11:54:43.16313833Z"
+    description: Openstack Cloud Controller Manager Helm Chart
+    digest: 9614989da7c8ae1b99dee620a4f51ca805ceb8caa6a6a00432d8801148de2133
+    home: https://github.com/kubernetes/cloud-provider-openstack
+    icon: https://object-storage-ca-ymq-1.vexxhost.net/swift/v1/6e4619c416ff4bd19e1c087f27a43eea/www-images-prod/openstack-logo/OpenStack-Logo-Vertical.png
+    maintainers:
+    - email: stephenfin@redhat.com
+      name: stephenfin
+    name: openstack-cloud-controller-manager
+    urls:
+    - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-cloud-controller-manager-2.36.5/openstack-cloud-controller-manager-2.36.5.tgz
+    version: 2.36.5
+  - apiVersion: v2
+    appVersion: v1.36.0
     created: "2026-09-07T12:52:51.30690298Z"
     dependencies:
     - name: common
@@ -2871,4 +2885,4 @@ entries:
     urls:
     - https://github.com/kubernetes/cloud-provider-openstack/releases/download/openstack-manila-csi-0.2.1/openstack-manila-csi-0.2.1.tgz
     version: 0.2.1
-generated: "2026-09-08T05:56:44.26468195Z"
+generated: "2026-09-08T11:54:43.163886346Z"
