@@ -52,15 +52,26 @@ hostNetwork: true
 # Set to ClusterFirst if hostNetwork is disabled
 dnsPolicy: ClusterFirstWithHostNet
 
-# Set nodeSelector where the controller should run, i.e. controlplane nodes
-nodeSelector:
-  node-role.kubernetes.io/control-plane: ""
+# Set affinity rules for where the controller should run, i.e. controlplane nodes
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
 
 # Set tolerations for nodes where the controller should run, i.e. node
 # should be uninitialized, controlplane...
 tolerations:
+  - key: "CriticalAddonsOnly"
+    operator: "Equal"
+    value: "true"
+    effect: NoExecute
   - key: node.cloudprovider.kubernetes.io/uninitialized
     value: "true"
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/master
     effect: NoSchedule
   - key: node-role.kubernetes.io/control-plane
     effect: NoSchedule
