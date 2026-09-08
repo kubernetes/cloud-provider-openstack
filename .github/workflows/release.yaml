@@ -3,8 +3,9 @@ name: Release Charts
 on:
   push:
     branches:
-      - "master"
       - "release-*"
+    tags:
+      - "v1.*.0"
 
 jobs:
   release:
