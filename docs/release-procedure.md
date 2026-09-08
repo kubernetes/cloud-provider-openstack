@@ -61,6 +61,11 @@ dependency or sidecar container.
 
 ## Making a Release
 
+> [!NOTE]
+> This section only applies to releasing a new version of
+> cloud-provider-openstack itself. If you are just updating the Helm Charts,
+> refer to [Helm Charts](#helm-charts) below.
+
 1. Checkout the release branch.
 
     ```bash
@@ -68,12 +73,7 @@ dependency or sidecar container.
     $ git pull upstream master
     ```
 
-2. Update the minor version with the expected version.
-
-    > [!NOTE]
-    > You only need to do this if you are releasing a new version of
-    > cloud-provider-openstack itself. If you are just updating the Helm
-    > Charts, this step can be skipped.
+2. Update the package version with the expected version.
 
     Make changes in the `docs`, `manifests`, `tests`, and `examples`
     directories using the `hack/bump-release.sh` script by running the
@@ -99,11 +99,6 @@ dependency or sidecar container.
     This will replace `1.28.x`/`2.28.x` with `1.29.0`/`2.29.0` strings in the `charts`
     directory. Ensure that you double-check the diff before committing the changes.
     Non-related changes must not be shipped.
-
-    > [!NOTE]
-    > If you are just updating the Helm Charts, it may not be necessary to bump
-    > the version for all charts. If so, just commit the versions of tags that are
-    > needed.
 
 4. Create a new pull request (PR) and make sure all CI checks have passed.
 
@@ -153,3 +148,13 @@ dependency or sidecar container.
     This is generally as simple as copying the `release-master` file to `release-X.Y`,
     adding `--release-XY` suffixes to the job names and `testgrid-tab-name` annotations,
     and updating the branch specifiers.
+
+## Helm Charts
+
+The Helm Charts version must always be bumped when making any change to the
+charts. A CI job is in place to ensure this happens. If the CI job flags the
+need for a bump, update the `version` field in the corresponding `Chart.yaml`
+file. Once the PR is merged, tags will automatically be created for any Helm
+Charts that have changed their version (i.e.
+`openstack-cloud-controller-manager-X.Y.Z`, `openstack-cinder-csi-X.Y.Z`, and
+`openstack-manila-csi-X.Y.Z`).
