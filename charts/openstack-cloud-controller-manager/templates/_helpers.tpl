@@ -25,6 +25,11 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
+{{- define "occm.labels.matchLabels" -}}
+app.kubernetes.io/name: {{ include "occm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
 {{- define "occm.common.matchLabels" -}}
 app: {{ template "occm.name" . }}
 release: {{ .Release.Name }}

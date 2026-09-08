@@ -3,7 +3,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "occm.name" . }}
-  labels: 
+  labels:
     {{- include "occm.labels.standard" . | nindent 4 }}
   {{- if .Values.serviceMonitor.additionalLabels }}
     {{- toYaml .Values.serviceMonitor.additionalLabels | nindent 4 }}
@@ -23,5 +23,5 @@ spec:
   jobLabel: component
   selector:
     matchLabels:
-      {{- include "occm.labels.standard" . | nindent 6 }}
+      {{- include "occm.labels.matchLabels" . | nindent 6 }}
 {{- end }}
