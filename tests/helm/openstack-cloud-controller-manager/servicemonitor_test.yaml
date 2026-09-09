@@ -48,10 +48,7 @@ tests:
           path: spec.selector.matchLabels
           value:
             app.kubernetes.io/instance: test-release
-            app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: openstack-cloud-controller-manager
-            app.kubernetes.io/version: v4.5.6
-            helm.sh/chart: openstack-cloud-controller-manager-1.2.3
         template: templates/servicemonitor.yaml
       - notExists:
           path: spec.endpoints[0].bearerTokenFile
