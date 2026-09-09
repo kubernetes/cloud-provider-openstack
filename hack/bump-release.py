@@ -56,29 +56,41 @@ def git(*args: str) -> str:
 
 
 def git_check(*args: str) -> bool:
-    return subprocess.run(["git", *args], capture_output=True).returncode == 0
+    return (
+        subprocess.run(["git", *args], capture_output=True, check=False).returncode == 0
+    )
 
 
 def find_base_branch() -> str | None:
-    """Return 'master' or a 'release-N.N' name, whichever is the closest ancestor of HEAD."""
-    candidates = ["master"] + [
-        line.strip().removeprefix("origin/")
-        for line in git("branch", "-r").splitlines()
-        if re.search(r"\borigin/release-\d+\.\d+$", line)
-    ]
+    """Return 'master' or a 'release-N.N' name, whichever is the closest ancestor of HEAD.
+
+    Checks all remotes so the result is not tied to a specific remote name.
+    """
+    # Build a map of logical branch name -> remote refs across all remotes.
+    # A logical branch (e.g. "release-1.36") may exist on several remotes.
+    candidates: dict[str, list[str]] = {}
+    for ref in git(
+        "for-each-ref", "--format=%(refname:short)", "refs/remotes/"
+    ).splitlines():
+        if ref.endswith("/HEAD"):
+            continue
+        logical = ref.split("/", 1)[-1]
+        if logical == "master" or re.fullmatch(r"release-\d+\.\d+", logical):
+            candidates.setdefault(logical, []).append(ref)
 
     best_name: str | None = None
     best_merge_base: str | None = None
 
-    for name in candidates:
-        try:
-            mb = git("merge-base", "HEAD", f"origin/{name}")
-        except subprocess.CalledProcessError:
-            continue
-        if best_merge_base is None or git_check(
-            "merge-base", "--is-ancestor", best_merge_base, mb
-        ):
-            best_name, best_merge_base = name, mb
+    for logical_name, refs in candidates.items():
+        for full_ref in refs:
+            try:
+                mb = git("merge-base", "HEAD", full_ref)
+            except subprocess.CalledProcessError:
+                continue
+            if best_merge_base is None or git_check(
+                "merge-base", "--is-ancestor", best_merge_base, mb
+            ):
+                best_name, best_merge_base = logical_name, mb
 
     return best_name
 
