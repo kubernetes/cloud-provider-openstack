@@ -93,18 +93,6 @@ vet: check
 cover: work
 	go test -tags=unit $(shell go list ./...) -cover
 
-docs:
-	@echo "$@ not yet implemented"
-
-godoc:
-	@echo "$@ not yet implemented"
-
-releasenotes:
-	@echo "Reno not yet implemented for this repo"
-
-translation:
-	@echo "$@ not yet implemented"
-
 # Do the work here
 
 # Set up the development environment
@@ -131,9 +119,6 @@ realclean: clean
 	if [ "$(GOPATH)" = "$(GOPATH_DEFAULT)" ]; then \
 		rm -rf $(GOPATH); \
 	fi
-
-shell:
-	$(SHELL) -i
 
 # Build a single image for the local default platform and push to the local
 # container engine
@@ -162,5 +147,4 @@ push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 version:
 	@echo ${VERSION}
 
-.PHONY: build clean cover work docs fmt functional lint realclean \
-	relnotes test translation version
+.PHONY: build clean cover work fmt functional lint realclean test version
