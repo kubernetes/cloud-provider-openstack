@@ -7,24 +7,6 @@ Expand the name of the chart.
 {{- end -}}
 
 {{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
-*/}}
-{{- define "cinder-csi.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "cinder-csi.chart" -}}
@@ -45,16 +27,6 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "cinder-csi.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-    {{ default (include "cinder-csi.fullname" .) .Values.serviceAccount.name }}
-{{- else -}}
-    {{ default "default" .Values.serviceAccount.name }}
-{{- end -}}
-{{- end -}}
 
 {{/*
 Create unified labels for cinder-csi components
@@ -107,16 +79,6 @@ app.kubernetes.io/component: nodeplugin
 {{ if .Values.csi.plugin.nodePlugin.podLabels }}
 {{- toYaml .Values.csi.plugin.nodePlugin.podLabels }}
 {{- end }}
-{{- end -}}
-
-{{- define "cinder-csi.snapshot-controller.matchLabels" -}}
-app.kubernetes.io/component: snapshot-controller
-{{ include "cinder-csi.common.matchLabels" . }}
-{{- end -}}
-
-{{- define "cinder-csi.snapshot-controller.labels" -}}
-{{ include "cinder-csi.snapshot-controller.matchLabels" . }}
-{{ include "cinder-csi.common.metaLabels" . }}
 {{- end -}}
 
 {{/*
