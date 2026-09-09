@@ -122,18 +122,7 @@ env:
 bootstrap:
 	tools/test-setup.sh
 
-.bindep:
-	virtualenv .bindep
-	.bindep/bin/pip install -i https://pypi.python.org/simple bindep
-
-bindep: .bindep
-	@.bindep/bin/bindep -b -f bindep.txt || true
-
-install-distro-packages:
-	tools/install-distro-packages.sh
-
 clean:
-	rm -rf _dist .bindep
 	@echo "clean builds binary"
 	@for binary in $(BUILD_CMDS); do rm -rf $${binary}*; done
 
@@ -173,5 +162,5 @@ push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 version:
 	@echo ${VERSION}
 
-.PHONY: bindep build clean cover work docs fmt functional lint realclean \
+.PHONY: build clean cover work docs fmt functional lint realclean \
 	relnotes test translation version
