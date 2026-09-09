@@ -1,8 +1,9 @@
----
+{{- if .Values.secret.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: {{ .Values.clusterRoleName }}
+  name: {{ .Values.clusterRoleName }}:secret-reader
+  namespace: {{ .Release.Namespace }}
   labels: {{- include "occm.labels.standard" . | nindent 4 }}
   annotations:
     {{- with .Values.commonAnnotations }}
@@ -10,9 +11,10 @@ metadata:
     {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ .Values.clusterRoleName }}
+  kind: Role
+  name: {{ .Values.clusterRoleName }}:secret-reader
 subjects:
 - kind: ServiceAccount
   name: {{ .Values.serviceAccountName }}
-  namespace: {{ .Release.Namespace | quote }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

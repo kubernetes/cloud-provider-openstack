@@ -46,7 +46,14 @@ livenessProbe: {}
 # Set readinessProbe in the same way like livenessProbe
 readinessProbe: {}
 
-dnsPolicy: ClusterFirst
+# Host network access is usually necessary if using metadata service, since not
+# all CNIs support link-local addresses, or if the OpenStack control plane is
+# on a management network that is not advertised to pods. Can be disabled if
+# only the service (Octavia LB) controller is needed.
+hostNetwork: true
+
+# Set to ClusterFirst if hostNetwork is disabled
+dnsPolicy: ClusterFirstWithHostNet
 
 # Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:
@@ -71,18 +78,20 @@ podLabels: {}
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#podsecuritycontext-v1-core
 podSecurityContext:
   runAsUser: 1001
-  # seccompProfile:
-  #   type: RuntimeDefault
+  seccompProfile:
+    type: RuntimeDefault
 
 # Set security settings for the controller container
 # For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#securitycontext-v1-core
-securityContext: {}
-# securityContext:
-#   capabilities:
-#     drop:
-#     - ALL
-#   readOnlyRootFilesystem: true
-#   allowPrivilegeEscalation: false
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
 
 # List of controllers should be enabled.
 # Use '*' to enable all controllers.
@@ -137,7 +146,7 @@ cloudConfig:
 
 ## Pod priority settings
 ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
-priorityClassName:
+priorityClassName: "system-node-critical"
 
 # The following three volumes are required to use all OCCM controllers,
 # but might not be needed if you just use a specific controller

@@ -23,6 +23,7 @@ csi:
     extraArgs: {}
     extraEnv: []
   snapshotter:
+    enabled: true
     image:
       repository: registry.k8s.io/sig-storage/csi-snapshotter
       tag: v8.4.0
@@ -90,17 +91,19 @@ csi:
         readOnly: true
     nodePlugin:
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: "system-node-critical"
       # Optional additional annotations to add to the nodePlugin Pods.
       podAnnotations: {}
       # Optional additional labels to add to the nodePlugin Pods.
       podLabels: {}
       podSecurityContext: {}
-      securityContext: {}
-        # capabilities:
-        #   drop:
-        #   - ALL
-        # seccompProfile:
-        #   type: RuntimeDefault
+      securityContext:
+        # Images use distroless/static:latest which runs as root; runAsNonRoot
+        # and allowPrivilegeEscalation cannot be set until upstream switches to
+        # a nonroot base image.
+        readOnlyRootFilesystem: true
+        seccompProfile:
+          type: RuntimeDefault
       affinity: {}
       nodeSelector: {}
       tolerations:
@@ -125,6 +128,7 @@ csi:
           # maxSurge is the maximum number of pods that can be
           # created over the desired number of pods.
           maxSurge: 1
+      priorityClassName: "system-cluster-critical"
       # Optional additional annotations to add to the controllerPlugin Pods.
       podAnnotations: {}
       # Optional additional labels to add to the controllerPlugin Pods.
@@ -135,13 +139,10 @@ csi:
         # runAsGroup: 65532
         # fsGroup: 65532
         # fsGroupChangePolicy: OnRootMismatch
-      securityContext: {}
-        # capabilities:
-        #   drop:
-        #   - ALL
-        # seccompProfile:
-        #   type: RuntimeDefault
-        # readOnlyRootFilesystem: true
+      securityContext:
+        readOnlyRootFilesystem: true
+        seccompProfile:
+          type: RuntimeDefault
       affinity: {}
       nodeSelector: {}
       tolerations: []
@@ -196,9 +197,13 @@ storageClass:
   delete:
     isDefault: false
     allowVolumeExpansion: true
+    # optional parameters for the StorageClass, e.g. availability or type
+    parameters: {}
   retain:
     isDefault: false
     allowVolumeExpansion: true
+    # optional parameters for the StorageClass, e.g. availability or type
+    parameters: {}
 # any kind of custom StorageClasses
 #   custom: |-
 #     ---
@@ -225,8 +230,6 @@ clusterID: "kubernetes"
 
 # Enable PVC annotations support to create PVCs with extra parameters
 pvcAnnotations: false
-
-priorityClassName: ""
 
 imagePullSecrets: []
 # - name: my-imagepull-secret

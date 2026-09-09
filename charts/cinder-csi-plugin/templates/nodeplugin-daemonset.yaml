@@ -21,6 +21,9 @@ spec:
         {{- include "cinder-csi.nodeplugin.podAnnotations" . | nindent 8 }}
     spec:
       serviceAccount: csi-cinder-node-sa
+      # Host network access is usually necessary if using metadata service,
+      # since not all CNIs support link-local addresses, or if the OpenStack
+      # control plane is on a management network that is not advertised to pods
       hostNetwork: true
       dnsPolicy: {{ .Values.csi.plugin.nodePlugin.dnsPolicy }}
       securityContext:
@@ -82,8 +85,6 @@ spec:
         - name: cinder-csi-plugin
           securityContext:
             privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
           image: "{{ .Values.csi.plugin.image.repository }}:{{ .Values.csi.plugin.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.csi.plugin.image.pullPolicy }}
@@ -93,6 +94,7 @@ spec:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--provide-controller-service=false"
             - "--cloud-config=$(CLOUD_CONFIG)"
+            - "--with-topology={{ .Values.csi.provisioner.topology }}"
             {{- if .Values.csi.plugin.extraArgs }}
             {{- with .Values.csi.plugin.extraArgs }}
             {{- tpl . $ | trim | nindent 12 }}
@@ -177,8 +179,8 @@ spec:
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-    {{- if .Values.priorityClassName }}
-      priorityClassName: {{ .Values.priorityClassName }}
+    {{- if .Values.csi.plugin.nodePlugin.priorityClassName }}
+      priorityClassName: {{ .Values.csi.plugin.nodePlugin.priorityClassName }}
     {{- end }}
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
