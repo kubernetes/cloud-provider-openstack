@@ -98,8 +98,8 @@ dependency or sidecar container.
     ```bash
     $ git checkout master
     $ git pull upstream master
-    $ git tag vX.Y.Z
-    $ git push upstream vX.Y.Z
+    $ git tag vX.Y.0
+    $ git push upstream vX.Y.0
     ```
 
     This will kick the [`cloud-provider-openstack-push-images`
@@ -118,7 +118,7 @@ dependency or sidecar container.
     $ git push origin release-X.Y
     ```
 
-1. Reset the `version` field of the Helm Charts to `2.X.0-dev`
+1. Reset the `version` field of the Helm Charts to `2.{X+1}.0-dev`
 
     Any bugfixes for the Helm Charts must be backported to the `release-*`
     stable branches and released from there.
