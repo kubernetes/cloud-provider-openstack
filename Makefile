@@ -46,12 +46,6 @@ export HELM_UNITTEST_VERSION ?= v1.1.2
 
 # CTI targets
 
-$(GOBIN):
-	echo "create gobin"
-	mkdir -p $(GOBIN)
-
-work: $(GOBIN)
-
 build-all-archs:
 	@for arch in $(ARCHS); do $(MAKE) ARCH=$${arch} build ; done
 
@@ -66,23 +60,23 @@ $(BUILD_CMDS): $(SOURCES)
 
 test: unit functional
 
-check: work
+check:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --timeout=20m ./...
 
 .PHONY: lint-charts
 lint-charts:
 	hack/verify-helm-charts.sh
 
-unit: work
+unit:
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
 
 functional:
 	@echo "$@ not yet implemented"
 
-test-cinder-csi-sanity: work
+test-cinder-csi-sanity:
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/cinder
 
-test-manila-csi-sanity: work
+test-manila-csi-sanity:
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
 
 # kept for compatibility reasons.
@@ -90,7 +84,7 @@ fmt: check
 lint: check
 vet: check
 
-cover: work
+cover:
 	go test -tags=unit $(shell go list ./...) -cover
 
 # Do the work here
@@ -147,4 +141,4 @@ push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 version:
 	@echo ${VERSION}
 
-.PHONY: build clean cover work fmt functional lint realclean test version
+.PHONY: build clean cover fmt functional lint realclean test version
