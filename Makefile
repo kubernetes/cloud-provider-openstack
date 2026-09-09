@@ -11,8 +11,6 @@ export GO111MODULE := on
 TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk '/^module/ { print $$2 }' go.mod)
-DEST := $(GOPATH)/src/$(GIT_HOST)/$(BASE_DIR)
-SOURCES := Makefile go.mod go.sum $(shell find $(DEST) -name '*.go' 2>/dev/null)
 
 TEMP_DIR	:=$(shell mktemp -d)
 TAR_FILE	?= rootfs.tar
@@ -51,7 +49,7 @@ build-all-archs:
 
 build: $(BUILD_CMDS)
 
-$(BUILD_CMDS): $(SOURCES)
+$(BUILD_CMDS):
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) GOPROXY=${GOPROXY} go build \
 		-trimpath \
 		-ldflags $(LDFLAGS) \
@@ -95,7 +93,6 @@ env:
 	@echo "BASE_DIR: $(BASE_DIR)"
 	@echo "GOPATH: $(GOPATH)"
 	@echo "GOROOT: $(GOROOT)"
-	@echo "DEST: $(DEST)"
 	@echo "PKG: $(PKG)"
 	go version
 	go env
