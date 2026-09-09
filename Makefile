@@ -43,6 +43,7 @@ GOLANGCI_LINT_VERSION?=v2.13.2
 build-all-archs:
 	@for arch in $(ARCHS); do $(MAKE) ARCH=$${arch} build ; done
 
+.PHONY: build
 build: $(BUILD_CMDS)
 
 $(BUILD_CMDS):
@@ -52,6 +53,7 @@ $(BUILD_CMDS):
 		-o $@ \
 		cmd/$@/main.go
 
+.PHONY: test
 test: unit functional
 
 # if the golangci-lint steps fails with one of the following error messages:
@@ -88,23 +90,31 @@ else
 		--chart-dirs charts/openstack-cloud-controller-manager
 endif
 
+.PHONY: unit
 unit:
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
 
+.PHONY: functional
 functional:
 	@echo "$@ not yet implemented"
 
+.PHONY: test-cinder-csi-sanity
 test-cinder-csi-sanity:
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/cinder
 
+.PHONY: test-manila-csi-sanity
 test-manila-csi-sanity:
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
 
 # kept for compatibility reasons.
+.PHONY: fmt
 fmt: check
+.PHONY: lint
 lint: check
+.PHONY: vet
 vet: check
 
+.PHONY: cover
 cover:
 	go test -tags=unit $(shell go list ./...) -cover
 
@@ -124,10 +134,12 @@ env:
 bootstrap:
 	tools/test-setup.sh
 
+.PHONY: clean
 clean:
 	@echo "clean builds binary"
 	@for binary in $(BUILD_CMDS); do rm -rf $${binary}*; done
 
+.PHONY: realclean
 realclean: clean
 	rm -rf vendor
 	if [ "$(GOPATH)" = "$(GOPATH_DEFAULT)" ]; then \
@@ -158,7 +170,6 @@ push-multiarch-image-%:
 # Push all multiarch images
 push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 
+.PHONY: version
 version:
 	@echo ${VERSION}
-
-.PHONY: build clean cover fmt functional lint realclean test version
