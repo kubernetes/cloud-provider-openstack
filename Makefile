@@ -57,6 +57,8 @@ BUILD_CMDS	?= openstack-cloud-controller-manager \
 				barbican-kms-plugin \
 				magnum-auto-healer \
 				client-keystone-auth
+export GOLANGCI_LINT_VERSION ?= v2.13.2
+export HELM_UNITTEST_VERSION ?= v1.1.2
 
 # CTI targets
 
@@ -81,7 +83,11 @@ $(BUILD_CMDS): $(SOURCES)
 test: unit functional
 
 check: work
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run --timeout=20m ./...
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --timeout=20m ./...
+
+.PHONY: lint-charts
+lint-charts:
+	hack/verify-helm-charts.sh
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
