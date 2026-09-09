@@ -23,6 +23,8 @@ spec:
       serviceAccount: csi-cinder-node-sa
       hostNetwork: true
       dnsPolicy: {{ .Values.csi.plugin.nodePlugin.dnsPolicy }}
+      securityContext:
+        {{- toYaml .Values.csi.plugin.nodePlugin.podSecurityContext | nindent 8 }}
       containers:
         - name: node-driver-registrar
           securityContext:

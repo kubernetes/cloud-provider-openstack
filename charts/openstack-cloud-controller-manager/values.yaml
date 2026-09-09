@@ -74,6 +74,16 @@ podSecurityContext:
   # seccompProfile:
   #   type: RuntimeDefault
 
+# Set security settings for the controller container
+# For all available options, see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/#securitycontext-v1-core
+securityContext: {}
+# securityContext:
+#   capabilities:
+#     drop:
+#     - ALL
+#   readOnlyRootFilesystem: true
+#   allowPrivilegeEscalation: false
+
 # List of controllers should be enabled.
 # Use '*' to enable all controllers.
 # Prefix a controller with '-' to disable it.
