@@ -60,20 +60,23 @@ Create the name of the service account to use
 Create unified labels for cinder-csi components
 */}}
 {{- define "cinder-csi.common.matchLabels" -}}
-app: {{ template "cinder-csi.name" . }}
-release: {{ .Release.Name }}
+app.kubernetes.io/name: {{ template "cinder-csi.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "cinder-csi.common.metaLabels" -}}
-chart: {{ template "cinder-csi.chart" . }}
-heritage: {{ .Release.Service }}
+helm.sh/chart: {{ template "cinder-csi.chart" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
 {{- if .Values.extraLabels }}
 {{ toYaml .Values.extraLabels -}}
 {{- end }}
 {{- end -}}
 
 {{- define "cinder-csi.controllerplugin.matchLabels" -}}
-component: controllerplugin
+app.kubernetes.io/component: controllerplugin
 {{ include "cinder-csi.common.matchLabels" . }}
 {{- end -}}
 
@@ -90,7 +93,7 @@ component: controllerplugin
 {{- end -}}
 
 {{- define "cinder-csi.nodeplugin.matchLabels" -}}
-component: nodeplugin
+app.kubernetes.io/component: nodeplugin
 {{ include "cinder-csi.common.matchLabels" . }}
 {{- end -}}
 
@@ -107,7 +110,7 @@ component: nodeplugin
 {{- end -}}
 
 {{- define "cinder-csi.snapshot-controller.matchLabels" -}}
-component: snapshot-controller
+app.kubernetes.io/component: snapshot-controller
 {{ include "cinder-csi.common.matchLabels" . }}
 {{- end -}}
 
