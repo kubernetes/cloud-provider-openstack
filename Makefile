@@ -12,9 +12,6 @@ TESTARGS_DEFAULT := "-v"
 export TESTARGS ?= $(TESTARGS_DEFAULT)
 PKG := $(shell awk '/^module/ { print $$2 }' go.mod)
 
-TEMP_DIR	:=$(shell mktemp -d)
-TAR_FILE	?= rootfs.tar
-
 GOOS		?= $(shell go env GOOS)
 GOPROXY		?= $(shell go env GOPROXY)
 VERSION         ?= $(shell git describe --dirty --tags --match='v*')
