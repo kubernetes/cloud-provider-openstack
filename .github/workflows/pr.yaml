@@ -34,12 +34,7 @@ jobs:
         uses: helm/chart-testing-action@afea100a513515fbd68b0e72a7bb0ae34cb62aec
 
       - name: Run chart-testing (lint)
-        if: github.base_ref == 'master'
         run: ct lint --target-branch ${GITHUB_BASE_REF} --check-version-increment=false
-
-      - name: Run chart-testing (lint)
-        if: github.base_ref != 'master'
-        run: ct lint --target-branch ${GITHUB_BASE_REF}
 
       # v1.0.3 is the latest release compatible with Helm v3.10.0.
       - name: Install helm-unittest v1.0.3

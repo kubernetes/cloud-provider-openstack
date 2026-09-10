@@ -61,10 +61,11 @@ def git_check(*args: str) -> bool:
     )
 
 
-def find_base_branch() -> str | None:
-    """Return 'master' or a 'release-N.N' name, whichever is the closest ancestor of HEAD.
+def find_base_branch() -> tuple[str, str] | tuple[None, None]:
+    """Return (branch_name, merge_base_commit) for the closest ancestor of HEAD.
 
-    Checks all remotes so the result is not tied to a specific remote name.
+    branch_name is 'master' or a 'release-N.N' name. Checks all remotes so
+    the result is not tied to a specific remote name.
     """
     # Build a map of logical branch name -> remote refs across all remotes.
     # A logical branch (e.g. "release-1.36") may exist on several remotes.
@@ -92,7 +93,9 @@ def find_base_branch() -> str | None:
             ):
                 best_name, best_merge_base = logical_name, mb
 
-    return best_name
+    if best_name is None:
+        return None, None
+    return best_name, best_merge_base
 
 
 def load_chart(path: Path) -> tuple[YAML, dict]:
@@ -190,18 +193,12 @@ def release_master() -> None:
     update_files(app_version, new_app_version)
 
 
-def release_stable(base_branch: str) -> None:
-    print(f"Base release branch: {base_branch}")
-    print()
-    print(
-        "If you are only bumping the Helm chart version independently of a CPO release, "
-        "manually update the 'version' field in each Chart.yaml instead."
-    )
-    if not Confirm.ask("Releasing a new CPO version?", default=False):
-        print("Exiting. Manually update 'version' in each Chart.yaml if needed.")
-        sys.exit(0)
-    print()
+def changed_files(merge_base: str) -> list[str]:
+    return git("diff", "--name-only", merge_base, "HEAD").splitlines()
 
+
+def release_stable_full(base_branch: str) -> None:
+    """Full CPO release: bump appVersion, chart versions, and image references."""
     app_version = read_app_version()
 
     m_app = APP_VERSION_RE.match(app_version)
@@ -210,6 +207,17 @@ def release_stable(base_branch: str) -> None:
 
     app_x, app_y = int(m_app.group("x")), int(m_app.group("y"))
     new_app_version = f"v{m_app.group('major')}.{app_x}.{app_y + 1}"
+
+    console.print(f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]")
+    console.print(
+        f"[dim]Changes to CPO code detected. Continuing will release a new CPO patch version "
+        f"([bold]{new_app_version}[/bold]) and bump all Helm chart versions.[/dim]"
+    )
+    console.print()
+    if not Confirm.ask(f"Release CPO {new_app_version}?", default=False):
+        print("Exiting.")
+        sys.exit(0)
+    print()
 
     print("Bumping versions:")
     print(f"  appVersion: {app_version} -> {new_app_version}")
@@ -238,18 +246,92 @@ def release_stable(base_branch: str) -> None:
     update_files(app_version, new_app_version)
 
 
+def release_stable_chart_only(
+    base_branch: str, files: list[str]
+) -> None:
+    """Chart-only release: bump chart versions without touching appVersion or manifests."""
+    changed_chart_names = {
+        f.split("/")[1] for f in files if f.startswith("charts/") and f.count("/") >= 2
+    }
+    affected = [p for p in CHART_FILES if p.parent.name in changed_chart_names]
+    if not affected:
+        print("No chart files changed. Nothing to release.")
+        sys.exit(0)
+
+    app_version = read_app_version()
+
+    m_app = APP_VERSION_RE.match(app_version)
+    if not m_app:
+        sys.exit(f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}")
+
+    app_x = int(m_app.group("x"))
+
+    console.print(f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]")
+    console.print(
+        "[dim]No changes to CPO code detected. Continuing will bump only the Helm chart "
+        "versions for changed charts (appVersion and image references will not change).[/dim]"
+    )
+    console.print()
+    if not Confirm.ask("Release chart-only update?", default=False):
+        print("Exiting.")
+        sys.exit(0)
+    print()
+
+    print("Bumping chart versions:")
+
+    for path in affected:
+        _, data = load_chart(path)
+        current_version = data["version"]
+
+        m_ver = VERSION_RE.match(current_version)
+        if not m_ver:
+            sys.exit(
+                f"ERROR: {path.parent.name}: expected version 'MAJOR.X.Z' (no -dev suffix), "
+                f"got: {current_version!r}"
+            )
+        if int(m_ver.group("x")) != app_x:
+            sys.exit(
+                f"ERROR: {path.parent.name}: minor version mismatch with "
+                f"appVersion ({app_version}): {current_version!r}"
+            )
+
+        new_version = f"{m_ver.group('major')}.{app_x}.{int(m_ver.group('z')) + 1}"
+        print(f"  {path.parent.name}: version {current_version} -> {new_version}")
+        update_chart(path, app_version, new_version)
+
+
+def release_stable(base_branch: str, merge_base: str) -> None:
+    files = changed_files(merge_base)
+    has_code_changes = any(
+        f.startswith("cmd/") or f.startswith("pkg/") for f in files
+    )
+    has_chart_changes = any(f.startswith("charts/") for f in files)
+
+    if not has_code_changes and not has_chart_changes:
+        print(
+            f"No changes to CPO code or charts detected since branching from {base_branch}. "
+            "Nothing to release."
+        )
+        sys.exit(0)
+
+    if has_code_changes:
+        release_stable_full(base_branch)
+    else:
+        release_stable_chart_only(base_branch, files)
+
+
 def main() -> None:
     if not CHART_FILES:
         sys.exit(
             "ERROR: No Chart.yaml files found under charts/. Run from the repo root."
         )
 
-    base_branch = find_base_branch()
+    base_branch, merge_base = find_base_branch()
 
     if base_branch == "master":
         release_master()
-    elif base_branch is not None:
-        release_stable(base_branch)
+    elif base_branch is not None and merge_base is not None:
+        release_stable(base_branch, merge_base)
     else:
         sys.exit(
             "ERROR: Could not determine a base branch.\n"
