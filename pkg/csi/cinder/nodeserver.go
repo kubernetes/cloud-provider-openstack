@@ -18,15 +18,21 @@ package cinder
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/google/uuid"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	utilpath "k8s.io/utils/path"
@@ -481,10 +487,43 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	return &csi.NodeUnstageVolumeResponse{}, nil
 }
 
+// nodeIDNamespace is a UUID v5 namespace used to derive a
+// deterministic node ID from the Kubernetes node name when the node
+// is not a Nova instance and cannot reach the metadata service
+// (e.g. bare-metal nodes, k3s on devstack host).
+//
+// IMPORTANT: This UUID MUST remain stable across releases. Changing
+// it would alter the derived instance UUIDs that Cinder stores in
+// its attachments, breaking detach/cleanup of existing volumes.
+var nodeIDNamespace = uuid.MustParse("458bfdd0-3a23-4a81-a1a0-b6cd82e37c23")
+
 func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	nodeID, err := ns.Metadata.GetInstanceID()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] unable to retrieve instance id of node %v", err)
+		if !ns.Driver.IsDirectMode() {
+			return nil, status.Errorf(codes.Internal, "[NodeGetInfo] unable to retrieve instance id of node %v", err)
+		}
+		// Direct mode: the node may not be a Nova instance
+		// (e.g. bare-metal, k3s on the devstack host), so
+		// the metadata service at 169.254.169.254 is not
+		// reachable. Derive a deterministic UUID from the
+		// Kubernetes node name so Cinder's AttachmentCreate
+		// accepts it as a valid instance_uuid.
+		if ns.NodeName == "" {
+			return nil, status.Errorf(codes.Internal, "[NodeGetInfo] node is not a Nova instance (%v) and KUBE_NODE_NAME not set", err)
+		}
+		nodeID = uuid.NewSHA1(nodeIDNamespace, []byte(ns.NodeName)).String()
+		klog.Infof("NodeGetInfo: node is not a Nova instance, using node name %q to derive nodeID %s", ns.NodeName, nodeID)
+	}
+
+	// In direct mode, store connector properties in a Kubernetes node
+	// annotation so the controller can read them for AttachmentCreate.
+	// Retry with backoff if the os-brick sidecar is not ready yet. during initial pod startup when the sidecar
+	// container hasn't created its socket yet.
+	if ns.Driver.IsDirectMode() && ns.Brick != nil && ns.KubeClient != nil {
+		if err := ns.storeConnectorPropertiesWithRetry(ctx, nodeID); err != nil {
+			return nil, err
+		}
 	}
 
 	nodeInfo := &csi.NodeGetInfoResponse{
@@ -498,6 +537,10 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 
 	zone, err := ns.Metadata.GetAvailabilityZone()
 	if err != nil {
+		if ns.Driver.IsDirectMode() {
+			klog.Warningf("NodeGetInfo: node is not a Nova instance, skipping topology: %v", err)
+			return nodeInfo, nil
+		}
 		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] Unable to retrieve availability zone of node %v", err)
 	}
 	topologyMap := make(map[string]string, len(ns.Topologies)+1)
@@ -508,6 +551,100 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 	nodeInfo.AccessibleTopology = &csi.Topology{Segments: topologyMap}
 
 	return nodeInfo, nil
+}
+
+// storeConnectorPropertiesWithRetry wraps storeConnectorProperties with
+// a retry loop to handle the common case where the os-brick sidecar
+// container hasn't started yet during initial pod startup.
+//
+// With the current parameters (duration=2s, factor=1.5, steps=10) the
+// total maximum wait is approximately 113 seconds. During this time
+// NodeGetInfo blocks, which delays CSI node registration. In large
+// clusters this may be noticeable; consider tuning the parameters if
+// startup latency is a concern.
+func (ns *nodeServer) storeConnectorPropertiesWithRetry(ctx context.Context, nodeID string) error {
+	backoff := wait.Backoff{
+		Duration: 2 * time.Second,
+		Factor:   1.5,
+		Steps:    10,
+	}
+
+	var lastErr error
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		lastErr = ns.storeConnectorProperties(ctx, nodeID)
+		if lastErr != nil {
+			klog.Warningf("NodeGetInfo: waiting for os-brick sidecar: %v", lastErr)
+			return false, nil // retry
+		}
+		return true, nil // success
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "[NodeGetInfo] os-brick sidecar not available after retries: %v", lastErr)
+	}
+	return nil
+}
+
+// storeConnectorProperties retrieves the host connector properties from
+// the os-brick sidecar and stores them as a JSON annotation on the
+// Kubernetes Node object. The controller reads this annotation in
+// ControllerPublishVolume / ControllerUnpublishVolume.
+func (ns *nodeServer) storeConnectorProperties(ctx context.Context, nodeID string) error {
+	// Step 1: get connector properties from os-brick sidecar.
+	props, err := ns.Brick.GetConnectorProperties(ctx)
+	if err != nil {
+		return status.Errorf(codes.Internal, "[NodeGetInfo] failed to get connector properties: %v", err)
+	}
+
+	// Step 2: serialize connector properties to JSON.
+	//
+	// Prefer RawJSON (the complete os-brick dict with original Python
+	// types) over manually reconstructing the map from typed fields.
+	// This avoids type coercion issues (e.g. Python bool True becoming
+	// Go string "True") that cause Cinder backends to reject the
+	// connector dict.
+	var propsJSON []byte
+	if props.RawJSON != "" {
+		propsJSON = []byte(props.RawJSON)
+	} else {
+		// Fallback for sidecars that don't set raw_json yet.
+		propsMap := map[string]any{
+			"initiator": props.Initiator,
+			"host":      props.Host,
+			"multipath": props.Multipath,
+		}
+		if len(props.Wwpns) > 0 {
+			propsMap["wwpns"] = props.Wwpns
+		}
+		for k, v := range props.Extras {
+			propsMap[k] = v
+		}
+		var marshalErr error
+		propsJSON, marshalErr = json.Marshal(propsMap)
+		if marshalErr != nil {
+			return status.Errorf(codes.Internal, "[NodeGetInfo] failed to marshal connector properties: %v", marshalErr)
+		}
+	}
+
+	// Step 3: patch the Kubernetes node annotation.
+	patchPayload, err := json.Marshal(map[string]any{
+		"metadata": map[string]any{
+			"annotations": map[string]any{
+				ConnectorPropertiesAnnotation: string(propsJSON),
+			},
+		},
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "[NodeGetInfo] failed to build patch: %v", err)
+	}
+
+	_, err = ns.KubeClient.CoreV1().Nodes().Patch(ctx, ns.NodeName, types.MergePatchType, patchPayload, metav1.PatchOptions{})
+	if err != nil {
+		return status.Errorf(codes.Internal, "[NodeGetInfo] failed to patch node %s with connector properties: %v", ns.NodeName, err)
+	}
+
+	// Step 4: log the stored connector properties.
+	klog.Infof("NodeGetInfo: stored connector properties on node %s for CSI nodeID %s: %s", ns.NodeName, nodeID, string(propsJSON))
+	return nil
 }
 
 func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
