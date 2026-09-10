@@ -6,8 +6,12 @@
   - [Prerequisites](#prerequisites)
     - [OpenStack Cloud](#openstack-cloud)
     - [Kubernetes cluster](#kubernetes-cluster)
+    - [DevStack-based testing environment](#devstack-based-testing-environment)
   - [Contribution](#contribution)
   - [Development](#development)
+    - [Testing](#testing)
+    - [Unit tests](#unit-tests)
+    - [E2E tests](#e2e-tests)
     - [Build openstack-cloud-controller-manager image](#build-openstack-cloud-controller-manager-image)
     - [Troubleshooting](#troubleshooting)
     - [Review process](#review-process)
@@ -48,6 +52,8 @@ You can also use our CI scripts to setup a simple development environment based 
 Once the VM is up make sure your SSH keys allow logging in as `ubuntu` user and from your PC and cloud-provider-openstack directory run:
 
 ```
+ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM> sh -c 'echo; git clone https://github.com/kubernetes/cloud-provider-openstack.git ~/src/k8s.io/cloud-provider-openstack'
+
 ansible-playbook -v \
   --user ubuntu \
   --inventory <PUBLIC_IP_OF_YOUR_VM>, \
@@ -63,11 +69,8 @@ After it finishes you should be able to access both DevStack and Kubernetes:
 # SSH to the VM
 $ ssh ubuntu@<PUBLIC_IP_OF_YOUR_VM>
 
-# Apparently we install K8s in root
-$ sudo su
-
 # Load OpenStack credentials
-$ source /home/stack/devstack/openrc admin admin
+$ source openrc-demo
 
 # List all pods in K8s
 $ kubectl get pods -A
@@ -100,6 +103,48 @@ test   LoadBalancer   10.43.71.235   172.24.5.121   80:30427/TCP   41m
 # Call the LB
 $ curl 172.24.5.121
 test-846c6ffb69-w52vq: HELLO! I AM ALIVE!!!
+```
+
+Alternately, if you prefer to develop locally, you can use below steps:
+
+* Forward traffic to the cluster with `sshuttle`.
+
+```sh
+sshuttle -r ubuntu@<PUBLIC_IP_OF_YOUR_VM> 172.24.0.0/16
+```
+
+* (Optional) Log in to the k3s master node.
+
+```sh
+mkdir _tmp
+
+scp ubuntu@<PUBLIC_IP_OF_YOUR_VM>:~/.ssh/id_rsa _tmp/id_rsa && chmod 0600 _tmp/id_rsa
+# Get the float IP of the k3s node with `openstack server show k3s-master -c "addresses"`
+ssh -i _tmp/id_rsa  ubuntu@<K3S_NODE_FLOAT_IP>
+```
+
+* Fetch k3s kubeconfig file.
+
+```sh
+scp ubuntu@<PUBLIC_IP_OF_YOUR_VM>:~/.kube/config _tmp/kubeconfig
+
+export KUBECONFIG=_tmp/kubeconfig
+```
+
+* Get the image register CA cert from the node and add it into docker certs.
+
+```sh
+sudo mkdir -p /etc/docker/certs.d/<PUBLIC_IP_OF_YOUR_VM>
+sudo scp ubuntu@<PUBLIC_IP_OF_YOUR_VM>:~/certs/ca.pem /etc/docker/certs.d/<PUBLIC_IP_OF_YOUR_VM>/ca.crt
+```
+
+* Build image and push to the remote register.
+
+```sh
+make push-multiarch-image-cinder-csi-plugin \
+  ARCHS='amd64' \
+  VERSION=v0.0.100 \
+  REGISTRY=<PUBLIC_IP_OF_YOUR_VM>
 ```
 
 ## Contribution
@@ -154,7 +199,8 @@ ansible-playbook \
   --user ubuntu \
   --inventory 10.0.110.127, \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
-  tests/playbooks/test-csi-cinder-e2e.yaml
+  tests/playbooks/test-csi-cinder-e2e.yaml \
+  -e run_e2e=true
 ```
 
 As you can see, this whole area needs improvement to make this a little more approachable for non-CI use cases. This should be enough direction to get started though.

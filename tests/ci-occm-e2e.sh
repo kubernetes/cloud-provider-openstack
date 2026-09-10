@@ -117,7 +117,7 @@ fi
 # Upload CPO code
 scp -i ~/.ssh/google_compute_engine \
   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-  -r ${GOPATH}/* ${USERNAME}@${PUBLIC_IP}:/root/
+  -r ${GOPATH}/* ${USERNAME}@${PUBLIC_IP}:~/
 
 # Run ansible playbook on the CI host, e.g. a VM in GCP
 # USERNAME and PUBLIC_IP are global env variables set after creating the CI host.

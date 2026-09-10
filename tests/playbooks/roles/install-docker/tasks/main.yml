@@ -1,6 +1,7 @@
 ---
 # apt-get install -y apt-transport-https ca-certificates curl software-properties-common
 - name: Install packages
+  become: true
   apt:
     name: "{{ packages }}"
     state: present
@@ -15,24 +16,38 @@
 
 # curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 - name: Add Docker's official GPG key
+  become: true
   apt_key:
     url: https://download.docker.com/linux/ubuntu/gpg
     state: present
 
 # add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 - name: Set up the stable repository
+  become: true
   apt_repository:
     repo: 'deb https://download.docker.com/linux/ubuntu {{ hostvars[inventory_hostname].ansible_distribution_release }} stable'
     state: present
 
 # apt-get update; apt install -y docker-ce=<version>
 - name: Install docker-ce
+  become: true
   apt:
     name: docker-ce #={{ docker_version }}
     state: present
     update_cache: yes
 
+- name: Add user into docker group
+  become: true
+  ansible.builtin.user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+- name: Reset ssh connection to allow group membership change to be effective
+  ansible.builtin.meta: reset_connection
+
 - name: Config docker
+  become: true
   copy:
     content: |
       {
@@ -46,3 +61,7 @@
     dest: /etc/docker/daemon.json
     mode: 0644
   notify: "Restart Docker"
+
+# Trigger docker restart immediately
+- name: Flush handlers
+  meta: flush_handlers
