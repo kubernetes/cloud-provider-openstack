@@ -1,0 +1,160 @@
+- name: Compile LoadBalancer Go e2e tests
+  when: run_e2e | bool
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+      go test -c -o /tmp/loadbalancer.test ./tests/e2e/cloudprovider
+  environment:
+    GOPATH: '{{ ansible_user_dir }}'
+    PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
+
+- name: Run LoadBalancer e2e tests
+  when: run_e2e | bool
+  register: run_tests
+  shell:
+    executable: /bin/bash
+    cmd: |
+      cd {{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack
+
+      # Set environment for tests
+      export GATEWAY_IP=172.24.5.1
+      export OCTAVIA_PROVIDER={{ octavia_provider }}
+      export LB_SUBNET_NAME=private-subnet
+      export AUTO_CLEAN_UP=true
+      export KUBECONFIG={{ ansible_user_dir }}/.kube/config
+
+      # Source OpenStack credentials
+      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+
+      # Run Go tests with Ginkgo output
+      # Note: Do NOT use '|| true' - we need the actual exit code
+      /tmp/loadbalancer.test \
+        -ginkgo.v \
+        -ginkgo.no-color \
+        -ginkgo.show-node-events \
+        -ginkgo.focus="LoadBalancer Service" \
+        -ginkgo.timeout=1h \
+        -test.timeout=0 2>&1 | tee /tmp/lb-e2e-tests.log
+
+      # Capture the test exit code from the pipeline
+      exit ${PIPESTATUS[0]}
+  timeout: 3900
+  ignore_errors: true  # Don't stop playbook - always collect logs first
+  failed_when: false   # Don't mark as failed yet - check manually later
+
+- name: Create log collection directory
+  when: run_e2e | bool
+  file:
+    path: /root/logs/lb-e2e
+    state: directory
+    mode: '0755'
+
+- name: Collect test output log
+  when: run_e2e | bool
+  shell:
+    executable: /bin/bash
+    cmd: |
+      if [ -f /tmp/lb-e2e-tests.log ]; then
+        cp /tmp/lb-e2e-tests.log /root/logs/lb-e2e/
+      fi
+
+- name: Collect API debug logs
+  when: run_e2e | bool
+  shell:
+    executable: /bin/bash
+    cmd: |
+      if [ -d /tmp/lb-e2e-logs ]; then
+        cp -r /tmp/lb-e2e-logs/* /root/logs/lb-e2e/ 2>/dev/null || true
+      fi
+
+- name: Collect OCCM logs
+  when: run_e2e | bool
+  shell:
+    executable: /bin/bash
+    cmd: |
+      kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager --tail=-1 > /root/logs/lb-e2e/occm.log 2>&1 || true
+
+- name: Check if tests actually failed
+  when: run_e2e | bool
+  set_fact:
+    tests_failed: "{{ run_tests.rc != 0 }}"
+
+- name: Print test results summary
+  when: run_e2e | bool
+  debug:
+    msg: |
+      ================================================================================
+      LoadBalancer E2E Test Results
+      ================================================================================
+      Exit Code: {{ run_tests.rc }}
+      Status: {{ 'FAILED' if tests_failed else 'PASSED' }}
+      Duration: {{ run_tests.delta }}
+      ================================================================================
+      {% if tests_failed %}
+      One or more tests failed. Check logs at /root/logs/lb-e2e/ for details.
+      {% else %}
+      All tests passed successfully!
+      {% endif %}
+      ================================================================================
+
+- name: Show failure details (when tests failed)
+  when:
+    - run_e2e | bool
+    - tests_failed | bool
+  block:
+  - name: Show last 100 lines of test output
+    shell:
+      executable: /bin/bash
+      cmd: |
+        echo "=== LoadBalancer E2E Test Output (last 100 lines) ==="
+        tail -100 /tmp/lb-e2e-tests.log 2>/dev/null || echo "No test log found"
+
+  - name: Show API debug log summary
+    shell:
+      executable: /bin/bash
+      cmd: |
+        if [ -f /tmp/lb-e2e-logs/latest-api-debug.log ]; then
+          echo "=== API Debug Log (last 50 lines) ==="
+          tail -50 /tmp/lb-e2e-logs/latest-api-debug.log
+        fi
+
+  - name: Show OCCM pod logs
+    shell:
+      executable: /bin/bash
+      cmd: |
+        echo "=== OCCM Pod Logs (last 100 lines) ==="
+        kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager --tail=100 2>/dev/null || echo "Could not fetch OCCM logs"
+
+  - name: Show Octavia logs
+    become: true
+    shell:
+      executable: /bin/bash
+      cmd: |
+        echo "=== Octavia Logs (last 50 lines) ==="
+        sudo journalctl -u devstack@o-api.service --no-pager | tail -50 2>/dev/null || echo "Could not fetch Octavia logs"
+
+  - name: Show Neutron logs
+    become: true
+    shell:
+      executable: /bin/bash
+      cmd: |
+        echo "=== Neutron Logs (last 50 lines) ==="
+        sudo journalctl -u devstack@q-svc.service --no-pager | tail -50 2>/dev/null || echo "Could not fetch Neutron logs"
+
+  - name: List collected log files
+    shell:
+      executable: /bin/bash
+      cmd: |
+        echo "=== Collected Log Files ==="
+        ls -lah /root/logs/lb-e2e/ 2>/dev/null || echo "No logs collected"
+
+- name: Fail playbook if tests failed
+  when:
+    - run_e2e | bool
+    - tests_failed | bool
+  fail:
+    msg: |
+      LoadBalancer E2E tests FAILED!
+      Exit code: {{ run_tests.rc }}
+      Check the logs above and at /root/logs/lb-e2e/ for details.
