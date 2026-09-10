@@ -44,6 +44,7 @@ var (
 	provideNodeService       bool
 	noClient                 bool
 	withTopology             bool
+	attachMode               string
 )
 
 func main() {
@@ -101,6 +102,8 @@ func main() {
 	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
 	cmd.PersistentFlags().MarkDeprecated("node-service-no-os-client", "This flag is deprecated and will be removed in the future. Node service do not use OpenStack credentials anymore.") //nolint:errcheck
 
+	cmd.PersistentFlags().StringVar(&attachMode, "attach-mode", "nova", "Volume attach mode: 'nova' uses Nova attach/detach, 'direct' uses Cinder Attachment API with os-brick sidecar for direct attachment (typically bare-metal nodes)")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	code := cli.Run(cmd)
@@ -109,11 +112,16 @@ func main() {
 
 func handle() {
 	// Initialize cloud
+	if attachMode != cinder.AttachModeNova && attachMode != cinder.AttachModeDirect {
+		klog.Fatalf("Invalid --attach-mode %q: must be %q or %q", attachMode, cinder.AttachModeNova, cinder.AttachModeDirect)
+	}
+
 	d := cinder.NewDriver(&cinder.DriverOpts{
 		Endpoint:     endpoint,
 		ClusterID:    cluster,
 		PVCLister:    csi.GetPVCLister(),
 		WithTopology: withTopology,
+		AttachMode:   attachMode,
 	})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
@@ -133,7 +141,6 @@ func handle() {
 	}
 
 	if provideNodeService {
-		// Initialize mount
 		mount := mount.GetMountProvider()
 
 		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
@@ -142,10 +149,41 @@ func handle() {
 			return
 		}
 
-		// Initialize Metadata
 		metadata := metadata.GetMetadataProvider(cfg.Metadata.SearchOrder)
 
-		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies)
+		// In direct mode, create a Kubernetes client for the node to
+		// store connector properties in its own node annotation, and
+		// create the os-brick gRPC client for volume operations.
+		var nodeKubeClient kubernetes.Interface
+		var nodeName string
+		var brickClient brick.IConnector
+		nodeClouds := make(map[string]openstack.IOpenStack)
+		if attachMode == cinder.AttachModeDirect {
+			nodeKubeClient = csi.GetKubeClient()
+			nodeName = os.Getenv("KUBE_NODE_NAME")
+			if nodeName == "" {
+				klog.Fatal("KUBE_NODE_NAME environment variable must be set in direct attach mode")
+			}
+
+			grpcConnector, err2 := brick.NewGRPCConnector(brick.Endpoint)
+			if err2 != nil {
+				klog.Fatalf("Failed to connect to os-brick sidecar at %s: %v", brick.Endpoint, err2)
+			}
+			defer grpcConnector.Close()
+			brickClient = grpcConnector
+			klog.Infof("Connected to os-brick sidecar at %s", brick.Endpoint)
+
+			// Create OpenStack clients for the node service so it
+			// can call AttachmentComplete after connecting a volume.
+			for _, cloudName := range cloudNames {
+				nodeClouds[cloudName], err2 = openstack.GetOpenStackProvider(cloudName)
+				if err2 != nil {
+					klog.Fatalf("Failed to create OpenStack provider %q for node service: %v", cloudName, err2)
+				}
+			}
+		}
+
+		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies, brickClient, nodeKubeClient, nodeName, nodeClouds)
 	}
 
 	d.Run()

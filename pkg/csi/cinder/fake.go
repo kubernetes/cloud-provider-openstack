@@ -53,6 +53,7 @@ var FakeAttachment = volumes.Attachment{
 var FakeVol = volumes.Volume{
 	ID:               FakeVolID,
 	Name:             FakeVolName,
+	Status:           "available",
 	Size:             FakeCapacityGiB,
 	AvailabilityZone: FakeAvailability,
 }
@@ -121,6 +122,8 @@ var FakeSnapshotListEmpty = []snapshots.Snapshot{}
 var FakeBackupListEmpty = []backups.Backup{}
 
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
+
+var FakeAttachmentID = "fake-attachment-id"
 
 const FakeMaxVolume int64 = 256
 
