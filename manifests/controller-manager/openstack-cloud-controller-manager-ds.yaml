@@ -11,17 +11,17 @@ metadata:
   name: openstack-cloud-controller-manager
   namespace: kube-system
   labels:
-    k8s-app: openstack-cloud-controller-manager
+    app.kubernetes.io/name: openstack-cloud-controller-manager
 spec:
   selector:
     matchLabels:
-      k8s-app: openstack-cloud-controller-manager
+      app.kubernetes.io/name: openstack-cloud-controller-manager
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        k8s-app: openstack-cloud-controller-manager
+        app.kubernetes.io/name: openstack-cloud-controller-manager
     spec:
       affinity:
         nodeAffinity:

@@ -3,12 +3,12 @@ apiVersion: v1
 metadata:
   name: openstack-manila-csi-controllerplugin
   labels:
-    app: openstack-manila-csi
-    component: controllerplugin
+    app.kubernetes.io/name: openstack-manila-csi
+    app.kubernetes.io/component: controllerplugin
 spec:
   selector:
-    app: openstack-manila-csi
-    component: controllerplugin
+    app.kubernetes.io/name: openstack-manila-csi
+    app.kubernetes.io/component: controllerplugin
   ports:
     - name: dummy
       port: 12345
@@ -18,8 +18,8 @@ apiVersion: apps/v1
 metadata:
   name: openstack-manila-csi-controllerplugin
   labels:
-    app: openstack-manila-csi
-    component: controllerplugin
+    app.kubernetes.io/name: openstack-manila-csi
+    app.kubernetes.io/component: controllerplugin
 spec:
   serviceName: openstack-manila-csi-controllerplugin
   replicas: 1
