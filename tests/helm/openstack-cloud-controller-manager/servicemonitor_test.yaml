@@ -1,7 +1,7 @@
 suite: OCCM ServiceMonitor
 templates:
   - templates/clusterrolebinding-sm.yaml
-  - templates/daemonset.yaml
+  - templates/controller.yaml
   - templates/service-sm.yaml
   - templates/servicemonitor.yaml
 
@@ -28,11 +28,11 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --bind-address=127.0.0.1
-        template: templates/daemonset.yaml
+        template: templates/controller.yaml
       - notContains:
           path: spec.template.spec.containers[0].args
           content: --authorization-always-allow-paths=/metrics
-        template: templates/daemonset.yaml
+        template: templates/controller.yaml
 
   - it: wires the ServiceMonitor to the OCCM metrics endpoint
     set:
@@ -87,19 +87,19 @@ tests:
             app: openstack-cloud-controller-manager
             component: controllermanager
             release: test-release
-        template: templates/daemonset.yaml
+        template: templates/controller.yaml
       - contains:
           path: spec.template.spec.containers[0].args
           content: --authorization-always-allow-paths=/metrics
-        template: templates/daemonset.yaml
+        template: templates/controller.yaml
       - contains:
           path: spec.template.spec.containers[0].args
           content: --bind-address=0.0.0.0
-        template: templates/daemonset.yaml
+        template: templates/controller.yaml
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
             containerPort: 10258
             name: http
           any: true
-        template: templates/daemonset.yaml
+        template: templates/controller.yaml
