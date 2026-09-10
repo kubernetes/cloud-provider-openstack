@@ -681,3 +681,71 @@ func TestNodeStageVolumeDirectModeAttachmentCompleteFails(t *testing.T) {
 	brickmock.AssertCalled(t, "DisconnectVolume", FakeCtx, FakeConnectionInfo)
 	osmock.AssertCalled(t, "AttachmentComplete", FakeAttachmentID)
 }
+
+// TestNodeUnstageVolumeDirectMode verifies the full unstage lifecycle:
+// 1. Reads persisted connection_info
+// 2. Unmounts
+// 3. Calls DisconnectVolume
+// 4. Removes the connection_info file
+func TestNodeUnstageVolumeDirectMode(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	// Create staging dir with a persisted connection_info file
+	stagingDir := t.TempDir()
+	connInfoPath := filepath.Join(stagingDir, connectionInfoFile)
+	err := os.WriteFile(connInfoPath, []byte(FakeConnectionInfo), 0600)
+	if err != nil {
+		t.Fatalf("failed to write test connection info file: %v", err)
+	}
+
+	// NOTE: Direct mode calls Mounter().Unmount() (the raw mount-utils
+	// Unmount) instead of the IMount.UnmountPath() wrapper, because
+	// UnmountPath calls CleanupMountPoint which removes the directory
+	// before we can read the connection_info file underneath it.
+	// The FakeMounter returned by MountMock.Mounter() handles the
+	// Unmount() call (no-op on an unmounted path).
+	brickmock.On("DisconnectVolume", FakeCtx, FakeConnectionInfo).Return(nil)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.NodeUnstageVolumeRequest{
+		VolumeId:          FakeVolID,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeUnstageVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeUnstageVolumeResponse{}, res)
+
+	// Verify DisconnectVolume was called
+	brickmock.AssertCalled(t, "DisconnectVolume", FakeCtx, FakeConnectionInfo)
+
+	// Verify connection_info file was removed
+	_, statErr := os.Stat(connInfoPath)
+	assert.True(os.IsNotExist(statErr), "connection_info file should have been removed")
+}
+
+// TestNodeUnstageVolumeDirectModeIdempotent verifies that NodeUnstageVolume
+// succeeds even when the connection_info file is already gone (idempotent).
+func TestNodeUnstageVolumeDirectModeIdempotent(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	// Staging dir exists but NO connection_info file.
+	// See TestNodeUnstageVolumeDirectMode for why UnmountPath is not
+	// mocked here ; direct mode uses Mounter().Unmount() directly.
+	stagingDir := t.TempDir()
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.NodeUnstageVolumeRequest{
+		VolumeId:          FakeVolID,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeUnstageVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeUnstageVolumeResponse{}, res)
+
+	// DisconnectVolume must NOT have been called
+	brickmock.AssertNotCalled(t, "DisconnectVolume")
+}
