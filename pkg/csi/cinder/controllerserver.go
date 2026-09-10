@@ -43,8 +43,9 @@ import (
 )
 
 type controllerServer struct {
-	Driver *Driver
-	Clouds map[string]openstack.IOpenStack
+	Driver    *Driver
+	Clouds    map[string]openstack.IOpenStack
+	ConnProps ConnectorPropertiesGetter
 	csi.UnimplementedControllerServer
 }
 

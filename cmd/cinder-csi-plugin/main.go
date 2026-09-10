@@ -111,6 +111,11 @@ func main() {
 }
 
 func handle() {
+	// stopCh is closed when handle() returns, which signals informers
+	// and other background goroutines to shut down cleanly.
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
 	// Initialize cloud
 	if attachMode != cinder.AttachModeNova && attachMode != cinder.AttachModeDirect {
 		klog.Fatalf("Invalid --attach-mode %q: must be %q or %q", attachMode, cinder.AttachModeNova, cinder.AttachModeDirect)
@@ -137,7 +142,17 @@ func handle() {
 			}
 		}
 
-		d.SetupControllerService(clouds)
+		var connProps cinder.ConnectorPropertiesGetter
+		if attachMode == cinder.AttachModeDirect {
+			kubeClient := csi.GetKubeClient()
+			var connPropsErr error
+			connProps, connPropsErr = cinder.NewKubeConnectorPropertiesGetter(kubeClient, stopCh)
+			if connPropsErr != nil {
+				klog.Fatalf("Failed to create connector properties getter: %v", connPropsErr)
+			}
+		}
+
+		d.SetupControllerService(clouds, connProps)
 	}
 
 	if provideNodeService {
