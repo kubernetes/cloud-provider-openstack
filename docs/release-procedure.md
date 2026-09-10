@@ -165,9 +165,12 @@ Chart versions on `master` use a `-dev` pre-release suffix (e.g.
 `2.37.0-dev`) and are **not** bumped for individual PRs. Version bumps only
 happen at release time (see [Major releases](#major-releases-xy0) above).
 
-On `release-*` branches the chart version (`version`) **must** be bumped for
-every backported change to a chart(s) including changes to `appVersion`. A CI
-job enforces this for PRs targeting those branches. Once version change is
-merged, tags are automatically created for any charts whose version changed
-(i.e. `openstack-cloud-controller-manager-X.Y.Z`, `openstack-cinder-csi-X.Y.Z`,
-and `openstack-manila-csi-X.Y.Z`).
+On `release-*` branches the chart version (`version`) **should** be bumped for
+every backported change to a chart(s) including changes to `appVersion`. This
+can be done in the backport PR or later, via a separate PR. The
+`hack/bump-release.py` will automatically bump the correct chart if there have
+been any changes.
+
+Once version change is merged, tags are automatically created for any charts
+whose version changed (i.e. `openstack-cloud-controller-manager-X.Y.Z`,
+`openstack-cinder-csi-X.Y.Z`, and `openstack-manila-csi-X.Y.Z`).
