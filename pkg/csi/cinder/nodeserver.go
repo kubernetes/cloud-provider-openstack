@@ -40,6 +40,29 @@ import (
 	mountutil "k8s.io/mount-utils"
 )
 
+const (
+	// connectionInfoFile is the name of the file used to persist Cinder
+	// connection_info under the staging target path. It is written before
+	// the volume is mounted (so it lives on the host filesystem, hidden
+	// behind the mount) and read back after unmount during unstage.
+	connectionInfoFile = ".connection_info.json"
+
+	// attachmentIDFile is the name of the file used to persist the Cinder
+	// attachment ID under the staging target path. It is written alongside
+	// the connection_info file for potential future use in unstage error
+	// recovery.
+	attachmentIDFile = ".attachment_id"
+
+	// connectionInfoSiblingExt is the extension appended to the staging
+	// target path to create a sibling file that persists connection_info
+	// *outside* the mount point. The primary copy (connectionInfoFile)
+	// lives under the mount and is only accessible after unmount during
+	// unstage. This sibling copy is accessible while the volume is
+	// mounted and is used by NodeExpandVolume to call os-brick
+	// ExtendVolume for protocol-specific device rescans.
+	connectionInfoSiblingExt = ".connection_info"
+)
+
 type nodeServer struct {
 	Driver     *Driver
 	Mount      mount.IMount
@@ -195,11 +218,89 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability must be provided")
 	}
 
+	var devicePath string
+	var err error
+
 	m := ns.Mount
-	// Do not trust the path provided by cinder, get the real path on node
-	devicePath, err := getDevicePath(volumeID, m)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Unable to find Device path for volume: %v", err)
+
+	if ns.Driver.IsDirectMode() {
+		// Direct mode: obtain the device path via the os-brick sidecar.
+		connectionInfo := req.GetPublishContext()["ConnectionInfo"]
+		if connectionInfo == "" {
+			return nil, status.Error(codes.InvalidArgument, "[NodeStageVolume] ConnectionInfo not found in publish context for direct attach mode")
+		}
+
+		devicePath, err = ns.Brick.ConnectVolume(ctx, connectionInfo)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "[NodeStageVolume] ConnectVolume failed: %v", err)
+		}
+		klog.V(4).Infof("NodeStageVolume: ConnectVolume returned device path %s for volume %s", devicePath, volumeID)
+
+		// Ensure we disconnect the volume if any subsequent step fails
+		// before mount. This prevents orphaned devices on the host.
+		disconnectOnFailure := true
+		defer func() {
+			if disconnectOnFailure {
+				klog.Warningf("NodeStageVolume: rolling back ConnectVolume for volume %s", volumeID)
+				if discErr := ns.Brick.DisconnectVolume(ctx, connectionInfo); discErr != nil {
+					klog.Errorf("NodeStageVolume: cleanup DisconnectVolume failed for volume %s: %v", volumeID, discErr)
+				}
+			}
+		}()
+
+		// Mark the attachment as "in-use" in Cinder (best-effort).
+		attachmentID := req.GetPublishContext()["AttachmentID"]
+		volCloud := req.GetPublishContext()["Cloud"]
+		cloud := ns.Clouds[volCloud]
+		if cloud != nil && attachmentID != "" {
+			if completeErr := cloud.AttachmentComplete(ctx, attachmentID); completeErr != nil {
+				// AttachmentComplete (microversion 3.44) transitions the
+				// volume to "in-use" in Cinder. Without it the volume
+				// stays in "attaching" and Cinder will reject subsequent
+				// operations (expand, snapshot, detach from another node).
+				// Treat failure as fatal to avoid leaving the volume in an
+				// inconsistent state.
+				return nil, status.Errorf(codes.Internal, "[NodeStageVolume] AttachmentComplete failed for attachment %s (volume %s): %v", attachmentID, volumeID, completeErr)
+			}
+			klog.V(4).Infof("NodeStageVolume: AttachmentComplete succeeded for attachment %s (volume %s)", attachmentID, volumeID)
+		}
+
+		// Persist connection_info *before* mount so the file lives on the
+		// host filesystem underneath the mount point. NodeUnstageVolume
+		// reads it back after unmounting.
+		connInfoPath := filepath.Join(stagingTarget, connectionInfoFile)
+		if writeErr := os.WriteFile(connInfoPath, []byte(connectionInfo), 0600); writeErr != nil {
+			return nil, status.Errorf(codes.Internal, "[NodeStageVolume] failed to persist connection info: %v", writeErr)
+		}
+
+		// Persist attachment ID for potential future use in unstage
+		// error recovery.
+		if attachmentID != "" {
+			attachIDPath := filepath.Join(stagingTarget, attachmentIDFile)
+			if writeErr := os.WriteFile(attachIDPath, []byte(attachmentID), 0600); writeErr != nil {
+				klog.Warningf("NodeStageVolume: failed to persist attachment ID: %v", writeErr)
+			}
+		}
+
+		// Also persist a sibling copy of connection_info *outside* the
+		// staging directory so NodeExpandVolume can read it while the
+		// volume is mounted (the primary copy is hidden by the mount).
+		// This is required for protocol-aware rescans during volume
+		// expansion, so treat write failure as fatal.
+		siblingPath := stagingTarget + connectionInfoSiblingExt
+		if writeErr := os.WriteFile(siblingPath, []byte(connectionInfo), 0600); writeErr != nil {
+			return nil, status.Errorf(codes.Internal, "[NodeStageVolume] failed to persist sibling connection info at %s: %v", siblingPath, writeErr)
+		}
+
+		// All pre-mount steps succeeded, disarm the cleanup so the
+		// deferred DisconnectVolume does not fire.
+		disconnectOnFailure = false
+	} else {
+		// Nova mode: discover the device through the metadata service.
+		devicePath, err = getDevicePath(volumeID, m)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Unable to find Device path for volume: %v", err)
+		}
 	}
 
 	if blk := volumeCapability.GetBlock(); blk != nil {
