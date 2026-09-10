@@ -34,7 +34,7 @@ func TestDriver(t *testing.T) {
 	}
 
 	d.SetupControllerService(openstack.OsInstances, nil)
-	d.SetupNodeService(fakemnt, fakemeta, fakeOpts, map[string]string{})
+	d.SetupNodeService(fakemnt, fakemeta, fakeOpts, map[string]string{}, nil, nil, "", openstack.OsInstances)
 
 	// TODO: Stop call
 

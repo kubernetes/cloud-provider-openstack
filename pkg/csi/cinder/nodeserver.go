@@ -27,12 +27,14 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	utilpath "k8s.io/utils/path"
 
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
 	"k8s.io/cloud-provider-openstack/pkg/util/blockdevice"
+	"k8s.io/cloud-provider-openstack/pkg/util/brick"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	mountutil "k8s.io/mount-utils"
@@ -42,6 +44,10 @@ type nodeServer struct {
 	Driver     *Driver
 	Mount      mount.IMount
 	Metadata   metadata.IMetadata
+	Brick      brick.IConnector
+	Clouds     map[string]openstack.IOpenStack // only set in direct mode, for AttachmentComplete
+	KubeClient kubernetes.Interface
+	NodeName   string
 	Opts       openstack.BlockStorageOpts
 	Topologies map[string]string
 	csi.UnimplementedNodeServer

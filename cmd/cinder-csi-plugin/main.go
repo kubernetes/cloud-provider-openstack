@@ -22,9 +22,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/brick"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/cloud-provider-openstack/pkg/version"
@@ -171,7 +173,39 @@ func handle() {
 		// Initialize Metadata
 		metadata := metadata.GetMetadataProvider(cfg.Metadata.SearchOrder)
 
-		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies)
+		// In direct mode, create a Kubernetes client for the node to
+		// store connector properties in its own node annotation, and
+		// create the os-brick gRPC client for volume operations.
+		var nodeKubeClient kubernetes.Interface
+		var nodeName string
+		var brickClient brick.IConnector
+		nodeClouds := make(map[string]openstack.IOpenStack)
+		if attachMode == cinder.AttachModeDirect {
+			nodeKubeClient = csi.GetKubeClient()
+			nodeName = os.Getenv("KUBE_NODE_NAME")
+			if nodeName == "" {
+				klog.Fatal("KUBE_NODE_NAME environment variable must be set in direct attach mode")
+			}
+
+			grpcConnector, err2 := brick.NewGRPCConnector(brickEndpoint)
+			if err2 != nil {
+				klog.Fatalf("Failed to connect to os-brick sidecar at %s: %v", brickEndpoint, err2)
+			}
+			defer grpcConnector.Close()
+			brickClient = grpcConnector
+			klog.Infof("Connected to os-brick sidecar at %s", brickEndpoint)
+
+			// Create OpenStack clients for the node service so it
+			// can call AttachmentComplete after connecting a volume.
+			for _, cloudName := range cloudNames {
+				nodeClouds[cloudName], err2 = openstack.GetOpenStackProvider(cloudName)
+				if err2 != nil {
+					klog.Fatalf("Failed to create OpenStack provider %q for node service: %v", cloudName, err2)
+				}
+			}
+		}
+
+		d.SetupNodeService(mount, metadata, cfg.BlockStorage, additionalTopologies, brickClient, nodeKubeClient, nodeName, nodeClouds)
 	}
 
 	d.Run()

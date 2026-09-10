@@ -60,6 +60,22 @@ func (os *OpenStack) AttachmentCreate(ctx context.Context, volumeID string, inst
 	return att.ID, att.ConnectionInfo, nil
 }
 
+// AttachmentGet retrieves a Cinder volume attachment by ID
+// (microversion 3.27+) and returns its connection_info.
+func (os *OpenStack) AttachmentGet(ctx context.Context, attachmentID string) (map[string]any, error) {
+	blockstorageClient := os.blockStorageClientWithMicroversion("3.27")
+
+	mc := metrics.NewMetricContext("volume_attachment", "get")
+	att, err := attachments.Get(ctx, blockstorageClient, attachmentID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		klog.Errorf("Failed to get attachment %s: %v", attachmentID, err)
+		return nil, err
+	}
+
+	klog.V(4).Infof("Got attachment %s (volume %s)", att.ID, att.VolumeID)
+	return att.ConnectionInfo, nil
+}
+
 // AttachmentDelete deletes a Cinder volume attachment (microversion
 // 3.27+). Only the attachment ID is required, no connector properties.
 func (os *OpenStack) AttachmentDelete(ctx context.Context, attachmentID string) error {

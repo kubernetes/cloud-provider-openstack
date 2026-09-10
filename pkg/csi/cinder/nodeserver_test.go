@@ -55,7 +55,7 @@ func fakeNodeServer() (*nodeServer, *openstack.OpenStackMock, *mount.MountMock, 
 		NodeVolumeAttachLimit: maxVolumesPerNode,
 	}
 
-	fakeNs := NewNodeServer(d, mount.MInstance, metadata.MetadataService, opts, map[string]string{})
+	fakeNs := NewNodeServer(d, mount.MInstance, metadata.MetadataService, opts, map[string]string{}, nil, nil, "", nil)
 
 	return fakeNs, osmock, mmock, metamock
 }

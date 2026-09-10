@@ -593,6 +593,29 @@ func (_m *OpenStackMock) AttachmentCreate(ctx context.Context, volumeID string, 
 	return r0, r1, r2
 }
 
+// AttachmentGet provides a mock function with given fields: attachmentID
+func (_m *OpenStackMock) AttachmentGet(ctx context.Context, attachmentID string) (map[string]any, error) {
+	ret := _m.Called(attachmentID)
+
+	var r0 map[string]any
+	if rf, ok := ret.Get(0).(func(string) map[string]any); ok {
+		r0 = rf(attachmentID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]any)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(attachmentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // AttachmentDelete provides a mock function with given fields: attachmentID
 func (_m *OpenStackMock) AttachmentDelete(ctx context.Context, attachmentID string) error {
 	ret := _m.Called(attachmentID)
