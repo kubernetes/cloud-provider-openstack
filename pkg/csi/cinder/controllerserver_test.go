@@ -17,7 +17,10 @@ limitations under the License.
 package cinder
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -558,6 +561,7 @@ func TestCreateVolumeFromSourceVolume(t *testing.T) {
 	osmock.On("CreateVolume", FakeVolName, mock.AnythingOfType("int"), FakeVolType, "", "", FakeVolID, "", properties).Return(&FakeVolFromSourceVolume, nil)
 	osmock.On("GetVolumesByName", FakeVolName).Return(FakeVolListEmpty, nil)
 	osmock.On("GetBlockStorageOpts").Return(openstack.BlockStorageOpts{})
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 
 	assert := assert.New(t)
 
@@ -663,6 +667,7 @@ func TestDeleteVolume(t *testing.T) {
 func TestControllerPublishVolume(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
 	osmock.On("AttachVolume", FakeNodeID, FakeVolID).Return(FakeVolID, nil)
 	osmock.On("WaitDiskAttached", FakeNodeID, FakeVolID).Return(nil)
 	osmock.On("GetAttachmentDiskPath", FakeNodeID, FakeVolID).Return(FakeDevicePath, nil)
@@ -1433,6 +1438,12 @@ func TestListSnapshots(t *testing.T) {
 func TestControllerExpandVolume(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
+	fakeVolAvailable := &volumes.Volume{
+		ID:     FakeVolID,
+		Status: openstack.VolumeAvailableStatus,
+		Size:   FakeCapacityGiB,
+	}
+	osmock.On("GetVolume", FakeVolID).Return(fakeVolAvailable, nil)
 	tState := []string{"available", "in-use"}
 	osmock.On("ExpandVolume", FakeVolID, openstack.VolumeAvailableStatus, 5).Return(nil)
 	osmock.On("WaitVolumeTargetStatus", FakeVolID, tState).Return(nil)
@@ -1466,7 +1477,7 @@ func TestControllerExpandVolume(t *testing.T) {
 func TestValidateVolumeCapabilities(t *testing.T) {
 	fakeCs, osmock := fakeControllerServer()
 
-	osmock.On("GetVolume", FakeVolID).Return(FakeVol1)
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol1, nil)
 
 	assert := assert.New(t)
 
@@ -1606,4 +1617,213 @@ func TestAppendVolumeMetadata(t *testing.T) {
 			assert.ErrorContains(err, c.expectedErrStrPattern)
 		}
 	}
+}
+
+// --- Direct mode tests ---
+
+// mockConnectorPropertiesGetter is a testify mock for ConnectorPropertiesGetter.
+type mockConnectorPropertiesGetter struct {
+	mock.Mock
+}
+
+func (m *mockConnectorPropertiesGetter) GetConnectorProperties(ctx context.Context, nodeID string) (map[string]any, error) {
+	args := m.Called(ctx, nodeID)
+	if props := args.Get(0); props != nil {
+		return props.(map[string]any), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func fakeDirectControllerServer() (*controllerServer, *openstack.OpenStackMock, *mockConnectorPropertiesGetter) {
+	osmock := new(openstack.OpenStackMock)
+	connPropsMock := new(mockConnectorPropertiesGetter)
+
+	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true, AttachMode: "direct"})
+
+	cs := NewControllerServer(d, map[string]openstack.IOpenStack{
+		"": osmock,
+	}, connPropsMock)
+	return cs, osmock, connPropsMock
+}
+
+var FakeConnectorProperties = map[string]any{
+	"initiator": "iqn.2025-01.com.example:node1",
+	"host":      "node1",
+	"multipath": false,
+}
+
+var FakeConnectionInfoMap = map[string]any{
+	"driver_volume_type": "iscsi",
+	"data": map[string]any{
+		"target_iqn":    "iqn.2025-01.com.example:storage",
+		"target_portal": "10.0.0.1:3260",
+	},
+}
+
+// TestControllerPublishVolumeDirectMode verifies that in direct mode:
+// 1. Connector properties are read from the node annotation
+// 2. AttachmentCreate is called with those properties
+// 3. AttachmentID and ConnectionInfo JSON are returned in PublishContext
+func TestControllerPublishVolumeDirectMode(t *testing.T) {
+	fakeCs, osmock, connPropsMock := fakeDirectControllerServer()
+
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
+	connPropsMock.On("GetConnectorProperties", mock.Anything, FakeNodeID).Return(FakeConnectorProperties, nil)
+	osmock.On("AttachmentCreate", FakeVolID, FakeNodeID, FakeConnectorProperties).Return(FakeAttachmentID, FakeConnectionInfoMap, nil)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.ControllerPublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+		Readonly: false,
+	}
+
+	actualRes, err := fakeCs.ControllerPublishVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.NotNil(actualRes)
+
+	// Verify AttachmentID is in PublishContext
+	assert.Equal(FakeAttachmentID, actualRes.PublishContext["AttachmentID"])
+
+	// Verify ConnectionInfo is in PublishContext
+	connInfoJSON := actualRes.PublishContext["ConnectionInfo"]
+	assert.NotEmpty(connInfoJSON)
+
+	// Verify the JSON round-trips correctly
+	var parsed map[string]any
+	err = json.Unmarshal([]byte(connInfoJSON), &parsed)
+	assert.NoError(err)
+	assert.Equal("iscsi", parsed["driver_volume_type"])
+
+	// Verify the right calls were made
+	connPropsMock.AssertCalled(t, "GetConnectorProperties", mock.Anything, FakeNodeID)
+	osmock.AssertCalled(t, "AttachmentCreate", FakeVolID, FakeNodeID, FakeConnectorProperties)
+
+	// Verify Nova calls were NOT made
+	osmock.AssertNotCalled(t, "AttachVolume")
+	osmock.AssertNotCalled(t, "GetInstanceByID")
+}
+
+// TestControllerPublishVolumeDirectModeConnPropsError verifies that
+// ControllerPublishVolume fails when connector properties are unavailable.
+func TestControllerPublishVolumeDirectModeConnPropsError(t *testing.T) {
+	fakeCs, osmock, connPropsMock := fakeDirectControllerServer()
+
+	osmock.On("GetVolume", FakeVolID).Return(&FakeVol, nil)
+	connPropsMock.On("GetConnectorProperties", mock.Anything, FakeNodeID).Return(nil, fmt.Errorf("node not found"))
+
+	fakeReq := &csi.ControllerPublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+		VolumeCapability: &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{
+				Mount: &csi.VolumeCapability_MountVolume{},
+			},
+		},
+	}
+
+	_, err := fakeCs.ControllerPublishVolume(FakeCtx, fakeReq)
+	assert.Error(t, err)
+	st, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+}
+
+// TestControllerUnpublishVolumeDirectMode verifies that in direct mode:
+// 1. The volume's attachments are looked up via GetVolume
+// 2. AttachmentDelete is called with the matching attachment ID
+// 3. No Nova detach calls or connector properties lookups are made
+func TestControllerUnpublishVolumeDirectMode(t *testing.T) {
+	fakeCs, osmock, _ := fakeDirectControllerServer()
+
+	fakeVolWithAttachment := &volumes.Volume{
+		ID:   FakeVolID,
+		Name: FakeVolName,
+		Attachments: []volumes.Attachment{
+			{
+				ServerID:     FakeNodeID,
+				AttachmentID: FakeAttachmentID,
+			},
+		},
+	}
+	osmock.On("GetVolume", FakeVolID).Return(fakeVolWithAttachment, nil)
+	osmock.On("AttachmentDelete", FakeAttachmentID).Return(nil)
+	osmock.On("WaitVolumeTargetStatus", FakeVolID, []string{"available", "in-use"}).Return(nil)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.ControllerUnpublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+	}
+
+	actualRes, err := fakeCs.ControllerUnpublishVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.ControllerUnpublishVolumeResponse{}, actualRes)
+
+	osmock.AssertCalled(t, "GetVolume", FakeVolID)
+	osmock.AssertCalled(t, "AttachmentDelete", FakeAttachmentID)
+
+	// Verify Nova calls were NOT made
+	osmock.AssertNotCalled(t, "DetachVolume")
+	osmock.AssertNotCalled(t, "GetInstanceByID")
+}
+
+// TestControllerUnpublishVolumeDirectModeVolumeNotFound verifies that
+// ControllerUnpublishVolume returns success when the volume is not found
+// (idempotent : volume may already be deleted).
+func TestControllerUnpublishVolumeDirectModeVolumeNotFound(t *testing.T) {
+	fakeCs, osmock, _ := fakeDirectControllerServer()
+
+	osmock.On("GetVolume", FakeVolID).Return(nil, cpoerrors.ErrNotFound)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.ControllerUnpublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+	}
+
+	actualRes, err := fakeCs.ControllerUnpublishVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.ControllerUnpublishVolumeResponse{}, actualRes)
+}
+
+// TestControllerUnpublishVolumeDirectModeNoMatchingAttachment verifies that
+// ControllerUnpublishVolume returns success when the volume exists but has
+// no attachment matching the node ID (already detached).
+func TestControllerUnpublishVolumeDirectModeNoMatchingAttachment(t *testing.T) {
+	fakeCs, osmock, _ := fakeDirectControllerServer()
+
+	fakeVolNoMatch := &volumes.Volume{
+		ID:   FakeVolID,
+		Name: FakeVolName,
+		Attachments: []volumes.Attachment{
+			{
+				ServerID:     "some-other-node",
+				AttachmentID: "other-attachment",
+			},
+		},
+	}
+	osmock.On("GetVolume", FakeVolID).Return(fakeVolNoMatch, nil)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.ControllerUnpublishVolumeRequest{
+		VolumeId: FakeVolID,
+		NodeId:   FakeNodeID,
+	}
+
+	actualRes, err := fakeCs.ControllerUnpublishVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.ControllerUnpublishVolumeResponse{}, actualRes)
+
+	// AttachmentDelete should NOT have been called
+	osmock.AssertNotCalled(t, "AttachmentDelete", mock.Anything)
 }

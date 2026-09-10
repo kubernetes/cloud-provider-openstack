@@ -330,7 +330,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Error(codes.InvalidArgument, "[ControllerPublishVolume] Volume capability must be provided")
 	}
 
-	_, err := cloud.GetVolume(ctx, volumeID)
+	vol, err := cloud.GetVolume(ctx, volumeID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "[ControllerPublishVolume] Volume %s not found", volumeID)
@@ -338,6 +338,132 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] get volume failed with error %v", err)
 	}
 
+	// Direct mode: use Cinder Attachment API instead of Nova attach.
+	if cs.Driver.IsDirectMode() {
+		// Idempotency: if the volume already has an attachment for
+		// this node and is in-use, the previous
+		// ControllerPublishVolume succeeded and the volume is
+		// actively connected. Return the existing connection info
+		// instead of tearing down and rebuilding the attachment.
+		for _, att := range vol.Attachments {
+			if att.ServerID == instanceID && vol.Status == openstack.VolumeInUseStatus {
+				connectionInfo, getErr := cloud.AttachmentGet(ctx, att.AttachmentID)
+				if getErr != nil {
+					klog.Warningf("[ControllerPublishVolume] volume %s has matching in-use attachment %s but AttachmentGet failed: %v , will recreate", volumeID, att.AttachmentID, getErr)
+					break
+				}
+				connectionInfoJSON, marshalErr := json.Marshal(connectionInfo)
+				if marshalErr != nil {
+					klog.Warningf("[ControllerPublishVolume] volume %s has matching in-use attachment %s but failed to marshal connection info: %v , will recreate", volumeID, att.AttachmentID, marshalErr)
+					break
+				}
+				klog.V(3).Infof("[ControllerPublishVolume] volume %s already attached to %s (attachment %s, status %s), returning existing connection info", volumeID, instanceID, att.AttachmentID, vol.Status)
+				return &csi.ControllerPublishVolumeResponse{
+					PublishContext: map[string]string{
+						"AttachmentID":   att.AttachmentID,
+						"ConnectionInfo": string(connectionInfoJSON),
+						"Cloud":          volCloud,
+					},
+				}, nil
+			}
+		}
+
+		// Clean up stale Cinder attachments for this volume.
+		// This can happen when a previous ControllerPublishVolume
+		// succeeded but NodeStageVolume failed, and the Kubernetes
+		// VolumeAttachment was recycled without
+		// ControllerUnpublishVolume completing successfully (e.g.
+		// controller pod restart).
+		//
+		// For multi-attach volumes we only remove attachments
+		// belonging to the current node ; other nodes' attachments
+		// are legitimate and must not be disturbed. For single-
+		// attach (RWO) volumes any existing attachment is stale
+		// because only one consumer should exist.
+		// NOTE: vol.Attachments is a snapshot from the GetVolume call
+		// above. If another controller or external process modifies
+		// attachments concurrently, this list may be stale. Individual
+		// AttachmentDelete calls that fail with NotFound are tolerated.
+		for _, att := range vol.Attachments {
+			if vol.Multiattach && att.ServerID != instanceID {
+				klog.V(4).Infof("[ControllerPublishVolume] skipping attachment %s for volume %s (belongs to different node %s)", att.AttachmentID, volumeID, att.ServerID)
+				continue
+			}
+			klog.V(3).Infof("[ControllerPublishVolume] deleting stale attachment %s for volume %s (server %s)", att.AttachmentID, volumeID, att.ServerID)
+			if delErr := cloud.AttachmentDelete(ctx, att.AttachmentID); delErr != nil {
+				if !cpoerrors.IsNotFound(delErr) {
+					klog.Warningf("[ControllerPublishVolume] failed to delete stale attachment %s: %v", att.AttachmentID, delErr)
+				}
+			}
+		}
+
+		// If the volume is not yet available (e.g. stuck in
+		// "attaching" or "detaching" after a stale attachment
+		// cleanup or a previous incomplete operation), wait
+		// briefly then force-reset if needed.
+		if vol.Status != openstack.VolumeAvailableStatus {
+			klog.V(3).Infof("[ControllerPublishVolume] volume %s status is %q, waiting for it to become available", volumeID, vol.Status)
+			if waitErr := cloud.WaitVolumeTargetStatus(ctx, volumeID, []string{openstack.VolumeAvailableStatus}); waitErr != nil {
+				// Re-fetch the volume to verify it truly has no
+				// remaining attachments before force-resetting.
+				// If attachments still exist the volume may be
+				// legitimately in use and a reset would corrupt data.
+				refreshed, getErr := cloud.GetVolume(ctx, volumeID)
+				if getErr != nil {
+					return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] volume %s stuck in status %q and re-fetch failed: %v", volumeID, vol.Status, getErr)
+				}
+				if len(refreshed.Attachments) > 0 {
+					return nil, status.Errorf(codes.FailedPrecondition, "[ControllerPublishVolume] volume %s stuck in status %q with %d active attachment(s), refusing to force-reset", volumeID, refreshed.Status, len(refreshed.Attachments))
+				}
+				// TODO: emit a metric counter for force-resets so
+				// operators can monitor and alert on them.
+				//
+				// WARNING: In multi-replica controller deployments,
+				// another controller could be concurrently operating
+				// on this volume. The re-fetch + attachment count
+				// check above mitigates but does not eliminate this
+				// race. Force-reset should be used with caution.
+				klog.Errorf("[ControllerPublishVolume] volume %s stuck in transient state %q with no attachments, force-resetting to available ; this may mask a real problem; in multi-replica deployments this could race with another controller", volumeID, refreshed.Status)
+				if resetErr := cloud.ResetVolumeStatus(ctx, volumeID, openstack.VolumeAvailableStatus); resetErr != nil {
+					return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] volume %s did not reach available status (%v) and reset failed: %v", volumeID, waitErr, resetErr)
+				}
+			}
+		}
+
+		connProps, err := cs.ConnProps.GetConnectorProperties(ctx, instanceID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] failed to get connector properties for node %s: %v", instanceID, err)
+		}
+
+		attachmentID, connectionInfo, err := cloud.AttachmentCreate(ctx, volumeID, instanceID, connProps)
+		if err != nil {
+			klog.Errorf("Failed to AttachmentCreate: %v", err)
+			return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] AttachmentCreate failed for volume %s: %v", volumeID, err)
+		}
+
+		// No WaitVolumeTargetStatus is needed here: the single-step
+		// AttachmentCreate (with connector properties) returns the
+		// connection_info synchronously. The volume transitions to
+		// "in-use" only after the node calls AttachmentComplete once
+		// the device is connected on the host.
+
+		connectionInfoJSON, err := json.Marshal(connectionInfo)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] failed to marshal connection info: %v", err)
+		}
+
+		klog.V(4).Infof("ControllerPublishVolume %s on %s is successful (direct mode, attachment %s)", volumeID, instanceID, attachmentID)
+
+		return &csi.ControllerPublishVolumeResponse{
+			PublishContext: map[string]string{
+				"AttachmentID":   attachmentID,
+				"ConnectionInfo": string(connectionInfoJSON),
+				"Cloud":          volCloud,
+			},
+		}, nil
+	}
+
+	// Nova mode: attach via Nova.
 	_, err = cloud.GetInstanceByID(ctx, instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
@@ -393,6 +519,70 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] Volume ID must be provided")
 	}
+
+	// Direct mode: use Cinder Attachment API instead of Nova detach.
+	// Look up the attachment ID from the volume's existing attachments;
+	// no connector properties needed.
+	if cs.Driver.IsDirectMode() {
+		vol, err := cloud.GetVolume(ctx, volumeID)
+		if err != nil {
+			if cpoerrors.IsNotFound(err) {
+				klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it does not exist", volumeID)
+				return &csi.ControllerUnpublishVolumeResponse{}, nil
+			}
+			return nil, status.Errorf(codes.Internal, "[ControllerUnpublishVolume] GetVolume failed for volume %s: %v", volumeID, err)
+		}
+
+		// Find the attachment matching the node ID.
+		var attachmentID string
+		for _, att := range vol.Attachments {
+			if att.ServerID == instanceID {
+				attachmentID = att.AttachmentID
+				break
+			}
+		}
+		if attachmentID == "" {
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is already detached from %s (no matching attachment)", volumeID, instanceID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+
+		if err := cloud.AttachmentDelete(ctx, attachmentID); err != nil {
+			if cpoerrors.IsNotFound(err) {
+				klog.V(3).Infof("ControllerUnpublishVolume assuming attachment %s is already deleted", attachmentID)
+				return &csi.ControllerUnpublishVolumeResponse{}, nil
+			}
+			klog.Errorf("Failed to AttachmentDelete: %v", err)
+			return nil, status.Errorf(codes.Internal, "[ControllerUnpublishVolume] AttachmentDelete failed for attachment %s (volume %s): %v", attachmentID, volumeID, err)
+		}
+
+		// After deleting the attachment, ensure the volume reaches
+		// a stable state. For multi-attach volumes the expected
+		// state after removing one attachment may be "in-use" (if
+		// other attachments remain) rather than "available".
+		if waitErr := cloud.WaitVolumeTargetStatus(ctx, volumeID, []string{openstack.VolumeAvailableStatus, openstack.VolumeInUseStatus}); waitErr != nil {
+			klog.Warningf("[ControllerUnpublishVolume] volume %s did not reach expected status after detach: %v", volumeID, waitErr)
+			// Re-fetch the volume to verify it truly has no
+			// remaining attachments before force-resetting.
+			// If attachments still exist the volume may be
+			// legitimately in use and a reset would corrupt data.
+			refreshed, getErr := cloud.GetVolume(ctx, volumeID)
+			if getErr != nil {
+				klog.Warningf("[ControllerUnpublishVolume] failed to re-fetch volume %s for attachment check: %v", volumeID, getErr)
+			} else if len(refreshed.Attachments) > 0 {
+				klog.Warningf("[ControllerUnpublishVolume] volume %s still has %d active attachment(s), not resetting status", volumeID, len(refreshed.Attachments))
+			} else {
+				klog.Errorf("[ControllerUnpublishVolume] volume %s stuck with no attachments, force-resetting to available", volumeID)
+				if resetErr := cloud.ResetVolumeStatus(ctx, volumeID, openstack.VolumeAvailableStatus); resetErr != nil {
+					klog.Warningf("[ControllerUnpublishVolume] failed to reset volume %s status: %v", volumeID, resetErr)
+				}
+			}
+		}
+
+		klog.V(4).Infof("ControllerUnpublishVolume %s on %s (direct mode, attachment %s)", volumeID, instanceID, attachmentID)
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
+	}
+
+	// Nova mode: detach via Nova.
 	_, err := cloud.GetInstanceByID(ctx, instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
