@@ -393,6 +393,86 @@ func (ns *nodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 		return nil, status.Error(codes.InvalidArgument, "NodeUnstageVolume Staging Target Path must be provided")
 	}
 
+	if ns.Driver.IsDirectMode() {
+		// In direct mode the connection_info and attachment_id files
+		// are persisted *underneath* the mount point (written before
+		// the volume is mounted in NodeStageVolume). The sequence
+		// here is:
+		//   1. Unmount the filesystem (but don't remove the dir,
+		//      it still contains the hidden files).
+		//   2. Read the now-visible connection_info file.
+		//   3. Disconnect the volume via os-brick.
+		//   4. Remove the persisted files and the empty directory.
+
+		// Step 1: unmount only, do NOT use UnmountPath which also
+		// calls os.Remove and fails with "directory not empty".
+		if err := ns.Mount.Mounter().Unmount(stagingTargetPath); err != nil {
+			// Unmount failed. Check whether the path is still
+			// mounted. If it is (e.g. EBUSY), we must not proceed
+			// to disconnect the underlying device. If it is not
+			// mounted the error was benign (already unmounted) and
+			// we can continue.
+			notMnt, checkErr := ns.Mount.Mounter().IsLikelyNotMountPoint(stagingTargetPath)
+			if checkErr != nil {
+				if os.IsNotExist(checkErr) {
+					// Path gone entirely, treat as already unstaged.
+					klog.V(4).Infof("NodeUnstageVolume: staging path %s does not exist, assuming already unstaged", stagingTargetPath)
+					return &csi.NodeUnstageVolumeResponse{}, nil
+				}
+				return nil, status.Errorf(codes.Internal, "[NodeUnstageVolume] unmount failed (%v) and mount state check failed: %v", err, checkErr)
+			}
+			if !notMnt {
+				// Still mounted, the unmount genuinely failed.
+				return nil, status.Errorf(codes.Internal, "[NodeUnstageVolume] unmount of %s failed and path is still mounted: %v", stagingTargetPath, err)
+			}
+			// Not mounted, the error was benign (already unmounted).
+			klog.V(4).Infof("NodeUnstageVolume: Unmount returned %v for %s but path is not mounted, proceeding", err, stagingTargetPath)
+		}
+
+		// Step 2: read the connection_info file (visible after unmount).
+		connInfoPath := filepath.Join(stagingTargetPath, connectionInfoFile)
+		data, readErr := os.ReadFile(connInfoPath)
+		if readErr != nil {
+			if os.IsNotExist(readErr) {
+				klog.V(4).Infof("NodeUnstageVolume: connection info file not found for volume %s, assuming already disconnected", volumeID)
+				_ = os.Remove(stagingTargetPath) // best-effort cleanup
+				return &csi.NodeUnstageVolumeResponse{}, nil
+			}
+			return nil, status.Errorf(codes.Internal, "[NodeUnstageVolume] failed to read connection info: %v", readErr)
+		}
+
+		// Step 3: ask the os-brick sidecar to disconnect the volume.
+		connectionInfo := string(data)
+		if err := ns.Brick.DisconnectVolume(ctx, connectionInfo); err != nil {
+			return nil, status.Errorf(codes.Internal, "[NodeUnstageVolume] DisconnectVolume failed for volume %s: %v", volumeID, err)
+		}
+		klog.V(4).Infof("NodeUnstageVolume: DisconnectVolume succeeded for volume %s", volumeID)
+
+		// Step 4: remove persisted files and the staging directory.
+		for _, f := range []string{connectionInfoFile, attachmentIDFile} {
+			p := filepath.Join(stagingTargetPath, f)
+			if removeErr := os.Remove(p); removeErr != nil && !os.IsNotExist(removeErr) {
+				klog.Warningf("NodeUnstageVolume: failed to remove %s: %v", p, removeErr)
+			}
+		}
+		if removeErr := os.Remove(stagingTargetPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			klog.Warningf("NodeUnstageVolume: failed to remove staging dir %s: %v", stagingTargetPath, removeErr)
+		}
+
+		// Remove the sibling connection_info file written for
+		// NodeExpandVolume (best-effort). Volumes staged by an
+		// older driver version before the sibling file was
+		// introduced will not have this file; the os.IsNotExist
+		// check below handles that gracefully.
+		siblingPath := stagingTargetPath + connectionInfoSiblingExt
+		if removeErr := os.Remove(siblingPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			klog.Warningf("NodeUnstageVolume: failed to remove sibling connection info %s: %v", siblingPath, removeErr)
+		}
+
+		return &csi.NodeUnstageVolumeResponse{}, nil
+	}
+
+	// Nova mode: unmount only.
 	err := ns.Mount.UnmountPath(stagingTargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Unmount of targetPath %s failed with error %v", stagingTargetPath, err)
