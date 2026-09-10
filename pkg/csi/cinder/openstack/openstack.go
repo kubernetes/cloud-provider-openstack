@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
@@ -91,6 +92,22 @@ type BlockStorageOpts struct {
 	RescanOnResize           bool  `gcfg:"rescan-on-resize"`
 	IgnoreVolumeAZ           bool  `gcfg:"ignore-volume-az"`
 	IgnoreVolumeMicroversion bool  `gcfg:"ignore-volume-microversion"`
+	// VolumeStatusPollDelay is the interval in seconds between volume status
+	// polls when waiting for a volume to become available before attaching.
+	// Must be a positive integer representing whole seconds (e.g. 3, 5, 10).
+	// Defaults to 3 seconds if not set or zero.
+	VolumeStatusPollDelay int `gcfg:"volume-status-poll-delay"`
+}
+
+const defaultVolumeStatusPollInterval = 3 * time.Second
+
+// VolumeStatusPollInterval returns the configured poll interval for volume
+// status checks, or the default (3s) if not configured.
+func (opts BlockStorageOpts) VolumeStatusPollInterval() time.Duration {
+	if opts.VolumeStatusPollDelay > 0 {
+		return time.Duration(opts.VolumeStatusPollDelay) * time.Second
+	}
+	return defaultVolumeStatusPollInterval
 }
 
 type Config struct {
