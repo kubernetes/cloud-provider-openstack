@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
@@ -111,29 +112,44 @@ func GetAZFromTopology(topologyKey string, requirement *csi.TopologyRequirement)
 	return zone
 }
 
+// buildKubeConfig creates a rest.Config from the --master/--kubeconfig
+// flags and the KUBECONFIG environment variable. QPS, burst, and
+// content-type are set from the shared CLI flags.
+func buildKubeConfig() *rest.Config {
+	kc := kubeconfig
+	if env := os.Getenv("KUBECONFIG"); env != "" {
+		klog.Infof("Found KUBECONFIG environment variable set, using that..")
+		kc = env
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags(master, kc)
+	if err != nil {
+		klog.Fatalf("Failed to create config: %v", err)
+	}
+	config.QPS = kubeAPIQPS
+	config.Burst = kubeAPIBurst
+	config.ContentType = runtime.ContentTypeProtobuf
+	return config
+}
+
+// GetKubeClient creates a Kubernetes clientset using the configured
+// kubeconfig/master flags and environment. Used by the controller
+// (for reading connector properties annotations) and by the node
+// (for patching its own node annotation).
+func GetKubeClient() kubernetes.Interface {
+	clientset, err := kubernetes.NewForConfig(buildKubeConfig())
+	if err != nil {
+		klog.Fatalf("Failed to create client: %v", err)
+	}
+	return clientset
+}
+
 func GetPVCLister() v1.PersistentVolumeClaimLister {
 	if !pvcAnnotations {
 		return nil
 	}
 
-	// get the KUBECONFIG from env if specified (useful for local/debug cluster)
-	kubeconfigEnv := os.Getenv("KUBECONFIG")
-
-	if kubeconfigEnv != "" {
-		klog.Infof("Found KUBECONFIG environment variable set, using that..")
-		kubeconfig = kubeconfigEnv
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags(master, kubeconfig)
-	if err != nil {
-		klog.Fatalf("Failed to create config: %v", err)
-	}
-
-	config.QPS = kubeAPIQPS
-	config.Burst = kubeAPIBurst
-
-	config.ContentType = runtime.ContentTypeProtobuf
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := kubernetes.NewForConfig(buildKubeConfig())
 	if err != nil {
 		klog.Fatalf("Failed to create client: %v", err)
 	}
