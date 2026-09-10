@@ -1,0 +1,188 @@
+# This YAML file contains driver-registrar, csi driver nodeplugin, and
+# os-brick sidecar API objects for direct-attach (bare-metal) mode.
+#
+# Use this manifest instead of cinder-csi-nodeplugin.yaml when deploying
+# the Cinder CSI driver with --attach-mode=direct on bare-metal nodes.
+# The os-brick sidecar handles volume attach/detach operations (iSCSI,
+# FC, etc.) that would normally be performed by Nova on virtual machines.
+
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: csi-cinder-nodeplugin
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: csi-cinder-nodeplugin
+  template:
+    metadata:
+      labels:
+        app: csi-cinder-nodeplugin
+    spec:
+      tolerations:
+        - operator: Exists
+      serviceAccount: csi-cinder-node-sa
+      hostNetwork: true
+      containers:
+        - name: node-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/cinder.csi.openstack.org/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+        - name: liveness-probe
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.17.0
+          args:
+            - --csi-address=/csi/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: cinder-csi-plugin
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.36.0
+          args:
+            - /bin/cinder-csi-plugin
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--provide-controller-service=false"
+            - "--cloud-config=$(CLOUD_CONFIG)"
+            - "--attach-mode=direct"
+            - "--brick-endpoint=unix:///var/run/osbrick/osbrick.sock"
+            - "--v=1"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix://csi/csi.sock
+            - name: CLOUD_CONFIG
+              value: /etc/config/cloud.conf
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 9808
+              name: healthz
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: "Bidirectional"
+            - name: pods-probe-dir
+              mountPath: /dev
+              mountPropagation: "HostToContainer"
+            - name: secret-cinderplugin
+              mountPath: /etc/config
+              readOnly: true
+            - name: osbrick-socket
+              mountPath: /var/run/osbrick
+            # - name: cacert
+            #   mountPath: /etc/cacert
+            #   readOnly: true
+        - name: osbrick-sidecar
+          securityContext:
+            privileged: true
+          # TODO(direct-mode): Pin to a release tag once the os-brick
+          # sidecar image is published.  Until then, build and push
+          # manually — see sidecar/Dockerfile.osbrick-sidecar.
+          image: registry.k8s.io/provider-os/osbrick-sidecar:v1.36.0
+          imagePullPolicy: "IfNotPresent"
+          volumeMounts:
+            - name: osbrick-socket
+              mountPath: /var/run/osbrick
+            - name: host-dev
+              mountPath: /dev
+            - name: host-sys
+              mountPath: /sys
+              readOnly: true
+            - name: host-run
+              mountPath: /host/run
+              mountPropagation: "Bidirectional"
+            - name: host-iscsi
+              mountPath: /etc/iscsi
+            # Ceph/RBD: mount Ceph config and keyring so os-brick
+            # can connect RBD volumes.  Create the secret with:
+            #   kubectl -n kube-system create secret generic ceph-config \
+            #     --from-file=ceph.conf --from-file=ceph.client.cinder.keyring
+            - name: ceph-config
+              mountPath: /etc/ceph
+              readOnly: true
+            - name: host-lib-modules
+              mountPath: /lib/modules
+              readOnly: true
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/cinder.csi.openstack.org
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: kubelet-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: pods-probe-dir
+          hostPath:
+            path: /dev
+            type: Directory
+        - name: secret-cinderplugin
+          secret:
+            secretName: cloud-config
+        - name: osbrick-socket
+          emptyDir: {}
+        - name: host-dev
+          hostPath:
+            path: /dev
+            type: Directory
+        - name: host-sys
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: host-run
+          hostPath:
+            path: /run
+            type: Directory
+        - name: host-iscsi
+          hostPath:
+            path: /etc/iscsi
+            type: DirectoryOrCreate
+        - name: ceph-config
+          secret:
+            secretName: ceph-config
+            optional: true
+        - name: host-lib-modules
+          hostPath:
+            path: /lib/modules
+            type: Directory
+        # - name: cacert
+        #   hostPath:
+        #     path: /etc/cacert
