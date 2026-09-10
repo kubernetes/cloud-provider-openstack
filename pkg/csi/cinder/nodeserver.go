@@ -726,8 +726,41 @@ func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 		return nil, status.Error(codes.Internal, "Unable to find Device path for volume")
 	}
 
-	if ns.Opts.RescanOnResize {
-		// comparing current volume size with the expected one
+	// In direct mode, use os-brick's protocol-aware ExtendVolume
+	// (iSCSI target rescan, FC LUN rescan, RBD resize, etc.) before
+	// the filesystem resize. The sibling connection_info file is
+	// accessible while the volume is mounted.
+	//
+	// If the sibling file is missing (e.g. staged by an older version
+	// of the driver), fall through to the generic rescan path below.
+	rescanDone := false
+	if ns.Driver.IsDirectMode() && ns.Brick != nil {
+		// The sibling connection_info file is written next to the
+		// *staging* target path (NodeStageVolume/NodeUnstageVolume),
+		// not the pod-local volume_path; those are two different
+		// paths per the CSI spec. This driver advertises the
+		// STAGE_UNSTAGE_VOLUME node capability, so the CO is required
+		// to populate StagingTargetPath on NodeExpandVolumeRequest.
+		stagingTargetPath := req.GetStagingTargetPath()
+		if stagingTargetPath == "" {
+			klog.Warningf("NodeExpandVolume: staging target path not provided, falling back to generic rescan")
+		} else {
+			siblingPath := stagingTargetPath + connectionInfoSiblingExt
+			data, readErr := os.ReadFile(siblingPath)
+			if readErr != nil {
+				klog.Warningf("NodeExpandVolume: could not read sibling connection info at %s: %v; falling back to generic rescan", siblingPath, readErr)
+			} else {
+				if extErr := ns.Brick.ExtendVolume(ctx, string(data)); extErr != nil {
+					return nil, status.Errorf(codes.Internal, "[NodeExpandVolume] ExtendVolume failed for volume %s: %v", volumeID, extErr)
+				}
+				klog.V(4).Infof("NodeExpandVolume: ExtendVolume succeeded for volume %s", volumeID)
+				rescanDone = true
+			}
+		}
+	}
+	if !rescanDone && ns.Opts.RescanOnResize {
+		// Generic rescan: used in nova mode and as a fallback
+		// in direct mode when the sibling connection_info is unavailable.
 		newSize := req.GetCapacityRange().GetRequiredBytes()
 		if err := blockdevice.RescanBlockDeviceGeometry(devicePath, volumePath, newSize); err != nil {
 			return nil, status.Errorf(codes.Internal, "Could not verify %q volume size: %v", volumeID, err)
