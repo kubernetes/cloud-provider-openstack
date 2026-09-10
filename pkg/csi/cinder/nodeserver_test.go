@@ -26,6 +26,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -752,6 +753,69 @@ func TestNodeUnstageVolumeDirectModeIdempotent(t *testing.T) {
 
 	// DisconnectVolume must NOT have been called
 	brickmock.AssertNotCalled(t, "DisconnectVolume")
+}
+
+// TestNodeExpandVolumeDirectMode verifies that NodeExpandVolume in direct
+// mode reads the sibling connection_info file from *StagingTargetPath*
+// (not VolumePath , they are different paths per the CSI spec) and
+// calls os-brick's ExtendVolume before resizing the filesystem.
+func TestNodeExpandVolumeDirectMode(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	assert := assert.New(t)
+
+	// volumePath simulates the pod-local bind-mount path, which is
+	// distinct from the staging target path.
+	tempDir := t.TempDir()
+	volumePath := filepath.Join(tempDir, "pod-mount")
+	assert.NoError(os.MkdirAll(volumePath, 0750))
+
+	stagingDir := t.TempDir()
+	siblingPath := stagingDir + connectionInfoSiblingExt
+	assert.NoError(os.WriteFile(siblingPath, []byte(FakeConnectionInfo), 0600))
+
+	brickmock.On("ExtendVolume", FakeCtx, FakeConnectionInfo).Return(nil)
+
+	fakeReq := &csi.NodeExpandVolumeRequest{
+		VolumeId:          FakeVolID,
+		VolumePath:        volumePath,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeExpandVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeExpandVolumeResponse{}, res)
+
+	brickmock.AssertCalled(t, "ExtendVolume", FakeCtx, FakeConnectionInfo)
+}
+
+// TestNodeExpandVolumeDirectModeMissingSiblingFile verifies that
+// NodeExpandVolume falls back gracefully (without calling ExtendVolume)
+// when the sibling connection_info file is absent, e.g. because the
+// volume was staged by an older driver version.
+func TestNodeExpandVolumeDirectModeMissingSiblingFile(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	assert := assert.New(t)
+
+	tempDir := t.TempDir()
+	volumePath := filepath.Join(tempDir, "pod-mount")
+	assert.NoError(os.MkdirAll(volumePath, 0750))
+
+	// Staging dir exists but no sibling connection_info file.
+	stagingDir := t.TempDir()
+
+	fakeReq := &csi.NodeExpandVolumeRequest{
+		VolumeId:          FakeVolID,
+		VolumePath:        volumePath,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeExpandVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeExpandVolumeResponse{}, res)
+
+	brickmock.AssertNotCalled(t, "ExtendVolume", mock.Anything, mock.Anything)
 }
 
 // TestNodeGetInfoDirectMode verifies that NodeGetInfo in direct mode:
