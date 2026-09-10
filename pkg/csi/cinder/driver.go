@@ -39,6 +39,12 @@ const (
 
 	// ResizeRequired parameter, if set to true, will trigger a resize on mount operation
 	ResizeRequired = driverName + "/resizeRequired"
+
+	// AttachModeNova uses Nova attach/detach for volume operations (default).
+	AttachModeNova = "nova"
+	// AttachModeDirect uses Cinder Attachment API with os-brick sidecar
+	// for direct attachment (typically bare-metal nodes).
+	AttachModeDirect = "direct"
 )
 
 var (
@@ -63,11 +69,13 @@ type CinderDriver = Driver
 //revive:enable:exported
 
 type Driver struct {
-	name         string
-	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
-	endpoint     string
-	clusterID    string
-	withTopology bool
+	name          string
+	fqVersion     string //Fully qualified version in format {Version}@{CPO version}
+	endpoint      string
+	clusterID     string
+	withTopology  bool
+	attachMode    string
+	brickEndpoint string
 
 	ids *identityServer
 	cs  *controllerServer
@@ -81,21 +89,30 @@ type Driver struct {
 }
 
 type DriverOpts struct {
-	ClusterID    string
-	Endpoint     string
-	WithTopology bool
+	ClusterID     string
+	Endpoint      string
+	WithTopology  bool
+	AttachMode    string
+	BrickEndpoint string
 
 	PVCLister v1.PersistentVolumeClaimLister
 }
 
 func NewDriver(o *DriverOpts) *Driver {
+	attachMode := o.AttachMode
+	if attachMode == "" {
+		attachMode = AttachModeNova
+	}
+
 	d := &Driver{
-		name:         driverName,
-		fqVersion:    fmt.Sprintf("%s@%s", Version, version.Version),
-		endpoint:     o.Endpoint,
-		clusterID:    o.ClusterID,
-		withTopology: o.WithTopology,
-		pvcLister:    o.PVCLister,
+		name:          driverName,
+		fqVersion:     fmt.Sprintf("%s@%s", Version, version.Version),
+		endpoint:      o.Endpoint,
+		clusterID:     o.ClusterID,
+		withTopology:  o.WithTopology,
+		attachMode:    attachMode,
+		brickEndpoint: o.BrickEndpoint,
+		pvcLister:     o.PVCLister,
 	}
 
 	klog.Info("Driver: ", d.name)
@@ -187,6 +204,12 @@ func (d *Driver) ValidateControllerServiceRequest(c csi.ControllerServiceCapabil
 
 func (d *Driver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_AccessMode {
 	return d.vcap
+}
+
+// IsDirectMode returns true when the driver is configured to attach
+// volumes directly via Cinder + os-brick instead of through Nova.
+func (d *Driver) IsDirectMode() bool {
+	return d.attachMode == AttachModeDirect
 }
 
 func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack) {
