@@ -834,8 +834,7 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		snap, err := cloud.GetSnapshotByID(ctx, snapshotID)
 		if err != nil {
 			if cpoerrors.IsNotFound(err) {
-				klog.V(3).Infof("Snapshot %s not found", snapshotID)
-				return &csi.ListSnapshotsResponse{}, nil
+				return listBackupByID(ctx, cloud, snapshotID)
 			}
 			return nil, status.Errorf(codes.Internal, "Failed to GetSnapshot %s: %v", snapshotID, err)
 		}
@@ -902,6 +901,30 @@ func (cs *controllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnap
 		Entries:   sentries,
 		NextToken: nextPageToken,
 	}, nil
+}
+
+func listBackupByID(ctx context.Context, cloud openstack.IOpenStack, backupID string) (*csi.ListSnapshotsResponse, error) {
+	backup, err := cloud.GetBackupByID(ctx, backupID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			klog.V(3).Infof("Snapshot or backup %s not found", backupID)
+			return &csi.ListSnapshotsResponse{}, nil
+		}
+		return nil, status.Errorf(codes.Internal, "Failed to GetBackup %s: %v", backupID, err)
+	}
+
+	ctime := timestamppb.New(backup.CreatedAt)
+	return &csi.ListSnapshotsResponse{
+		Entries: []*csi.ListSnapshotsResponse_Entry{{
+			Snapshot: &csi.Snapshot{
+				SizeBytes:      int64(backup.Size * 1024 * 1024 * 1024),
+				SnapshotId:     backup.ID,
+				SourceVolumeId: backup.VolumeID,
+				CreationTime:   ctime,
+				ReadyToUse:     backup.Status == "available",
+			},
+		}},
+	}, ctime.CheckValid()
 }
 
 // ControllerGetCapabilities implements the default GRPC callout.

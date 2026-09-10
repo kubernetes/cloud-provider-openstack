@@ -438,6 +438,19 @@ func (_m *OpenStackMock) GetInstanceID() (string, error) {
 }
 
 func (_m *OpenStackMock) GetSnapshotByID(ctx context.Context, snapshotID string) (*snapshots.Snapshot, error) {
+	for _, call := range _m.ExpectedCalls {
+		if call.Method != "GetSnapshotByID" {
+			continue
+		}
+
+		ret := _m.Called(snapshotID)
+
+		var r0 *snapshots.Snapshot
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*snapshots.Snapshot)
+		}
+		return r0, ret.Error(1)
+	}
 
 	return &fakeSnapshot, nil
 }
