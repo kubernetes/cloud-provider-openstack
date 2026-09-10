@@ -40,7 +40,7 @@ func fakeControllerServer() (*controllerServer, *openstack.OpenStackMock) {
 
 	cs := NewControllerServer(d, map[string]openstack.IOpenStack{
 		"": osmock,
-	})
+	}, nil)
 	return cs, osmock
 }
 
@@ -53,7 +53,7 @@ func fakeControllerServerWithMultipleRegions() (*controllerServer, *openstack.Op
 	cs := NewControllerServer(d, map[string]openstack.IOpenStack{
 		"":         osmock,
 		"region-x": osmockAlt,
-	})
+	}, nil)
 	return cs, osmock, osmockAlt
 }
 
