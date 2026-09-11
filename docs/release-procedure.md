@@ -29,7 +29,7 @@ separate PRs:
     `github.com/gophercloud/gophercloud` before bumping the version of
     `k8s.io/kubernetes`.
 
-2. Bump the version of `k8s.io/kubernetes` to the latest minor version.
+3. Bump the version of `k8s.io/kubernetes` to the latest minor version.
 
     ```bash
     go get -u k8s.io/kubernetes@latest
@@ -47,7 +47,7 @@ separate PRs:
 
     Example: https://github.com/kubernetes/cloud-provider-openstack/pull/3010
 
-3. Bump remaining dependencies.
+4. Bump remaining dependencies.
 
     Once again, pay close attention to any major version bumps of packages,
     ensuring API changes are accounted for.
@@ -118,10 +118,17 @@ dependency or sidecar container.
     $ git push origin release-X.Y
     ```
 
-1. Reset the `version` field of the Helm Charts to `2.{X+1}.0-dev`
+1. Reset the `version` field of the Helm Charts to `2.{X+1}.0-dev`.
+
+    Leave `appVersion` set to the version just released (e.g. `vX.Y.0`).
+    The `hack/bump-release.py` script relies on this value when computing
+    the next release version, reading it to determine the current minor and
+    validates that the chart `version` is already at the next minor's `dev`
+    placeholder.
 
     Any bugfixes for the Helm Charts must be backported to the `release-*`
-    stable branches and released from there.
+    stable branches and released from there. See [Helm Charts](#helm-charts)
+    below for details.
 
 1. Make PR modifying
    [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml)
@@ -152,25 +159,68 @@ dependency or sidecar container.
 
 ### Minor releases (`X.Y.Z`, `Z` > 0)
 
-The release process for a minor release is effectively the same as the release
-process for major releases but with the following changes:
+The release process for a minor release is the same as for major releases with
+the following differences:
 
-1. You must always bump the Helm Chart `appVersion` and `version` fields.
+1. Check out the `release-X.Y` branch and run the `master` version of
+   `hack/bump-release.py`.
 
-1. It is not necessary to create a new branch or add new jobs.
+    ```bash
+    $ git fetch upstream
+    $ git checkout release-X.Y
+    $ git pull --rebase upstream release-X.Y
+    $ git show upstream/master:hack/bump-release.py | uv run -
+    ```
+
+    The script must be run from the release branch so it can detect it is on a
+    stable branch. Running the `master` version ensures you always use the
+    latest version of the script.
+
+    The script automatically bumps both `appVersion` and `version` in all Helm
+    Charts (whereas a chart-only release on a stable branch bumps only the
+    `version` of affected charts).
+
+1. It is not necessary to create a new release branch or add new CI jobs.
 
 ## Helm Charts
 
+### Release tag types
+
+There are four independent release artifacts, each with its own tag:
+
+- The overall CPO binary release (e.g. `v1.36.0`)
+- The CCM chart release (e.g. `openstack-cloud-controller-manager-2.36.0`)
+- The Cinder CSI chart release (e.g. `openstack-cinder-csi-2.36.0`)
+- The Manila CSI chart release (e.g. `openstack-manila-csi-2.36.0`)
+
+A CPO binary release always triggers new versions of all three charts (because
+all charts reference the CPO image via `appVersion`). A chart-only release —
+where only chart files change with no changes to `cmd/` or `pkg/` — produces
+new chart tags for the affected charts without a new CPO binary tag.
+
+### Versioning on `master`
+
 Chart versions on `master` use a `-dev` pre-release suffix (e.g.
-`2.37.0-dev`) and are **not** bumped for individual PRs. Version bumps only
+`2.37.0-dev`) and are **not** bumped for individual PRs. The `appVersion`
+field reflects the most recently published CPO release. Version bumps only
 happen at release time (see [Major releases](#major-releases-xy0) above).
 
-On `release-*` branches the chart version (`version`) **should** be bumped for
-every backported change to a chart(s) including changes to `appVersion`. This
-can be done in the backport PR or later, via a separate PR. The
-`hack/bump-release.py` will automatically bump the correct chart if there have
-been any changes.
+### Versioning on `release-*` branches
 
-Once version change is merged, tags are automatically created for any charts
-whose version changed (i.e. `openstack-cloud-controller-manager-X.Y.Z`,
+On `release-*` branches the chart `version` **should** be bumped for every
+backported change to a chart or to CPO code (`cmd/`, `pkg/`). This can be done
+in the backport PR itself or later via a separate PR.
+
+Run `hack/bump-release.py` from the `release-*` branch to apply the correct
+bump automatically. The script compares the branch tip against the point where
+the branch diverged from its `release-*` base and determines what changed:
+
+- **CPO code changed** (`cmd/` or `pkg/`): bumps `appVersion` in all charts,
+  bumps `version` in all charts, and updates image references in `docs/`,
+  `manifests/`, and `examples/`.
+- **Only chart files changed**: bumps `version` only in the charts that
+  changed; `appVersion` and image references are left untouched.
+
+Once a version change is merged, tags are automatically created for any charts
+whose `version` changed (i.e. `openstack-cloud-controller-manager-X.Y.Z`,
 `openstack-cinder-csi-X.Y.Z`, and `openstack-manila-csi-X.Y.Z`).
