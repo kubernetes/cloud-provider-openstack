@@ -442,7 +442,6 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clust
 // GetLoadBalancer returns whether the specified load balancer exists and its status
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service) (*corev1.LoadBalancerStatus, bool, error) {
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.getLoadBalancerLegacyName(service)
 	lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	var loadbalancer *loadbalancers.LoadBalancer
 	var err error
@@ -450,7 +449,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	if lbID != "" {
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(ctx, lbaas.lb, lbID)
 	} else {
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name)
 	}
 	if err != nil && cpoerrors.IsNotFound(err) {
 		return nil, false, nil
@@ -486,7 +485,8 @@ func (lbaas *LbaasV2) getLoadBalancerLegacyName(service *corev1.Service) string 
 	return cloudprovider.DefaultLoadBalancerName(service)
 }
 
-// getLoadbalancerByName gets the load balancer which is in valid status by the given name/legacy name.
+// getLoadbalancerByName gets the load balancer which is in valid status by the
+// given name, falling back to the Service's legacy name.
 //
 // When lbaas.clusterUID is non-empty, the returned load balancer must either
 // carry the matching clusterIDTagPrefix tag for that UID, or carry no
@@ -499,7 +499,7 @@ func (lbaas *LbaasV2) getLoadBalancerLegacyName(service *corev1.Service) string 
 //
 // A load balancer claimed by this cluster and by another one at the same time
 // is rejected with an error rather than ignored, see clusterIDConflictError.
-func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1.Service, name string, legacyName string) (*loadbalancers.LoadBalancer, error) {
+func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1.Service, name string) (*loadbalancers.LoadBalancer, error) {
 	var validLBs []loadbalancers.LoadBalancer
 
 	// The cluster-id tag is deliberately not part of the ListOpts (server-side
@@ -516,6 +516,7 @@ func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1
 	}
 
 	if len(allLoadbalancers) == 0 {
+		legacyName := lbaas.getLoadBalancerLegacyName(service)
 		if len(legacyName) > 0 {
 			// Backoff to get load balnacer by legacy name.
 			opts := loadbalancers.ListOpts{
@@ -1938,8 +1939,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			}
 		}
 	} else {
-		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName)
 		if err != nil {
 			if err != cpoerrors.ErrNotFound {
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
@@ -2115,8 +2115,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	} else {
 		// This is a Service created before shared LB is supported.
 		name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name)
 		if err != nil {
 			return err
 		}
@@ -2287,7 +2286,6 @@ func (lbaas *LbaasV2) deleteLoadBalancer(ctx context.Context, loadbalancer *load
 
 func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.getLoadBalancerLegacyName(service)
 	var err error
 	var loadbalancer *loadbalancers.LoadBalancer
 	isSharedLB := false
@@ -2304,7 +2302,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(ctx, lbaas.lb, svcConf.lbID)
 	} else {
 		// This may happen when this Service creation was failed previously.
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName)
 	}
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		return err
