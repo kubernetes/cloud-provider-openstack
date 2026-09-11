@@ -8,4 +8,4 @@ aggregationRule:
   clusterRoleSelectors:
     - matchLabels:
         rbac.manila.csi.openstack.org/aggregate-to-controller-{{ include "openstack-manila-csi.name" . }}: "true"
-rules: []
+{{- /* do not set rules: clusterrole-aggregation-controller owns that field; Helm SSA applying rules: [] conflicts on upgrade */}}
