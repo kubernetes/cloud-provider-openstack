@@ -226,53 +226,86 @@ func withClusterIDTag(uid string, tags []string) []string {
 	return append(tags, tag)
 }
 
+// clusterIDTags returns the cluster-identity tags carried by lb, i.e. the tags
+// starting with clusterIDTagPrefix. A load balancer managed by a single cluster
+// carries exactly one of them.
+func clusterIDTags(lb loadbalancers.LoadBalancer) []string {
+	var tags []string
+	for _, tag := range lb.Tags {
+		if strings.HasPrefix(tag, clusterIDTagPrefix) {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
+}
+
 // filterLoadBalancersByClusterID returns the subset of lbs that may belong to
 // the cluster identified by clusterUID. The selection rules are:
 //
 //   - If clusterUID is empty, the filter is a no-op (the caller has no cluster
 //     identity to match on).
 //   - Load balancers carrying the matching clusterIDTagPrefix+clusterUID tag
-//     are kept (strongly owned by this cluster).
+//     and no other cluster-id tag are kept (strongly owned by this cluster).
+//   - A load balancer carrying the matching tag together with a foreign
+//     cluster-id tag is ambiguous: it claims to belong to this cluster and to
+//     another one at the same time. It is reported through the second return
+//     value so the caller can refuse to touch it rather than pick a winner.
 //   - If none of the load balancers carries any clusterIDTagPrefix tag, all of
 //     them are kept. This preserves the legacy behaviour for load balancers
 //     created before the tag was introduced or by tools that don't set it.
-//   - Otherwise (every candidate carries a foreign clusterIDTagPrefix tag) all
-//     load balancers are dropped. The second return value is true in that case
-//     to let the caller emit a more specific log line / event.
-func filterLoadBalancersByClusterID(lbs []loadbalancers.LoadBalancer, clusterUID string) ([]loadbalancers.LoadBalancer, bool) {
+//   - Otherwise (every candidate carries only foreign clusterIDTagPrefix tags)
+//     all load balancers are dropped. The third return value is true in that
+//     case to let the caller emit a more specific log line / event.
+//
+// Several cluster-id tags none of which matches clusterUID make a load balancer
+// foreign, not ambiguous: this cluster has no claim to it, so it is dropped
+// like any other foreign load balancer and a new one is created instead.
+func filterLoadBalancersByClusterID(lbs []loadbalancers.LoadBalancer, clusterUID string) ([]loadbalancers.LoadBalancer, *loadbalancers.LoadBalancer, bool) {
 	if clusterUID == "" || len(lbs) == 0 {
-		return lbs, false
+		return lbs, nil, false
 	}
 	wantTag := clusterIDTagPrefix + clusterUID
 	var owned []loadbalancers.LoadBalancer
 	taggedAny := false
-	for _, lb := range lbs {
-		hasTag := false
-		match := false
-		for _, tag := range lb.Tags {
-			if strings.HasPrefix(tag, clusterIDTagPrefix) {
-				hasTag = true
-				if tag == wantTag {
-					match = true
-				}
-			}
+	for i := range lbs {
+		tags := clusterIDTags(lbs[i])
+		if len(tags) == 0 {
+			continue
 		}
-		if match {
-			owned = append(owned, lb)
+		taggedAny = true
+		if !slices.Contains(tags, wantTag) {
+			continue
 		}
-		if hasTag {
-			taggedAny = true
+		if len(tags) > 1 {
+			return nil, &lbs[i], false
 		}
+		owned = append(owned, lbs[i])
 	}
 	if len(owned) > 0 {
-		return owned, false
+		return owned, nil, false
 	}
 	if !taggedAny {
 		// Legacy load balancers without any cluster-id tag, behave as before.
-		return lbs, false
+		return lbs, nil, false
 	}
 	// All candidates are tagged for some other cluster.
-	return nil, true
+	return nil, nil, true
+}
+
+// clusterIDConflictError reports a load balancer that carries cluster-identity
+// tags of more than one Kubernetes cluster. OCCM cannot tell which cluster owns
+// it, so it must neither adopt nor delete it: acting on it would let anyone able
+// to tag a load balancer in the same OpenStack project take over, or destroy,
+// another cluster's Service. The condition is raised as a Warning event on the
+// Service and as an error so the reconciliation fails visibly instead of
+// silently creating a duplicate load balancer.
+func (lbaas *LbaasV2) clusterIDConflictError(service *corev1.Service, lb *loadbalancers.LoadBalancer) error {
+	const msg = "load balancer %s carries the cluster-identity tags of more than one Kubernetes cluster (%s) and cannot be used for Service %s; remove the stale %s* tags from the load balancer"
+	tags := strings.Join(clusterIDTags(*lb), ", ")
+	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBClusterIDConflict, msg, lb.ID, tags, serviceName, clusterIDTagPrefix)
+	klog.Warningf(msg, lb.ID, tags, serviceName, clusterIDTagPrefix)
+	return fmt.Errorf(msg, lb.ID, tags, serviceName, clusterIDTagPrefix)
 }
 
 func popListener(existingListeners []listeners.Listener, id string) []listeners.Listener {
@@ -417,7 +450,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	if lbID != "" {
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(ctx, lbaas.lb, lbID)
 	} else {
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, name, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name, legacyName)
 	}
 	if err != nil && cpoerrors.IsNotFound(err) {
 		return nil, false, nil
@@ -463,7 +496,10 @@ func (lbaas *LbaasV2) getLoadBalancerLegacyName(service *corev1.Service) string 
 // ignored and the lookup returns ErrNotFound, which causes OCCM to create a
 // new load balancer instead of accidentally adopting (and overwriting) one
 // that is owned by a different cluster.
-func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, name string, legacyName string) (*loadbalancers.LoadBalancer, error) {
+//
+// A load balancer claimed by this cluster and by another one at the same time
+// is rejected with an error rather than ignored, see clusterIDConflictError.
+func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1.Service, name string, legacyName string) (*loadbalancers.LoadBalancer, error) {
 	var validLBs []loadbalancers.LoadBalancer
 
 	// The cluster-id tag is deliberately not part of the ListOpts (server-side
@@ -501,8 +537,11 @@ func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, name string, le
 		}
 	}
 
-	validLBs, foreignFound := filterLoadBalancersByClusterID(validLBs, lbaas.clusterUID)
+	validLBs, conflictingLB, foreignFound := filterLoadBalancersByClusterID(validLBs, lbaas.clusterUID)
 
+	if conflictingLB != nil {
+		return nil, lbaas.clusterIDConflictError(service, conflictingLB)
+	}
 	if len(validLBs) > 1 {
 		return nil, cpoerrors.ErrMultipleResults
 	}
@@ -1900,7 +1939,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 	} else {
 		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, lbName, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName, legacyName)
 		if err != nil {
 			if err != cpoerrors.ErrNotFound {
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
@@ -2077,7 +2116,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 		// This is a Service created before shared LB is supported.
 		name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
 		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, name, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name, legacyName)
 		if err != nil {
 			return err
 		}
@@ -2265,7 +2304,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(ctx, lbaas.lb, svcConf.lbID)
 	} else {
 		// This may happen when this Service creation was failed previously.
-		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, lbName, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName, legacyName)
 	}
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		return err

@@ -663,6 +663,12 @@ carry any `kube_cluster_id_*` tag (legacy load balancers, or load balancers crea
 external tooling) keep their previous behaviour for backward compatibility, and gain
 the cluster-id tag on the next reconcile.
 
+A load balancer that carries this cluster's `kube_cluster_id_*` tag *and* a tag of
+another cluster at the same time is ambiguous: OCCM cannot tell which cluster owns it,
+so it neither adopts nor deletes it. The reconcile fails with an error and OCCM records
+a `LoadBalancerClusterIDConflict` Warning event on the Service. Remove the stale
+`kube_cluster_id_*` tags from the load balancer to resolve it.
+
 OCCM reads the `kube-system` namespace UID once at start-up; this requires the
 `get` verb on the `namespaces` resource (already part of the standard cloud-controller
 RBAC). If the lookup fails (for example because of a custom RBAC restriction) OCCM logs
