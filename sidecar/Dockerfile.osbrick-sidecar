@@ -1,0 +1,99 @@
+# Copyright 2026 The Kubernetes Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Dockerfile for the os-brick gRPC sidecar.
+#
+# This container wraps the Python os-brick library behind a gRPC service
+# that the Cinder CSI driver calls for volume attach/detach operations
+# for nodes using direct attachment mode (typically bare-metal nodes).
+#
+# Build:
+#   docker build -f sidecar/Dockerfile.osbrick-sidecar -t osbrick-sidecar .
+#
+# The build context must be the repository root so the proto file is
+# accessible.
+
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+# Install system packages required by os-brick at build time.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Install Python dependencies first (layer caching).
+COPY sidecar/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Generate Python gRPC stubs from the proto file.
+COPY proto/osbrick/v1/connector.proto /proto/connector.proto
+RUN mkdir -p /build/gen && python -m grpc_tools.protoc \
+    --proto_path=/proto \
+    --python_out=/build/gen \
+    --grpc_python_out=/build/gen \
+    /proto/connector.proto \
+    && sed -i 's/^import connector_pb2/from osbrick.gen import connector_pb2/' /build/gen/connector_pb2_grpc.py
+
+# ---
+
+ARG PYTHON_VERSION=3.13
+FROM python:${PYTHON_VERSION}-slim
+
+# Install system packages required at runtime for storage operations.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    open-iscsi \
+    multipath-tools \
+    sg3-utils \
+    sysfsutils \
+    sudo \
+    # Ceph/RBD support: python3-rados and python3-rbd must match the
+    # image's Python ABI.  python:3.13-slim is based on Debian Trixie
+    # whose system Python is also 3.13, so the apt C extensions are
+    # ABI-compatible.
+    ceph-common \
+    python3-rbd \
+    python3-rados \
+    && rm -rf /var/lib/apt/lists/*
+
+# The apt-installed rados/rbd C extensions live under the system
+# Python's dist-packages, which the image's /usr/local Python does
+# not search by default.  Make them importable.
+ENV PYTHONPATH=/usr/lib/python3/dist-packages
+
+WORKDIR /app
+
+# Copy installed packages from builder.
+ARG PYTHON_VERSION=3.13
+COPY --from=builder /usr/local/lib/python${PYTHON_VERSION}/site-packages /usr/local/lib/python${PYTHON_VERSION}/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy generated gRPC stubs.
+COPY --from=builder /build/gen/ /app/osbrick/gen/
+
+# Copy application source.
+COPY sidecar/osbrick/ /app/osbrick/
+
+# Ensure the gen directory has an __init__.py.
+RUN touch /app/osbrick/gen/__init__.py
+
+# Entrypoint wrapper that symlinks host /run subdirectories from
+# /host/run into /run so os-brick tools find them, then starts the
+# gRPC server.  See entrypoint.sh for details.
+COPY sidecar/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

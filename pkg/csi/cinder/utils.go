@@ -9,7 +9,9 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/brick"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/klog/v2"
@@ -44,10 +46,11 @@ func NewVolumeCapabilityAccessMode(mode csi.VolumeCapability_AccessMode_Mode) *c
 }
 
 //revive:disable:unexported-return
-func NewControllerServer(d *Driver, clouds map[string]openstack.IOpenStack) *controllerServer {
+func NewControllerServer(d *Driver, clouds map[string]openstack.IOpenStack, connProps ConnectorPropertiesGetter) *controllerServer {
 	return &controllerServer{
-		Driver: d,
-		Clouds: clouds,
+		Driver:    d,
+		Clouds:    clouds,
+		ConnProps: connProps,
 	}
 }
 
@@ -57,7 +60,7 @@ func NewIdentityServer(d *Driver) *identityServer {
 	}
 }
 
-func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string) *nodeServer {
+func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string, connector brick.IConnector, kubeClient kubernetes.Interface, nodeName string, clouds map[string]openstack.IOpenStack) *nodeServer {
 	if opts.NodeVolumeAttachLimit < 0 || opts.NodeVolumeAttachLimit > maxVolumesPerNode {
 		opts.NodeVolumeAttachLimit = maxVolumesPerNode
 	}
@@ -66,6 +69,10 @@ func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, o
 		Driver:     d,
 		Mount:      mount,
 		Metadata:   metadata,
+		Brick:      connector,
+		Clouds:     clouds,
+		KubeClient: kubeClient,
+		NodeName:   nodeName,
 		Topologies: topologies,
 		Opts:       opts,
 	}

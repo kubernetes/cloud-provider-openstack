@@ -17,6 +17,7 @@ limitations under the License.
 package cinder
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,10 +26,15 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fakekube "k8s.io/client-go/kubernetes/fake"
 	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/brick"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	mountutil "k8s.io/mount-utils"
@@ -55,7 +61,7 @@ func fakeNodeServer() (*nodeServer, *openstack.OpenStackMock, *mount.MountMock, 
 		NodeVolumeAttachLimit: maxVolumesPerNode,
 	}
 
-	fakeNs := NewNodeServer(d, mount.MInstance, metadata.MetadataService, opts, map[string]string{})
+	fakeNs := NewNodeServer(d, mount.MInstance, metadata.MetadataService, opts, map[string]string{}, nil, nil, "", nil)
 
 	return fakeNs, osmock, mmock, metamock
 }
@@ -524,4 +530,373 @@ func TestNodeGetVolumeStatsFs(t *testing.T) {
 
 	assert.NoError(err)
 	assert.Equal(expectedFsRes, fsRes)
+}
+
+// --- Direct mode tests ---
+
+var FakeConnectionInfo = `{"driver_volume_type":"iscsi","data":{"target_iqn":"iqn.2025-01.com.example:storage","target_portal":"10.0.0.1:3260"}}`
+
+// fakeDirectNodeServer creates a node server in direct attach mode with
+// a mock brick connector.
+func fakeDirectNodeServer() (*nodeServer, *openstack.OpenStackMock, *mount.MountMock, *metadata.MetadataMock, *brick.MockConnector) {
+	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true, AttachMode: "direct"})
+
+	osmock := new(openstack.OpenStackMock)
+	openstack.OsInstances = map[string]openstack.IOpenStack{
+		"": osmock,
+	}
+
+	mmock := new(mount.MountMock)
+	mount.MInstance = mmock
+
+	metamock := new(metadata.MetadataMock)
+	metadata.MetadataService = metamock
+
+	brickmock := new(brick.MockConnector)
+
+	opts := openstack.BlockStorageOpts{
+		RescanOnResize:        false,
+		NodeVolumeAttachLimit: maxVolumesPerNode,
+	}
+
+	fakeNs := NewNodeServer(d, mount.MInstance, metadata.MetadataService, opts, map[string]string{}, brickmock, nil, "", map[string]openstack.IOpenStack{"": osmock})
+
+	return fakeNs, osmock, mmock, metamock, brickmock
+}
+
+// TestNodeStageVolumeDirectMode verifies the direct-mode path:
+// 1. Extracts ConnectionInfo from PublishContext
+// 2. Calls ConnectVolume on the brick sidecar
+// 3. Persists connection_info to .connection_info.json
+// 4. Formats and mounts using the returned device path
+func TestNodeStageVolumeDirectMode(t *testing.T) {
+	fakeNs, osmock, mmock, _, brickmock := fakeDirectNodeServer()
+
+	// Create a temp staging dir so the file write succeeds
+	stagingDir := t.TempDir()
+
+	brickmock.On("ConnectVolume", FakeCtx, FakeConnectionInfo).Return(FakeDevicePath, nil)
+	osmock.On("AttachmentComplete", FakeAttachmentID).Return(nil)
+	mmock.On("IsLikelyNotMountPointAttach", stagingDir).Return(true, nil)
+
+	assert := assert.New(t)
+
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	fakeReq := &csi.NodeStageVolumeRequest{
+		VolumeId:          FakeVolID,
+		PublishContext:    map[string]string{"ConnectionInfo": FakeConnectionInfo, "AttachmentID": FakeAttachmentID},
+		StagingTargetPath: stagingDir,
+		VolumeCapability:  stdVolCap,
+	}
+
+	res, err := fakeNs.NodeStageVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeStageVolumeResponse{}, res)
+
+	// Verify connection_info file was persisted
+	data, readErr := os.ReadFile(filepath.Join(stagingDir, connectionInfoFile))
+	assert.NoError(readErr)
+	assert.Equal(FakeConnectionInfo, string(data))
+
+	// Verify attachment_id file was persisted
+	attachIDData, readErr := os.ReadFile(filepath.Join(stagingDir, attachmentIDFile))
+	assert.NoError(readErr)
+	assert.Equal(FakeAttachmentID, string(attachIDData))
+
+	brickmock.AssertCalled(t, "ConnectVolume", FakeCtx, FakeConnectionInfo)
+	osmock.AssertCalled(t, "AttachmentComplete", FakeAttachmentID)
+}
+
+// TestNodeStageVolumeDirectModeMissingConnectionInfo verifies that
+// NodeStageVolume fails with InvalidArgument when ConnectionInfo is absent.
+func TestNodeStageVolumeDirectModeMissingConnectionInfo(t *testing.T) {
+	fakeNs, _, _, _, _ := fakeDirectNodeServer()
+
+	stagingDir := t.TempDir()
+
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	fakeReq := &csi.NodeStageVolumeRequest{
+		VolumeId:          FakeVolID,
+		PublishContext:    map[string]string{}, // no ConnectionInfo
+		StagingTargetPath: stagingDir,
+		VolumeCapability:  stdVolCap,
+	}
+
+	_, err := fakeNs.NodeStageVolume(FakeCtx, fakeReq)
+	assert.Error(t, err)
+	st, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+// TestNodeStageVolumeDirectModeAttachmentCompleteFails verifies that
+// NodeStageVolume fails when AttachmentComplete returns an error, since
+// the volume would remain stuck in "attaching" state in Cinder.
+func TestNodeStageVolumeDirectModeAttachmentCompleteFails(t *testing.T) {
+	fakeNs, osmock, _, _, brickmock := fakeDirectNodeServer()
+
+	stagingDir := t.TempDir()
+
+	brickmock.On("ConnectVolume", FakeCtx, FakeConnectionInfo).Return(FakeDevicePath, nil)
+	brickmock.On("DisconnectVolume", FakeCtx, FakeConnectionInfo).Return(nil)
+	osmock.On("AttachmentComplete", FakeAttachmentID).Return(fmt.Errorf("cinder API error: microversion 3.44 not supported"))
+
+	assert := assert.New(t)
+
+	stdVolCap := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{
+			Mount: &csi.VolumeCapability_MountVolume{},
+		},
+		AccessMode: &csi.VolumeCapability_AccessMode{
+			Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		},
+	}
+
+	fakeReq := &csi.NodeStageVolumeRequest{
+		VolumeId:          FakeVolID,
+		PublishContext:    map[string]string{"ConnectionInfo": FakeConnectionInfo, "AttachmentID": FakeAttachmentID, "Cloud": ""},
+		StagingTargetPath: stagingDir,
+		VolumeCapability:  stdVolCap,
+	}
+
+	_, err := fakeNs.NodeStageVolume(FakeCtx, fakeReq)
+	assert.Error(err)
+	st, ok := status.FromError(err)
+	assert.True(ok)
+	assert.Equal(codes.Internal, st.Code())
+	assert.Contains(st.Message(), "AttachmentComplete failed")
+
+	brickmock.AssertCalled(t, "ConnectVolume", FakeCtx, FakeConnectionInfo)
+	brickmock.AssertCalled(t, "DisconnectVolume", FakeCtx, FakeConnectionInfo)
+	osmock.AssertCalled(t, "AttachmentComplete", FakeAttachmentID)
+}
+
+// TestNodeUnstageVolumeDirectMode verifies the full unstage lifecycle:
+// 1. Reads persisted connection_info
+// 2. Unmounts
+// 3. Calls DisconnectVolume
+// 4. Removes the connection_info file
+func TestNodeUnstageVolumeDirectMode(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	// Create staging dir with a persisted connection_info file
+	stagingDir := t.TempDir()
+	connInfoPath := filepath.Join(stagingDir, connectionInfoFile)
+	err := os.WriteFile(connInfoPath, []byte(FakeConnectionInfo), 0600)
+	if err != nil {
+		t.Fatalf("failed to write test connection info file: %v", err)
+	}
+
+	// NOTE: Direct mode calls Mounter().Unmount() (the raw mount-utils
+	// Unmount) instead of the IMount.UnmountPath() wrapper, because
+	// UnmountPath calls CleanupMountPoint which removes the directory
+	// before we can read the connection_info file underneath it.
+	// The FakeMounter returned by MountMock.Mounter() handles the
+	// Unmount() call (no-op on an unmounted path).
+	brickmock.On("DisconnectVolume", FakeCtx, FakeConnectionInfo).Return(nil)
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.NodeUnstageVolumeRequest{
+		VolumeId:          FakeVolID,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeUnstageVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeUnstageVolumeResponse{}, res)
+
+	// Verify DisconnectVolume was called
+	brickmock.AssertCalled(t, "DisconnectVolume", FakeCtx, FakeConnectionInfo)
+
+	// Verify connection_info file was removed
+	_, statErr := os.Stat(connInfoPath)
+	assert.True(os.IsNotExist(statErr), "connection_info file should have been removed")
+}
+
+// TestNodeUnstageVolumeDirectModeIdempotent verifies that NodeUnstageVolume
+// succeeds even when the connection_info file is already gone (idempotent).
+func TestNodeUnstageVolumeDirectModeIdempotent(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	// Staging dir exists but NO connection_info file.
+	// See TestNodeUnstageVolumeDirectMode for why UnmountPath is not
+	// mocked here ; direct mode uses Mounter().Unmount() directly.
+	stagingDir := t.TempDir()
+
+	assert := assert.New(t)
+
+	fakeReq := &csi.NodeUnstageVolumeRequest{
+		VolumeId:          FakeVolID,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeUnstageVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeUnstageVolumeResponse{}, res)
+
+	// DisconnectVolume must NOT have been called
+	brickmock.AssertNotCalled(t, "DisconnectVolume")
+}
+
+// TestNodeExpandVolumeDirectMode verifies that NodeExpandVolume in direct
+// mode reads the sibling connection_info file from *StagingTargetPath*
+// (not VolumePath , they are different paths per the CSI spec) and
+// calls os-brick's ExtendVolume before resizing the filesystem.
+func TestNodeExpandVolumeDirectMode(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	assert := assert.New(t)
+
+	// volumePath simulates the pod-local bind-mount path, which is
+	// distinct from the staging target path.
+	tempDir := t.TempDir()
+	volumePath := filepath.Join(tempDir, "pod-mount")
+	assert.NoError(os.MkdirAll(volumePath, 0750))
+
+	stagingDir := t.TempDir()
+	siblingPath := stagingDir + connectionInfoSiblingExt
+	assert.NoError(os.WriteFile(siblingPath, []byte(FakeConnectionInfo), 0600))
+
+	brickmock.On("ExtendVolume", FakeCtx, FakeConnectionInfo).Return(nil)
+
+	fakeReq := &csi.NodeExpandVolumeRequest{
+		VolumeId:          FakeVolID,
+		VolumePath:        volumePath,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeExpandVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeExpandVolumeResponse{}, res)
+
+	brickmock.AssertCalled(t, "ExtendVolume", FakeCtx, FakeConnectionInfo)
+}
+
+// TestNodeExpandVolumeDirectModeMissingSiblingFile verifies that
+// NodeExpandVolume falls back gracefully (without calling ExtendVolume)
+// when the sibling connection_info file is absent, e.g. because the
+// volume was staged by an older driver version.
+func TestNodeExpandVolumeDirectModeMissingSiblingFile(t *testing.T) {
+	fakeNs, _, _, _, brickmock := fakeDirectNodeServer()
+
+	assert := assert.New(t)
+
+	tempDir := t.TempDir()
+	volumePath := filepath.Join(tempDir, "pod-mount")
+	assert.NoError(os.MkdirAll(volumePath, 0750))
+
+	// Staging dir exists but no sibling connection_info file.
+	stagingDir := t.TempDir()
+
+	fakeReq := &csi.NodeExpandVolumeRequest{
+		VolumeId:          FakeVolID,
+		VolumePath:        volumePath,
+		StagingTargetPath: stagingDir,
+	}
+
+	res, err := fakeNs.NodeExpandVolume(FakeCtx, fakeReq)
+	assert.NoError(err)
+	assert.Equal(&csi.NodeExpandVolumeResponse{}, res)
+
+	brickmock.AssertNotCalled(t, "ExtendVolume", mock.Anything, mock.Anything)
+}
+
+// TestNodeGetInfoDirectMode verifies that NodeGetInfo in direct mode:
+// 1. Calls GetConnectorProperties on the brick sidecar
+// 2. Stores the properties as JSON in the Kubernetes node annotation
+// 3. Logs the stored properties
+func TestNodeGetInfoDirectMode(t *testing.T) {
+	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true, AttachMode: "direct"})
+
+	osmock := new(openstack.OpenStackMock)
+	openstack.OsInstances = map[string]openstack.IOpenStack{
+		"": osmock,
+	}
+
+	mmock := new(mount.MountMock)
+	mount.MInstance = mmock
+
+	metamock := new(metadata.MetadataMock)
+	metadata.MetadataService = metamock
+
+	brickmock := new(brick.MockConnector)
+
+	// Create a fake Kubernetes node
+	fakeNodeName := "test-node"
+	fakeNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fakeNodeName,
+		},
+	}
+	fakeClient := fakekube.NewSimpleClientset(fakeNode)
+
+	opts := openstack.BlockStorageOpts{
+		NodeVolumeAttachLimit: maxVolumesPerNode,
+	}
+
+	fakeNs := NewNodeServer(d, mount.MInstance, metadata.MetadataService, opts, map[string]string{}, brickmock, fakeClient, fakeNodeName, nil)
+
+	// Set up mocks
+	metamock.On("GetInstanceID").Return(FakeNodeID, nil)
+	metamock.On("GetAvailabilityZone").Return(FakeAvailability, nil)
+
+	// RawJSON carries the complete os-brick dict with original types.
+	// When set, storeConnectorProperties uses it directly instead of
+	// reconstructing the map from typed fields.
+	fakeRawJSON := `{"initiator":"iqn.2025-01.com.example:node1","host":"test-node","multipath":false,"ip":"10.0.0.1","enforce_multipath":false}`
+	fakeProps := &brick.ConnectorProperties{
+		Initiator: "iqn.2025-01.com.example:node1",
+		Host:      "test-node",
+		Multipath: false,
+		RawJSON:   fakeRawJSON,
+	}
+	brickmock.On("GetConnectorProperties", FakeCtx).Return(fakeProps, nil)
+
+	assert := assert.New(t)
+
+	// Invoke NodeGetInfo
+	res, err := fakeNs.NodeGetInfo(FakeCtx, &csi.NodeGetInfoRequest{})
+	assert.NoError(err)
+	assert.NotNil(res)
+	assert.Equal(FakeNodeID, res.NodeId)
+
+	// Verify connector properties were stored
+	brickmock.AssertCalled(t, "GetConnectorProperties", FakeCtx)
+
+	// Read back the node annotation
+	updatedNode, err := fakeClient.CoreV1().Nodes().Get(FakeCtx, fakeNodeName, metav1.GetOptions{})
+	assert.NoError(err)
+
+	propsJSON, ok := updatedNode.Annotations[ConnectorPropertiesAnnotation]
+	assert.True(ok, "connector properties annotation should be set")
+
+	// The annotation should be the raw JSON from os-brick, preserving
+	// original types (bools as true/false, not strings).
+	var props map[string]any
+	err = json.Unmarshal([]byte(propsJSON), &props)
+	assert.NoError(err)
+	assert.Equal("iqn.2025-01.com.example:node1", props["initiator"])
+	assert.Equal("test-node", props["host"])
+	assert.Equal(false, props["multipath"])
+	// These fields come through RawJSON and would not be present
+	// if the annotation were built from typed fields only.
+	assert.Equal("10.0.0.1", props["ip"])
+	assert.Equal(false, props["enforce_multipath"])
 }

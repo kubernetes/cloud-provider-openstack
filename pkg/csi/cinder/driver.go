@@ -22,8 +22,10 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
+	"k8s.io/cloud-provider-openstack/pkg/util/brick"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 	"k8s.io/cloud-provider-openstack/pkg/util/mount"
 	"k8s.io/cloud-provider-openstack/pkg/version"
@@ -39,6 +41,12 @@ const (
 
 	// ResizeRequired parameter, if set to true, will trigger a resize on mount operation
 	ResizeRequired = driverName + "/resizeRequired"
+
+	// AttachModeNova uses Nova attach/detach for volume operations (default).
+	AttachModeNova = "nova"
+	// AttachModeDirect uses Cinder Attachment API with os-brick sidecar
+	// for direct attachment (typically bare-metal nodes).
+	AttachModeDirect = "direct"
 )
 
 var (
@@ -63,11 +71,13 @@ type CinderDriver = Driver
 //revive:enable:exported
 
 type Driver struct {
-	name         string
-	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
-	endpoint     string
-	clusterID    string
-	withTopology bool
+	name          string
+	fqVersion     string //Fully qualified version in format {Version}@{CPO version}
+	endpoint      string
+	clusterID     string
+	withTopology  bool
+	attachMode    string
+	brickEndpoint string
 
 	ids *identityServer
 	cs  *controllerServer
@@ -81,21 +91,30 @@ type Driver struct {
 }
 
 type DriverOpts struct {
-	ClusterID    string
-	Endpoint     string
-	WithTopology bool
+	ClusterID     string
+	Endpoint      string
+	WithTopology  bool
+	AttachMode    string
+	BrickEndpoint string
 
 	PVCLister v1.PersistentVolumeClaimLister
 }
 
 func NewDriver(o *DriverOpts) *Driver {
+	attachMode := o.AttachMode
+	if attachMode == "" {
+		attachMode = AttachModeNova
+	}
+
 	d := &Driver{
-		name:         driverName,
-		fqVersion:    fmt.Sprintf("%s@%s", Version, version.Version),
-		endpoint:     o.Endpoint,
-		clusterID:    o.ClusterID,
-		withTopology: o.WithTopology,
-		pvcLister:    o.PVCLister,
+		name:          driverName,
+		fqVersion:     fmt.Sprintf("%s@%s", Version, version.Version),
+		endpoint:      o.Endpoint,
+		clusterID:     o.ClusterID,
+		withTopology:  o.WithTopology,
+		attachMode:    attachMode,
+		brickEndpoint: o.BrickEndpoint,
+		pvcLister:     o.PVCLister,
 	}
 
 	klog.Info("Driver: ", d.name)
@@ -189,14 +208,20 @@ func (d *Driver) GetVolumeCapabilityAccessModes() []*csi.VolumeCapability_Access
 	return d.vcap
 }
 
-func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack) {
-	klog.Info("Providing controller service")
-	d.cs = NewControllerServer(d, clouds)
+// IsDirectMode returns true when the driver is configured to attach
+// volumes directly via Cinder + os-brick instead of through Nova.
+func (d *Driver) IsDirectMode() bool {
+	return d.attachMode == AttachModeDirect
 }
 
-func (d *Driver) SetupNodeService(mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string) {
+func (d *Driver) SetupControllerService(clouds map[string]openstack.IOpenStack, connProps ConnectorPropertiesGetter) {
+	klog.Info("Providing controller service")
+	d.cs = NewControllerServer(d, clouds, connProps)
+}
+
+func (d *Driver) SetupNodeService(mount mount.IMount, metadata metadata.IMetadata, opts openstack.BlockStorageOpts, topologies map[string]string, connector brick.IConnector, kubeClient kubernetes.Interface, nodeName string, clouds map[string]openstack.IOpenStack) {
 	klog.Info("Providing node service")
-	d.ns = NewNodeServer(d, mount, metadata, opts, topologies)
+	d.ns = NewNodeServer(d, mount, metadata, opts, topologies, connector, kubeClient, nodeName, clouds)
 }
 
 func (d *Driver) Run() {
