@@ -112,6 +112,13 @@ const (
 	poolFormat     = poolPrefix + "%d_%s"
 	monitorPrefix  = "monitor_"
 	monitorFormat  = monitorPrefix + "%d_%s"
+
+	// clusterIDTagPrefix is the prefix used for the load balancer tag that
+	// carries a stable Kubernetes cluster identifier (the kube-system
+	// namespace UID). Together with the existing servicePrefix tag it allows
+	// OCCM to disambiguate load balancers when multiple Kubernetes clusters
+	// share the same OpenStack project and a service name happens to collide.
+	clusterIDTagPrefix = "kube_cluster_id_"
 )
 
 // LbaasV2 is a LoadBalancer implementation based on Octavia
@@ -163,71 +170,31 @@ type listenerKey struct {
 	Port     int
 }
 
-// getLoadbalancerByName get the load balancer which is in valid status by the given name/legacy name.
-func getLoadbalancerByName(ctx context.Context, client *gophercloud.ServiceClient, name string, legacyName string) (*loadbalancers.LoadBalancer, error) {
-	var validLBs []loadbalancers.LoadBalancer
-
-	opts := loadbalancers.ListOpts{
-		Name: name,
-	}
-	allLoadbalancers, err := openstackutil.GetLoadBalancers(ctx, client, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(allLoadbalancers) == 0 {
-		if len(legacyName) > 0 {
-			// Backoff to get load balnacer by legacy name.
-			opts := loadbalancers.ListOpts{
-				Name: legacyName,
-			}
-			allLoadbalancers, err = openstackutil.GetLoadBalancers(ctx, client, opts)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, cpoerrors.ErrNotFound
-		}
-	}
-
-	for _, lb := range allLoadbalancers {
-		// All the ProvisioningStatus could be found here https://developer.openstack.org/api-ref/load-balancer/v2/index.html#provisioning-status-codes
-		if lb.ProvisioningStatus != "DELETED" && lb.ProvisioningStatus != "PENDING_DELETE" {
-			validLBs = append(validLBs, lb)
-		}
-	}
-
-	if len(validLBs) > 1 {
-		return nil, cpoerrors.ErrMultipleResults
-	}
-	if len(validLBs) == 0 {
-		return nil, cpoerrors.ErrNotFound
-	}
-
-	return &validLBs[0], nil
-}
-
-// stripReservedTags drops any user-supplied tag that begins with servicePrefix.
+// stripReservedTags drops any user-supplied tag that begins with servicePrefix
+// or clusterIDTagPrefix.
 //
-// Tags with this prefix are how OCCM marks resource ownership: the ownership tag
-// written to a resource is always a GetLoadBalancerName value, which always
-// starts with servicePrefix. Every ownership check in this file matches tags
-// exclusively on that form -- either an exact match against the prefixed lbName
-// (e.g. slices.Contains(tags, lbName)) or a strings.HasPrefix(tag, servicePrefix)
-// scan (used for shared-LB counting and deletion decisions).
+// Tags with these prefixes are how OCCM marks resource ownership: the ownership
+// tag written to a resource is always a GetLoadBalancerName value, which always
+// starts with servicePrefix, and the cluster-identity tag always starts with
+// clusterIDTagPrefix. Every ownership check in this file matches tags
+// exclusively on those forms -- an exact match against the prefixed lbName
+// (e.g. slices.Contains(tags, lbName)), a strings.HasPrefix(tag, servicePrefix)
+// scan (used for shared-LB counting and deletion decisions), or the
+// clusterIDTagPrefix matching in filterLoadBalancersByClusterID.
 //
-// Because of that, keeping user tags out of the servicePrefix subspace fully
-// partitions the tag namespace: ownership tags live in the kube_service_* space,
-// user tags live in its complement, and no user tag can ever satisfy an ownership
-// check. This prevents a Service from injecting a tag matching another (possibly
-// cross-tenant) load balancer's name to hijack ownership, shared-LB limits, or
-// deletion. INVARIANT: any new tag-based ownership check must also key on
-// servicePrefix, or this guarantee no longer holds.
+// Because of that, keeping user tags out of these subspaces fully partitions
+// the tag namespace: ownership tags live in the kube_service_* and
+// kube_cluster_id_* spaces, user tags live in their complement, and no user tag
+// can ever satisfy an ownership check. This prevents a Service from injecting a
+// tag matching another (possibly cross-tenant) load balancer's name to hijack
+// ownership, shared-LB limits, deletion, or cluster identity. INVARIANT: any
+// new tag-based ownership check must also key on one of these prefixes, or
+// this guarantee no longer holds.
 func stripReservedTags(tags []string) []string {
 	result := make([]string, 0, len(tags))
 	for _, t := range tags {
-		if strings.HasPrefix(t, servicePrefix) {
-			klog.Warningf("Ignoring reserved tag %q: tags starting with %q are reserved for OCCM ownership tracking", t, servicePrefix)
+		if strings.HasPrefix(t, servicePrefix) || strings.HasPrefix(t, clusterIDTagPrefix) {
+			klog.Warningf("Ignoring reserved tag %q: tags starting with %q or %q are reserved for OCCM ownership tracking", t, servicePrefix, clusterIDTagPrefix)
 			continue
 		}
 		result = append(result, t)
@@ -242,6 +209,103 @@ func stripReservedTags(tags []string) []string {
 func withLBNameTag(lbName, annotation string) []string {
 	userTags := stripReservedTags(cpoutil.SplitTrim(annotation, ','))
 	return cpoutil.Unique(append([]string{lbName}, userTags...))
+}
+
+// withClusterIDTag appends the Octavia load balancer tag carrying the cluster
+// identifier for uid to tags. It is a no-op when uid is empty (the cluster
+// identity could not be determined) or when the tag is already present, so
+// callers don't need any guard logic of their own.
+func withClusterIDTag(uid string, tags []string) []string {
+	if uid == "" {
+		return tags
+	}
+	tag := clusterIDTagPrefix + uid
+	if slices.Contains(tags, tag) {
+		return tags
+	}
+	return append(tags, tag)
+}
+
+// clusterIDTags returns the cluster-identity tags carried by lb, i.e. the tags
+// starting with clusterIDTagPrefix. A load balancer managed by a single cluster
+// carries exactly one of them.
+func clusterIDTags(lb loadbalancers.LoadBalancer) []string {
+	var tags []string
+	for _, tag := range lb.Tags {
+		if strings.HasPrefix(tag, clusterIDTagPrefix) {
+			tags = append(tags, tag)
+		}
+	}
+	return tags
+}
+
+// filterLoadBalancersByClusterID returns the subset of lbs that may belong to
+// the cluster identified by clusterUID. The selection rules are:
+//
+//   - If clusterUID is empty, the filter is a no-op (the caller has no cluster
+//     identity to match on).
+//   - Load balancers carrying the matching clusterIDTagPrefix+clusterUID tag
+//     and no other cluster-id tag are kept (strongly owned by this cluster).
+//   - A load balancer carrying the matching tag together with a foreign
+//     cluster-id tag is ambiguous: it claims to belong to this cluster and to
+//     another one at the same time. It is reported through the second return
+//     value so the caller can refuse to touch it rather than pick a winner.
+//   - If none of the load balancers carries any clusterIDTagPrefix tag, all of
+//     them are kept. This preserves the legacy behaviour for load balancers
+//     created before the tag was introduced or by tools that don't set it.
+//   - Otherwise (every candidate carries only foreign clusterIDTagPrefix tags)
+//     all load balancers are dropped. The third return value is true in that
+//     case to let the caller emit a more specific log line / event.
+//
+// Several cluster-id tags none of which matches clusterUID make a load balancer
+// foreign, not ambiguous: this cluster has no claim to it, so it is dropped
+// like any other foreign load balancer and a new one is created instead.
+func filterLoadBalancersByClusterID(lbs []loadbalancers.LoadBalancer, clusterUID string) ([]loadbalancers.LoadBalancer, *loadbalancers.LoadBalancer, bool) {
+	if clusterUID == "" || len(lbs) == 0 {
+		return lbs, nil, false
+	}
+	wantTag := clusterIDTagPrefix + clusterUID
+	var owned []loadbalancers.LoadBalancer
+	taggedAny := false
+	for i := range lbs {
+		tags := clusterIDTags(lbs[i])
+		if len(tags) == 0 {
+			continue
+		}
+		taggedAny = true
+		if !slices.Contains(tags, wantTag) {
+			continue
+		}
+		if len(tags) > 1 {
+			return nil, &lbs[i], false
+		}
+		owned = append(owned, lbs[i])
+	}
+	if len(owned) > 0 {
+		return owned, nil, false
+	}
+	if !taggedAny {
+		// Legacy load balancers without any cluster-id tag, behave as before.
+		return lbs, nil, false
+	}
+	// All candidates are tagged for some other cluster.
+	return nil, nil, true
+}
+
+// clusterIDConflictError reports a load balancer that carries cluster-identity
+// tags of more than one Kubernetes cluster. OCCM cannot tell which cluster owns
+// it, so it must neither adopt nor delete it: acting on it would let anyone able
+// to tag a load balancer in the same OpenStack project take over, or destroy,
+// another cluster's Service. The condition is raised as a Warning event on the
+// Service and as an error so the reconciliation fails visibly instead of
+// silently creating a duplicate load balancer.
+func (lbaas *LbaasV2) clusterIDConflictError(service *corev1.Service, lb *loadbalancers.LoadBalancer) error {
+	const msg = "load balancer %s carries the cluster-identity tags of more than one Kubernetes cluster (%s) and cannot be used for Service %s; remove the stale %s* tags from the load balancer"
+	tags := strings.Join(clusterIDTags(*lb), ", ")
+	serviceName := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBClusterIDConflict, msg, lb.ID, tags, serviceName, clusterIDTagPrefix)
+	klog.Warningf(msg, lb.ID, tags, serviceName, clusterIDTagPrefix)
+	return fmt.Errorf(msg, lb.ID, tags, serviceName, clusterIDTagPrefix)
 }
 
 func popListener(existingListeners []listeners.Listener, id string) []listeners.Listener {
@@ -282,7 +346,7 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clust
 	}
 
 	if svcConf.supportLBTags {
-		createOpts.Tags = withLBNameTag(svcConf.lbName, svcConf.lbTags)
+		createOpts.Tags = withClusterIDTag(lbaas.clusterUID, withLBNameTag(svcConf.lbName, svcConf.lbTags))
 	}
 
 	if svcConf.flavorID != "" {
@@ -378,7 +442,6 @@ func (lbaas *LbaasV2) createOctaviaLoadBalancer(ctx context.Context, name, clust
 // GetLoadBalancer returns whether the specified load balancer exists and its status
 func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, service *corev1.Service) (*corev1.LoadBalancerStatus, bool, error) {
 	name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.getLoadBalancerLegacyName(service)
 	lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	var loadbalancer *loadbalancers.LoadBalancer
 	var err error
@@ -386,7 +449,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	if lbID != "" {
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(ctx, lbaas.lb, lbID)
 	} else {
-		loadbalancer, err = getLoadbalancerByName(ctx, lbaas.lb, name, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name)
 	}
 	if err != nil && cpoerrors.IsNotFound(err) {
 		return nil, false, nil
@@ -420,6 +483,78 @@ func (lbaas *LbaasV2) GetLoadBalancerName(_ context.Context, clusterName string,
 // getLoadBalancerLegacyName returns the legacy load balancer name for backward compatibility.
 func (lbaas *LbaasV2) getLoadBalancerLegacyName(service *corev1.Service) string {
 	return cloudprovider.DefaultLoadBalancerName(service)
+}
+
+// getLoadbalancerByName gets the load balancer which is in valid status by the
+// given name, falling back to the Service's legacy name.
+//
+// When lbaas.clusterUID is non-empty, the returned load balancer must either
+// carry the matching clusterIDTagPrefix tag for that UID, or carry no
+// clusterIDTagPrefix tag at all (legacy load balancer that pre-dates the tag).
+// Load balancers whose name matches but that carry a different cluster-id tag
+// belong to another Kubernetes cluster sharing the OpenStack project; they are
+// ignored and the lookup returns ErrNotFound, which causes OCCM to create a
+// new load balancer instead of accidentally adopting (and overwriting) one
+// that is owned by a different cluster.
+//
+// A load balancer claimed by this cluster and by another one at the same time
+// is rejected with an error rather than ignored, see clusterIDConflictError.
+func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1.Service, name string) (*loadbalancers.LoadBalancer, error) {
+	var validLBs []loadbalancers.LoadBalancer
+
+	// The cluster-id tag is deliberately not part of the ListOpts (server-side
+	// Tags filtering): legacy load balancers created before the tag existed
+	// carry no cluster-id tag at all and must still be found during the
+	// transition period, and a foreign-tagged load balancer has to be seen
+	// here to log the warning below instead of being silently invisible.
+	opts := loadbalancers.ListOpts{
+		Name: name,
+	}
+	allLoadbalancers, err := openstackutil.GetLoadBalancers(ctx, lbaas.lb, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(allLoadbalancers) == 0 {
+		legacyName := lbaas.getLoadBalancerLegacyName(service)
+		if len(legacyName) > 0 {
+			// Backoff to get load balnacer by legacy name.
+			opts := loadbalancers.ListOpts{
+				Name: legacyName,
+			}
+			allLoadbalancers, err = openstackutil.GetLoadBalancers(ctx, lbaas.lb, opts)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, cpoerrors.ErrNotFound
+		}
+	}
+
+	for _, lb := range allLoadbalancers {
+		// All the ProvisioningStatus could be found here https://developer.openstack.org/api-ref/load-balancer/v2/index.html#provisioning-status-codes
+		if lb.ProvisioningStatus != "DELETED" && lb.ProvisioningStatus != "PENDING_DELETE" {
+			validLBs = append(validLBs, lb)
+		}
+	}
+
+	validLBs, conflictingLB, foreignFound := filterLoadBalancersByClusterID(validLBs, lbaas.clusterUID)
+
+	if conflictingLB != nil {
+		return nil, lbaas.clusterIDConflictError(service, conflictingLB)
+	}
+	if len(validLBs) > 1 {
+		return nil, cpoerrors.ErrMultipleResults
+	}
+	if len(validLBs) == 0 {
+		if foreignFound {
+			klog.Warningf("Found a load balancer named %q in OpenStack but it belongs to a different Kubernetes cluster "+
+				"(no %s%s tag); ignoring it. A new load balancer will be created.", name, clusterIDTagPrefix, lbaas.clusterUID)
+		}
+		return nil, cpoerrors.ErrNotFound
+	}
+
+	return &validLBs[0], nil
 }
 
 // The LB needs to be configured with instance addresses on the same
@@ -1804,8 +1939,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			}
 		}
 	} else {
-		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		loadbalancer, err = getLoadbalancerByName(ctx, lbaas.lb, lbName, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName)
 		if err != nil {
 			if err != cpoerrors.ErrNotFound {
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
@@ -1894,9 +2028,10 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// save address into the annotation
 	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
 
-	// Ensure the LB name tag plus any tags from the Service annotation in a single update.
+	// Ensure the LB name tag, the cluster-identity tag, plus any tags from the
+	// Service annotation in a single update.
 	if svcConf.supportLBTags {
-		lbTags := withLBNameTag(lbName, svcConf.lbTags)
+		lbTags := withClusterIDTag(lbaas.clusterUID, withLBNameTag(lbName, svcConf.lbTags))
 		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
 		if tags, changed := cpoutil.Merge(loadbalancer.Tags, lbTags); changed {
 			klog.InfoS("Updating load balancer tags", "lbID", loadbalancer.ID, "tags", tags)
@@ -1980,8 +2115,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	} else {
 		// This is a Service created before shared LB is supported.
 		name := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		loadbalancer, err = getLoadbalancerByName(ctx, lbaas.lb, name, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, name)
 		if err != nil {
 			return err
 		}
@@ -2152,7 +2286,6 @@ func (lbaas *LbaasV2) deleteLoadBalancer(ctx context.Context, loadbalancer *load
 
 func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
 	lbName := lbaas.GetLoadBalancerName(ctx, clusterName, service)
-	legacyName := lbaas.getLoadBalancerLegacyName(service)
 	var err error
 	var loadbalancer *loadbalancers.LoadBalancer
 	isSharedLB := false
@@ -2169,7 +2302,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		loadbalancer, err = openstackutil.GetLoadbalancerByID(ctx, lbaas.lb, svcConf.lbID)
 	} else {
 		// This may happen when this Service creation was failed previously.
-		loadbalancer, err = getLoadbalancerByName(ctx, lbaas.lb, lbName, legacyName)
+		loadbalancer, err = lbaas.getLoadbalancerByName(ctx, service, lbName)
 	}
 	if err != nil && !cpoerrors.IsNotFound(err) {
 		return err

@@ -10,12 +10,14 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	v2monitors "github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/extensions/security/rules"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
@@ -208,6 +210,11 @@ func TestWithLBNameTag(t *testing.T) {
 			name:       "only reserved tags leaves just the LB name",
 			annotation: servicePrefix + "a," + servicePrefix + "b",
 			expected:   []string{lbName},
+		},
+		{
+			name:       "user tag using the cluster-id prefix is stripped",
+			annotation: clusterIDTagPrefix + "some-other-cluster,team=foo",
+			expected:   []string{lbName, "team=foo"},
 		},
 	}
 
@@ -2818,5 +2825,218 @@ func Test_getProxyProtocolFromServiceAnnotation(t *testing.T) {
 			got := getProxyProtocolFromServiceAnnotation(tt.args.service)
 			assert.Equalf(t, tt.want, got, "getProxyProtocolFromServiceAnnotation(%v)", tt.args.service)
 		})
+	}
+}
+
+func TestWithClusterIDTag(t *testing.T) {
+	assert.Equal(t, []string{"foo"}, withClusterIDTag("", []string{"foo"}))
+	assert.Equal(t, []string{"foo", "kube_cluster_id_abc-123"}, withClusterIDTag("abc-123", []string{"foo"}))
+	// already present, no duplicate
+	assert.Equal(t, []string{"kube_cluster_id_abc-123"}, withClusterIDTag("abc-123", []string{"kube_cluster_id_abc-123"}))
+	assert.True(t, len(clusterIDTagPrefix) > 0)
+}
+
+func TestFilterLoadBalancersByClusterID(t *testing.T) {
+	const (
+		thisUID    = "11111111-2222-3333-4444-555555555555"
+		otherUID   = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		thirdUID   = "99999999-8888-7777-6666-555555555555"
+		thisTag    = clusterIDTagPrefix + thisUID
+		otherTag   = clusterIDTagPrefix + otherUID
+		thirdTag   = clusterIDTagPrefix + thirdUID
+		serviceTag = "kube_service_kubernetes_default_test"
+	)
+
+	mkLB := func(id string, tags ...string) loadbalancers.LoadBalancer {
+		return loadbalancers.LoadBalancer{ID: id, Tags: tags}
+	}
+
+	tests := []struct {
+		name           string
+		clusterUID     string
+		input          []loadbalancers.LoadBalancer
+		wantIDs        []string
+		wantConflictID string
+		wantForeignFnd bool
+	}{
+		{
+			name:       "empty clusterUID is a no-op",
+			clusterUID: "",
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag),
+				mkLB("b", serviceTag, otherTag),
+			},
+			wantIDs:        []string{"a", "b"},
+			wantForeignFnd: false,
+		},
+		{
+			name:           "empty input list",
+			clusterUID:     thisUID,
+			input:          nil,
+			wantIDs:        nil,
+			wantForeignFnd: false,
+		},
+		{
+			name:       "single matching tag is kept",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "all untagged falls back to legacy behaviour",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "foreign cluster tag is filtered out",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantForeignFnd: true,
+		},
+		{
+			name:       "mixed: matching kept, foreign dropped",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+				mkLB("b", serviceTag, otherTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "mixed: untagged ignored when matching exists",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+				mkLB("b", serviceTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+		{
+			name:       "all foreign returns empty with foreignFound true",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, otherTag),
+				mkLB("b", serviceTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantForeignFnd: true,
+		},
+		{
+			name:       "matching tag alongside a foreign one is a conflict",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantConflictID: "a",
+			wantForeignFnd: false,
+		},
+		{
+			name:       "conflicting load balancer wins over an otherwise adoptable one",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag),
+				mkLB("b", serviceTag, thisTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantConflictID: "b",
+			wantForeignFnd: false,
+		},
+		{
+			name:       "conflicting load balancer is not masked by an untagged one",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag),
+				mkLB("b", serviceTag, thisTag, otherTag),
+			},
+			wantIDs:        nil,
+			wantConflictID: "b",
+			wantForeignFnd: false,
+		},
+		{
+			name:       "several foreign tags without ours stay foreign, not a conflict",
+			clusterUID: thisUID,
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, otherTag, thirdTag),
+			},
+			wantIDs:        nil,
+			wantForeignFnd: true,
+		},
+		{
+			name:       "empty clusterUID does not flag a conflict",
+			clusterUID: "",
+			input: []loadbalancers.LoadBalancer{
+				mkLB("a", serviceTag, thisTag, otherTag),
+			},
+			wantIDs:        []string{"a"},
+			wantForeignFnd: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, conflicting, foreign := filterLoadBalancersByClusterID(tt.input, tt.clusterUID)
+			gotIDs := make([]string, 0, len(got))
+			for _, lb := range got {
+				gotIDs = append(gotIDs, lb.ID)
+			}
+			if len(tt.wantIDs) == 0 {
+				assert.Empty(t, gotIDs)
+			} else {
+				assert.Equal(t, tt.wantIDs, gotIDs)
+			}
+			if tt.wantConflictID == "" {
+				assert.Nil(t, conflicting)
+			} else {
+				if assert.NotNil(t, conflicting) {
+					assert.Equal(t, tt.wantConflictID, conflicting.ID)
+				}
+			}
+			assert.Equal(t, tt.wantForeignFnd, foreign)
+		})
+	}
+}
+
+func TestClusterIDConflictError(t *testing.T) {
+	const (
+		thisTag  = clusterIDTagPrefix + "11111111-2222-3333-4444-555555555555"
+		otherTag = clusterIDTagPrefix + "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	)
+
+	recorder := record.NewFakeRecorder(1)
+	lbaas := &LbaasV2{LoadBalancer{eventRecorder: recorder}}
+	service := &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	lb := &loadbalancers.LoadBalancer{ID: "lb-id", Tags: []string{"kube_service_kubernetes_default_test", thisTag, otherTag}}
+
+	err := lbaas.clusterIDConflictError(service, lb)
+
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "lb-id")
+		assert.Contains(t, err.Error(), thisTag)
+		assert.Contains(t, err.Error(), otherTag)
+		assert.Contains(t, err.Error(), "default/test")
+	}
+
+	select {
+	case event := <-recorder.Events:
+		assert.Contains(t, event, corev1.EventTypeWarning)
+		assert.Contains(t, event, eventLBClusterIDConflict)
+		assert.Contains(t, event, "lb-id")
+	default:
+		t.Fatal("expected a Warning event to be recorded")
 	}
 }
