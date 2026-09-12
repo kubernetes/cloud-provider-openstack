@@ -13,12 +13,6 @@ This Repository hosts various plugins relevant to OpenStack and Kubernetes Integ
 * [Barbican KMS Plugin](/docs/barbican-kms-plugin/using-barbican-kms-plugin.md/)
 * [Magnum Auto Healer](/docs/magnum-auto-healer/using-magnum-auto-healer.md/)
 
-**NOTE:**
-
-* Cinder Standalone Provisioner, Manila Provisioner and Cinder FlexVolume Driver were removed since release v1.18.0.
-* Version 1.17 was the last release of Manila Provisioner, which is unmaintained from now on. Due to dependency issues, we removed the code from master but it is still accessible in the [release-1.17](https://github.com/kubernetes/cloud-provider-openstack/tree/release-1.17) branch. Please consider migrating to Manila CSI Plugin.
-* Start from release v1.26.0, neutron lbaasv1 support is removed and only Octavia is supported.
-
 ## Developing
 
 Refer to [Getting Started Guide](/docs/developers-guide.md/) for setting up development environment and contributing.
