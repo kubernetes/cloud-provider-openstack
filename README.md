@@ -27,11 +27,7 @@ Refer to [Getting Started Guide](/docs/developers-guide.md/) for setting up deve
 
 Please join us on [Kubernetes provider-openstack slack channel](https://kubernetes.slack.com/messages/provider-openstack)
 
-Project Co-Leads:
-* @dulek - Michał Dulko
-* @jichenjc - Chen Ji
-* @kayrus
-* @zetaab - Jesse Haka
+Project Co-Leads as listed in [OWNERS](/OWNERS).
 
 ## License
 
