@@ -517,17 +517,16 @@ func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1
 
 	if len(allLoadbalancers) == 0 {
 		legacyName := lbaas.getLoadBalancerLegacyName(service)
-		if len(legacyName) > 0 {
-			// Backoff to get load balnacer by legacy name.
-			opts := loadbalancers.ListOpts{
-				Name: legacyName,
-			}
-			allLoadbalancers, err = openstackutil.GetLoadBalancers(ctx, lbaas.lb, opts)
-			if err != nil {
-				return nil, err
-			}
-		} else {
+		if len(legacyName) == 0 {
 			return nil, cpoerrors.ErrNotFound
+		}
+		// Backoff to get load balnacer by legacy name.
+		opts := loadbalancers.ListOpts{
+			Name: legacyName,
+		}
+		allLoadbalancers, err = openstackutil.GetLoadBalancers(ctx, lbaas.lb, opts)
+		if err != nil {
+			return nil, err
 		}
 	}
 
