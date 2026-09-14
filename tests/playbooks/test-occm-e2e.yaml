@@ -27,3 +27,4 @@
     - role: install-cpo-occm
       run_e2e: "{{ run_e2e | bool }}"
       octavia_provider: "{{ octavia_provider }}"
+      occm_verbosity: 6
