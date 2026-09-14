@@ -1,0 +1,10 @@
+# Core gRPC dependencies
+grpcio>=1.62.0
+grpcio-tools>=1.62.0
+grpcio-health-checking>=1.62.0
+protobuf>=4.25.0
+
+# os-brick and its Oslo dependencies
+os-brick>=6.4.0
+oslo.privsep>=3.0.0
+oslo.concurrency>=5.0.0
