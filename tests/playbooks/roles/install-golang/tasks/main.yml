@@ -5,6 +5,7 @@
   register: curr_go_version
 
 - name: Download the Go tarball
+  become: true
   get_url:
     url: '{{ go_download_location }}'
     dest: '/usr/local/src/{{ go_tarball }}'
@@ -12,6 +13,7 @@
     - curr_go_version.stdout != go_version
 
 - name: Remove old installation of Go
+  become: true
   file:
     path: /usr/local/go
     state: absent
@@ -19,6 +21,7 @@
     - curr_go_version.stdout != go_version
 
 - name: Extract the Go tarball to place
+  become: true
   unarchive:
     src: '/usr/local/src/{{ go_tarball }}'
     dest: /usr/local

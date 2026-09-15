@@ -9,16 +9,19 @@ LOG_COLOR=False
 LOGDAYS=1
 SERVICE_TIMEOUT=300
 
-DATABASE_PASSWORD=password
-ADMIN_PASSWORD=password
-SERVICE_PASSWORD=password
-SERVICE_TOKEN=password
-RABBIT_PASSWORD=password
+DATABASE_PASSWORD={{ devstack_password }}
+ADMIN_PASSWORD={{ devstack_password }}
+SERVICE_PASSWORD={{ devstack_password }}
+SERVICE_TOKEN={{ devstack_password }}
+RABBIT_PASSWORD={{ devstack_password }}
+{% if "swift" in default_enabled_services %}
+SWIFT_HASH={{ swift_hash }}
+{% endif %}
 
 GIT_BASE=https://github.com
 TARGET_BRANCH={{ branch }}
 
-ENABLED_SERVICES=rabbit,mysql,key
+ENABLED_SERVICES={{ default_enabled_services }}
 
 # Host tuning
 # From: https://opendev.org/openstack/devstack/src/commit/05f7d302cfa2da73b2887afcde92ef65b1001194/.zuul.yaml#L645-L662
@@ -65,6 +68,10 @@ enable_service cinder
 enable_service c-api
 enable_service c-vol
 enable_service c-sch
+# Cinder backup uses swift by default
+{% if "swift" in default_enabled_services %}
+enable_service c-bak
+{% endif %}
 {% endif %}
 
 {% if "neutron" in enable_services %}

@@ -9,3 +9,5 @@ keypair_name: "k3s_keypair"
 image_url: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
 image_name: "ubuntu-noble"
 master_port_name: "k3s_master"
+# DNS server for the k3s node
+dns_server: "8.8.8.8"
