@@ -261,6 +261,37 @@ To install the chart, use the following command:
 helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugin
 ```
 
+#### Split-cluster deployments (splitMode)
+
+The controller plugin needs OpenStack credentials (via `cloud-config`) to talk to Cinder, while the node plugin only formats and mounts already-attached volumes. In managed setups, e.g. a management cluster provisioning volumes for a workload cluster with Cluster API, you don't want that OpenStack credential present in the workload cluster where end users have access. `splitMode` lets you install the controller plugin into a separate (management) cluster and only the node plugin into the workload cluster, so the workload cluster's end users never have access to OpenStack credentials.
+
+Set `splitMode.type` to `management` on the cluster that should run the controller plugin:
+
+```yaml
+splitMode:
+  enabled: true
+  type: management
+  kubeconfig:
+    secretName: workload-cluster-kubeconfig
+    secretKey: value
+```
+
+The controller plugin authenticates against the workload cluster's API server using the kubeconfig from `splitMode.kubeconfig.secretName`/`secretKey` instead of its local in-cluster service account, and no node plugin, storage class, or RBAC for the local cluster is installed.
+
+Set `splitMode.type` to `workload` on the cluster that runs the node plugin:
+
+```yaml
+splitMode:
+  enabled: true
+  type: workload
+  subject:
+    name: cinder-csi-controller
+```
+
+Only the node plugin, `CSIDriver` object, storage classes, and RBAC are installed; the RBAC grants access to `splitMode.subject.name`, which must match the identity the external controller plugin authenticates as. No controller deployment is installed on this cluster.
+
+`splitMode.volumes`/`splitMode.volumeMounts` override `csi.plugin.volumes`/`csi.plugin.volumeMounts` for both the controller and node plugin containers while `splitMode.enabled` is `true`. The plugin binary always requires a `--cloud-config` file to start, so on the workload cluster this is used to supply a `cloud-config` that carries no OpenStack credentials, instead of `secret.enabled`/`secret.hostMount`, keeping real credentials confined to the management cluster.
+
 ## Supported Features
 
 * [Dynamic Provisioning](./features.md#dynamic-provisioning)
