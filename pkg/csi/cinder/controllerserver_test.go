@@ -22,6 +22,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -1428,6 +1429,54 @@ func TestListSnapshots(t *testing.T) {
 	// Assert
 	assert.Equal(FakeVolID, actualRes.Entries[0].Snapshot.SourceVolumeId)
 	assert.NotNil(FakeSnapshotID, actualRes.Entries[0].Snapshot.SnapshotId)
+}
+
+func TestListSnapshotsBackupByID(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+	osmock.On("GetSnapshotByID", FakeBackupID).Return((*snapshots.Snapshot)(nil), cpoerrors.ErrNotFound)
+	osmock.On("GetBackupByID", FakeBackupID).Return(&FakeBackupRes, nil)
+
+	actualRes, err := fakeCs.ListSnapshots(FakeCtx, &csi.ListSnapshotsRequest{SnapshotId: FakeBackupID})
+	if err != nil {
+		t.Fatalf("ListSnapshots returned an error: %v", err)
+	}
+	if len(actualRes.Entries) != 1 {
+		t.Fatalf("ListSnapshots returned %d entries, want 1", len(actualRes.Entries))
+	}
+
+	actualSnapshot := actualRes.Entries[0].Snapshot
+	assert.Equal(t, FakeBackupID, actualSnapshot.SnapshotId)
+	assert.Equal(t, FakeVolID, actualSnapshot.SourceVolumeId)
+	assert.Equal(t, int64(FakeBackupRes.Size*1024*1024*1024), actualSnapshot.SizeBytes)
+	assert.True(t, FakeBackupRes.CreatedAt.Equal(actualSnapshot.CreationTime.AsTime()))
+	assert.True(t, actualSnapshot.ReadyToUse)
+	osmock.AssertExpectations(t)
+}
+
+func TestListSnapshotsByIDNotFound(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+
+	osmock.On("GetSnapshotByID", FakeSnapshotID).Return((*snapshots.Snapshot)(nil), cpoerrors.ErrNotFound)
+	osmock.On("GetBackupByID", FakeSnapshotID).Return((*backups.Backup)(nil), cpoerrors.ErrNotFound)
+
+	actualRes, err := fakeCs.ListSnapshots(FakeCtx, &csi.ListSnapshotsRequest{SnapshotId: FakeSnapshotID})
+	if err != nil {
+		t.Fatalf("ListSnapshots returned an error: %v", err)
+	}
+	assert.Empty(t, actualRes.Entries)
+	osmock.AssertExpectations(t)
+}
+
+func TestListSnapshotsBackupLookupError(t *testing.T) {
+	fakeCs, osmock := fakeControllerServer()
+	backendErr := errors.New("backup service unavailable")
+
+	osmock.On("GetSnapshotByID", FakeBackupID).Return((*snapshots.Snapshot)(nil), cpoerrors.ErrNotFound)
+	osmock.On("GetBackupByID", FakeBackupID).Return((*backups.Backup)(nil), backendErr)
+
+	_, err := fakeCs.ListSnapshots(FakeCtx, &csi.ListSnapshotsRequest{SnapshotId: FakeBackupID})
+	assert.Equal(t, codes.Internal, status.Code(err))
+	osmock.AssertExpectations(t)
 }
 
 func TestControllerExpandVolume(t *testing.T) {
