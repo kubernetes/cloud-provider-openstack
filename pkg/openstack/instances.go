@@ -159,9 +159,23 @@ func (i *InstancesV2) makeInstanceID(srv *servers.Server) string {
 	return fmt.Sprintf("%s:///%s", ProviderName, srv.ID)
 }
 
+func instanceLookupError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.IsNotFound(err) {
+		return cloudprovider.InstanceNotFound
+	}
+	return err
+}
+
 func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*servers.Server, error) {
 	if node.Spec.ProviderID == "" {
-		return getServerByName(ctx, i.compute, node.Name)
+		server, err := getServerByName(ctx, i.compute, node.Name)
+		if err != nil {
+			return nil, instanceLookupError(err)
+		}
+		return server, nil
 	}
 
 	instanceID, instanceRegion, err := instanceIDFromProviderID(node.Spec.ProviderID)
@@ -176,10 +190,7 @@ func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*servers.
 	mc := metrics.NewMetricContext("server", "get")
 	server, err := servers.Get(ctx, i.compute, instanceID).Extract()
 	if mc.ObserveRequest(err) != nil {
-		if errors.IsNotFound(err) {
-			return nil, cloudprovider.InstanceNotFound
-		}
-		return nil, err
+		return nil, instanceLookupError(err)
 	}
 	return server, nil
 }

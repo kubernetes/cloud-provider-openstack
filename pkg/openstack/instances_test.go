@@ -17,9 +17,12 @@ limitations under the License.
 package openstack
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	cloudprovider "k8s.io/cloud-provider"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 func Test_instanceIDFromProviderID(t *testing.T) {
@@ -91,4 +94,11 @@ func Test_instanceIDFromProviderID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInstanceLookupError(t *testing.T) {
+	assert.Equal(t, cloudprovider.InstanceNotFound, instanceLookupError(cpoerrors.ErrNotFound))
+	assert.NoError(t, instanceLookupError(nil))
+	err := fmt.Errorf("boom")
+	assert.Equal(t, err, instanceLookupError(err))
 }
