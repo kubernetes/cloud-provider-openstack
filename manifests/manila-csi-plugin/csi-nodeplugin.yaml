@@ -3,8 +3,8 @@ apiVersion: apps/v1
 metadata:
   name: openstack-manila-csi-nodeplugin
   labels:
-    app: openstack-manila-csi
-    component: nodeplugin
+    app.kubernetes.io/name: openstack-manila-csi
+    app.kubernetes.io/component: nodeplugin
 spec:
   selector:
     matchLabels:

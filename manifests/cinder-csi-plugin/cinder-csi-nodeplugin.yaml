@@ -9,11 +9,13 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: csi-cinder-nodeplugin
+      app.kubernetes.io/name: openstack-cinder-csi
+      app.kubernetes.io/component: nodeplugin
   template:
     metadata:
       labels:
-        app: csi-cinder-nodeplugin
+        app.kubernetes.io/name: openstack-cinder-csi
+        app.kubernetes.io/component: nodeplugin
     spec:
       tolerations:
         - operator: Exists

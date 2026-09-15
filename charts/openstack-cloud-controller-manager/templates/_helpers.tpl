@@ -30,24 +30,14 @@ app.kubernetes.io/name: {{ include "occm.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "occm.common.matchLabels" -}}
-app: {{ template "occm.name" . }}
-release: {{ .Release.Name }}
-{{- end -}}
-
-{{- define "occm.common.metaLabels" -}}
-chart: {{ template "occm.chart" . }}
-heritage: {{ .Release.Service }}
-{{- end -}}
-
 {{- define "occm.controllermanager.matchLabels" -}}
-component: controllermanager
-{{ include "occm.common.matchLabels" . }}
+app.kubernetes.io/component: controllermanager
+{{ include "occm.labels.matchLabels" . }}
 {{- end -}}
 
 {{- define "occm.controllermanager.labels" -}}
-{{ include "occm.controllermanager.matchLabels" . }}
-{{ include "occm.common.metaLabels" . }}
+{{ include "occm.labels.standard" . }}
+app.kubernetes.io/component: controllermanager
 {{ if .Values.podLabels }}
 {{- toYaml .Values.podLabels }}
 {{- end }}
