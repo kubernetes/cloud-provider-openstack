@@ -34,6 +34,7 @@ rules:
   - watch
   - patch
   - update
+  - delete
 - apiGroups:
   - ""
   resources:
