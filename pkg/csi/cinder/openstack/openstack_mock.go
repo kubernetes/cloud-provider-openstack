@@ -29,14 +29,6 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
-var fakeVol1 = volumes.Volume{
-	ID:               "261a8b81-3660-43e5-bab8-6470b65ee4e9",
-	Name:             "fake-duplicate",
-	Status:           "available",
-	AvailabilityZone: "nova",
-	Size:             1,
-}
-
 var fakeSnapshot = snapshots.Snapshot{
 	ID:       "261a8b81-3660-43e5-bab8-6470b65ee4e8",
 	Name:     "fake-snapshot",
@@ -134,7 +126,11 @@ func (_m *OpenStackMock) DeleteVolume(ctx context.Context, volumeID string) erro
 
 // GetVolume provides a mock function with given fields: volumeID
 func (_m *OpenStackMock) GetVolume(ctx context.Context, volumeID string) (*volumes.Volume, error) {
-	return &fakeVol1, nil
+	args := _m.Called(volumeID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*volumes.Volume), args.Error(1)
 }
 
 // DetachVolume provides a mock function with given fields: instanceID, volumeID
