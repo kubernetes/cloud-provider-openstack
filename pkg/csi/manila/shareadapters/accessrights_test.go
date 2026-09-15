@@ -34,6 +34,8 @@ type mockManilaClient struct {
 	callCount    int
 	accessRights [][]shares.AccessRight
 	revokeCalled bool
+	granted      []shares.GrantAccessOpts
+	revoked      []string
 }
 
 func (m *mockManilaClient) GetMicroversion() string  { return "" }
@@ -57,8 +59,10 @@ func (m *mockManilaClient) GetExportLocations(_ context.Context, _ string) ([]sh
 func (m *mockManilaClient) SetShareMetadata(_ context.Context, _ string, _ shares.SetMetadataOptsBuilder) (map[string]string, error) {
 	return nil, nil
 }
-func (m *mockManilaClient) GrantAccess(_ context.Context, _ string, _ shares.GrantAccessOptsBuilder) (*shares.AccessRight, error) {
-	return nil, nil
+func (m *mockManilaClient) GrantAccess(_ context.Context, _ string, opts shares.GrantAccessOptsBuilder) (*shares.AccessRight, error) {
+	grantOpts := opts.(shares.GrantAccessOpts)
+	m.granted = append(m.granted, grantOpts)
+	return &shares.AccessRight{ID: "new-" + grantOpts.AccessTo}, nil
 }
 func (m *mockManilaClient) GetSnapshotByID(_ context.Context, _ string) (*snapshots.Snapshot, error) {
 	return nil, nil
@@ -92,8 +96,9 @@ func (m *mockManilaClient) GetAccessRights(_ context.Context, _ string) ([]share
 	return m.accessRights[idx], nil
 }
 
-func (m *mockManilaClient) RevokeAccess(_ context.Context, _ string, _ string) error {
+func (m *mockManilaClient) RevokeAccess(_ context.Context, _ string, accessID string) error {
 	m.revokeCalled = true
+	m.revoked = append(m.revoked, accessID)
 	return nil
 }
 
@@ -190,5 +195,48 @@ func TestWaitForAccessRuleNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected 'not found' in error message, got: %s", err.Error())
+	}
+}
+
+func TestNFSReconcileAccesses(t *testing.T) {
+	mock := &mockManilaClient{
+		accessRights: [][]shares.AccessRight{
+			{
+				{ID: "keep", AccessType: "ip", AccessLevel: "rw", AccessTo: "10.0.0.0/24", State: "active"},
+				{ID: "remove", AccessType: "ip", AccessLevel: "rw", AccessTo: "192.0.2.0/24", State: "active"},
+				{ID: "preserve-ro", AccessType: "ip", AccessLevel: "ro", AccessTo: "198.51.100.0/24", State: "active"},
+				{ID: "preserve-cephx", AccessType: "cephx", AccessLevel: "rw", AccessTo: "client", State: "active"},
+			},
+			{
+				{ID: "new-203.0.113.10", AccessType: "ip", AccessLevel: "rw", AccessTo: "203.0.113.10", State: "active"},
+			},
+		},
+	}
+
+	err := (NFS{}).ReconcileAccesses(context.Background(), mock, "share-1", []string{"10.0.0.0/24", "203.0.113.10"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.granted) != 1 || mock.granted[0].AccessTo != "203.0.113.10" {
+		t.Fatalf("unexpected grants: %#v", mock.granted)
+	}
+	if len(mock.revoked) != 1 || mock.revoked[0] != "remove" {
+		t.Fatalf("unexpected revocations: %#v", mock.revoked)
+	}
+}
+
+func TestNFSReconcileAccessesIsIdempotent(t *testing.T) {
+	mock := &mockManilaClient{
+		accessRights: [][]shares.AccessRight{{
+			{ID: "keep", AccessType: "ip", AccessLevel: "rw", AccessTo: "10.0.0.0/24", State: "active"},
+		}},
+	}
+
+	err := (NFS{}).ReconcileAccesses(context.Background(), mock, "share-1", []string{"10.0.0.0/24"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.granted) != 0 || len(mock.revoked) != 0 {
+		t.Fatalf("expected no changes, got grants %#v and revocations %#v", mock.granted, mock.revoked)
 	}
 }

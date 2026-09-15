@@ -117,7 +117,7 @@ type nonBlockingGRPCServer struct {
 }
 
 const (
-	specVersion   = "1.8.0"
+	specVersion   = "1.12.0"
 	driverVersion = "0.9.0"
 	topologyKey   = "topology.manila.csi.openstack.org/zone"
 )
@@ -189,11 +189,15 @@ func NewDriver(o *DriverOpts) (*Driver, error) {
 func (d *Driver) SetupControllerService() error {
 	klog.Info("Providing controller service")
 
-	d.addControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
+	controllerCapabilities := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
-	})
+	}
+	if d.shareProto == "NFS" {
+		controllerCapabilities = append(controllerCapabilities, csi.ControllerServiceCapability_RPC_MODIFY_VOLUME)
+	}
+	d.addControllerServiceCapabilities(controllerCapabilities)
 
 	d.addVolumeCapabilityAccessModes([]csi.VolumeCapability_AccessMode_Mode{
 		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
