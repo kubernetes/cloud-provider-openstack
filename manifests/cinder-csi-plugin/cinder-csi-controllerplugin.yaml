@@ -120,7 +120,7 @@ spec:
             readOnlyRootFilesystem: true
             seccompProfile:
               type: RuntimeDefault
-          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.36.0
+          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.37.0
           args:
             - /bin/cinder-csi-plugin
             - "--endpoint=$(CSI_ENDPOINT)"
