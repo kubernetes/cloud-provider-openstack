@@ -874,6 +874,57 @@ func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "it should return ipMode proxy if using proxyProtocol and the enable-ingress-hostname annotation is false, even when EnableIngressHostname is enabled",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: true,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"loadbalancer.openstack.org/enable-ingress-hostname": "false"},
+					},
+				},
+				svcConf: &serviceConfig{
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				IPAddress: "10.10.0.6",
+				IPMode:    &ipmodeProxy,
+			},
+		},
+		{
+			name: "it should return fakehostname if using proxyProtocol and the enable-ingress-hostname annotation is true, even when EnableIngressHostname is disabled",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"loadbalancer.openstack.org/enable-ingress-hostname": "true"},
+					},
+				},
+				svcConf: &serviceConfig{
+					proxyProtocolVersion: ptr.To(pools.ProtocolPROXY),
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				HostName: "10.10.0.6.ingress-suffix",
+			},
+		},
+		{
 			name: "it should return ipMode proxy if using proxyProtocol and not EnableIngressHostname",
 			fields: fields{
 				LoadBalancer: LoadBalancer{

@@ -88,7 +88,10 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries     = "loadbalancer.openstack.org/health-monitor-max-retries"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown = "loadbalancer.openstack.org/health-monitor-max-retries-down"
 	ServiceAnnotationLoadBalancerLoadbalancerHostname        = "loadbalancer.openstack.org/hostname"
-	ServiceAnnotationLoadBalancerAddress                     = "loadbalancer.openstack.org/load-balancer-address"
+	// ServiceAnnotationLoadBalancerEnableIngressHostname defines whether to publish the load balancer address as
+	// a <ip>.<suffix> hostname when the PROXY protocol is enabled, if not specified, use 'enable-ingress-hostname' config.
+	ServiceAnnotationLoadBalancerEnableIngressHostname = "loadbalancer.openstack.org/enable-ingress-hostname"
+	ServiceAnnotationLoadBalancerAddress               = "loadbalancer.openstack.org/load-balancer-address"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -1715,8 +1718,8 @@ func (lbaas *LbaasV2) createLoadBalancerStatus(service *corev1.Service, svcConf 
 	if svcConf.proxyProtocolVersion != nil {
 		// If the load balancer is using the PROXY protocol, expose its IP address via
 		// the Hostname field to prevent kube-proxy from injecting an iptables bypass.
-		// Setting must be removed by the user to allow the use of the LoadBalancerIPModeProxy.
-		if lbaas.opts.EnableIngressHostname {
+		// Setting must be disabled, in the config or per Service via annotation, to allow the use of the LoadBalancerIPModeProxy.
+		if getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableIngressHostname, lbaas.opts.EnableIngressHostname) {
 			fakeHostname := fmt.Sprintf("%s.%s", addr, lbaas.opts.IngressHostnameSuffix)
 			status.Ingress = []corev1.LoadBalancerIngress{{Hostname: fakeHostname}}
 			return status
