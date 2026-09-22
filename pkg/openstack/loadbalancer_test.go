@@ -3,10 +3,11 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/ptr"
 	"reflect"
 	"sort"
 	"testing"
+
+	"k8s.io/utils/ptr"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
@@ -609,6 +610,63 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 }
 
+func Test_poolProtocol(t *testing.T) {
+	proxyV2 := pools.ProtocolPROXYV2
+
+	tests := []struct {
+		name             string
+		listenerProtocol pools.Protocol
+		svcConf          *serviceConfig
+		expected         pools.Protocol
+	}{
+		{
+			name:             "proxy protocol version takes precedence",
+			listenerProtocol: pools.ProtocolTCP,
+			svcConf:          &serviceConfig{proxyProtocolVersion: &proxyV2},
+			expected:         pools.ProtocolPROXYV2,
+		},
+		{
+			name:             "keepClientIP forces HTTP",
+			listenerProtocol: pools.ProtocolTCP,
+			svcConf:          &serviceConfig{keepClientIP: true},
+			expected:         pools.ProtocolHTTP,
+		},
+		{
+			name:             "tlsContainerRef forces HTTP",
+			listenerProtocol: pools.ProtocolTCP,
+			svcConf:          &serviceConfig{tlsContainerRef: "tls-container-ref"},
+			expected:         pools.ProtocolHTTP,
+		},
+		{
+			name:             "keepClientIP and tlsContainerRef force HTTP",
+			listenerProtocol: pools.ProtocolTCP,
+			svcConf:          &serviceConfig{keepClientIP: true, tlsContainerRef: "tls-container-ref"},
+			expected:         pools.ProtocolHTTP,
+		},
+		{
+			name:             "keepClientIP with HTTP listener keeps HTTP",
+			listenerProtocol: pools.ProtocolHTTP,
+			svcConf:          &serviceConfig{keepClientIP: true},
+			expected:         pools.ProtocolHTTP,
+		},
+		{
+			name:             "no overrides falls back to listener protocol",
+			listenerProtocol: pools.ProtocolTCP,
+			svcConf:          &serviceConfig{},
+			expected:         pools.ProtocolTCP,
+		},
+	}
+
+	lbaas := &LbaasV2{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lbaas.poolProtocol(tt.listenerProtocol, tt.svcConf); got != tt.expected {
+				t.Errorf("poolProtocol() = %v, expected %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestLbaasV2_checkListenerPorts(t *testing.T) {
 	type args struct {
 		service            *corev1.Service
@@ -637,8 +695,8 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 				},
 				curListenerMapping: map[listenerKey]*listeners.Listener{
 					{
-						Protocol: "https",
-						Port:     9090,
+						protocol: "https",
+						port:     9090,
 					}: {
 						ID:   "listenerid",
 						Tags: []string{"test-lb"},
@@ -665,8 +723,8 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 				},
 				curListenerMapping: map[listenerKey]*listeners.Listener{
 					{
-						Protocol: "https",
-						Port:     9090,
+						protocol: "https",
+						port:     9090,
 					}: {
 						ID:   "listenerid",
 						Tags: []string{"test-lb", "test-lb1"},
@@ -693,8 +751,8 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 				},
 				curListenerMapping: map[listenerKey]*listeners.Listener{
 					{
-						Protocol: "https",
-						Port:     9090,
+						protocol: "https",
+						port:     9090,
 					}: {
 						ID: "listenerid",
 					},
@@ -720,8 +778,8 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 				},
 				curListenerMapping: map[listenerKey]*listeners.Listener{
 					{
-						Protocol: "https",
-						Port:     9090,
+						protocol: "https",
+						port:     9090,
 					}: {
 						ID:   "listenerid",
 						Tags: []string{"test-lb"},
@@ -748,8 +806,8 @@ func TestLbaasV2_checkListenerPorts(t *testing.T) {
 				},
 				curListenerMapping: map[listenerKey]*listeners.Listener{
 					{
-						Protocol: "https",
-						Port:     9090,
+						protocol: "https",
+						port:     9090,
 					}: {
 						ID:   "listenerid",
 						Tags: []string{"test-lb"},
@@ -2181,7 +2239,7 @@ func Test_getSubnetID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.args.lbaasV2.getSubnetID(tt.args.service, tt.args.svcConf)
+			got, err := tt.args.lbaasV2.getSubnetID(tt.args.service)
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			}
@@ -2274,7 +2332,7 @@ func TestLbaasV2_getNetworkID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.lbaas.getNetworkID(tt.arg.service, &serviceConfig{})
+			got, err := tt.lbaas.getNetworkID(tt.arg.service)
 
 			if tt.wantErr != "" {
 				assert.EqualError(t, err, tt.wantErr)
