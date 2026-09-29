@@ -18,8 +18,10 @@ package openstack
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
+	"github.com/gophercloud/gophercloud/v2"
 	"github.com/stretchr/testify/assert"
 	cloudprovider "k8s.io/cloud-provider"
 	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
@@ -98,6 +100,8 @@ func Test_instanceIDFromProviderID(t *testing.T) {
 
 func TestInstanceLookupError(t *testing.T) {
 	assert.Equal(t, cloudprovider.InstanceNotFound, instanceLookupError(cpoerrors.ErrNotFound))
+	assert.Equal(t, cloudprovider.InstanceNotFound, instanceLookupError(gophercloud.ErrResourceNotFound{Name: "node-a", ResourceType: "server"}))
+	assert.Equal(t, cloudprovider.InstanceNotFound, instanceLookupError(gophercloud.ErrUnexpectedResponseCode{Actual: http.StatusNotFound}))
 	assert.NoError(t, instanceLookupError(nil))
 	err := fmt.Errorf("boom")
 	assert.Equal(t, err, instanceLookupError(err))
