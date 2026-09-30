@@ -295,7 +295,7 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `enable-ingress-hostname`
 
-  Used with proxy protocol (set by annotation `loadbalancer.openstack.org/proxy-protocol: "true"`) by adding a dns suffix (nip.io) to the load balancer IP address. Default false.
+  Used with proxy protocol (set by annotation `loadbalancer.openstack.org/proxy-protocol: "true"`) by adding a dns suffix (nip.io) to the load balancer IP address. Default false. Can be overridden per service with the annotation `loadbalancer.openstack.org/enable-ingress-hostname`.
 
   This option is currently a workaround for the issue https://github.com/kubernetes/ingress-nginx/issues/3996, should be removed or refactored after the Kubernetes [KEP-1860](https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding) is implemented.
 
