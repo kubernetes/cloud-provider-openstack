@@ -24,8 +24,10 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
+	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/runtimeconfig"
 	manilautil "k8s.io/cloud-provider-openstack/pkg/csi/manila/util"
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"k8s.io/klog/v2"
 )
 
@@ -43,7 +45,7 @@ func (NFS) GetOrGrantAccesses(ctx context.Context, args *GrantAccessArgs) ([]sha
 		}
 	}
 
-	accessToList := strings.Split(args.Options.NFSShareClient, ",")
+	accessToList := util.Unique(util.SplitTrim(args.Options.NFSShareClient, ','))
 
 	for _, at := range accessToList {
 		// Try to find the access right
@@ -74,6 +76,60 @@ func (NFS) GetOrGrantAccesses(ctx context.Context, args *GrantAccessArgs) ([]sha
 	}
 
 	return rights, nil
+}
+
+// ReconcileAccesses makes the share's rw IP access rules match accessToList.
+// New rules are activated before obsolete rules are revoked to avoid an access gap.
+func (NFS) ReconcileAccesses(ctx context.Context, manilaClient manilaclient.Interface, shareID string, accessToList []string) error {
+	rights, err := manilaClient.GetAccessRights(ctx, shareID)
+	if err != nil {
+		return fmt.Errorf("failed to list access rights: %v", err)
+	}
+
+	desired := make(map[string]struct{}, len(accessToList))
+	for _, accessTo := range accessToList {
+		desired[accessTo] = struct{}{}
+	}
+
+	existing := make(map[string]shares.AccessRight)
+	for _, right := range rights {
+		if right.AccessType == "ip" && right.AccessLevel == "rw" {
+			existing[right.AccessTo] = right
+		}
+	}
+
+	for accessTo := range desired {
+		if _, found := existing[accessTo]; found {
+			continue
+		}
+
+		right, err := manilaClient.GrantAccess(ctx, shareID, shares.GrantAccessOpts{
+			AccessType:  "ip",
+			AccessLevel: "rw",
+			AccessTo:    accessTo,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to grant access right for %s: %v", accessTo, err)
+		}
+		if _, err := waitForAccessRuleActive(ctx, manilaClient, shareID, right.ID); err != nil {
+			return err
+		}
+	}
+
+	for accessTo, right := range existing {
+		if _, keep := desired[accessTo]; keep {
+			continue
+		}
+
+		if err := manilaClient.RevokeAccess(ctx, shareID, right.ID); err != nil {
+			return fmt.Errorf("failed to revoke access right for %s: %v", accessTo, err)
+		}
+		if err := waitForAccessRuleDeleted(ctx, manilaClient, shareID, right.ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (NFS) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {

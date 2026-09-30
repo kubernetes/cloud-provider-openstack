@@ -32,6 +32,8 @@ const (
 	accessRuleStateError       = "error"
 	accessRuleStateQueuedApply = "queued_to_apply"
 	accessRuleStateApplying    = "applying"
+	accessRuleStateQueuedDeny  = "queued_to_deny"
+	accessRuleStateDenying     = "denying"
 
 	waitForAccessRuleTimeout = 3
 	waitForAccessRuleRetries = 10
@@ -91,4 +93,41 @@ func waitForAccessRuleActive(ctx context.Context, manilaClient manilaclient.Inte
 	}
 
 	return result, nil
+}
+
+func waitForAccessRuleDeleted(ctx context.Context, manilaClient manilaclient.Interface, shareID, accessID string) error {
+	backoff := wait.Backoff{
+		Duration: time.Second * waitForAccessRuleTimeout,
+		Factor:   1.2,
+		Steps:    waitForAccessRuleRetries,
+	}
+
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+		rights, err := manilaClient.GetAccessRights(ctx, shareID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get access rights for share %s: %v", shareID, err)
+		}
+
+		for i := range rights {
+			if rights[i].ID != accessID {
+				continue
+			}
+
+			switch rights[i].State {
+			case accessRuleStateActive, accessRuleStateQueuedDeny, accessRuleStateDenying:
+				klog.V(4).Infof("access rule %s for share %s is in state %s, waiting for deletion...", accessID, shareID, rights[i].State)
+				return false, nil
+			case accessRuleStateError:
+				return false, fmt.Errorf("access rule %s for share %s is in error state while being revoked", accessID, shareID)
+			default:
+				return false, fmt.Errorf("access rule %s for share %s is in unexpected state %s while being revoked", accessID, shareID, rights[i].State)
+			}
+		}
+
+		return true, nil
+	})
+	if wait.Interrupted(err) {
+		return fmt.Errorf("timed out waiting for access rule %s for share %s to be deleted", accessID, shareID)
+	}
+	return err
 }
