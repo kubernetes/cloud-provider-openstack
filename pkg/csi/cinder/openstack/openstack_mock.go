@@ -644,16 +644,3 @@ func (_m *OpenStackMock) AttachmentComplete(ctx context.Context, attachmentID st
 	return r0
 }
 
-// ResetVolumeStatus provides a mock function with given fields: volumeID, targetStatus
-func (_m *OpenStackMock) ResetVolumeStatus(ctx context.Context, volumeID string, targetStatus string) error {
-	ret := _m.Called(volumeID, targetStatus)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string) error); ok {
-		r0 = rf(volumeID, targetStatus)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}

@@ -380,6 +380,4 @@ func (cloud *cloud) AttachmentComplete(_ context.Context, attachmentID string) e
 	return nil
 }
 
-func (cloud *cloud) ResetVolumeStatus(_ context.Context, volumeID string, targetStatus string) error {
-	return nil
-}
+
