@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,9 @@ limitations under the License.
 package brick
 
 import "context"
+
+// Endpoint is the gRPC endpoint for the os-brick sidecar.
+const Endpoint = "unix:///var/run/osbrick/osbrick.sock"
 
 // ConnectorProperties describes the host-side initiator information
 // that Cinder needs to set up a volume connection (e.g. iSCSI IQN,
