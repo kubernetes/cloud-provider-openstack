@@ -29,6 +29,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/pagination"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider-openstack/pkg/metrics"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/klog/v2"
 )
 
@@ -140,12 +141,45 @@ func (os *OpenStack) ListSnapshots(ctx context.Context, filters map[string]strin
 	return snaps, nextPageToken, nil
 }
 
-// DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend
+// DeleteSnapshot issues a request to delete the Snapshot with the specified ID from the Cinder backend.
+// Cinder accepts the delete immediately (202) and finishes it in the background. Returning before the
+// snapshot is actually gone lets the snapshotter drop the VolumeSnapshot while a backend delete later fails.
 func (os *OpenStack) DeleteSnapshot(ctx context.Context, snapID string) error {
 	mc := metrics.NewMetricContext("snapshot", "delete")
 	err := snapshots.Delete(ctx, os.blockstorage, snapID).ExtractErr()
 	if mc.ObserveRequest(err) != nil {
 		klog.Errorf("Failed to delete snapshot: %v", err)
+		return err
+	}
+	return os.waitSnapshotDeleted(ctx, snapID)
+}
+
+func (os *OpenStack) waitSnapshotDeleted(ctx context.Context, snapID string) error {
+	return waitSnapshotDeleted(ctx, snapID, wait.Backoff{
+		Duration: snapReadyDuration,
+		Factor:   snapReadyFactor,
+		Steps:    snapReadySteps,
+	}, os.GetSnapshotByID)
+}
+
+func waitSnapshotDeleted(ctx context.Context, snapID string, backoff wait.Backoff, get func(context.Context, string) (*snapshots.Snapshot, error)) error {
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+		snap, err := get(ctx, snapID)
+		if cpoerrors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		switch snap.Status {
+		case "error", "error_deleting":
+			return false, fmt.Errorf("snapshot %s entered status %s", snapID, snap.Status)
+		default:
+			return false, nil
+		}
+	})
+	if wait.Interrupted(err) {
+		return fmt.Errorf("timeout waiting for snapshot %s to be deleted", snapID)
 	}
 	return err
 }
