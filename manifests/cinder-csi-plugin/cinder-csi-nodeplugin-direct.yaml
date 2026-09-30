@@ -65,7 +65,6 @@ spec:
             - "--provide-controller-service=false"
             - "--cloud-config=$(CLOUD_CONFIG)"
             - "--attach-mode=direct"
-            - "--brick-endpoint=unix:///var/run/osbrick/osbrick.sock"
             - "--v=1"
           env:
             - name: CSI_ENDPOINT
