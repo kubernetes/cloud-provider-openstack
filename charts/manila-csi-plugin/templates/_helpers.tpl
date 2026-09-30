@@ -7,24 +7,6 @@ Expand the name of the chart.
 {{- end -}}
 
 {{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
-*/}}
-{{- define "openstack-manila-csi.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Create fully qualified app name for the node plugin.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
@@ -87,13 +69,16 @@ Create unified labels for manila-csi components
 */}}
 
 {{- define "openstack-manila-csi.common.matchLabels" -}}
-app: {{ template "openstack-manila-csi.name" . }}
-release: {{ .Release.Name }}
+app.kubernetes.io/name: {{ template "openstack-manila-csi.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "openstack-manila-csi.common.metaLabels" -}}
-chart: {{ template "openstack-manila-csi.chart" . }}
-heritage: {{ .Release.Service }}
+helm.sh/chart: {{ template "openstack-manila-csi.chart" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
 {{- if .Values.extraLabels }}
 {{ toYaml .Values.extraLabels }}
 {{- end }}
@@ -105,7 +90,7 @@ heritage: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "openstack-manila-csi.controllerplugin.matchLabels" -}}
-component: controllerplugin
+app.kubernetes.io/component: controllerplugin
 {{ include "openstack-manila-csi.common.matchLabels" . }}
 {{- end -}}
 
@@ -115,7 +100,7 @@ component: controllerplugin
 {{- end -}}
 
 {{- define "openstack-manila-csi.nodeplugin.matchLabels" -}}
-component: nodeplugin
+app.kubernetes.io/component: nodeplugin
 {{ include "openstack-manila-csi.common.matchLabels" . }}
 {{- end -}}
 
