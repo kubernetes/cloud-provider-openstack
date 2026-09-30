@@ -254,22 +254,16 @@ func (ns *nodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 			}
 		}()
 
-		// Mark the attachment as "in-use" in Cinder (best-effort).
+		// AttachmentComplete (microversion 3.44) transitions the
+		// volume to "in-use" in Cinder. Without it the volume stays
+		// in "attaching" and Cinder will reject subsequent operations
+		// (expand, snapshot, detach from another node).
 		attachmentID := req.GetPublishContext()["AttachmentID"]
-		volCloud := req.GetPublishContext()["Cloud"]
-		cloud := ns.Clouds[volCloud]
-		if cloud != nil && attachmentID != "" {
-			if completeErr := cloud.AttachmentComplete(ctx, attachmentID); completeErr != nil {
-				// AttachmentComplete (microversion 3.44) transitions the
-				// volume to "in-use" in Cinder. Without it the volume
-				// stays in "attaching" and Cinder will reject subsequent
-				// operations (expand, snapshot, detach from another node).
-				// Treat failure as fatal to avoid leaving the volume in an
-				// inconsistent state.
-				return nil, status.Errorf(codes.Internal, "[NodeStageVolume] AttachmentComplete failed for attachment %s (volume %s): %v", attachmentID, volumeID, completeErr)
-			}
-			klog.V(4).Infof("NodeStageVolume: AttachmentComplete succeeded for attachment %s (volume %s)", attachmentID, volumeID)
+		cloud := ns.Clouds[req.GetPublishContext()["Cloud"]]
+		if completeErr := cloud.AttachmentComplete(ctx, attachmentID); completeErr != nil {
+			return nil, status.Errorf(codes.Internal, "[NodeStageVolume] AttachmentComplete failed for attachment %s (volume %s): %v", attachmentID, volumeID, completeErr)
 		}
+		klog.V(4).Infof("NodeStageVolume: AttachmentComplete succeeded for attachment %s (volume %s)", attachmentID, volumeID)
 
 		// Persist connection_info *before* mount so the file lives on the
 		// host filesystem underneath the mount point. NodeUnstageVolume
