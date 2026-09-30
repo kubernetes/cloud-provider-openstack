@@ -77,7 +77,6 @@ type Driver struct {
 	clusterID     string
 	withTopology  bool
 	attachMode    string
-	brickEndpoint string
 
 	ids *identityServer
 	cs  *controllerServer
@@ -95,7 +94,6 @@ type DriverOpts struct {
 	Endpoint      string
 	WithTopology  bool
 	AttachMode    string
-	BrickEndpoint string
 
 	PVCLister v1.PersistentVolumeClaimLister
 }
@@ -113,7 +111,6 @@ func NewDriver(o *DriverOpts) *Driver {
 		clusterID:     o.ClusterID,
 		withTopology:  o.WithTopology,
 		attachMode:    attachMode,
-		brickEndpoint: o.BrickEndpoint,
 		pvcLister:     o.PVCLister,
 	}
 
