@@ -29,6 +29,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
+	corev1 "k8s.io/api/core/v1"
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
@@ -43,6 +44,28 @@ func lbHasOldClusterName(loadbalancer *loadbalancers.LoadBalancer, clusterName s
 	existingClusterName := getClusterName("", loadbalancer.Name)
 
 	return existingClusterName != clusterName
+}
+
+// lbNameMatchesService returns true when the load balancer's name is exactly the
+// name OCCM would generate for this Service under the cluster-name component
+// currently embedded in the load balancer's name. This is the only proof derivable
+// from Octavia data that the load balancer was created for this Service and can
+// therefore be renamed safely after a cluster-name change. Without this check a
+// shared load balancer created by a Service from another cluster gets renamed,
+// together with its tags and children, breaking the cluster that owns it.
+//
+// Note the inherent limitation: when another cluster runs a Service with the same
+// namespace and name, its load balancer's name is indistinguishable from a former
+// name of this cluster's own load balancer. Operators sharing load balancers
+// between such clusters should disable renaming with enable-lb-rename=false.
+func lbNameMatchesService(loadbalancer *loadbalancers.LoadBalancer, service *corev1.Service) bool {
+	oldClusterName := getClusterName("", loadbalancer.Name)
+	if oldClusterName == "" {
+		// The name cannot be decomposed, so ownership cannot be proven.
+		return false
+	}
+	expectedName := util.Sprintf255(lbFormat, servicePrefix, oldClusterName, service.Namespace, service.Name)
+	return loadbalancer.Name == expectedName
 }
 
 // decomposeLBName returns clusterName based on object name
