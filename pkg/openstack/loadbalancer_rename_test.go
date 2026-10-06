@@ -20,8 +20,11 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cloud-provider-openstack/pkg/util"
 
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -123,6 +126,82 @@ func TestDecomposeLBName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result := getClusterName(test.resourcePrefix, test.objectName)
 			assert.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestLbNameMatchesService(t *testing.T) {
+	tests := []struct {
+		name        string
+		lbName      string
+		namespace   string
+		serviceName string
+		expected    bool
+	}{
+		{
+			// The case renaming was introduced for in #2552: the LB of this
+			// exact Service, carrying a stale cluster-name component.
+			name:        "LB created for this Service under an old cluster-name",
+			lbName:      "kube_service_oldcluster_kns_fakeservice",
+			namespace:   "kns",
+			serviceName: "fakeservice",
+			expected:    true,
+		},
+		{
+			// #2682: a Service references a shared LB created by a Service
+			// with a different name in another cluster.
+			name:        "shared LB created for a different Service name",
+			lbName:      "kube_service_clustera_kns_fakeservice",
+			namespace:   "kns",
+			serviceName: "otherservice",
+			expected:    false,
+		},
+		{
+			// #2682: same Service name, different namespace.
+			name:        "shared LB created in a different namespace",
+			lbName:      "kube_service_clustera_kns_fakeservice",
+			namespace:   "otherns",
+			serviceName: "fakeservice",
+			expected:    false,
+		},
+		{
+			// #2682 with the same namespace and name in both clusters. From
+			// Octavia data alone this is indistinguishable from the legitimate
+			// rename above, hence true. Such setups need enable-lb-rename=false.
+			name:        "shared LB from another cluster with identical namespace and name",
+			lbName:      "kube_service_clustera_kns_fakeservice",
+			namespace:   "kns",
+			serviceName: "fakeservice",
+			expected:    true,
+		},
+		{
+			name:        "LB with a name not decomposable into components",
+			lbName:      "kube_service_",
+			namespace:   "kns",
+			serviceName: "fakeservice",
+			expected:    false,
+		},
+		{
+			// Long names are cut to 255 characters on creation, the comparison
+			// must reconstruct the cut name identically.
+			name:        "255-cut LB name still matches its Service",
+			lbName:      util.Sprintf255(lbFormat, servicePrefix, "oldcluster", "namespace"+strings.Repeat("foo", 100), "name"),
+			namespace:   "namespace" + strings.Repeat("foo", 100),
+			serviceName: "name",
+			expected:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lb := &loadbalancers.LoadBalancer{Name: test.lbName}
+			service := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: test.namespace,
+					Name:      test.serviceName,
+				},
+			}
+			assert.Equal(t, test.expected, lbNameMatchesService(lb, service))
 		})
 	}
 }
