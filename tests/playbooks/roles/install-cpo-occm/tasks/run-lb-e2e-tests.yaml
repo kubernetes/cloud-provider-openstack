@@ -1,5 +1,5 @@
 - name: Compile LoadBalancer Go e2e tests
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
@@ -10,7 +10,7 @@
     PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
 
 - name: Run LoadBalancer e2e tests
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   register: run_tests
   ignore_errors: true
   shell:
@@ -26,7 +26,7 @@
       export KUBECONFIG={{ ansible_user_dir }}/.kube/config
 
       # Source OpenStack credentials
-      set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
+      set +x; source {{ ansible_facts["user_dir"] }}/openrc-demo > /dev/null; set -x
 
       # Run Go tests with Ginkgo output
       /tmp/loadbalancer.test \
@@ -42,44 +42,44 @@
   timeout: 3900
 
 - name: Create log collection directory
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   file:
-    path: /root/logs/lb-e2e
+    path: "{{ ansible_facts['user_dir'] }}/logs/lb-e2e"
     state: directory
     mode: '0755'
 
 - name: Collect test output log
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
       if [ -f /tmp/lb-e2e-tests.log ]; then
-        cp /tmp/lb-e2e-tests.log /root/logs/lb-e2e/
+        cp /tmp/lb-e2e-tests.log {{ ansible_facts["user_dir"] }}/logs/lb-e2e/
       fi
 
 - name: Collect API debug logs
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
       if [ -d /tmp/lb-e2e-logs ]; then
-        cp -r /tmp/lb-e2e-logs/* /root/logs/lb-e2e/ 2>/dev/null || true
+        cp -r /tmp/lb-e2e-logs/* {{ ansible_facts["user_dir"] }}/logs/lb-e2e/ 2>/dev/null || true
       fi
 
 - name: Collect OCCM logs
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
-      kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager --tail=-1 > /root/logs/lb-e2e/occm.log 2>&1 || true
+      kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager --tail=-1 > {{ ansible_facts["user_dir"] }}/logs/lb-e2e/occm.log 2>&1 || true
 
 - name: Check if tests actually failed
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   set_fact:
     tests_failed: "{{ run_tests.rc != 0 }}"
 
 - name: Print test results summary
-  when: run_e2e | bool
+  when: run_e2e_ccm | bool
   debug:
     msg: |
       ================================================================================
@@ -90,7 +90,7 @@
       Duration: {{ run_tests.delta }}
       ================================================================================
       {% if tests_failed %}
-      One or more tests failed. Check logs at /root/logs/lb-e2e/ for details.
+      One or more tests failed. Check logs at {{ ansible_facts["user_dir"] }}/logs/lb-e2e/ for details.
       {% else %}
       All tests passed successfully!
       {% endif %}
@@ -98,7 +98,7 @@
 
 - name: Show failure details (when tests failed)
   when:
-    - run_e2e | bool
+    - run_e2e_ccm | bool
     - tests_failed | bool
   block:
   - name: Show last 100 lines of test output
@@ -145,14 +145,14 @@
       executable: /bin/bash
       cmd: |
         echo "=== Collected Log Files ==="
-        ls -lah /root/logs/lb-e2e/ 2>/dev/null || echo "No logs collected"
+        ls -lah {{ ansible_facts["user_dir"] }}/logs/lb-e2e/ 2>/dev/null || echo "No logs collected"
 
 - name: Fail playbook if tests failed
   when:
-    - run_e2e | bool
+    - run_e2e_ccm | bool
     - tests_failed | bool
   fail:
     msg: |
       LoadBalancer E2E tests FAILED!
       Exit code: {{ run_tests.rc }}
-      Check the logs above and at /root/logs/lb-e2e/ for details.
+      Check the logs above and at {{ ansible_facts["user_dir"] }}/logs/lb-e2e/ for details.
