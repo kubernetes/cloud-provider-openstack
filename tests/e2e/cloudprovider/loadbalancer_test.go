@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
@@ -17,48 +18,43 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 var _ = ginkgo.Describe("[cloud-provider-openstack] LoadBalancer Service", func() {
-	var tstCtx *testContext
-
 	ginkgo.BeforeEach(func() {
-		var err error
-		tstCtx, err = setupTestContext(ginkgo.GinkgoT().Context())
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-		err = createNamespace(ginkgo.GinkgoT().Context(), tstCtx)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-		err = createDeployment(ginkgo.GinkgoT().Context(), tstCtx)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		// Reset per-test resource tracking; clients are reused from suiteCtx.
+		suiteCtx.createdServices = []string{}
+		suiteCtx.createdFIPs = []string{}
+		suiteCtx.createdLBs = []string{}
 	})
 
 	ginkgo.AfterEach(func() {
 		if autoCleanup {
-			cleanupResources(ginkgo.GinkgoT().Context(), tstCtx)
+			cleanupResources(ginkgo.GinkgoT().Context(), suiteCtx)
 		}
 	})
 
 	ginkgo.It("should create a basic LoadBalancer service", func() {
-		testBasic(ginkgo.GinkgoT().Context(), tstCtx)
+		testBasic(ginkgo.GinkgoT().Context(), suiteCtx)
 	})
 
 	ginkgo.It("should support x-forwarded-for annotation", func() {
 		if octaviaProvider == "ovn" {
 			ginkgo.Skip("Skipping x-forwarded-for test for OVN provider")
 		}
-		testForwarded(ginkgo.GinkgoT().Context(), tstCtx)
+		testForwarded(ginkgo.GinkgoT().Context(), suiteCtx)
 	})
 
 	ginkgo.It("should handle port updates correctly", func() {
-		testUpdatePort(ginkgo.GinkgoT().Context(), tstCtx)
+		testUpdatePort(ginkgo.GinkgoT().Context(), suiteCtx)
 	})
 
 	ginkgo.It("should support shared load balancers", func() {
-		testSharedLB(ginkgo.GinkgoT().Context(), tstCtx)
+		testSharedLB(ginkgo.GinkgoT().Context(), suiteCtx)
 	})
 
 	ginkgo.It("should support user-created load balancers", func() {
-		testSharedUserLB(ginkgo.GinkgoT().Context(), tstCtx)
+		testSharedUserLB(ginkgo.GinkgoT().Context(), suiteCtx)
 	})
 })
 
@@ -98,7 +94,9 @@ spec:
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	framework.Logf("Sending request to service %s", serviceName)
-	resp, err := http.Get(fmt.Sprintf("http://%s", ipAddr))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s", ipAddr), nil)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	resp, err := httpClient.Do(req)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	defer resp.Body.Close()
 
@@ -149,7 +147,9 @@ spec:
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 	framework.Logf("Sending request to service %s to check x-forwarded-for", serviceName)
-	resp, err := http.Get(fmt.Sprintf("http://%s", ipAddr))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s", ipAddr), nil)
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	resp, err := httpClient.Do(req)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	defer resp.Body.Close()
 
@@ -281,10 +281,8 @@ spec:
 	framework.Logf("Updated NodePorts: %v", updatedNodePorts)
 
 	// Verify NodePort actually changed (Kubernetes assigns new NodePort on update)
-	if len(initialNodePorts) > 0 && len(updatedNodePorts) > 0 {
-		// The remaining NodePort may or may not change depending on which port was removed
-		framework.Logf("NodePort after update: %d (initial had: %v)", updatedNodePorts[0], initialNodePorts)
-	}
+	gomega.Expect(updatedNodePorts[0]).NotTo(gomega.Equal(initialNodePorts[0]),
+		fmt.Sprintf("NodePort should change after port update, was %d", initialNodePorts[0]))
 
 	updatedMemberPorts, err := getMemberPorts(ctx, tstCtx, lbID)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())

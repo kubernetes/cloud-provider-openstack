@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
@@ -57,6 +59,7 @@ type testContext struct {
 	lbClient        *gophercloud.ServiceClient
 	networkClient   *gophercloud.ServiceClient
 	provider        *gophercloud.ProviderClient
+	logFile         *os.File
 	createdServices []string
 	createdFIPs     []string
 	createdLBs      []string
@@ -86,17 +89,17 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // initAPILogger initializes the API debug logger to write to a file
-func initAPILogger() error {
+func initAPILogger() (*os.File, error) {
 	dir := filepath.Join(os.TempDir(), "lb-e2e-logs")
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
+		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
 	fileName := time.Now().Format("20060102-150405") + "-api-debug.log"
 	logFile, err := os.Create(filepath.Join(dir, fileName))
 	if err != nil {
-		return fmt.Errorf("failed to create log file: %w", err)
+		return nil, fmt.Errorf("failed to create log file: %w", err)
 	}
 
 	// Create symlink to latest log
@@ -116,13 +119,14 @@ func initAPILogger() error {
 	framework.Logf("API debug logs will be written to: %s", filepath.Join(dir, fileName))
 	framework.Logf("Symlink to latest: %s", symLink)
 
-	return nil
+	return logFile, nil
 }
 
 // setupTestContext initializes Kubernetes and OpenStack clients with a single auth token
 func setupTestContext(ctx context.Context) (*testContext, error) {
 	// Initialize API debug logger
-	if err := initAPILogger(); err != nil {
+	logFile, err := initAPILogger()
+	if err != nil {
 		return nil, fmt.Errorf("failed to initialize API logger: %w", err)
 	}
 
@@ -226,6 +230,7 @@ func setupTestContext(ctx context.Context) (*testContext, error) {
 		lbClient:        lbClient,
 		networkClient:   networkClient,
 		provider:        provider,
+		logFile:         logFile,
 		createdServices: []string{},
 		createdFIPs:     []string{},
 		createdLBs:      []string{},
@@ -249,7 +254,7 @@ metadata:
 	}
 
 	_, err = tstCtx.k8sClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-	if err != nil && !strings.Contains(err.Error(), "already exists") {
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
 	return nil
@@ -291,7 +296,7 @@ spec:
 	}
 
 	_, err = tstCtx.k8sClient.AppsV1().Deployments(namespace).Create(ctx, deployment, metav1.CreateOptions{})
-	if err != nil && !strings.Contains(err.Error(), "already exists") {
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
 	return nil
@@ -333,6 +338,10 @@ func cleanupResources(ctx context.Context, tstCtx *testContext) {
 	err := tstCtx.k8sClient.AppsV1().Deployments(namespace).Delete(ctx, "echoserver", metav1.DeleteOptions{})
 	if err != nil {
 		framework.Logf("Error deleting deployment: %v", err)
+	}
+
+	if tstCtx.logFile != nil {
+		tstCtx.logFile.Close()
 	}
 }
 
@@ -378,12 +387,13 @@ func waitForServiceAddress(ctx context.Context, tstCtx *testContext, serviceName
 // waitForAddressAccessible waits for an IP address to be accessible on port 80
 func waitForAddressAccessible(ctx context.Context, ipAddr string) error {
 	framework.Logf("Waiting for IP %s to be accessible", ipAddr)
+	httpClient := &http.Client{Timeout: 10 * time.Second}
 	return wait.PollUntilContextTimeout(ctx, 5*time.Second, defaultTimeout, true, func(ctx context.Context) (bool, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s", ipAddr), nil)
 		if err != nil {
 			return false, nil
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return false, nil
 		}
@@ -420,7 +430,7 @@ func waitForServiceDeleted(ctx context.Context, tstCtx *testContext, serviceName
 	framework.Logf("Waiting for service %s to be deleted", serviceName)
 	return wait.PollUntilContextTimeout(ctx, 3*time.Second, defaultTimeout, true, func(ctx context.Context) (bool, error) {
 		_, err := tstCtx.k8sClient.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
-		if err != nil && strings.Contains(err.Error(), "not found") {
+		if k8serrors.IsNotFound(err) {
 			framework.Logf("Service %s deleted", serviceName)
 			return true, nil
 		}

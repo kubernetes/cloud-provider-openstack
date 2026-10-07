@@ -12,6 +12,7 @@
 - name: Run LoadBalancer e2e tests
   when: run_e2e | bool
   register: run_tests
+  ignore_errors: true
   shell:
     executable: /bin/bash
     cmd: |
@@ -28,7 +29,6 @@
       set +x; source {{ devstack_workdir }}/openrc demo demo > /dev/null; set -x
 
       # Run Go tests with Ginkgo output
-      # Note: Do NOT use '|| true' - we need the actual exit code
       /tmp/loadbalancer.test \
         -ginkgo.v \
         -ginkgo.no-color \
@@ -40,8 +40,6 @@
       # Capture the test exit code from the pipeline
       exit ${PIPESTATUS[0]}
   timeout: 3900
-  ignore_errors: true  # Don't stop playbook - always collect logs first
-  failed_when: false   # Don't mark as failed yet - check manually later
 
 - name: Create log collection directory
   when: run_e2e | bool
