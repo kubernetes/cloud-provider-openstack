@@ -80,6 +80,11 @@ test-cinder-csi-sanity:
 test-manila-csi-sanity:
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
 
+test-sidecar:
+	cd sidecar && pip install --quiet -r test-requirements.txt
+	cd sidecar && ./generate_proto.sh
+	cd sidecar && PYTHONPATH=. python -m pytest tests/ $(TESTARGS)
+
 # kept for compatibility reasons.
 .PHONY: fmt
 fmt: check
