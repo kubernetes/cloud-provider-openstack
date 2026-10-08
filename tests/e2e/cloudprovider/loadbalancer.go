@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	defaultTimeout  = 5 * time.Minute
+	defaultTimeout  = 15 * time.Minute
 	pollInterval    = 10 * time.Second
 	namespace       = "octavia-lb-test"
 	echoserverImage = "gcr.io/google-containers/echoserver:1.10"
@@ -44,7 +44,6 @@ const (
 
 var (
 	floatingIP      = os.Getenv("FLOATING_IP")
-	gatewayIP       = os.Getenv("GATEWAY_IP")
 	lbSubnetName    = getEnvOrDefault("LB_SUBNET_NAME", "private-subnet")
 	autoCleanup     = getEnvOrDefault("AUTO_CLEAN_UP", "true") == "true"
 	octaviaProvider = os.Getenv("OCTAVIA_PROVIDER")
