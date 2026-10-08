@@ -183,11 +183,11 @@ func executeExtractAndWaitActive[T any](ctx context.Context, client *gophercloud
 		if operation == "delete" && cpoerrors.IsNotFound(err) {
 			klog.V(2).Infof("%s was already deleted", resourceType)
 		} else {
-			return result, fmt.Errorf("failed to %s %s on load balancer %s: %v", operation, resourceType, lbID, err)
+			return result, fmt.Errorf("failed to %s %s on load balancer %s: %w", operation, resourceType, lbID, err)
 		}
 	}
 	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
-		return result, fmt.Errorf("failed to wait for load balancer %s ACTIVE after %s %s: %v",
+		return result, fmt.Errorf("failed to wait for load balancer %s ACTIVE after %s %s: %w",
 			lbID, operation, resourceType, err)
 	}
 
@@ -235,6 +235,9 @@ func listWithUniqueResult[T any](ctx context.Context, resourceType, operation st
 		return false, nil
 	})
 
+	if err == nil && result == nil {
+		err = cpoerrors.ErrNotFound
+	}
 	return result, mc.ObserveRequest(err)
 }
 
@@ -246,7 +249,7 @@ func getSingleResource[T any](ctx context.Context, resourceType, operation strin
 	mc := metrics.NewMetricContext(resourceType, operation)
 	result, err := fn()
 	if mc.ObserveRequest(err) != nil {
-		return result, fmt.Errorf("failed to %s %s: %v", operation, resourceType, err)
+		return result, fmt.Errorf("failed to %s %s: %w", operation, resourceType, err)
 	}
 	return result, nil
 }
