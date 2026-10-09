@@ -65,6 +65,22 @@ csi:
     resources: {}
     extraArgs: {}
     extraEnv: []
+  osbrickSidecar:
+    # Enable the os-brick sidecar for direct-attach (bare-metal) mode.
+    # When enabled, the sidecar container is added to the node plugin
+    # DaemonSet to handle volume attach/detach operations via os-brick.
+    enabled: false
+    image:
+      repository: registry.k8s.io/provider-os/osbrick-sidecar
+      pullPolicy: IfNotPresent
+      tag:  # defaults to .Chart.AppVersion
+    resources: {}
+    cephSecret:
+      # Name of an existing secret containing ceph.conf and keyring.
+      # Created externally, e.g.:
+      #   kubectl -n kube-system create secret generic ceph-config \
+      #     --from-file=ceph.conf --from-file=ceph.client.cinder.keyring
+      name: ceph-config
   nodeDriverRegistrar:
     image:
       repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
