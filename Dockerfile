@@ -20,7 +20,7 @@ ARG GOLANG_IMAGE=golang:1.26.5
 #
 # Please do not use "latest". Explicit tags should be used to provide
 # deterministic builds. Follow what kubernetes uses to build
-# kube-controller-manager, for example for 1.37.x:
+# kube-controller-manager. For 1.37.x this comes from:
 # https://github.com/kubernetes/kubernetes/blob/release-1.37/build/common.sh#L81
 ARG DISTROLESS_IMAGE=registry.k8s.io/build-image/go-runner:v2.4.0-go1.26.5-bookworm.0
 
