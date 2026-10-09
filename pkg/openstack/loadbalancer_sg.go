@@ -203,6 +203,30 @@ func getRulesToCreateAndDelete(wantedRules []rules.CreateOpts, existingRules []r
 	return toCreate, toDelete
 }
 
+// ensureSecurityGroupTags ensures the security group has the proper tags for identification
+func (lbaas *LbaasV2) ensureSecurityGroupTags(ctx context.Context, sgID string, svcConf *serviceConfig) error {
+	// Tag with the same lbName as load balancers and listeners for consistency
+	// This allows querying all resources (LB, listeners, SG) for a given service
+	tag := svcConf.lbName
+
+	mc := metrics.NewMetricContext("security_group", "get")
+	sg, err := groups.Get(ctx, lbaas.network, sgID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf("failed to get security group %s: %v", sgID, err)
+	}
+
+	if !slices.Contains(sg.Tags, tag) {
+		mc := metrics.NewMetricContext("security_group_tag", "add")
+		err := neutrontags.Add(ctx, lbaas.network, "security-groups", sgID, tag).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to add tag %s to security group %s: %v", tag, sgID, err)
+		}
+		klog.V(4).InfoS("Tagged security group", "sgID", sgID, "tag", tag)
+	}
+
+	return nil
+}
+
 // ensureAndUpdateOctaviaSecurityGroup handles the creation and update of the security group and the securiry rules for the octavia load balancer
 func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, clusterName string, apiService *corev1.Service, nodes []*corev1.Node, svcConf *serviceConfig) error {
 	// get service ports
@@ -235,6 +259,16 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 			return fmt.Errorf("failed to create Security Group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
 		lbSecGroupID = lbSecGroup.ID
+
+		// Tag the newly created security group
+		if err := lbaas.ensureSecurityGroupTags(ctx, lbSecGroupID, svcConf); err != nil {
+			klog.Warningf("Failed to tag security group %s for service %s/%s: %v", lbSecGroupID, apiService.Namespace, apiService.Name, err)
+		}
+	} else {
+		// Ensure existing security groups have tags for backward compatibility
+		if err := lbaas.ensureSecurityGroupTags(ctx, lbSecGroupID, svcConf); err != nil {
+			klog.Warningf("Failed to tag security group %s for service %s/%s: %v", lbSecGroupID, apiService.Namespace, apiService.Name, err)
+		}
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")
