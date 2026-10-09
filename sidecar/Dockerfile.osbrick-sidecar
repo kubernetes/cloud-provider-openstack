@@ -65,6 +65,7 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # Install system packages required at runtime for storage operations.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     python3-minimal \
     python3-pip \
     open-iscsi \
@@ -97,5 +98,13 @@ COPY sidecar/os_brick_grpc/ /app/os_brick_grpc/
 # gRPC server. See entrypoint.sh for details.
 COPY sidecar/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+LABEL name="osbrick-sidecar" \
+      license="Apache Version 2.0" \
+      maintainers="Kubernetes Authors" \
+      description="os-brick gRPC sidecar for Cinder CSI direct-attach mode" \
+      distribution-scope="public" \
+      summary="os-brick gRPC sidecar for Cinder CSI direct-attach mode" \
+      help="none"
 
 ENTRYPOINT ["/app/entrypoint.sh"]

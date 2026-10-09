@@ -108,9 +108,6 @@ spec:
         - name: osbrick-sidecar
           securityContext:
             privileged: true
-          # TODO(direct-mode): Pin to a release tag once the os-brick
-          # sidecar image is published.  Until then, build and push
-          # manually — see sidecar/Dockerfile.osbrick-sidecar.
           image: registry.k8s.io/provider-os/osbrick-sidecar:v1.36.0
           imagePullPolicy: "IfNotPresent"
           volumeMounts:
