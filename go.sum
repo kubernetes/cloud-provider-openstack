@@ -155,10 +155,10 @@ github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 h1:EwtI+Al+DeppwYX2oX
 github.com/google/pprof v0.0.0-20260402051712-545e8a4df936/go.mod h1:MxpfABSjhmINe3F1It9d+8exIHFvUqtLIRCdOGNXqiI=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/gophercloud/gophercloud/v2 v2.14.0 h1:xGxKCvyaOxJDc5FqrnKDNqtdYn43ocQPuJ2Cm4KX/cs=
-github.com/gophercloud/gophercloud/v2 v2.14.0/go.mod h1:4fs5I9VH6Wg2LyocDL9xf0ASb8VD63tyLA8sgAX/69U=
-github.com/gophercloud/utils/v2 v2.0.0-20260824073324-42b9474d09d4 h1:VKbePn/0e1cg6HSvVB5CKeXpVcKmD2AuMk6WQhjexuI=
-github.com/gophercloud/utils/v2 v2.0.0-20260824073324-42b9474d09d4/go.mod h1:z+yO4g4N0u8rJuWNPVcjZHVAlzAFapFNnMOtFIpqddM=
+github.com/gophercloud/gophercloud/v2 v2.15.0 h1:4zLiLYTFraZMlJ77FH1Kzq7itjfVP+BIbWcCurCrgic=
+github.com/gophercloud/gophercloud/v2 v2.15.0/go.mod h1:4fs5I9VH6Wg2LyocDL9xf0ASb8VD63tyLA8sgAX/69U=
+github.com/gophercloud/utils/v2 v2.0.0-20260922174841-b4759ea0529b h1:G2KBa3ku8mEUcjMRuJx7iSxWlX98uewBEPd9GXo3+tM=
+github.com/gophercloud/utils/v2 v2.0.0-20260922174841-b4759ea0529b/go.mod h1:lRwTjtOLb5RKkrSVZDvHoxYbzcIs5fO89Ll2CDCuwic=
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 h1:JeSE6pjso5THxAzdVpqr6/geYxZytqFMBCOtn/ujyeo=
 github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674/go.mod h1:r4w70xmWCQKmi1ONH4KIaBptdivuRPyosB9RmPlGEwA=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 h1:QGLs/O40yoNK9vmy4rhUGBVyMf1lISBGtXRpsu/Qu/o=

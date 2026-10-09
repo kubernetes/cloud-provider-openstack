@@ -5,8 +5,8 @@ go 1.26.0
 require (
 	github.com/container-storage-interface/spec v1.13.0
 	github.com/google/uuid v1.6.0
-	github.com/gophercloud/gophercloud/v2 v2.14.0
-	github.com/gophercloud/utils/v2 v2.0.0-20260824073324-42b9474d09d4
+	github.com/gophercloud/gophercloud/v2 v2.15.0
+	github.com/gophercloud/utils/v2 v2.0.0-20260922174841-b4759ea0529b
 	github.com/hashicorp/go-version v1.9.0
 	github.com/kubernetes-csi/csi-lib-utils v0.23.2
 	github.com/kubernetes-csi/csi-test/v5 v5.4.0
