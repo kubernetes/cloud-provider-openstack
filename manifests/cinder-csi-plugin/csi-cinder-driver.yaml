@@ -2,6 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
   name: cinder.csi.openstack.org
+  labels:
+    app.kubernetes.io/name: openstack-cinder-csi
 spec:
   attachRequired: true
   podInfoOnMount: true
