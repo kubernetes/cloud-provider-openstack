@@ -57,7 +57,7 @@ func applyNodeSecurityGroupIDForLB(ctx context.Context, network *gophercloud.Ser
 			return fmt.Errorf("error getting server ID from the node: %w", err)
 		}
 
-		addr, _ := nodeAddressForLB(node, svcConf.preferredIPFamily)
+		addr, _ := nodeAddressForLB(node, svcConf.preferredIPFamily, svcConf.nodeAddressType)
 		if addr == "" {
 			// If node has no viable address let's ignore it.
 			continue
