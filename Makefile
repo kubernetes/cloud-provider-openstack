@@ -25,7 +25,8 @@ IMAGE_NAMES	?= openstack-cloud-controller-manager \
 				octavia-ingress-controller \
 				manila-csi-plugin \
 				barbican-kms-plugin \
-				magnum-auto-healer
+				magnum-auto-healer \
+				osbrick-sidecar
 ARCH		?= amd64
 ARCHS		?= amd64 arm arm64 ppc64le s390x
 BUILD_CMDS	?= openstack-cloud-controller-manager \
@@ -148,6 +149,21 @@ push-multiarch-image-%:
 
 # Push all multiarch images
 push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
+
+# Sidecar images use their own Dockerfiles instead of multi-stage targets
+# in the main Dockerfile. Explicit rules override the pattern rules above.
+build-local-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=docker \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
+
+push-multiarch-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=registry \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
 
 .PHONY: version
 version:
