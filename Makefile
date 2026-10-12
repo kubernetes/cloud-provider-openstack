@@ -138,6 +138,18 @@ build-local-image-%:
 # Build all images locally
 build-local-images: $(addprefix build-local-image-,$(IMAGE_NAMES))
 
+# Build a single image for all architectures in ARCHS but don't push it anywhere
+build-multiarch-image-%:
+	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
+		--build-arg VERSION=$(VERSION) \
+		--tag $(REGISTRY)/$*:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		--target $* \
+		.
+
+# Build all multiarch images
+build-multiarch-images: $(addprefix build-multiarch-image-,$(IMAGE_NAMES))
+
 # Build a single image for all architectures in ARCHS and push it to REGISTRY
 push-multiarch-image-%:
 	$(CONTAINER_ENGINE) buildx build --output type=registry \
@@ -155,6 +167,13 @@ push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 build-local-image-osbrick-sidecar:
 	$(CONTAINER_ENGINE) buildx build --output type=docker \
 		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
+
+build-multiarch-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
 		-f sidecar/Dockerfile.osbrick-sidecar \
 		.
 
