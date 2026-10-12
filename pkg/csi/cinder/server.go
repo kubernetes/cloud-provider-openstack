@@ -47,11 +47,10 @@ func NewNonBlockingGRPCServer() NonBlockingGRPCServer {
 type nonBlockingGRPCServer struct {
 	wg     sync.WaitGroup
 	server *grpc.Server
-	ready  chan struct{}
 }
 
 func (s *nonBlockingGRPCServer) Start(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
-	s.ready = make(chan struct{})
+
 	s.wg.Add(1)
 
 	go s.serve(endpoint, ids, cs, ns)
@@ -62,12 +61,10 @@ func (s *nonBlockingGRPCServer) Wait() {
 }
 
 func (s *nonBlockingGRPCServer) Stop() {
-	<-s.ready
 	s.server.GracefulStop()
 }
 
 func (s *nonBlockingGRPCServer) ForceStop() {
-	<-s.ready
 	s.server.Stop()
 }
 
@@ -96,7 +93,6 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 	}
 	server := grpc.NewServer(opts...)
 	s.server = server
-	close(s.ready)
 
 	if ids != nil {
 		csi.RegisterIdentityServer(server, ids)
