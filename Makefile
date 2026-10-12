@@ -136,7 +136,21 @@ build-local-image-%:
 		.
 
 # Build all images locally
+.PHONY: build-local-images
 build-local-images: $(addprefix build-local-image-,$(IMAGE_NAMES))
+
+# Build a single image for all architectures in ARCHS but don't push it anywhere
+build-multiarch-image-%:
+	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
+		--build-arg VERSION=$(VERSION) \
+		--tag $(REGISTRY)/$*:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		--target $* \
+		.
+
+# Build all multiarch images
+.PHONY: build-multiarch-images
+build-multiarch-images: $(addprefix build-multiarch-image-,$(IMAGE_NAMES))
 
 # Build a single image for all architectures in ARCHS and push it to REGISTRY
 push-multiarch-image-%:
@@ -148,16 +162,27 @@ push-multiarch-image-%:
 		.
 
 # Push all multiarch images
+.PHONY: push-multiarch-images
 push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
 
 # Sidecar images use their own Dockerfiles instead of multi-stage targets
 # in the main Dockerfile. Explicit rules override the pattern rules above.
+.PHONY: build-local-image-osbrick-sidecar
 build-local-image-osbrick-sidecar:
 	$(CONTAINER_ENGINE) buildx build --output type=docker \
 		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
 		-f sidecar/Dockerfile.osbrick-sidecar \
 		.
 
+.PHONY: build-multiarch-image-osbrick-sidecar
+build-multiarch-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
+
+.PHONY: push-multiarch-image-osbrick-sidecar
 push-multiarch-image-osbrick-sidecar:
 	$(CONTAINER_ENGINE) buildx build --output type=registry \
 		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
