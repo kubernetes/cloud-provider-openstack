@@ -28,7 +28,7 @@ IMAGE_NAMES	?= openstack-cloud-controller-manager \
 				magnum-auto-healer \
 				osbrick-sidecar
 ARCH		?= amd64
-ARCHS		?= amd64 arm arm64 ppc64le s390x
+ARCHS		?= amd64 arm64 ppc64le s390x
 BUILD_CMDS	?= openstack-cloud-controller-manager \
 				cinder-csi-plugin \
 				k8s-keystone-auth \
