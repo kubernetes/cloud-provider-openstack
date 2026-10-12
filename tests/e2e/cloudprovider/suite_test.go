@@ -18,23 +18,27 @@ func TestCloudProvider(t *testing.T) {
 	// Parse flags before running specs
 	flag.Parse()
 
-	ginkgo.BeforeSuite(func() {
+	ginkgo.BeforeSuite(func(ctx ginkgo.SpecContext) {
 		var err error
-		suiteCtx, err = setupTestContext(ginkgo.GinkgoT().Context())
+		suiteCtx, err = setupTestContext(ctx)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-		err = createNamespace(ginkgo.GinkgoT().Context(), suiteCtx)
+		err = createNamespace(ctx, suiteCtx)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-		err = createDeployment(ginkgo.GinkgoT().Context(), suiteCtx)
+		err = createDeployment(ctx, suiteCtx)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	})
 
-	ginkgo.AfterSuite(func() {
-		if suiteCtx != nil {
-			if suiteCtx.logFile != nil {
-				suiteCtx.logFile.Close()
-			}
+	ginkgo.AfterSuite(func(ctx ginkgo.SpecContext) {
+		if suiteCtx == nil {
+			return
+		}
+		if autoCleanup {
+			deleteDeployment(ctx, suiteCtx)
+		}
+		if suiteCtx.logFile != nil {
+			suiteCtx.logFile.Close()
 		}
 	})
 

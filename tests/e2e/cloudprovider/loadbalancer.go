@@ -24,10 +24,11 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	"github.com/gophercloud/utils/v2/client"
 	"github.com/gophercloud/utils/v2/openstack/clientconfig"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubernetes/test/e2e/framework"
@@ -54,14 +55,11 @@ var (
 
 // testContext holds clients and state for LoadBalancer e2e tests
 type testContext struct {
-	k8sClient       *kubernetes.Clientset
-	lbClient        *gophercloud.ServiceClient
-	networkClient   *gophercloud.ServiceClient
-	provider        *gophercloud.ProviderClient
-	logFile         *os.File
-	createdServices []string
-	createdFIPs     []string
-	createdLBs      []string
+	k8sClient     *kubernetes.Clientset
+	lbClient      *gophercloud.ServiceClient
+	networkClient *gophercloud.ServiceClient
+	provider      *gophercloud.ProviderClient
+	logFile       *os.File
 }
 
 // gophercloudLogger implements the logger interface for gophercloud API debugging
@@ -145,7 +143,9 @@ func setupTestContext(ctx context.Context) (*testContext, error) {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
 
-	// Setup OpenStack clients using clientconfig for proper auth handling
+	// Setup OpenStack clients using clientconfig for proper auth handling.
+	// TODO: migrate to gophercloud's reworked authentication once available,
+	// see https://github.com/gophercloud/gophercloud/issues/4008
 	ao, err := clientconfig.AuthOptions(&clientconfig.ClientOpts{
 		EnvPrefix: "OS_", // Standard OpenStack environment variable prefix
 		AuthInfo: &clientconfig.AuthInfo{
@@ -225,14 +225,11 @@ func setupTestContext(ctx context.Context) (*testContext, error) {
 	}
 
 	return &testContext{
-		k8sClient:       k8sClient,
-		lbClient:        lbClient,
-		networkClient:   networkClient,
-		provider:        provider,
-		logFile:         logFile,
-		createdServices: []string{},
-		createdFIPs:     []string{},
-		createdLBs:      []string{},
+		k8sClient:     k8sClient,
+		lbClient:      lbClient,
+		networkClient: networkClient,
+		provider:      provider,
+		logFile:       logFile,
 	}, nil
 }
 
@@ -301,58 +298,59 @@ spec:
 	return nil
 }
 
-// cleanupResources deletes all created resources
-func cleanupResources(ctx context.Context, tstCtx *testContext) {
-	framework.Logf("Cleaning up resources")
-
-	// Delete services
-	for _, svcName := range tstCtx.createdServices {
-		framework.Logf("Deleting service %s", svcName)
-		err := tstCtx.k8sClient.CoreV1().Services(namespace).Delete(ctx, svcName, metav1.DeleteOptions{})
-		if err != nil {
-			framework.Logf("Error deleting service %s: %v", svcName, err)
-		}
-	}
-
-	// Delete floating IPs
-	for _, fipID := range tstCtx.createdFIPs {
-		framework.Logf("Deleting floating IP %s", fipID)
-		err := floatingips.Delete(ctx, tstCtx.networkClient, fipID).ExtractErr()
-		if err != nil {
-			framework.Logf("Error deleting floating IP %s: %v", fipID, err)
-		}
-	}
-
-	// Delete load balancers
-	for _, lbID := range tstCtx.createdLBs {
-		framework.Logf("Deleting load balancer %s", lbID)
-		err := loadbalancers.Delete(ctx, tstCtx.lbClient, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr()
-		if err != nil {
-			framework.Logf("Error deleting load balancer %s: %v", lbID, err)
-		}
-	}
-
-	// Delete deployment
+// deleteDeployment removes the echoserver deployment created for the suite.
+func deleteDeployment(ctx context.Context, tstCtx *testContext) {
 	framework.Logf("Deleting deployment")
 	err := tstCtx.k8sClient.AppsV1().Deployments(namespace).Delete(ctx, "echoserver", metav1.DeleteOptions{})
 	if err != nil {
 		framework.Logf("Error deleting deployment: %v", err)
 	}
-
-	if tstCtx.logFile != nil {
-		tstCtx.logFile.Close()
-	}
 }
 
-// createService creates a Kubernetes service and tracks it for cleanup
+// createService creates a Kubernetes service and registers its cleanup.
 func createService(ctx context.Context, tstCtx *testContext, svc *corev1.Service) (*corev1.Service, error) {
 	framework.Logf("Creating service %s", svc.Name)
 	createdSvc, err := tstCtx.k8sClient.CoreV1().Services(namespace).Create(ctx, svc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
-	tstCtx.createdServices = append(tstCtx.createdServices, svc.Name)
+	name := svc.Name
+	ginkgo.DeferCleanup(func(ctx context.Context) {
+		if !autoCleanup {
+			return
+		}
+		framework.Logf("Deleting service %s", name)
+		if err := tstCtx.k8sClient.CoreV1().Services(namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+			framework.Logf("Error deleting service %s: %v", name, err)
+		}
+	})
 	return createdSvc, nil
+}
+
+// deferFIPCleanup registers cleanup for a floating IP.
+func deferFIPCleanup(tstCtx *testContext, fipID string) {
+	ginkgo.DeferCleanup(func(ctx context.Context) {
+		if !autoCleanup {
+			return
+		}
+		framework.Logf("Deleting floating IP %s", fipID)
+		if err := floatingips.Delete(ctx, tstCtx.networkClient, fipID).ExtractErr(); err != nil {
+			framework.Logf("Error deleting floating IP %s: %v", fipID, err)
+		}
+	})
+}
+
+// deferLBCleanup registers cleanup for a load balancer.
+func deferLBCleanup(tstCtx *testContext, lbID string) {
+	ginkgo.DeferCleanup(func(ctx context.Context) {
+		if !autoCleanup {
+			return
+		}
+		framework.Logf("Deleting load balancer %s", lbID)
+		if err := loadbalancers.Delete(ctx, tstCtx.lbClient, lbID, loadbalancers.DeleteOpts{Cascade: true}).ExtractErr(); err != nil {
+			framework.Logf("Error deleting load balancer %s: %v", lbID, err)
+		}
+	})
 }
 
 // deleteService deletes a Kubernetes service
@@ -365,47 +363,48 @@ func deleteService(ctx context.Context, tstCtx *testContext, name string) error 
 func waitForServiceAddress(ctx context.Context, tstCtx *testContext, serviceName string) (string, error) {
 	framework.Logf("Waiting for service %s to get LoadBalancer IP", serviceName)
 	var ipAddr string
-	err := wait.PollUntilContextTimeout(ctx, pollInterval, defaultTimeout, true, func(ctx context.Context) (bool, error) {
+	gomega.Eventually(ctx, func(ctx context.Context) (string, error) {
 		svc, err := tstCtx.k8sClient.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			return "", err
 		}
 
 		if len(svc.Status.LoadBalancer.Ingress) > 0 {
 			ipAddr = svc.Status.LoadBalancer.Ingress[0].IP
-			if ipAddr != "" {
-				framework.Logf("Service %s got IP: %s", serviceName, ipAddr)
-				return true, nil
-			}
 		}
-		return false, nil
-	})
-	return ipAddr, err
+		return ipAddr, nil
+	}).WithPolling(pollInterval).WithTimeout(defaultTimeout).ShouldNot(gomega.BeEmpty(),
+		"service %s did not get a LoadBalancer IP", serviceName)
+
+	framework.Logf("Service %s got IP: %s", serviceName, ipAddr)
+	return ipAddr, nil
 }
 
 // waitForAddressAccessible waits for an IP address to be accessible on port 80
 func waitForAddressAccessible(ctx context.Context, ipAddr string) error {
 	framework.Logf("Waiting for IP %s to be accessible", ipAddr)
 	httpClient := &http.Client{Timeout: 10 * time.Second}
-	return wait.PollUntilContextTimeout(ctx, 5*time.Second, defaultTimeout, true, func(ctx context.Context) (bool, error) {
+	gomega.Eventually(ctx, func(ctx context.Context) (int, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s", ipAddr), nil)
 		if err != nil {
-			return false, nil
+			return 0, nil
 		}
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			return false, nil
+			return 0, nil
 		}
 		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK, nil
-	})
+		return resp.StatusCode, nil
+	}).WithPolling(5*time.Second).WithTimeout(defaultTimeout).Should(gomega.Equal(http.StatusOK),
+		"IP %s did not become accessible", ipAddr)
+	return nil
 }
 
 // waitForLoadBalancer waits for a load balancer to reach ACTIVE provisioning status
 func waitForLoadBalancer(ctx context.Context, tstCtx *testContext, lbID string) error {
 	framework.Logf("Waiting for load balancer %s to be ACTIVE", lbID)
 	consecutiveActive := 0
-	return wait.PollUntilContextTimeout(ctx, pollInterval, defaultTimeout, true, func(ctx context.Context) (bool, error) {
+	gomega.Eventually(ctx, func(ctx context.Context) (bool, error) {
 		lb, err := loadbalancers.Get(ctx, tstCtx.lbClient, lbID).Extract()
 		if err != nil {
 			return false, err
@@ -413,48 +412,43 @@ func waitForLoadBalancer(ctx context.Context, tstCtx *testContext, lbID string) 
 
 		if lb.ProvisioningStatus == "ACTIVE" {
 			consecutiveActive++
-			if consecutiveActive >= 2 {
-				framework.Logf("Load balancer %s is ACTIVE", lbID)
-				return true, nil
-			}
 		} else {
 			consecutiveActive = 0
 		}
-		return false, nil
-	})
+		// Require two consecutive ACTIVE reads to avoid races with in-flight updates.
+		return consecutiveActive >= 2, nil
+	}).WithPolling(pollInterval).WithTimeout(defaultTimeout).Should(gomega.BeTrue(),
+		"load balancer %s did not become ACTIVE", lbID)
+
+	framework.Logf("Load balancer %s is ACTIVE", lbID)
+	return nil
 }
 
 // waitForServiceDeleted waits for a service to be deleted
 func waitForServiceDeleted(ctx context.Context, tstCtx *testContext, serviceName string) error {
 	framework.Logf("Waiting for service %s to be deleted", serviceName)
-	return wait.PollUntilContextTimeout(ctx, 3*time.Second, defaultTimeout, true, func(ctx context.Context) (bool, error) {
+	gomega.Eventually(ctx, func(ctx context.Context) (bool, error) {
 		_, err := tstCtx.k8sClient.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
-		if k8serrors.IsNotFound(err) {
-			framework.Logf("Service %s deleted", serviceName)
-			return true, nil
-		}
-		return false, nil
-	})
+		return k8serrors.IsNotFound(err), nil
+	}).WithPolling(3*time.Second).WithTimeout(defaultTimeout).Should(gomega.BeTrue(),
+		"service %s was not deleted", serviceName)
+
+	framework.Logf("Service %s deleted", serviceName)
+	return nil
 }
 
 // getServiceLBAnnotation gets the load balancer ID from service annotations
 func getServiceLBAnnotation(ctx context.Context, tstCtx *testContext, serviceName string) (string, error) {
 	var lbID string
-	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, 15*time.Second, true, func(ctx context.Context) (bool, error) {
+	gomega.Eventually(ctx, func(ctx context.Context) (string, error) {
 		svc, err := tstCtx.k8sClient.CoreV1().Services(namespace).Get(ctx, serviceName, metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			return "", err
 		}
-
-		if id, ok := svc.Annotations["loadbalancer.openstack.org/load-balancer-id"]; ok && id != "" {
-			lbID = id
-			return true, nil
-		}
-		return false, nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("service annotation loadbalancer.openstack.org/load-balancer-id not found for service %s: %w", serviceName, err)
-	}
+		lbID = svc.Annotations["loadbalancer.openstack.org/load-balancer-id"]
+		return lbID, nil
+	}).WithPolling(5*time.Second).WithTimeout(15*time.Second).ShouldNot(gomega.BeEmpty(),
+		"service annotation loadbalancer.openstack.org/load-balancer-id not found for service %s", serviceName)
 	return lbID, nil
 }
 

@@ -22,40 +22,27 @@ import (
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 var _ = ginkgo.Describe("[cloud-provider-openstack] LoadBalancer Service", func() {
-	ginkgo.BeforeEach(func() {
-		// Reset per-test resource tracking; clients are reused from suiteCtx.
-		suiteCtx.createdServices = []string{}
-		suiteCtx.createdFIPs = []string{}
-		suiteCtx.createdLBs = []string{}
+	ginkgo.It("should create a basic LoadBalancer service", func(ctx ginkgo.SpecContext) {
+		testBasic(ctx, suiteCtx)
 	})
 
-	ginkgo.AfterEach(func() {
-		if autoCleanup {
-			cleanupResources(ginkgo.GinkgoT().Context(), suiteCtx)
-		}
-	})
-
-	ginkgo.It("should create a basic LoadBalancer service", func() {
-		testBasic(ginkgo.GinkgoT().Context(), suiteCtx)
-	})
-
-	ginkgo.It("should support x-forwarded-for annotation", func() {
+	ginkgo.It("should support x-forwarded-for annotation", func(ctx ginkgo.SpecContext) {
 		if octaviaProvider == "ovn" {
 			ginkgo.Skip("Skipping x-forwarded-for test for OVN provider")
 		}
-		testForwarded(ginkgo.GinkgoT().Context(), suiteCtx)
+		testForwarded(ctx, suiteCtx)
 	})
 
-	ginkgo.It("should handle port updates correctly", func() {
-		testUpdatePort(ginkgo.GinkgoT().Context(), suiteCtx)
+	ginkgo.It("should handle port updates correctly", func(ctx ginkgo.SpecContext) {
+		testUpdatePort(ctx, suiteCtx)
 	})
 
-	ginkgo.It("should support shared load balancers", func() {
-		testSharedLB(ginkgo.GinkgoT().Context(), suiteCtx)
+	ginkgo.It("should support shared load balancers", func(ctx ginkgo.SpecContext) {
+		testSharedLB(ctx, suiteCtx)
 	})
 
-	ginkgo.It("should support user-created load balancers", func() {
-		testSharedUserLB(ginkgo.GinkgoT().Context(), suiteCtx)
+	ginkgo.It("should support user-created load balancers", func(ctx ginkgo.SpecContext) {
+		testSharedUserLB(ctx, suiteCtx)
 	})
 })
 
@@ -542,8 +529,7 @@ func testSharedUserLB(ctx context.Context, tstCtx *testContext) {
 
 	lb, err := loadbalancers.Create(ctx, tstCtx.lbClient, createOpts).Extract()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	tstCtx.createdLBs = append(tstCtx.createdLBs, lb.ID)
-
+	deferLBCleanup(tstCtx, lb.ID)
 	err = waitForLoadBalancer(ctx, tstCtx, lb.ID)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
@@ -574,7 +560,7 @@ func testSharedUserLB(ctx context.Context, tstCtx *testContext) {
 	}
 	fip, err := floatingips.Create(ctx, tstCtx.networkClient, fipOpts).Extract()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	tstCtx.createdFIPs = append(tstCtx.createdFIPs, fip.ID)
+	deferFIPCleanup(tstCtx, fip.ID)
 
 	// Associate FIP with LB VIP port
 	updateOpts := floatingips.UpdateOpts{

@@ -1,5 +1,4 @@
 - name: Compile LoadBalancer Go e2e tests
-  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
@@ -10,7 +9,6 @@
     PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
 
 - name: Run LoadBalancer e2e tests
-  when: run_e2e_ccm | bool
   register: run_tests
   ignore_errors: true
   shell:
@@ -42,14 +40,12 @@
   timeout: 3900
 
 - name: Create log collection directory
-  when: run_e2e_ccm | bool
   file:
     path: "{{ ansible_facts['user_dir'] }}/logs/lb-e2e"
     state: directory
     mode: '0755'
 
 - name: Collect test output log
-  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
@@ -58,7 +54,6 @@
       fi
 
 - name: Collect API debug logs
-  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
@@ -67,19 +62,16 @@
       fi
 
 - name: Collect OCCM logs
-  when: run_e2e_ccm | bool
   shell:
     executable: /bin/bash
     cmd: |
       kubectl -n kube-system logs daemonset/openstack-cloud-controller-manager --tail=-1 > {{ ansible_facts["user_dir"] }}/logs/lb-e2e/occm.log 2>&1 || true
 
 - name: Check if tests actually failed
-  when: run_e2e_ccm | bool
   set_fact:
     tests_failed: "{{ run_tests.rc != 0 }}"
 
 - name: Print test results summary
-  when: run_e2e_ccm | bool
   debug:
     msg: |
       ================================================================================
@@ -97,9 +89,7 @@
       ================================================================================
 
 - name: Show failure details (when tests failed)
-  when:
-    - run_e2e_ccm | bool
-    - tests_failed | bool
+  when: tests_failed | bool
   block:
   - name: Show last 100 lines of test output
     shell:
@@ -148,9 +138,7 @@
         ls -lah {{ ansible_facts["user_dir"] }}/logs/lb-e2e/ 2>/dev/null || echo "No logs collected"
 
 - name: Fail playbook if tests failed
-  when:
-    - run_e2e_ccm | bool
-    - tests_failed | bool
+  when: tests_failed | bool
   fail:
     msg: |
       LoadBalancer E2E tests FAILED!
