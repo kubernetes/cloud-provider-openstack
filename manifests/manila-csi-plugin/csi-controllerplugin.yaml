@@ -91,7 +91,7 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
-          image: registry.k8s.io/provider-os/manila-csi-plugin:v1.36.0
+          image: registry.k8s.io/provider-os/manila-csi-plugin:v1.37.0
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             --endpoint=$(CSI_ENDPOINT)

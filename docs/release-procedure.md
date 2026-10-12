@@ -191,7 +191,7 @@ the following differences:
 
 There are four independent release artifacts, each with its own tag:
 
-- The overall CPO binary release (e.g. `v1.36.0`)
+- The overall CPO binary release (e.g. `v1.37.0`)
 - The CCM chart release (e.g. `openstack-cloud-controller-manager-2.36.0`)
 - The Cinder CSI chart release (e.g. `openstack-cinder-csi-2.36.0`)
 - The Manila CSI chart release (e.g. `openstack-manila-csi-2.36.0`)
@@ -216,7 +216,7 @@ in the backport PR itself or later via a separate PR.
 
 Run `hack/bump-release.py` from the `release-*` branch to apply the correct
 bump automatically. The script compares the branch tip against the most recent
-CPO tag (e.g. `v1.36.0`) and determines what changed:
+CPO tag (e.g. `v1.37.0`) and determines what changed:
 
 - **CPO code changed** (`cmd/` or `pkg/`): bumps `appVersion` in all charts,
   bumps `version` in all charts, and updates image references in `docs/`,
