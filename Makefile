@@ -29,6 +29,10 @@ IMAGE_NAMES	?= openstack-cloud-controller-manager \
 				osbrick-sidecar
 ARCH		?= amd64
 ARCHS		?= amd64 arm64 ppc64le s390x
+# Architectures for osbrick-sidecar: restricted to platforms where PyPI
+# ships pre-built grpcio wheels (no QEMU source-compile) and Debian
+# Trixie ships Ceph packages.
+OSBRICK_ARCHS	?= amd64 arm64
 BUILD_CMDS	?= openstack-cloud-controller-manager \
 				cinder-csi-plugin \
 				k8s-keystone-auth \
@@ -178,7 +182,7 @@ build-local-image-osbrick-sidecar:
 build-multiarch-image-osbrick-sidecar:
 	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
 		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
-		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		--platform $(shell echo $(addprefix linux/,$(OSBRICK_ARCHS)) | sed 's/ /,/g') \
 		-f sidecar/Dockerfile.osbrick-sidecar \
 		.
 
@@ -186,7 +190,7 @@ build-multiarch-image-osbrick-sidecar:
 push-multiarch-image-osbrick-sidecar:
 	$(CONTAINER_ENGINE) buildx build --output type=registry \
 		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
-		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		--platform $(shell echo $(addprefix linux/,$(OSBRICK_ARCHS)) | sed 's/ /,/g') \
 		-f sidecar/Dockerfile.osbrick-sidecar \
 		.
 
