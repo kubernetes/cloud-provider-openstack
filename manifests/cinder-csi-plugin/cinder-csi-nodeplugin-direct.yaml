@@ -58,7 +58,7 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
             allowPrivilegeEscalation: true
-          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.37.0
+          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.38.0
           args:
             - /bin/cinder-csi-plugin
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -108,7 +108,7 @@ spec:
         - name: osbrick-sidecar
           securityContext:
             privileged: true
-          image: registry.k8s.io/provider-os/osbrick-sidecar:v1.37.0
+          image: registry.k8s.io/provider-os/osbrick-sidecar:v1.38.0
           imagePullPolicy: "IfNotPresent"
           volumeMounts:
             - name: osbrick-socket
