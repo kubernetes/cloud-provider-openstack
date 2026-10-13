@@ -25,10 +25,13 @@
 # Dependencies are resolved automatically via the PEP 723 metadata above.
 # Run with uv:
 #   uv run hack/bump-release.py
+#   uv run hack/bump-release.py [--task pre-release|post-release]
 #
 # Or with pipx:
 #   pipx run hack/bump-release.py
+#   pipx run hack/bump-release.py [--task pre-release|post-release]
 
+import argparse
 import re
 import subprocess
 import sys
@@ -57,7 +60,10 @@ def git(*args: str) -> str:
 
 def git_check(*args: str) -> bool:
     return (
-        subprocess.run(["git", *args], capture_output=True, check=False).returncode == 0
+        subprocess.run(
+            ["git", *args], capture_output=True, check=False
+        ).returncode
+        == 0
     )
 
 
@@ -99,10 +105,16 @@ def find_last_cpo_tag() -> str:
     """Return the most recent vX.Y.Z CPO tag reachable from HEAD."""
     try:
         return git(
-            "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*.[0-9]*.[0-9]*"
+            "describe",
+            "--tags",
+            "--abbrev=0",
+            "--match",
+            "v[0-9]*.[0-9]*.[0-9]*",
         )
     except subprocess.CalledProcessError:
-        sys.exit("ERROR: No CPO release tag (vX.Y.Z) found reachable from HEAD.")
+        sys.exit(
+            "ERROR: No CPO release tag (vX.Y.Z) found reachable from HEAD."
+        )
 
 
 def find_last_chart_tag(chart_name: str) -> str | None:
@@ -162,56 +174,192 @@ def update_files(old_version: str, new_version: str) -> None:
                 console.print(f"  Updated [dim]{path}[/dim]")
 
 
-def release_master() -> None:
+def release_master_pre() -> None:
     app_version = read_app_version()
 
     m_app = APP_VERSION_RE.match(app_version)
     if not m_app:
-        sys.exit(f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}")
+        sys.exit(
+            f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}"
+        )
 
     app_x = int(m_app.group("x"))
-    next_x = app_x + 1
-    next_tag = f"1.{next_x}.0"
-    new_app_version = f"v{next_tag}"
 
-    console.print("[dim]Detected base branch:[/dim] [bold]master[/bold]")
+    # Inspect first chart to determine target version and workflow state
+    _, ref_data = load_chart(CHART_FILES[0])
+    ref_chart_version = ref_data["version"]
+
+    m_ver = VERSION_MASTER_RE.match(ref_chart_version)
+    if not m_ver:
+        if VERSION_RE.match(ref_chart_version):
+            sys.exit(
+                f"ERROR: {CHART_FILES[0].parent.name}: chart version is {ref_chart_version!r} "
+                "(no -dev suffix). Did you already prepare the release, or do you need to "
+                "run the post-release task first?"
+            )
+        sys.exit(
+            f"ERROR: {CHART_FILES[0].parent.name}: expected 'MAJOR.X.0-dev', "
+            f"got: {ref_chart_version!r}"
+        )
+
+    chart_x = int(m_ver.group("x"))
+
+    # In the post-release workflow, appVersion and image tags were already bumped
+    # to the upcoming version (i.e. app_x == chart_x).
+    # In the legacy workflow, appVersion was at the previous release (chart_x == app_x + 1).
+    if chart_x == app_x:
+        target_tag = f"1.{app_x}.0"
+        new_app_version = app_version
+        update_images = False
+    elif chart_x == app_x + 1:
+        target_tag = f"1.{chart_x}.0"
+        new_app_version = f"v{target_tag}"
+        update_images = True
+    else:
+        sys.exit(
+            f"ERROR: Minor version mismatch between appVersion ({app_version}) and "
+            f"chart version ({ref_chart_version})"
+        )
+
     console.print(
-        "[dim]Note: CPO patch releases are made from [bold]release-X.Y[/bold] branches. "
-        "Continuing will bump the Helm charts and all image references for a new Kubernetes "
-        f"major version ([bold]{next_tag}[/bold]). This is typically done just before "
-        "cutting a new release branch.[/dim]"
+        "[dim]Pre-release task: Preparing Helm charts for Kubernetes major version "
+        f"([bold]{target_tag}[/bold]) release by removing the -dev suffix.[/dim]"
     )
     console.print()
-    if not Confirm.ask(f"Release Kubernetes major version {next_tag}?", default=False):
+    if not Confirm.ask(
+        f"Prepare Helm charts for release {target_tag}?", default=False
+    ):
         print("Exiting.")
         sys.exit(0)
     print()
 
-    print(f"Releasing {next_tag}")
+    print(f"Preparing release {target_tag}")
+    for path in CHART_FILES:
+        _, data = load_chart(path)
+        current_version = data["version"]
+
+        m_v = VERSION_MASTER_RE.match(current_version)
+        if not m_v:
+            sys.exit(
+                f"ERROR: {path.parent.name}: expected 'MAJOR.{chart_x}.0-dev', "
+                f"got: {current_version!r}"
+            )
+        if int(m_v.group("x")) != chart_x:
+            sys.exit(
+                f"ERROR: {path.parent.name}: expected version minor {chart_x}, "
+                f"got: {current_version!r}"
+            )
+
+        new_version = f"{m_v.group('major')}.{chart_x}.0"
+        print(
+            f"  {path.parent.name}: version {current_version} -> {new_version}"
+        )
+        update_chart(path, new_app_version, new_version)
+
+    if update_images:
+        print("Updating image references:")
+        update_files(app_version, new_app_version)
+    else:
+        print(
+            f"Image references and appVersion are already at {new_app_version}."
+        )
+
+
+def release_master_post() -> None:
+    app_version = read_app_version()
+
+    m_app = APP_VERSION_RE.match(app_version)
+    if not m_app:
+        sys.exit(
+            f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}"
+        )
+
+    app_x = int(m_app.group("x"))
+
+    # Validate chart versions and determine if already bumped
+    for path in CHART_FILES:
+        _, data = load_chart(path)
+        current_version = data["version"]
+
+        m_dev = VERSION_MASTER_RE.match(current_version)
+        if m_dev:
+            if int(m_dev.group("x")) == app_x:
+                console.print(
+                    f"[yellow]Charts and image references are already bumped to {app_version} "
+                    f"({current_version}). Nothing to do.[/yellow]"
+                )
+                return
+            sys.exit(
+                f"ERROR: {path.parent.name}: unexpected -dev version {current_version!r}. "
+                "Post-release task expects a released chart version (e.g. 'MAJOR.X.0')."
+            )
+
+        m_ver = VERSION_RE.match(current_version)
+        if not m_ver:
+            sys.exit(
+                f"ERROR: {path.parent.name}: expected version 'MAJOR.X.0' (no -dev suffix), "
+                f"got: {current_version!r}"
+            )
+        if int(m_ver.group("x")) != app_x:
+            sys.exit(
+                f"ERROR: {path.parent.name}: chart minor {m_ver.group('x')} does not match "
+                f"appVersion minor {app_x} ({app_version})"
+            )
+
+    next_x = app_x + 1
+    next_tag = f"1.{next_x}.0"
+    new_app_version = f"v{next_tag}"
+
+    console.print(
+        "[dim]Post-release task: Bumping Helm chart versions, appVersion, and all image "
+        f"references for the next Kubernetes development cycle ([bold]{next_tag}[/bold]).[/dim]"
+    )
+    console.print()
+    if not Confirm.ask(
+        f"Bump image tags and chart versions to {next_tag}?", default=False
+    ):
+        print("Exiting.")
+        sys.exit(0)
+    print()
+
+    print(f"Bumping to next development version ({next_tag}):")
     print(f"  appVersion: {app_version} -> {new_app_version}")
 
     for path in CHART_FILES:
         _, data = load_chart(path)
         current_version = data["version"]
-
-        m_ver = VERSION_MASTER_RE.match(current_version)
-        if not m_ver:
-            sys.exit(
-                f"ERROR: {path.parent.name}: expected 'MAJOR.{next_x}.0-dev', "
-                f"got: {current_version!r}"
-            )
-        if int(m_ver.group("x")) != next_x:
-            sys.exit(
-                f"ERROR: {path.parent.name}: expected version minor {next_x}, "
-                f"got: {current_version!r}"
-            )
-
-        new_version = f"{m_ver.group('major')}.{next_x}.0"
-        print(f"  {path.parent.name}: version {current_version} -> {new_version}")
+        m_ver = VERSION_RE.match(current_version)
+        new_version = f"{m_ver.group('major')}.{next_x}.0-dev"
+        print(
+            f"  {path.parent.name}: version {current_version} -> {new_version}"
+        )
         update_chart(path, new_app_version, new_version)
 
     print("Updating image references:")
     update_files(app_version, new_app_version)
+
+
+def detect_master_task() -> str:
+    """Auto-detect pre-release or post-release based on chart versions."""
+    _, ref_data = load_chart(CHART_FILES[0])
+    ref_version = ref_data["version"]
+
+    if VERSION_MASTER_RE.match(ref_version):
+        return "pre-release"
+    elif VERSION_RE.match(ref_version):
+        return "post-release"
+    else:
+        sys.exit(
+            f"ERROR: Cannot auto-detect task: {CHART_FILES[0].parent.name} has "
+            f"unexpected version {ref_version!r}. Use --task to specify manually."
+        )
+
+
+def release_master(task: str) -> None:
+    if task == "pre-release":
+        release_master_pre()
+    elif task == "post-release":
+        release_master_post()
 
 
 def changed_files(merge_base: str) -> list[str]:
@@ -224,12 +372,16 @@ def release_stable_full(base_branch: str) -> None:
 
     m_app = APP_VERSION_RE.match(app_version)
     if not m_app:
-        sys.exit(f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}")
+        sys.exit(
+            f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}"
+        )
 
     app_x, app_y = int(m_app.group("x")), int(m_app.group("y"))
     new_app_version = f"v{m_app.group('major')}.{app_x}.{app_y + 1}"
 
-    console.print(f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]")
+    console.print(
+        f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]"
+    )
     console.print(
         f"[dim]Changes to CPO code detected. Continuing will release a new CPO patch version "
         f"([bold]{new_app_version}[/bold]) and bump all Helm chart versions.[/dim]"
@@ -259,8 +411,12 @@ def release_stable_full(base_branch: str) -> None:
                 f"appVersion ({app_version}): {current_version!r}"
             )
 
-        new_version = f"{m_ver.group('major')}.{app_x}.{int(m_ver.group('z')) + 1}"
-        print(f"  {path.parent.name}: version {current_version} -> {new_version}")
+        new_version = (
+            f"{m_ver.group('major')}.{app_x}.{int(m_ver.group('z')) + 1}"
+        )
+        print(
+            f"  {path.parent.name}: version {current_version} -> {new_version}"
+        )
         update_chart(path, new_app_version, new_version)
 
     print("Updating image references:")
@@ -273,11 +429,15 @@ def release_stable_chart_only(base_branch: str, affected: list[Path]) -> None:
 
     m_app = APP_VERSION_RE.match(app_version)
     if not m_app:
-        sys.exit(f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}")
+        sys.exit(
+            f"ERROR: Expected appVersion to match 'v1.X.Y', got: {app_version!r}"
+        )
 
     app_x = int(m_app.group("x"))
 
-    console.print(f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]")
+    console.print(
+        f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]"
+    )
     console.print(
         "[dim]No changes to CPO code detected. Continuing will bump only the Helm chart "
         "versions for changed charts (appVersion and image references will not change).[/dim]"
@@ -306,8 +466,12 @@ def release_stable_chart_only(base_branch: str, affected: list[Path]) -> None:
                 f"appVersion ({app_version}): {current_version!r}"
             )
 
-        new_version = f"{m_ver.group('major')}.{app_x}.{int(m_ver.group('z')) + 1}"
-        print(f"  {path.parent.name}: version {current_version} -> {new_version}")
+        new_version = (
+            f"{m_ver.group('major')}.{app_x}.{int(m_ver.group('z')) + 1}"
+        )
+        print(
+            f"  {path.parent.name}: version {current_version} -> {new_version}"
+        )
         update_chart(path, app_version, new_version)
 
 
@@ -348,7 +512,9 @@ def release_stable(base_branch: str) -> None:
             if data["version"] != last_chart_tag.rsplit("-", 1)[-1]:
                 continue
         ref = last_chart_tag if last_chart_tag else last_cpo_tag
-        if any(f.startswith(f"charts/{chart_name}/") for f in changed_files(ref)):
+        if any(
+            f.startswith(f"charts/{chart_name}/") for f in changed_files(ref)
+        ):
             affected.append(chart_path)
 
     if not affected:
@@ -367,10 +533,27 @@ def main() -> None:
             "ERROR: No Chart.yaml files found under charts/. Run from the repo root."
         )
 
+    parser = argparse.ArgumentParser(
+        description="Bump release versions for cloud-provider-openstack."
+    )
+    parser.add_argument(
+        "--task",
+        choices=["pre-release", "post-release"],
+        help="Override the auto-detected task on master (pre-release or post-release).",
+    )
+    args = parser.parse_args()
+    task = args.task
+
     base_branch = find_base_branch()
 
     if base_branch == "master":
-        release_master()
+        console.print("[dim]Detected base branch:[/dim] [bold]master[/bold]")
+        if task:
+            console.print(f"[dim]Selected task:[/dim] [bold]{task}[/bold]")
+        else:
+            task = detect_master_task()
+            console.print(f"[dim]Detected task:[/dim] [bold]{task}[/bold]")
+        release_master(task)
     elif base_branch is not None:
         release_stable(base_branch)
     else:
