@@ -41,23 +41,23 @@ cleanup() {
   # on each step to avoid consuming the entire grace period on a hang.
   if [[ -n "${PUBLIC_IP:-}" && -n "${USERNAME:-}" ]]; then
     timeout 300 ansible-playbook -v \
-      --user ${USERNAME} \
+      --user "${USERNAME}" \
       --private-key ~/.ssh/google_compute_engine \
-      --inventory ${PUBLIC_IP}, \
+      --inventory "${PUBLIC_IP}", \
       --ssh-common-args "-o StrictHostKeyChecking=no" \
       tests/playbooks/fetch-logs.yaml || true
 
     timeout 120 scp -i ~/.ssh/google_compute_engine \
       -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-      -r ${USERNAME}@${PUBLIC_IP}:~/logs $ARTIFACTS/logs/devstack || true
+      -r "${USERNAME}@${PUBLIC_IP}:~/logs" "$ARTIFACTS/logs/devstack" || true
 
     timeout 120 scp -i ~/.ssh/google_compute_engine \
       -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-      -r ${USERNAME}@${PUBLIC_IP}:~/csi-pod/* $ARTIFACTS/logs/ || true
+      -r "${USERNAME}@${PUBLIC_IP}:~/csi-pod"/* "$ARTIFACTS/logs/" || true
   fi
 
   # Release the Boskos resource
-  [ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
+  [ -z "${BOSKOS_HOST:-}" ] || timeout 60 python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
 
   # Stop the Boskos heartbeat
   [[ -z ${HEART_BEAT_PID:-} ]] || kill -9 "${HEART_BEAT_PID}"
@@ -121,14 +121,14 @@ fi
 # Upload CPO code
 scp -i ~/.ssh/google_compute_engine \
   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-  -r ${GOPATH}/* ${USERNAME}@${PUBLIC_IP}:~/
+  -r "${GOPATH}"/* "${USERNAME}@${PUBLIC_IP}":~/
 
 # Run ansible playbook on the CI host, e.g. a VM in GCP
 # USERNAME and PUBLIC_IP are global env variables set after creating the CI host.
 ansible-playbook -v \
-  --user ${USERNAME} \
+  --user "${USERNAME}" \
   --private-key ~/.ssh/google_compute_engine \
-  --inventory ${PUBLIC_IP}, \
+  --inventory "${PUBLIC_IP}", \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
   tests/playbooks/test-csi-cinder-e2e.yaml \
   -e run_e2e=true
