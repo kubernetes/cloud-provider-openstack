@@ -57,7 +57,7 @@ BUILD_CMDS	?= openstack-cloud-controller-manager \
 				barbican-kms-plugin \
 				magnum-auto-healer \
 				client-keystone-auth
-export GOLANGCI_LINT_VERSION ?= v2.13.2
+export GOLANGCI_LINT_VERSION ?= v2.14.0
 export HELM_UNITTEST_VERSION ?= v1.1.2
 
 # CTI targets
