@@ -36,7 +36,30 @@ ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
 mkdir -p "${ARTIFACTS}/logs/devstack"
 
 cleanup() {
-  # stop boskos heartbeat
+  # Fetch logs for debugging, even when the job is killed by a timeout.
+  # Prow gives a 15-minute grace period after SIGTERM, so we use timeouts
+  # on each step to avoid consuming the entire grace period on a hang.
+  if [[ -n "${PUBLIC_IP:-}" && -n "${USERNAME:-}" ]]; then
+    timeout 300 ansible-playbook -v \
+      --user ${USERNAME} \
+      --private-key ~/.ssh/google_compute_engine \
+      --inventory ${PUBLIC_IP}, \
+      --ssh-common-args "-o StrictHostKeyChecking=no" \
+      tests/playbooks/fetch-logs.yaml || true
+
+    timeout 120 scp -i ~/.ssh/google_compute_engine \
+      -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+      -r ${USERNAME}@${PUBLIC_IP}:~/logs $ARTIFACTS/logs/devstack || true
+
+    timeout 120 scp -i ~/.ssh/google_compute_engine \
+      -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+      -r ${USERNAME}@${PUBLIC_IP}:~/csi-pod/* $ARTIFACTS/logs/ || true
+  fi
+
+  # Release the Boskos resource
+  [ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
+
+  # Stop the Boskos heartbeat
   [[ -z ${HEART_BEAT_PID:-} ]] || kill -9 "${HEART_BEAT_PID}"
 }
 trap cleanup EXIT
@@ -111,24 +134,5 @@ ansible-playbook -v \
   -e run_e2e=true
 exit_code=$?
 
-# Fetch logs for debugging purpose
-ansible-playbook -v \
-  --user ${USERNAME} \
-  --private-key ~/.ssh/google_compute_engine \
-  --inventory ${PUBLIC_IP}, \
-  --ssh-common-args "-o StrictHostKeyChecking=no" \
-  tests/playbooks/fetch-logs.yaml
-
- scp -i ~/.ssh/google_compute_engine \
-   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-   -r ${USERNAME}@${PUBLIC_IP}:~/logs $ARTIFACTS/logs/devstack || true
-
-# Fetch manila-csi tests results
-scp -i ~/.ssh/google_compute_engine \
-  -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-  -r ${USERNAME}@${PUBLIC_IP}:~/csi-pod/* $ARTIFACTS/logs/ || true
-
-# If Boskos is being used then release the resource back to Boskos.
-[ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
-
+# Log collection and Boskos release are handled by the cleanup trap.
 exit ${exit_code}
