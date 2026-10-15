@@ -2,6 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
   name: cinder.csi.openstack.org
+  labels:
+    {{- include "cinder-csi.labels" . | nindent 4 }}
 spec:
   attachRequired: true
   podInfoOnMount: true
