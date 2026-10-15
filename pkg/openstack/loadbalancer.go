@@ -1921,7 +1921,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	} else {
 		// Attempt to delete the SG if `manage-security-groups` is disabled. When CPO is reconfigured to enable it we
 		// will reconcile the LB and create the SG. This is to make sure it works the same in the opposite direction.
-		if err := lbaas.ensureSecurityGroupDeleted(ctx, service); err != nil {
+		if err := lbaas.ensureSecurityGroupDeleted(ctx, clusterName, service); err != nil {
 			return status, err
 		}
 	}
@@ -2248,7 +2248,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 
 	// Delete the Security Group. We're doing that even if `manage-security-groups` is disabled to make sure we don't
 	// orphan created SGs even if CPO got reconfigured.
-	if err := lbaas.ensureSecurityGroupDeleted(ctx, service); err != nil {
+	if err := lbaas.ensureSecurityGroupDeleted(ctx, clusterName, service); err != nil {
 		return err
 	}
 

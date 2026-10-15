@@ -39,14 +39,30 @@ import (
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
-func getSecurityGroupName(service *corev1.Service) string {
-	securityGroupName := fmt.Sprintf("lb-sg-%s-%s-%s", service.UID, service.Namespace, service.Name)
+func getSecurityGroupName(clusterName string, service *corev1.Service) string {
+	securityGroupName := fmt.Sprintf("lb-sg-%s-%s-%s-%s", clusterName, service.UID, service.Namespace, service.Name)
 	//OpenStack requires that the name of a security group is shorter than 255 bytes.
 	if len(securityGroupName) > 255 {
 		securityGroupName = securityGroupName[:255]
 	}
 
 	return securityGroupName
+}
+
+// getSecurityGroupLegacyName returns the legacy security group name for backward compatibility.
+// Before cluster name tagging was added, the SG name did not include the cluster name.
+func getSecurityGroupLegacyName(service *corev1.Service) string {
+	securityGroupName := fmt.Sprintf("lb-sg-%s-%s-%s", service.UID, service.Namespace, service.Name)
+	if len(securityGroupName) > 255 {
+		securityGroupName = securityGroupName[:255]
+	}
+
+	return securityGroupName
+}
+
+// getSecurityGroupTag returns the tag used to associate a security group with a cluster.
+func getSecurityGroupTag(clusterName string) string {
+	return fmt.Sprintf("kube_service_%s", clusterName)
 }
 
 // applyNodeSecurityGroupIDForLB associates the security group with the ports being members of the LB on the nodes.
@@ -212,16 +228,26 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 	}
 
 	// ensure security group for LB
-	lbSecGroupName := getSecurityGroupName(apiService)
+	lbSecGroupName := getSecurityGroupName(clusterName, apiService)
 	lbSecGroupID, err := secgroups.IDFromName(ctx, lbaas.network, lbSecGroupName)
 	if err != nil {
-		// If the security group of LB not exist, create it later
+		// If the security group of LB not exist, try legacy name for backward compatibility
 		if cpoerrors.IsNotFound(err) {
-			lbSecGroupID = ""
+			legacyName := getSecurityGroupLegacyName(apiService)
+			lbSecGroupID, err = secgroups.IDFromName(ctx, lbaas.network, legacyName)
+			if err != nil {
+				if cpoerrors.IsNotFound(err) {
+					lbSecGroupID = ""
+				} else {
+					return fmt.Errorf("error occurred finding security group: %s: %v", legacyName, err)
+				}
+			}
 		} else {
 			return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
 		}
 	}
+
+	sgTag := getSecurityGroupTag(clusterName)
 	if len(lbSecGroupID) == 0 {
 		// create security group
 		lbSecGroupCreateOpts := groups.CreateOpts{
@@ -235,6 +261,18 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 			return fmt.Errorf("failed to create Security Group for loadbalancer service %s/%s: %v", apiService.Namespace, apiService.Name, err)
 		}
 		lbSecGroupID = lbSecGroup.ID
+
+		// Tag the security group with the cluster identifier
+		mc = metrics.NewMetricContext("security_group_tag", "add")
+		err = neutrontags.Add(ctx, lbaas.network, "security_groups", lbSecGroupID, sgTag).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to tag security group %s with %s: %v", lbSecGroupID, sgTag, err)
+		}
+	} else {
+		// Ensure the existing security group has the cluster tag and the current name.
+		if err := lbaas.ensureSecurityGroupTagged(ctx, lbSecGroupID, lbSecGroupName, sgTag); err != nil {
+			return err
+		}
 	}
 
 	mc := metrics.NewMetricContext("subnet", "get")
@@ -333,17 +371,56 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 	return nil
 }
 
+// ensureSecurityGroupTagged makes sure the security group has the correct name and cluster tag.
+// This handles upgrades from SGs created before cluster tagging was added.
+func (lbaas *LbaasV2) ensureSecurityGroupTagged(ctx context.Context, sgID, expectedName, sgTag string) error {
+	mc := metrics.NewMetricContext("security_group", "get")
+	sg, err := groups.Get(ctx, lbaas.network, sgID).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return fmt.Errorf("failed to get security group %s: %v", sgID, err)
+	}
+
+	// Rename the SG if it has the legacy name (without cluster name).
+	if sg.Name != expectedName {
+		mc = metrics.NewMetricContext("security_group", "update")
+		_, err = groups.Update(ctx, lbaas.network, sgID, groups.UpdateOpts{Name: expectedName}).Extract()
+		if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to rename security group %s to %s: %v", sgID, expectedName, err)
+		}
+	}
+
+	// Ensure the cluster tag is present.
+	if !slices.Contains(sg.Tags, sgTag) {
+		mc = metrics.NewMetricContext("security_group_tag", "add")
+		err = neutrontags.Add(ctx, lbaas.network, "security_groups", sgID, sgTag).ExtractErr()
+		if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to tag security group %s with %s: %v", sgID, sgTag, err)
+		}
+	}
+
+	return nil
+}
+
 // ensureSecurityGroupDeleted deleting security group for specific loadbalancer service.
-func (lbaas *LbaasV2) ensureSecurityGroupDeleted(ctx context.Context, service *corev1.Service) error {
-	// Generate Name
-	lbSecGroupName := getSecurityGroupName(service)
+func (lbaas *LbaasV2) ensureSecurityGroupDeleted(ctx context.Context, clusterName string, service *corev1.Service) error {
+	// Try current name first, then fall back to legacy name.
+	lbSecGroupName := getSecurityGroupName(clusterName, service)
 	lbSecGroupID, err := secgroups.IDFromName(ctx, lbaas.network, lbSecGroupName)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
-			// It is OK when the security group has been deleted by others.
-			return nil
+			// Try legacy name for backward compatibility.
+			legacyName := getSecurityGroupLegacyName(service)
+			lbSecGroupID, err = secgroups.IDFromName(ctx, lbaas.network, legacyName)
+			if err != nil {
+				if cpoerrors.IsNotFound(err) {
+					// It is OK when the security group has been deleted by others.
+					return nil
+				}
+				return fmt.Errorf("error occurred finding security group: %s: %v", legacyName, err)
+			}
+		} else {
+			return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
 		}
-		return fmt.Errorf("error occurred finding security group: %s: %v", lbSecGroupName, err)
 	}
 
 	// Disassociate the security group from the neutron ports on the nodes.
