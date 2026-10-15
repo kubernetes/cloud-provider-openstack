@@ -1,3 +1,4 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload") }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -13,6 +14,12 @@ roleRef:
   kind: ClusterRole
   name: {{ .Values.clusterRoleName }}
 subjects:
+{{- if and .Values.splitMode.enabled (eq .Values.splitMode.type "workload") }}
+- kind: User
+  name: {{ .Values.splitMode.subject.name }}
+{{- else }}
 - kind: ServiceAccount
   name: {{ .Values.serviceAccountName }}
   namespace: {{ .Release.Namespace | quote }}
+{{- end }}
+{{- end }}

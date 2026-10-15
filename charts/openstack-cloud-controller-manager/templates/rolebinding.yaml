@@ -1,4 +1,4 @@
-{{- if .Values.secret.enabled }}
+{{- if and .Values.secret.enabled (not .Values.splitMode.enabled) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
