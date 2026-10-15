@@ -1,4 +1,4 @@
-{{- if .Values.csi.plugin.podMonitor.enabled }}
+{{- if and (or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "management")) .Values.csi.plugin.podMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
