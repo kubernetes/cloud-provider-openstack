@@ -19,6 +19,7 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -30,7 +31,9 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/networking/v2/subnets"
 	secgroups "github.com/gophercloud/utils/v2/openstack/networking/v2/extensions/security/groups"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 
@@ -47,6 +50,40 @@ func getSecurityGroupName(service *corev1.Service) string {
 	}
 
 	return securityGroupName
+}
+
+// updatePortSecurityGroups re-reads a port and applies mutate to its security groups,
+// retrying on Neutron revision_number conflicts to avoid lost updates.
+func updatePortSecurityGroups(ctx context.Context, network *gophercloud.ServiceClient, portID string, mutate func(sgs []string) (newSGs []string, skip bool)) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		mc := metrics.NewMetricContext("port", "get")
+		currentPort, err := neutronports.Get(ctx, network, portID).Extract()
+		if mc.ObserveRequest(err) != nil {
+			return fmt.Errorf("failed to get port %s: %v", portID, err)
+		}
+
+		newSGs, skip := mutate(currentPort.SecurityGroups)
+		if skip {
+			return nil
+		}
+
+		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs, RevisionNumber: &currentPort.RevisionNumber}
+		mc = metrics.NewMetricContext("port", "update")
+		res := neutronports.Update(ctx, network, portID, updateOpts)
+		if mc.ObserveRequest(res.Err) != nil {
+			if strings.Contains(res.Err.Error(), "RevisionNumberConstraintFailed") {
+				return &apierrors.StatusError{
+					ErrStatus: metav1.Status{
+						Message: res.Err.Error(),
+						Reason:  metav1.StatusReasonConflict,
+						Code:    http.StatusConflict,
+					},
+				}
+			}
+			return fmt.Errorf("failed to update security group for port %s: %v", portID, res.Err)
+		}
+		return nil
+	})
 }
 
 // applyNodeSecurityGroupIDForLB associates the security group with the ports being members of the LB on the nodes.
@@ -85,16 +122,13 @@ func applyNodeSecurityGroupIDForLB(ctx context.Context, network *gophercloud.Ser
 				continue
 			}
 
-			// Add the SG to the port
-			// TODO(dulek): This isn't an atomic operation. In order to protect from lost update issues we should use
-			//              `revision_number` handling to make sure our update to `security_groups` field wasn't preceded
-			//              by a different one. Same applies to a removal of the SG.
-			newSGs := append(port.SecurityGroups, sg)
-			updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
-			mc := metrics.NewMetricContext("port", "update")
-			res := neutronports.Update(ctx, network, port.ID, updateOpts)
-			if mc.ObserveRequest(res.Err) != nil {
-				return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
+			if err := updatePortSecurityGroups(ctx, network, port.ID, func(sgs []string) ([]string, bool) {
+				if slices.Contains(sgs, sg) {
+					return nil, true
+				}
+				return append(sgs, sg), false
+			}); err != nil {
+				return err
 			}
 		}
 	}
@@ -113,30 +147,22 @@ func disassociateSecurityGroupForLB(ctx context.Context, network *gophercloud.Se
 
 	// Disassocate security group and remove the tag.
 	for _, port := range allPorts {
-		existingSGs := sets.NewString()
-		for _, sgID := range port.SecurityGroups {
-			existingSGs.Insert(sgID)
-		}
-		existingSGs.Delete(sg)
-
-		// Update port security groups
-		newSGs := existingSGs.List()
-		// TODO(dulek): This should be done using Neutron's revision_number to make sure
-		//              we don't trigger a lost update issue.
-		updateOpts := neutronports.UpdateOpts{SecurityGroups: &newSGs}
-		mc := metrics.NewMetricContext("port", "update")
-		res := neutronports.Update(ctx, network, port.ID, updateOpts)
-		if mc.ObserveRequest(res.Err) != nil {
-			return fmt.Errorf("failed to update security group for port %s: %v", port.ID, res.Err)
+		if err := updatePortSecurityGroups(ctx, network, port.ID, func(sgs []string) ([]string, bool) {
+			if !slices.Contains(sgs, sg) {
+				return nil, true
+			}
+			return slices.DeleteFunc(slices.Clone(sgs), func(id string) bool { return id == sg }), false
+		}); err != nil {
+			return err
 		}
 
 		// Remove the security group ID tag from the port. Please note we don't tag ports with SG IDs anymore,
 		// so this stays for backward compatibility. It's reasonable to delete it in the future. 404s are ignored.
 		if slices.Contains(port.Tags, sg) {
-			mc = metrics.NewMetricContext("port_tag", "delete")
+			mc := metrics.NewMetricContext("port_tag", "delete")
 			err := neutrontags.Delete(ctx, network, "ports", port.ID, sg).ExtractErr()
 			if mc.ObserveRequest(err) != nil {
-				return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, res.Err)
+				return fmt.Errorf("failed to remove tag %s to port %s: %v", sg, port.ID, err)
 			}
 		}
 	}
