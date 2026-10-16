@@ -76,11 +76,12 @@ dependency or sidecar container.
     $ git pull --rebase upstream master
     ```
 
-1. Bump the release version.
+1. Prepare Helm charts for release.
 
-    Run `hack/bump-release.py`, which detects the current branch automatically
-    and updates the Helm chart versions (`charts/`) and all image references in
-    `docs/`, `manifests/`, and `examples/`:
+    Run `hack/bump-release.py`, which detects the `master` branch and
+    automatically identifies the `pre-release` task (or override with
+    `--task pre-release`). This prepares the Helm chart versions for release by
+    removing the `-dev` suffix (e.g. `2.{X}.0-dev` -> `2.{X}.0`):
 
     ```bash
     $ uv run hack/bump-release.py
@@ -118,18 +119,6 @@ dependency or sidecar container.
     $ git push origin release-X.Y
     ```
 
-1. Reset the `version` field of the Helm Charts to `2.{X+1}.0-dev`.
-
-    Leave `appVersion` set to the version just released (e.g. `vX.Y.0`).
-    The `hack/bump-release.py` script relies on this value when computing
-    the next release version, reading it to determine the current minor and
-    validates that the chart `version` is already at the next minor's `dev`
-    placeholder.
-
-    Any bugfixes for the Helm Charts must be backported to the `release-*`
-    stable branches and released from there. See [Helm Charts](#helm-charts)
-    below for details.
-
 1. Make PR modifying
    [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml)
    to promote staging images to registry.k8s.io. The point is to copy the proper image
@@ -156,6 +145,26 @@ dependency or sidecar container.
     This is generally as simple as copying the `release-master` file to `release-X.Y`,
     adding `--release-XY` suffixes to the job names and `testgrid-tab-name` annotations,
     and updating the branch specifiers.
+
+1. (Post-release) Bump image tags and chart versions for the next development cycle.
+
+    Checkout `master` and run `hack/bump-release.py`, which automatically
+    detects the `post-release` task on `master` (or override with
+    `--task post-release`). This bumps the Helm chart `version` to
+    `2.{X+1}.0-dev`, chart `appVersion` to `v1.{X+1}.0`, and all image
+    references across `docs/`, `manifests/`, and `examples/` to `v1.{X+1}.0`:
+
+    ```bash
+    $ git checkout master
+    $ git pull upstream master
+    $ uv run hack/bump-release.py
+    ```
+
+    Commit these changes and open a PR against `master`.
+
+    Any bugfixes for the Helm Charts must be backported to the `release-*`
+    stable branches and released from there. See [Helm Charts](#helm-charts)
+    below for details.
 
 ### Minor releases (`X.Y.Z`, `Z` > 0)
 
@@ -191,10 +200,10 @@ the following differences:
 
 There are four independent release artifacts, each with its own tag:
 
-- The overall CPO binary release (e.g. `v1.36.0`)
-- The CCM chart release (e.g. `openstack-cloud-controller-manager-2.36.0`)
-- The Cinder CSI chart release (e.g. `openstack-cinder-csi-2.36.0`)
-- The Manila CSI chart release (e.g. `openstack-manila-csi-2.36.0`)
+- The overall CPO binary release (e.g. `v1.{X}.0`)
+- The CCM chart release (e.g. `openstack-cloud-controller-manager-2.{X}.0`)
+- The Cinder CSI chart release (e.g. `openstack-cinder-csi-2.{X}.0`)
+- The Manila CSI chart release (e.g. `openstack-manila-csi-2.{X}.0`)
 
 A CPO binary release always triggers new versions of all three charts (because
 all charts reference the CPO image via `appVersion`). A chart-only release —
@@ -204,9 +213,12 @@ new chart tags for the affected charts without a new CPO binary tag.
 ### Versioning on `master`
 
 Chart versions on `master` use a `-dev` pre-release suffix (e.g.
-`2.37.0-dev`) and are **not** bumped for individual PRs. The `appVersion`
-field reflects the most recently published CPO release. Version bumps only
-happen at release time (see [Major releases](#major-releases-xy0) above).
+`2.{X+1}.0-dev`) and are **not** bumped for individual PRs. The `appVersion`
+field and image references in manifests and docs point to the next major
+Kubernetes release in development (e.g. `v1.{X+1}.0`), having been bumped by
+the post-release task immediately after the previous release. Chart versions
+are bumped to their final release version (removing `-dev`) by the pre-release
+task at release time (see [Major releases](#major-releases-xy0) above).
 
 ### Versioning on `release-*` branches
 
@@ -216,7 +228,7 @@ in the backport PR itself or later via a separate PR.
 
 Run `hack/bump-release.py` from the `release-*` branch to apply the correct
 bump automatically. The script compares the branch tip against the most recent
-CPO tag (e.g. `v1.36.0`) and determines what changed:
+CPO tag (e.g. `v1.{X}.0`) and determines what changed:
 
 - **CPO code changed** (`cmd/` or `pkg/`): bumps `appVersion` in all charts,
   bumps `version` in all charts, and updates image references in `docs/`,

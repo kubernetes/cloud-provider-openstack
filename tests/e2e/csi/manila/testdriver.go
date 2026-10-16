@@ -108,7 +108,8 @@ func (d *manilaTestDriver) GetDriverInfo() *storageframework.DriverInfo {
 	return &d.driverInfo
 }
 
-func (d *manilaTestDriver) SkipUnsupportedTest(storageframework.TestPattern) {
+func (d *manilaTestDriver) SkipUnsupportedTest(storageframework.TestPattern) string {
+	return ""
 }
 
 func (d *manilaTestDriver) PrepareTest(ctx context.Context, f *framework.Framework) *storageframework.PerTestConfig {

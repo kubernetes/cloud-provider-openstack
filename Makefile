@@ -25,9 +25,14 @@ IMAGE_NAMES	?= openstack-cloud-controller-manager \
 				octavia-ingress-controller \
 				manila-csi-plugin \
 				barbican-kms-plugin \
-				magnum-auto-healer
+				magnum-auto-healer \
+				osbrick-sidecar
 ARCH		?= amd64
-ARCHS		?= amd64 arm arm64 ppc64le s390x
+ARCHS		?= amd64 arm64 ppc64le s390x
+# Architectures for osbrick-sidecar: restricted to platforms where PyPI
+# ships pre-built grpcio wheels (no QEMU source-compile) and Debian
+# Trixie ships Ceph packages.
+OSBRICK_ARCHS	?= amd64 arm64
 BUILD_CMDS	?= openstack-cloud-controller-manager \
 				cinder-csi-plugin \
 				k8s-keystone-auth \
@@ -36,7 +41,7 @@ BUILD_CMDS	?= openstack-cloud-controller-manager \
 				barbican-kms-plugin \
 				magnum-auto-healer \
 				client-keystone-auth
-export GOLANGCI_LINT_VERSION ?= v2.13.2
+export GOLANGCI_LINT_VERSION ?= v2.14.0
 export HELM_UNITTEST_VERSION ?= v1.1.2
 
 # CTI targets
@@ -79,6 +84,11 @@ test-cinder-csi-sanity:
 .PHONY: test-manila-csi-sanity
 test-manila-csi-sanity:
 	go test $(GIT_HOST)/$(BASE_DIR)/tests/sanity/manila
+
+test-sidecar:
+	cd sidecar && pip install --quiet -r test-requirements.txt
+	cd sidecar && ./generate_proto.sh
+	cd sidecar && PYTHONPATH=. python -m pytest tests/ $(TESTARGS)
 
 # kept for compatibility reasons.
 .PHONY: fmt
@@ -130,7 +140,21 @@ build-local-image-%:
 		.
 
 # Build all images locally
+.PHONY: build-local-images
 build-local-images: $(addprefix build-local-image-,$(IMAGE_NAMES))
+
+# Build a single image for all architectures in ARCHS but don't push it anywhere
+build-multiarch-image-%:
+	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
+		--build-arg VERSION=$(VERSION) \
+		--tag $(REGISTRY)/$*:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(ARCHS)) | sed 's/ /,/g') \
+		--target $* \
+		.
+
+# Build all multiarch images
+.PHONY: build-multiarch-images
+build-multiarch-images: $(addprefix build-multiarch-image-,$(IMAGE_NAMES))
 
 # Build a single image for all architectures in ARCHS and push it to REGISTRY
 push-multiarch-image-%:
@@ -142,7 +166,33 @@ push-multiarch-image-%:
 		.
 
 # Push all multiarch images
+.PHONY: push-multiarch-images
 push-multiarch-images: $(addprefix push-multiarch-image-,$(IMAGE_NAMES))
+
+# Sidecar images use their own Dockerfiles instead of multi-stage targets
+# in the main Dockerfile. Explicit rules override the pattern rules above.
+.PHONY: build-local-image-osbrick-sidecar
+build-local-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=docker \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
+
+.PHONY: build-multiarch-image-osbrick-sidecar
+build-multiarch-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=cacheonly \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(OSBRICK_ARCHS)) | sed 's/ /,/g') \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
+
+.PHONY: push-multiarch-image-osbrick-sidecar
+push-multiarch-image-osbrick-sidecar:
+	$(CONTAINER_ENGINE) buildx build --output type=registry \
+		--tag $(REGISTRY)/osbrick-sidecar:$(VERSION) \
+		--platform $(shell echo $(addprefix linux/,$(OSBRICK_ARCHS)) | sed 's/ /,/g') \
+		-f sidecar/Dockerfile.osbrick-sidecar \
+		.
 
 .PHONY: version
 version:
