@@ -52,8 +52,10 @@ readinessProbe: {}
 # only the service (Octavia LB) controller is needed.
 hostNetwork: true
 
-# Set to ClusterFirst if hostNetwork is disabled
-dnsPolicy: ClusterFirstWithHostNet
+# ClusterFirst uses node DNS with hostNetwork, avoiding a dependency on cluster DNS during bootstrap.
+# With hostNetwork disabled, ClusterFirst uses cluster DNS instead.
+# To use cluster DNS with hostNetwork, set ClusterFirstWithHostNet.
+dnsPolicy: ClusterFirst
 
 # Set nodeSelector where the controller should run, i.e. controlplane nodes
 nodeSelector:
