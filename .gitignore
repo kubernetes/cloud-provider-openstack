@@ -165,3 +165,8 @@ clouds.yaml
 
 # Generated Python gRPC stubs (built by sidecar/generate_proto.sh)
 sidecar/osbrick/gen/
+
+# helm files
+
+*.lock
+*.zip
