@@ -64,6 +64,9 @@ func TestDriver(t *testing.T) {
 	config := sanity.NewTestConfig()
 	config.Address = endpoint
 	config.SecretsFile = "fake-secrets.yaml"
+	config.TestVolumeMutableParameters = map[string]string{
+		"nfs-shareClient": "192.0.2.0/24",
+	}
 	sanity.Test(t, config)
 
 }

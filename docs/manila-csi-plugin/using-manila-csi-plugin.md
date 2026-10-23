@@ -64,6 +64,27 @@ Parameter | Required | Description
 `cephfs-clientID` | _no_ | Relevant for CephFS Manila shares. Specifies the cephx client ID when creating an access rule for the provisioned share. The same cephx client ID may be shared with multiple Manila shares. If providing access to multiple cephx client IDs, set it as a comma separated list. If no value is provided, client ID for the provisioned Manila share will be set to some unique value (PersistentVolume name).
 `nfs-shareClient` | _no_ | Relevant for NFS Manila shares. Specifies what address has access to the NFS share. Use a comma separated list for granting access to multiple IP addresses or subnets. Defaults to `0.0.0.0/0`, i.e. anyone.
 
+### Mutable NFS access rules
+
+For NFS shares on Kubernetes 1.34 or newer, `nfs-shareClient` can be changed after
+provisioning by assigning a `VolumeAttributesClass` to the PVC. The value is treated as the desired set of `rw`
+IP access rules: missing rules are granted before obsolete rules are revoked. Other
+access types and `ro` rules are left unchanged.
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: VolumeAttributesClass
+metadata:
+  name: manila-nfs-private
+driverName: nfs.manila.csi.openstack.org
+parameters:
+  nfs-shareClient: 10.0.0.0/24,192.0.2.10
+```
+
+Set `spec.volumeAttributesClassName` on the PVC to this class. To change the list
+again, create another `VolumeAttributesClass` and update the PVC to refer to it.
+An empty `nfs-shareClient` value revokes all `rw` IP access rules.
+
 ### Node Service volume context
 
 _Kubernetes PV CSI volume attributes for pre-provisioned volumes_
