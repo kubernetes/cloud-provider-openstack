@@ -1,0 +1,95 @@
+---
+- name: Install the bootstrap DNS server
+  become: true
+  apt:
+    name:
+      - dnsmasq-base
+      - dnsutils
+    state: present
+    update_cache: true
+
+- name: Read the DevStack authentication endpoint
+  shell:
+    executable: /bin/bash
+    cmd: |
+      set -eu
+      source {{ ansible_user_dir }}/openrc-demo
+      python3 - <<'PY'
+      import json
+      import os
+      import socket
+      from urllib.parse import urlsplit, urlunsplit
+
+      endpoint = urlsplit(os.environ["OS_AUTH_URL"].rstrip("/") + "/v3")
+      # This fixture uses DevStack's HTTP endpoint, not a TLS hostname override.
+      assert endpoint.scheme == "http", "The bootstrap DNS test requires DevStack's HTTP endpoint"
+      assert not endpoint.username and not endpoint.password
+      hostname = os.environ["OCCM_BOOTSTRAP_HOSTNAME"]
+      authority = hostname + (f":{endpoint.port}" if endpoint.port else "")
+      print(json.dumps({
+          "address": socket.gethostbyname(endpoint.hostname),
+          "url": urlunsplit(endpoint._replace(netloc=authority)),
+      }))
+      PY
+  environment:
+    OCCM_BOOTSTRAP_HOSTNAME: "{{ occm_bootstrap_hostname }}"
+  register: bootstrap_endpoint
+  changed_when: false
+
+- name: Set the bootstrap DNS settings
+  set_fact:
+    occm_bootstrap_auth_url: "{{ (bootstrap_endpoint.stdout | from_json).url }}"
+    occm_bootstrap_address: "{{ (bootstrap_endpoint.stdout | from_json).address }}"
+    dns_server: "{{ ansible_default_ipv4.address }}"
+
+- name: Configure DNS outside the test Kubernetes cluster
+  become: true
+  copy:
+    dest: /etc/occm-bootstrap-dns.conf
+    mode: "0644"
+    content: |
+      bind-interfaces
+      listen-address={{ dns_server }}
+      pid-file=/run/occm-bootstrap-dns.pid
+      no-resolv
+      no-hosts
+      server={{ occm_bootstrap_upstream_dns }}
+      host-record={{ occm_bootstrap_hostname }},{{ occm_bootstrap_address }}
+      local=/{{ occm_bootstrap_hostname }}/
+      log-queries
+      log-facility=-
+    validate: /usr/sbin/dnsmasq --test --conf-file=%s
+
+- name: Configure the bootstrap DNS service
+  become: true
+  copy:
+    dest: /etc/systemd/system/occm-bootstrap-dns.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=DNS for the OCCM bootstrap test
+      After=network.target
+
+      [Service]
+      ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/occm-bootstrap-dns.conf
+
+- name: Start DNS before the k3s VM boots
+  become: true
+  systemd:
+    name: occm-bootstrap-dns
+    daemon_reload: true
+    state: restarted
+
+- name: Check the DNS record before creating the k3s VM
+  command:
+    argv:
+      - dig
+      - "@{{ dns_server }}"
+      - "{{ occm_bootstrap_hostname }}"
+      - A
+      - +short
+      - +time=3
+      - +tries=1
+  register: bootstrap_dns_lookup
+  changed_when: false
+  failed_when: occm_bootstrap_address not in bootstrap_dns_lookup.stdout_lines
