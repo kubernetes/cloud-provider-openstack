@@ -12,6 +12,24 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/*
+Standard Kubernetes recommended labels.
+*/}}
+{{- define "occm.labels.standard" -}}
+helm.sh/chart: {{ include "occm.chart" . }}
+app.kubernetes.io/name: {{ include "occm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{- define "occm.labels.matchLabels" -}}
+app.kubernetes.io/name: {{ include "occm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
 {{- define "occm.common.matchLabels" -}}
 app: {{ template "occm.name" . }}
 release: {{ .Release.Name }}

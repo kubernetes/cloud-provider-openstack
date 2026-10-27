@@ -1,0 +1,8 @@
+# Core gRPC dependencies. All three must be the same version.
+grpcio==1.84.0
+grpcio-tools==1.84.0
+grpcio-health-checking==1.84.0
+protobuf==7.36.2
+
+# os-brick (pulls in oslo.config, oslo.utils, and other Oslo libs).
+os-brick==7.1.1

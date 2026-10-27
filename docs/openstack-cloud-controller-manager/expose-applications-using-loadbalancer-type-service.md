@@ -239,9 +239,27 @@ Request Body:
 
   If this annotation is specified, the other annotations which define the load balancer features will be ignored.
 
+- `loadbalancer.openstack.org/load-balancer-tags`
+
+  A comma-separated list of tags to add to the load balancer resource in addition to the tags managed by OCCM. Example: `env=prod,team=network`.
+
+  > NOTE: Tags starting with `kube_service_` are reserved for OCCM's own ownership and shared-load-balancer tracking. Any such tag supplied through this annotation is ignored (a warning is logged) to avoid conflicting with the tags OCCM manages. This applies to all three tag annotations.
+
+- `loadbalancer.openstack.org/listener-tags`
+
+  A comma-separated list of tags to add to the load balancer listener resources in addition to the tags managed by OCCM. Example: `env=prod,team=network`. Tags starting with the reserved `kube_service_` prefix are ignored (see the note above).
+
+- `loadbalancer.openstack.org/pool-tags`
+
+  A comma-separated list of tags to add to the load balancer pool resources. Example: `env=prod,team=network`. Tags starting with the reserved `kube_service_` prefix are ignored (see the note above).
+
 - `loadbalancer.openstack.org/hostname`
 
   This annotations explicitly sets a hostname in the status of the load balancer service.
+
+- `loadbalancer.openstack.org/enable-ingress-hostname`
+
+  Defines whether the load balancer address is published in the service status as a `<ip>.<suffix>` hostname when the PROXY protocol is enabled, if not specified, use [`enable-ingress-hostname`](./using-openstack-cloud-controller-manager.md#load-balancer) config. Set to `false` to publish the IP address with `ipMode: Proxy` instead, which lets DNS integrations create A records for the service.
 
 - `loadbalancer.openstack.org/load-balancer-address`
   
@@ -374,7 +392,9 @@ This requires that not only the proxy server(e.g. NGINX) should support PROXY pr
 
 This guide uses nginx-ingress-controller as an example.
 
-To enable PROXY protocol support, the either the openstack-cloud-controller-manager config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) should set to `true` or an explicit hostname should be set on the load balancer service via [annotation](./expose-applications-using-loadbalancer-type-service.md#service-annotations) `loadbalancer.openstack.org/hostname`.
+Since Kubernetes 1.32, PROXY protocol support needs no extra configuration: openstack-cloud-controller-manager publishes the load balancer IP with `ipMode: Proxy`, so kube-proxy does not intercept traffic to it. If the config option [enable-ingress-hostname](./using-openstack-cloud-controller-manager.md#load-balancer) is set to `true` cluster-wide, a service can still get the IP by opting out with the annotation `loadbalancer.openstack.org/enable-ingress-hostname: "false"`.
+
+Prior to this, either the config option `enable-ingress-hostname` should be set to `true` or an explicit hostname should be set on the load balancer service via the [annotation](./expose-applications-using-loadbalancer-type-service.md#service-annotations) `loadbalancer.openstack.org/hostname`.
 
 1. Set up the nginx-ingress-controller
 

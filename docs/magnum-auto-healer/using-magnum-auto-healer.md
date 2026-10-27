@@ -73,7 +73,7 @@ user_id=ceb61464a3d341ebabdf97d1d4b97099
 user_project_id=b23a5e41d1af4c20974bf58b4dff8e5a
 password=password
 region=RegionOne
-image=registry.k8s.io/provider-os/magnum-auto-healer:v1.36.0
+image=registry.k8s.io/provider-os/magnum-auto-healer:v1.38.0
 
 cat <<EOF | kubectl apply -f -
 ---
@@ -182,6 +182,23 @@ spec:
             name: magnum-auto-healer-config
 EOF
 ```
+
+#### Endpoint health check parameters
+
+The `Endpoint` type health check supports the following parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `protocol` | string | `HTTPS` | URL scheme to use. `HTTP` or `HTTPS` (case-insensitive). |
+| `port` | int | `6443` | Port to connect to on the node. |
+| `endpoints` | []string | `["/healthz"]` | List of URL paths to check. |
+| `ok-codes` | []int | `[200]` | HTTP response codes considered healthy. |
+| `unhealthy-duration` | duration | `300s` | How long a node must be continuously unhealthy before repair is triggered. |
+| `unhealthy-annotation` | string | `autohealing.openstack.org/unhealthy-timestamp` | Node annotation used to record when the node first became unhealthy. |
+| `require-token` | bool | `false` | Whether to include a bearer token in the request. |
+| `token` | string | read from `/var/run/secrets/kubernetes.io/serviceaccount/token` | Bearer token value. Only used when `require-token` is `true`. |
+| `ca-file` | string | `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` | Path to a CA certificate file used to verify the server's TLS certificate. Only used when `protocol` is `HTTPS`. |
+| `tls-insecure` | bool | `false` | If true, skip TLS certificate verification. |
 
 ### Testing magnum-auto-healer
 

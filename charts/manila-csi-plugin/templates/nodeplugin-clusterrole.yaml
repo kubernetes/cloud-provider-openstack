@@ -8,4 +8,3 @@ aggregationRule:
   clusterRoleSelectors:
     - matchLabels:
         rbac.manila.csi.openstack.org/aggregate-to-nodeplugin-{{ include "openstack-manila-csi.name" . }}: "true"
-rules: []

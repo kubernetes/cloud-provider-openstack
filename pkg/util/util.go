@@ -181,6 +181,41 @@ func SplitTrim(s string, sep rune) []string {
 	return strings.FieldsFunc(s, f)
 }
 
+// Unique returns slice with duplicates removed, preserving first-seen order.
+func Unique[T comparable](slice []T) []T {
+	seen := make(map[T]struct{}, len(slice))
+	result := make([]T, 0, len(slice))
+	for _, item := range slice {
+		if _, ok := seen[item]; !ok {
+			seen[item] = struct{}{}
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// Merge appends the items of src that are not already in dest, preserving
+// order. It returns the merged slice and true if any item was added.
+func Merge[T comparable](dest, src []T) ([]T, bool) {
+	existing := make(map[T]struct{}, len(dest))
+	for _, item := range dest {
+		existing[item] = struct{}{}
+	}
+
+	merged := false
+	result := make([]T, len(dest), len(dest)+len(src))
+	copy(result, dest)
+
+	for _, item := range src {
+		if _, ok := existing[item]; !ok {
+			existing[item] = struct{}{}
+			result = append(result, item)
+			merged = true
+		}
+	}
+	return result, merged
+}
+
 // UUID converts a string to a valid UUID string.
 func UUID(s string) (string, error) {
 	u, err := uuid.Parse(s)

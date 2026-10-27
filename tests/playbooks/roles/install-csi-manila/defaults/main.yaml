@@ -7,3 +7,5 @@ image_registry_host: localhost
 remote_registry_host: "{{ ansible_default_ipv4.address }}"
 
 k8s_log_dir: "/var/log/"
+
+run_e2e_manila: false

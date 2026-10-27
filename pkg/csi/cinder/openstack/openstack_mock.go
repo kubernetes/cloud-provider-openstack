@@ -126,11 +126,25 @@ func (_m *OpenStackMock) DeleteVolume(ctx context.Context, volumeID string) erro
 
 // GetVolume provides a mock function with given fields: volumeID
 func (_m *OpenStackMock) GetVolume(ctx context.Context, volumeID string) (*volumes.Volume, error) {
-	args := _m.Called(volumeID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+	ret := _m.Called(volumeID)
+
+	var r0 *volumes.Volume
+	if rf, ok := ret.Get(0).(func(string) *volumes.Volume); ok {
+		r0 = rf(volumeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*volumes.Volume)
+		}
 	}
-	return args.Get(0).(*volumes.Volume), args.Error(1)
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(volumeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // DetachVolume provides a mock function with given fields: instanceID, volumeID
@@ -459,6 +473,29 @@ func (_m *OpenStackMock) WaitSnapshotReady(ctx context.Context, snapshotID strin
 }
 
 func (_m *OpenStackMock) GetBackupByID(ctx context.Context, backupID string) (*backups.Backup, error) {
+	for _, call := range _m.ExpectedCalls {
+		if call.Method != "GetBackupByID" {
+			continue
+		}
+
+		ret := _m.Called(backupID)
+
+		var r0 *backups.Backup
+		if rf, ok := ret.Get(0).(func(string) *backups.Backup); ok {
+			r0 = rf(backupID)
+		} else if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*backups.Backup)
+		}
+
+		var r1 error
+		if rf, ok := ret.Get(1).(func(string) error); ok {
+			r1 = rf(backupID)
+		} else {
+			r1 = ret.Error(1)
+		}
+
+		return r0, r1
+	}
 
 	return &fakeBackup, nil
 }
@@ -524,4 +561,85 @@ func (_m *OpenStackMock) GetBlockStorageOpts() BlockStorageOpts {
 // ResolveVolumeListToUUIDs provides a mock function to return volume UUIDs
 func (_m *OpenStackMock) ResolveVolumeListToUUIDs(ctx context.Context, v string) (string, error) {
 	return v, nil
+}
+
+// AttachmentCreate provides a mock function with given fields: volumeID, instanceID, connectorProperties
+func (_m *OpenStackMock) AttachmentCreate(ctx context.Context, volumeID string, instanceID string, connectorProperties map[string]any) (string, map[string]any, error) {
+	ret := _m.Called(volumeID, instanceID, connectorProperties)
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func(string, string, map[string]any) string); ok {
+		r0 = rf(volumeID, instanceID, connectorProperties)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	var r1 map[string]any
+	if rf, ok := ret.Get(1).(func(string, string, map[string]any) map[string]any); ok {
+		r1 = rf(volumeID, instanceID, connectorProperties)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(map[string]any)
+		}
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(string, string, map[string]any) error); ok {
+		r2 = rf(volumeID, instanceID, connectorProperties)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// AttachmentGet provides a mock function with given fields: attachmentID
+func (_m *OpenStackMock) AttachmentGet(ctx context.Context, attachmentID string) (map[string]any, error) {
+	ret := _m.Called(attachmentID)
+
+	var r0 map[string]any
+	if rf, ok := ret.Get(0).(func(string) map[string]any); ok {
+		r0 = rf(attachmentID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]any)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(attachmentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// AttachmentDelete provides a mock function with given fields: attachmentID
+func (_m *OpenStackMock) AttachmentDelete(ctx context.Context, attachmentID string) error {
+	ret := _m.Called(attachmentID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(attachmentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// AttachmentComplete provides a mock function with given fields: attachmentID
+func (_m *OpenStackMock) AttachmentComplete(ctx context.Context, attachmentID string) error {
+	ret := _m.Called(attachmentID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(attachmentID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }

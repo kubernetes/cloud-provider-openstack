@@ -5,6 +5,7 @@
     path: "{{ ansible_user_dir }}/certs"
 
 - name: Ensure cfssl is installed
+  become: true
   shell:
     executable: /bin/bash
     cmd: |

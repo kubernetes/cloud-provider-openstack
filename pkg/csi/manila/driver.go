@@ -29,6 +29,8 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/csiclient"
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/manilaclient"
@@ -72,10 +74,41 @@ type DriverOpts struct {
 	ServerCSIEndpoint string
 	FwdCSIEndpoint    string
 
+	NodeID string
+	NodeAZ string
+
 	ManilaClientBuilder manilaclient.Builder
 	CSIClientBuilder    csiclient.Builder
 
 	PVCLister v1.PersistentVolumeClaimLister
+}
+
+type staticMetadata struct {
+	nodeID string
+	nodeAZ string
+}
+
+func (m *staticMetadata) GetInstanceID() (string, error)       { return m.nodeID, nil }
+func (m *staticMetadata) GetAvailabilityZone() (string, error) { return m.nodeAZ, nil }
+
+type overrideMetadata struct {
+	nodeID   string
+	nodeAZ   string
+	fallback metadata.IMetadata
+}
+
+func (m *overrideMetadata) GetInstanceID() (string, error) {
+	if m.nodeID != "" {
+		return m.nodeID, nil
+	}
+	return m.fallback.GetInstanceID()
+}
+
+func (m *overrideMetadata) GetAvailabilityZone() (string, error) {
+	if m.nodeAZ != "" {
+		return m.nodeAZ, nil
+	}
+	return m.fallback.GetAvailabilityZone()
 }
 
 type nonBlockingGRPCServer struct {
@@ -174,8 +207,18 @@ func (d *Driver) SetupControllerService() error {
 	return nil
 }
 
-func (d *Driver) SetupNodeService(metadata metadata.IMetadata) error {
+func (d *Driver) SetupNodeService(nodeID, nodeAZ string, md metadata.IMetadata) error {
 	klog.Info("Providing node service")
+
+	var effectiveMD metadata.IMetadata
+	switch {
+	case nodeID != "" && nodeAZ != "":
+		effectiveMD = &staticMetadata{nodeID: nodeID, nodeAZ: nodeAZ}
+	case nodeID != "" || nodeAZ != "":
+		effectiveMD = &overrideMetadata{nodeID: nodeID, nodeAZ: nodeAZ, fallback: md}
+	default:
+		effectiveMD = md
+	}
 
 	var supportsNodeStage bool
 
@@ -196,7 +239,7 @@ func (d *Driver) SetupNodeService(metadata metadata.IMetadata) error {
 
 	d.ns = &nodeServer{
 		d:                 d,
-		metadata:          metadata,
+		metadata:          effectiveMD,
 		supportsNodeStage: supportsNodeStage,
 		nodeStageCache:    make(map[volumeID]stageCacheEntry),
 	}
@@ -274,8 +317,21 @@ func (d *Driver) initProxiedDriver() (csiNodeCapabilitySet, error) {
 
 	identityClient := d.csiClientBuilder.NewIdentityServiceClient(conn)
 
-	if err = identityClient.ProbeForever(ctx, conn, time.Second*5); err != nil {
-		return nil, fmt.Errorf("probe failed: %v", err)
+	for {
+		if err = identityClient.ProbeForever(ctx, conn, time.Second*5); err == nil {
+			break
+		}
+		if status.Code(err) != codes.Unavailable {
+			return nil, fmt.Errorf("probe failed: %v", err)
+		}
+		klog.Warningf("proxied CSI driver probe returned Unavailable for %s, retrying: %v", d.fwdEndpoint, err)
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+		}
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("timed out probing proxied CSI driver %s: %v", d.fwdEndpoint, err)
+		}
 	}
 
 	pluginInfo, err := identityClient.GetPluginInfo(ctx)

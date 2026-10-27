@@ -18,6 +18,7 @@ package cinder
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -43,8 +44,9 @@ import (
 )
 
 type controllerServer struct {
-	Driver *Driver
-	Clouds map[string]openstack.IOpenStack
+	Driver    *Driver
+	Clouds    map[string]openstack.IOpenStack
+	ConnProps ConnectorPropertiesGetter
 	csi.UnimplementedControllerServer
 }
 
@@ -85,7 +87,7 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	volSizeGB := int(util.RoundUpSize(volSizeBytes, 1024*1024*1024))
 
 	// Volume Type
-	volType := volParams["type"]
+	volType := volParams[openstack.VolumeType]
 
 	// Volume AZ
 
@@ -95,8 +97,8 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// First check if volAvailability is already specified, if not get preferred from Topology
 	// Required, in case vol AZ is different from node AZ
 	var volAvailability string
-	if volParams["availability"] != "" {
-		volAvailability = volParams["availability"]
+	if volParams[openstack.VolumeAvailabilityZone] != "" {
+		volAvailability = volParams[openstack.VolumeAvailabilityZone]
 	} else if cs.Driver.withTopology && accessibleTopologyReq != nil {
 		volAvailability = sharedcsi.GetAZFromTopology(topologyKey, accessibleTopologyReq)
 	}
@@ -120,7 +122,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 		klog.V(4).Infof("Volume %s already exists in Availability Zone: %s of size %d GiB", vols[0].ID, vols[0].AvailabilityZone, vols[0].Size)
 		accessibleTopology := getTopology(&vols[0], accessibleTopologyReq, cs.Driver.withTopology, ignoreVolumeAZ)
-		return getCreateVolumeResponse(&vols[0], nil, accessibleTopology), nil
+		existingVolCtx := map[string]string{}
+		if mkfsOptions := volParams["mkfs-options"]; mkfsOptions != "" {
+			existingVolCtx["mkfs-options"] = mkfsOptions
+		}
+		return getCreateVolumeResponse(&vols[0], existingVolCtx, accessibleTopology), nil
 	}
 
 	if len(vols) > 1 {
@@ -136,6 +142,12 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 			properties[mKey] = v
 		}
 	}
+	// Append metadata specified in parameters.appendVolumeMetadata
+	properties, err = appendVolumeMetadata(properties, volParams[openstack.VolumeAppendVolumeMetadata], "StorageClass", volName)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "append properties for volume %q: %v", volName, err)
+	}
+
 	content := req.GetVolumeContentSource()
 	var snapshotID string
 	var sourceVolID string
@@ -234,6 +246,11 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 		klog.V(4).Infof("CreateVolume: Resolved scheduler hints: affinity=%s, anti-affinity=%s", affinity, antiAffinity)
 	}
 
+	// Pass mkfsOptions to node via volume context
+	if mkfsOptions := volParams["mkfs-options"]; mkfsOptions != "" {
+		volCtx["mkfs-options"] = mkfsOptions
+	}
+
 	vol, err := cloud.CreateVolume(ctx, opts, schedulerHints)
 	if err != nil {
 		klog.Errorf("Failed to CreateVolume: %v", err)
@@ -328,6 +345,10 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Errorf(codes.FailedPrecondition, "[ControllerPublishVolume] Volume %s is not available for attach: %v", volumeID, err)
 	}
 
+	if cs.Driver.IsDirectMode() {
+		return cs.controllerPublishVolumeDirect(ctx, cloud, vol, volumeID, instanceID, volCloud)
+	}
+
 	// Check if the volume is already attached to this instance (idempotent).
 	// CSI spec requires that a repeated ControllerPublishVolume for the same
 	// volume+node returns 0 OK (see CSI v1.12 spec §ControllerPublishVolume).
@@ -352,6 +373,7 @@ func (cs *controllerServer) ControllerPublishVolume(ctx context.Context, req *cs
 		return nil, status.Errorf(codes.FailedPrecondition, "[ControllerPublishVolume] Volume %s is already attached to a different node and does not support multiattach", volumeID)
 	}
 
+	// Nova mode: attach via Nova.
 	_, err = cloud.GetInstanceByID(ctx, instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
@@ -446,6 +468,12 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 	if len(volumeID) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "[ControllerUnpublishVolume] Volume ID must be provided")
 	}
+
+	if cs.Driver.IsDirectMode() {
+		return cs.controllerUnpublishVolumeDirect(ctx, cloud, volumeID, instanceID)
+	}
+
+	// Nova mode: detach via Nova.
 	_, err := cloud.GetInstanceByID(ctx, instanceID)
 	if err != nil {
 		if cpoerrors.IsNotFound(err) {
@@ -477,6 +505,146 @@ func (cs *controllerServer) ControllerUnpublishVolume(ctx context.Context, req *
 
 	klog.V(4).Infof("ControllerUnpublishVolume %s on %s", volumeID, instanceID)
 
+	return &csi.ControllerUnpublishVolumeResponse{}, nil
+}
+
+// controllerPublishVolumeDirect attaches a volume using the Cinder
+// Attachment API instead of Nova.
+func (cs *controllerServer) controllerPublishVolumeDirect(ctx context.Context, cloud openstack.IOpenStack, vol *volumes.Volume, volumeID, instanceID, volCloud string) (*csi.ControllerPublishVolumeResponse, error) {
+	// Idempotency: if the volume already has an attachment for this
+	// node and is in-use, the previous ControllerPublishVolume
+	// succeeded and the volume is actively connected. Return the
+	// existing connection info instead of rebuilding the attachment.
+	for _, att := range vol.Attachments {
+		if att.ServerID == instanceID && vol.Status == openstack.VolumeInUseStatus {
+			connectionInfo, getErr := cloud.AttachmentGet(ctx, att.AttachmentID)
+			if getErr != nil {
+				klog.Warningf("[ControllerPublishVolume] volume %s has matching in-use attachment %s but AttachmentGet failed: %v , will recreate", volumeID, att.AttachmentID, getErr)
+				break
+			}
+			connectionInfoJSON, marshalErr := json.Marshal(connectionInfo)
+			if marshalErr != nil {
+				klog.Warningf("[ControllerPublishVolume] volume %s has matching in-use attachment %s but failed to marshal connection info: %v , will recreate", volumeID, att.AttachmentID, marshalErr)
+				break
+			}
+			klog.V(3).Infof("[ControllerPublishVolume] volume %s already attached to %s (attachment %s, status %s), returning existing connection info", volumeID, instanceID, att.AttachmentID, vol.Status)
+			return &csi.ControllerPublishVolumeResponse{
+				PublishContext: map[string]string{
+					"AttachmentID":   att.AttachmentID,
+					"ConnectionInfo": string(connectionInfoJSON),
+					"Cloud":          volCloud,
+				},
+			}, nil
+		}
+	}
+
+	// Clean up stale Cinder attachments for this volume.
+	// This can happen when a previous ControllerPublishVolume
+	// succeeded but NodeStageVolume failed, and the Kubernetes
+	// VolumeAttachment was recycled without
+	// ControllerUnpublishVolume completing successfully (e.g.
+	// controller pod restart).
+	//
+	// For multi-attach volumes we only remove attachments belonging
+	// to the current node; other nodes' attachments are legitimate
+	// and must not be disturbed. For single-attach (RWO) volumes
+	// any existing attachment is stale because only one consumer
+	// should exist.
+	for _, att := range vol.Attachments {
+		if vol.Multiattach && att.ServerID != instanceID {
+			klog.V(4).Infof("[ControllerPublishVolume] skipping attachment %s for volume %s (belongs to different node %s)", att.AttachmentID, volumeID, att.ServerID)
+			continue
+		}
+		klog.V(3).Infof("[ControllerPublishVolume] deleting stale attachment %s for volume %s (server %s)", att.AttachmentID, volumeID, att.ServerID)
+		if delErr := cloud.AttachmentDelete(ctx, att.AttachmentID); delErr != nil {
+			if !cpoerrors.IsNotFound(delErr) {
+				klog.Warningf("[ControllerPublishVolume] failed to delete stale attachment %s: %v", att.AttachmentID, delErr)
+			}
+		}
+	}
+
+	// Multiattach volumes legitimately stay "in-use" as long as any
+	// attachment exists, so a second node attaching must not wait for
+	// "available" — it would time out forever while the volume is
+	// attached elsewhere. Only require "available" for single-attach
+	// (RWO) volumes, where any existing attachment was already cleaned
+	// up above.
+	targetStatuses := []string{openstack.VolumeAvailableStatus}
+	if vol.Multiattach {
+		targetStatuses = append(targetStatuses, openstack.VolumeInUseStatus)
+	}
+	if !slices.Contains(targetStatuses, vol.Status) {
+		klog.V(3).Infof("[ControllerPublishVolume] volume %s status is %q, waiting for it to reach %v", volumeID, vol.Status, targetStatuses)
+		if waitErr := cloud.WaitVolumeTargetStatus(ctx, volumeID, targetStatuses); waitErr != nil {
+			return nil, status.Errorf(codes.FailedPrecondition, "[ControllerPublishVolume] volume %s is stuck in status %q and did not reach %v: %v", volumeID, vol.Status, targetStatuses, waitErr)
+		}
+	}
+
+	connProps, err := cs.ConnProps.GetConnectorProperties(ctx, instanceID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] failed to get connector properties for node %s: %v", instanceID, err)
+	}
+
+	attachmentID, connectionInfo, err := cloud.AttachmentCreate(ctx, volumeID, instanceID, connProps)
+	if err != nil {
+		klog.Errorf("Failed to AttachmentCreate: %v", err)
+		return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] AttachmentCreate failed for volume %s: %v", volumeID, err)
+	}
+
+	connectionInfoJSON, err := json.Marshal(connectionInfo)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "[ControllerPublishVolume] failed to marshal connection info: %v", err)
+	}
+
+	klog.V(4).Infof("ControllerPublishVolume %s on %s is successful (direct mode, attachment %s)", volumeID, instanceID, attachmentID)
+
+	return &csi.ControllerPublishVolumeResponse{
+		PublishContext: map[string]string{
+			"AttachmentID":   attachmentID,
+			"ConnectionInfo": string(connectionInfoJSON),
+			"Cloud":          volCloud,
+		},
+	}, nil
+}
+
+// controllerUnpublishVolumeDirect detaches a volume using the Cinder
+// Attachment API instead of Nova.
+func (cs *controllerServer) controllerUnpublishVolumeDirect(ctx context.Context, cloud openstack.IOpenStack, volumeID, instanceID string) (*csi.ControllerUnpublishVolumeResponse, error) {
+	vol, err := cloud.GetVolume(ctx, volumeID)
+	if err != nil {
+		if cpoerrors.IsNotFound(err) {
+			klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is detached, because it does not exist", volumeID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+		return nil, status.Errorf(codes.Internal, "[ControllerUnpublishVolume] GetVolume failed for volume %s: %v", volumeID, err)
+	}
+
+	var attachmentID string
+	for _, att := range vol.Attachments {
+		if att.ServerID == instanceID {
+			attachmentID = att.AttachmentID
+			break
+		}
+	}
+	if attachmentID == "" {
+		klog.V(3).Infof("ControllerUnpublishVolume assuming volume %s is already detached from %s (no matching attachment)", volumeID, instanceID)
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
+	}
+
+	if err := cloud.AttachmentDelete(ctx, attachmentID); err != nil {
+		if cpoerrors.IsNotFound(err) {
+			klog.V(3).Infof("ControllerUnpublishVolume assuming attachment %s is already deleted", attachmentID)
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
+		klog.Errorf("Failed to AttachmentDelete: %v", err)
+		return nil, status.Errorf(codes.Internal, "[ControllerUnpublishVolume] AttachmentDelete failed for attachment %s (volume %s): %v", attachmentID, volumeID, err)
+	}
+
+	if waitErr := cloud.WaitVolumeTargetStatus(ctx, volumeID, []string{openstack.VolumeAvailableStatus, openstack.VolumeInUseStatus}); waitErr != nil {
+		klog.Warningf("[ControllerUnpublishVolume] volume %s did not reach expected status after detach: %v", volumeID, waitErr)
+	}
+
+	klog.V(4).Infof("ControllerUnpublishVolume %s on %s (direct mode, attachment %s)", volumeID, instanceID, attachmentID)
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
@@ -635,9 +803,10 @@ func (cs *controllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		if len(backups) == 1 {
 			// since backup.VolumeID is not part of ListBackups response
 			// we need fetch single backup to get the full object.
-			backup, err = cloud.GetBackupByID(ctx, backups[0].ID)
+			backupID := backups[0].ID
+			backup, err = cloud.GetBackupByID(ctx, backupID)
 			if err != nil {
-				klog.Errorf("Failed to get backup by ID %s: %v", backup.ID, err)
+				klog.Errorf("Failed to get backup by ID %s: %v", backupID, err)
 				return nil, status.Error(codes.Internal, "Failed to get backup by ID")
 			}
 
@@ -783,6 +952,11 @@ func (cs *controllerServer) createSnapshot(ctx context.Context, cloud openstack.
 			properties[mKey] = v
 		}
 	}
+	// Append metadata specified in parameters.appendVolumeMetadata
+	properties, err = appendVolumeMetadata(properties, parameters[openstack.SnapshotAppendVolumeMetadata], "VolumeSnapshotClass", name)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "append properties for snapshot %q: %v", name, err)
+	}
 
 	// TODO: Delegate the check to openstack itself and ignore the conflict
 	snap, err = cloud.CreateSnapshot(ctx, name, volumeID, properties)
@@ -804,10 +978,15 @@ func (cs *controllerServer) createBackup(ctx context.Context, cloud openstack.IO
 	// Also, we don't want to tag every param but we still want to send the
 	// 'force-create' flag to openstack layer so that we will honor the
 	// force create functions
-	for _, mKey := range append(sharedcsi.RecognizedCSISnapshotterParams, openstack.SnapshotForceCreate, openstack.SnapshotType) {
+	for _, mKey := range append(sharedcsi.RecognizedCSISnapshotterParams, openstack.SnapshotForceCreate, openstack.SnapshotType, openstack.SnapshotIncremental) {
 		if v, ok := parameters[mKey]; ok {
 			properties[mKey] = v
 		}
+	}
+	// Append metadata specified in parameters.appendVolumeMetadata
+	properties, err := appendVolumeMetadata(properties, parameters[openstack.SnapshotAppendVolumeMetadata], "VolumeSnapshotClass", name)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "append properties for snapshot(backup) %q: %v", name, err)
 	}
 
 	backup, err := cloud.CreateBackup(ctx, name, volumeID, snap.ID, parameters[openstack.SnapshotAvailabilityZone], properties)
@@ -838,12 +1017,17 @@ func (cs *controllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 
 	// If volumeSnapshot object was linked to a cinder backup, delete the backup.
 	back, err := cloud.GetBackupByID(ctx, id)
-	if err == nil && back != nil {
+	if err != nil && !cpoerrors.IsNotFound(err) {
+		klog.Errorf("Failed to get backup %s: %v", id, err)
+		return nil, status.Errorf(codes.Internal, "GetBackupByID failed with error %v", err)
+	}
+	if back != nil {
 		err = cloud.DeleteBackup(ctx, id)
-		if err != nil {
+		if err != nil && !cpoerrors.IsNotFound(err) {
 			klog.Errorf("Failed to Delete backup: %v", err)
 			return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteBackup failed with error %v", err))
 		}
+		return &csi.DeleteSnapshotResponse{}, nil
 	}
 
 	// Delegate the check to openstack itself
@@ -1185,4 +1369,45 @@ func getCreateVolumeResponse(vol *volumes.Volume, volCtx map[string]string, acce
 	}
 
 	return resp
+}
+
+func appendVolumeMetadata(properties map[string]string, metadataStr, classType, name string) (_ map[string]string, retErr error) {
+	defer func() {
+		if retErr == nil {
+			klog.V(4).Infof("volume/snapshot/backup (%s) properties: %q", name, properties)
+		}
+	}()
+
+	if metadataStr == "" {
+		return properties, nil
+	}
+
+	metadata := map[string]string{}
+	if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
+		return nil, fmt.Errorf("invalid appendVolumeMetadata %q in %s parameters, must be a string of a valid JSON object consisting of key-value pairs of type string: %w", metadataStr, classType, err)
+	}
+
+	for k, v := range metadata {
+		// This aligns with the implementation of manila, which ignores reserved keys
+		// that are duplicated in appendVolumeMetadata except the cluster id.
+		// It allows admin to specify a custom cluster id for the volume/snapshot/backup
+		// but honors other recognized CSI params.
+		// Manila PRs:
+		//   https://github.com/kubernetes/cloud-provider-openstack/pull/1459
+		//   https://github.com/kubernetes/cloud-provider-openstack/pull/2023
+		if existingValue, ok := properties[k]; ok {
+			if k != cinderCSIClusterIDKey {
+				klog.Warningf("ignore metadata key %q from appendVolumeMetadata because it already exists with value %q", k, existingValue)
+				continue
+			}
+
+			if existingValue != v {
+				klog.Warningf("override cluster ID %q with %q from appendVolumeMetadata", existingValue, v)
+			}
+		}
+
+		properties[k] = v
+	}
+
+	return properties, nil
 }

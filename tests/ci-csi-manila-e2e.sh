@@ -41,24 +41,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Install Ansible from Trixie (Debian Testing) to allow us to talk to a host
-# running Python 3.12 like Ubuntu 24.04
-#
-# https://woju.eu/blog/2025/03/ansible-bookworm/
-cat << EOF > /etc/apt/sources.list.d/trixie.list
-deb https://deb.debian.org/debian trixie main
-EOF
-
-cat << EOF > /etc/apt/preferences.d/ansible.pref
-Package: *
-Pin: release n=trixie
-Pin-Priority: -10
-
-Package: ansible* python3-netaddr
-Pin: release n=trixie
-Pin-Priority: 990
-EOF
-
 apt-get update
 apt-get install -y python3-requests ansible
 
@@ -116,7 +98,7 @@ fi
 # Upload CPO code
 scp -i ~/.ssh/google_compute_engine \
   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-  -r ${GOPATH}/* ${USERNAME}@${PUBLIC_IP}:/root/
+  -r ${GOPATH}/* ${USERNAME}@${PUBLIC_IP}:~/
 
 # Run ansible playbook on the CI host, e.g. a VM in GCP
 # USERNAME and PUBLIC_IP are global env variables set after creating the CI host.
@@ -125,7 +107,8 @@ ansible-playbook -v \
   --private-key ~/.ssh/google_compute_engine \
   --inventory ${PUBLIC_IP}, \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
-  tests/playbooks/test-csi-manila-e2e.yaml
+  tests/playbooks/test-csi-manila-e2e.yaml \
+  -e run_e2e=true
 exit_code=$?
 
 # Fetch logs for debugging purpose
@@ -143,7 +126,7 @@ ansible-playbook -v \
 # Fetch manila-csi tests results
 scp -i ~/.ssh/google_compute_engine \
   -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
-  -r ${USERNAME}@${PUBLIC_IP}:/var/log/csi-pod/* $ARTIFACTS/logs/ || true
+  -r ${USERNAME}@${PUBLIC_IP}:~/csi-pod/* $ARTIFACTS/logs/ || true
 
 # If Boskos is being used then release the resource back to Boskos.
 [ -z "${BOSKOS_HOST:-}" ] || python3 tests/scripts/boskos.py --release >> "$ARTIFACTS/logs/boskos.log" 2>&1
