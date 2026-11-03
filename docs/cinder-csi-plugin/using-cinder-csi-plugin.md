@@ -70,6 +70,17 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
   The manifests default this to `unix://csi/csi.sock`, which is supplied via the `CSI_ENDPOINT` environment variable.
   </dd>
 
+  <dt>--attach-mode &lt;mode&gt;</dt>
+  <dd>
+  This argument is optional.
+
+  Selects the volume attachment mode.
+
+  When set to `nova`, it uses Nova to attach and detach volumes (default).
+
+  When set to `direct`, it uses the Cinder Attachment API and an os-brick sidecar to attach volumes directly, typically for bare-metal nodes. When using direct mode, deploy the direct-attach node plugin manifest (`manifests/cinder-csi-plugin/cinder-csi-nodeplugin-direct.yaml`) instead of the standard node plugin manifest.
+  </dd>
+
   <dt>--with-topology &lt;enabled&gt;</dt>
   <dd>
   If set to true then the CSI driver reports topology information and the controller respects it.
@@ -256,9 +267,9 @@ secret:
 ```
 
 
-To install the chart, use the following command:
+Using Helm v3, use the following command to install the chart:
 ```
-helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugin
+helm install cinder-csi --namespace kube-system ./charts/cinder-csi-plugin
 ```
 
 ## Supported Features
@@ -269,7 +280,7 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 * [Volume Expansion](./features.md#volume-expansion)
 * [Volume Cloning](./features.md#volume-cloning)
 * [Volume Snapshots](./features.md#volume-snapshots)
-* [Ephemeral Volumes](./features.md#inline-volumes)
+* [Ephemeral Volumes](./features.md#ephemeral-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
 * [Liveness probe](./features.md#liveness-probe)
 
