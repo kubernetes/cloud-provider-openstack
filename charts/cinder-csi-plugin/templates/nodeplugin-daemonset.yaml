@@ -1,3 +1,4 @@
+{{- if or (not .Values.splitMode.enabled) (eq .Values.splitMode.type "workload") }}
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
@@ -20,7 +21,7 @@ spec:
       annotations:
         {{- include "cinder-csi.nodeplugin.podAnnotations" . | nindent 8 }}
     spec:
-      serviceAccount: csi-cinder-node-sa
+      serviceAccountName: csi-cinder-node-sa
       # Host network access is usually necessary if using metadata service,
       # since not all CNIs support link-local addresses, or if the OpenStack
       # control plane is on a management network that is not advertised to pods
@@ -139,7 +140,7 @@ spec:
             - name: CSI_ENDPOINT
               value: unix://csi/csi.sock
             - name: CLOUD_CONFIG
-              value: /etc/config/{{ .Values.secret.filename }}
+              value: {{ .Values.secret.path }}/{{ .Values.secret.filename }}
             {{- if .Values.csi.plugin.extraEnv }}
               {{- toYaml .Values.csi.plugin.extraEnv | nindent 12 }}
             {{- end }}
@@ -165,7 +166,12 @@ spec:
             - name: pods-probe-dir
               mountPath: /dev
               mountPropagation: "HostToContainer"
-          {{- with .Values.csi.plugin.volumeMounts }}
+          {{- if or .Values.secret.enabled .Values.secret.hostMount }}
+            - name: cloud-config
+              mountPath: {{ .Values.secret.path }}
+              readOnly: true
+          {{- end }}
+          {{- with .Values.splitMode.enabled | ternary .Values.splitMode.volumeMounts .Values.csi.plugin.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- if .Values.csi.osbrickSidecar.enabled }}
@@ -203,7 +209,7 @@ spec:
           hostPath:
             path: /etc/config
         {{- end }}
-        {{- with .Values.csi.plugin.volumes }}
+        {{- with .Values.splitMode.enabled | ternary .Values.splitMode.volumes .Values.csi.plugin.volumes }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- if .Values.csi.osbrickSidecar.enabled }}
@@ -248,3 +254,4 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+{{- end }}

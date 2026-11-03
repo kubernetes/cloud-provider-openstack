@@ -1,0 +1,3 @@
+secret:
+  enabled: false
+  hostMount: true
