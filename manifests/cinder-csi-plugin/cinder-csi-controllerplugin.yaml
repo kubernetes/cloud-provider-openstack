@@ -16,11 +16,13 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: csi-cinder-controllerplugin
+      app.kubernetes.io/name: openstack-cinder-csi
+      app.kubernetes.io/component: controllerplugin
   template:
     metadata:
       labels:
-        app: csi-cinder-controllerplugin
+        app.kubernetes.io/name: openstack-cinder-csi
+        app.kubernetes.io/component: controllerplugin
     spec:
       serviceAccount: csi-cinder-controller-sa
       containers:
