@@ -1766,13 +1766,19 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		}
 
 		// Here we test for a clusterName that could have had changed in the deployment.
+		// Renaming a shared LB that another cluster created would break that cluster.
 		if lbHasOldClusterName(loadbalancer, clusterName) {
-			msg := "Loadbalancer %s has a name of %s with incorrect cluster-name component. Renaming it to %s."
-			klog.Infof(msg, loadbalancer.ID, loadbalancer.Name, lbName)
-			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBRename, msg, loadbalancer.ID, loadbalancer.Name, lbName)
-			loadbalancer, err = renameLoadBalancer(ctx, lbaas.lb, loadbalancer, lbName, clusterName)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update load balancer %s with an updated name: %w", svcConf.lbID, err)
+			if canRenameLB(loadbalancer, service, lbaas.opts.EnableLBRename) {
+				msg := "Loadbalancer %s has a name of %s with incorrect cluster-name component. Renaming it to %s."
+				klog.Infof(msg, loadbalancer.ID, loadbalancer.Name, lbName)
+				lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBRename, msg, loadbalancer.ID, loadbalancer.Name, lbName)
+				loadbalancer, err = renameLoadBalancer(ctx, lbaas.lb, loadbalancer, lbName, clusterName)
+				if err != nil {
+					return nil, fmt.Errorf("failed to update load balancer %s with an updated name: %w", svcConf.lbID, err)
+				}
+			} else {
+				klog.V(4).InfoS("Not renaming load balancer with a stale cluster-name component",
+					"lbID", loadbalancer.ID, "lbName", loadbalancer.Name, "service", klog.KObj(service))
 			}
 		}
 

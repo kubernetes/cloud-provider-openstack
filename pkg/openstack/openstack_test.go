@@ -133,6 +133,9 @@ func TestReadConfig(t *testing.T) {
 	if !cfg.LoadBalancer.CreateMonitor {
 		t.Errorf("incorrect lb.create-monitor: %t", cfg.LoadBalancer.CreateMonitor)
 	}
+	if !cfg.LoadBalancer.EnableLBRename {
+		t.Errorf("incorrect lb.enable-lb-rename default: %t", cfg.LoadBalancer.EnableLBRename)
+	}
 	if cfg.LoadBalancer.MonitorDelay.Duration != 1*time.Minute {
 		t.Errorf("incorrect lb.monitor-delay: %s", cfg.LoadBalancer.MonitorDelay)
 	}

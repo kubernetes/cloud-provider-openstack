@@ -320,6 +320,12 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 * `max-shared-lb`
   The maximum number of Services that share a load balancer. Default: 2
 
+* `enable-lb-rename`
+  When the cluster-name changes, OCCM renames the load balancers it created, along with their
+  listeners, pools, health monitors and tags. A shared load balancer from another cluster is left
+  alone unless the Service there has the same namespace and name. Set this to false to turn renaming
+  off when sharing load balancers across clusters. Default: true
+
 * `provider-requires-serial-api-calls`
   Some Octavia providers do not support creating fully-populated loadbalancers using a single [API
   call](https://docs.openstack.org/api-ref/load-balancer/v2/?expanded=create-a-load-balancer-detail#creating-a-fully-populated-load-balancer).
