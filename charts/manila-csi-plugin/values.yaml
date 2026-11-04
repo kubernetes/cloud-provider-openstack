@@ -4,6 +4,15 @@ fullNameOverride: ""
 # Base name of the CSI Manila driver
 driverName: manila.csi.openstack.org
 
+# Base directory of kubelet's on-node state. Only the plugin/registration
+# paths this chart itself creates (csi.sock, plugin registration dir,
+# mounted pods dir) are derived from this value - shareProtocols[].
+# fwdNodePluginEndpoint.dir below is independent and defaults to a path
+# under the same directory, so update both together if you override this on
+# a distribution that relocates kubelet's data dir (e.g. k0s defaults to
+# /var/lib/k0s/kubelet instead of /var/lib/kubelet).
+kubeletDir: /var/lib/kubelet
+
 # Enabled Manila share protocols
 shareProtocols:
   - protocolSelector: NFS
