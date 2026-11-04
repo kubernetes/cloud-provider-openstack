@@ -29,6 +29,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/monitors"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/pools"
+	corev1 "k8s.io/api/core/v1"
 	openstackutil "k8s.io/cloud-provider-openstack/pkg/util/openstack"
 )
 
@@ -43,6 +44,17 @@ func lbHasOldClusterName(loadbalancer *loadbalancers.LoadBalancer, clusterName s
 	existingClusterName := getClusterName("", loadbalancer.Name)
 
 	return existingClusterName != clusterName
+}
+
+// canRenameLB returns true when renaming is enabled and the LB name is exactly the name this Service would get
+// under the LB's old cluster-name. That is the only ownership proof Octavia data gives us. A shared LB from another
+// cluster whose Service has the same namespace and name looks identical, which is why renaming can be disabled.
+func canRenameLB(loadbalancer *loadbalancers.LoadBalancer, service *corev1.Service, enableRename bool) bool {
+	oldClusterName := getClusterName("", loadbalancer.Name)
+	if !enableRename || oldClusterName == "" {
+		return false
+	}
+	return loadbalancer.Name == util.Sprintf255(lbFormat, servicePrefix, oldClusterName, service.Namespace, service.Name)
 }
 
 // decomposeLBName returns clusterName based on object name
