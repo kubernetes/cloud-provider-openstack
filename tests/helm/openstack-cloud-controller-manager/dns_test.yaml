@@ -1,0 +1,46 @@
+suite: OCCM DNS
+templates:
+  - templates/daemonset.yaml
+
+tests:
+  - it: defaults to ClusterFirst with host networking for bootstrap
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirst
+      - contains:
+          path: spec.template.spec.tolerations
+          content:
+            key: node.cloudprovider.kubernetes.io/uninitialized
+            value: "true"
+            effect: NoSchedule
+
+  - it: allows cluster DNS with host networking
+    set:
+      dnsPolicy: ClusterFirstWithHostNet
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
+  - it: keeps ClusterFirst by default when the service controller uses pod networking
+    set:
+      hostNetwork: false
+      enabledControllers:
+        - service
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: false
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirst
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --controllers=service
