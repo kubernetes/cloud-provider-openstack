@@ -2178,7 +2178,9 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		return err
 	}
 	if loadbalancer == nil {
-		return nil
+		// The load balancer may already be gone, for example because a previous attempt deleted it and then
+		// failed. Still clean up the Service's security group, which is named after the Service, not the LB.
+		return lbaas.ensureSecurityGroupDeleted(ctx, service)
 	}
 
 	if loadbalancer.ProvisioningStatus != activeStatus && loadbalancer.ProvisioningStatus != errorStatus {
