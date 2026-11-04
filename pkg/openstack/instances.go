@@ -171,8 +171,18 @@ func instanceLookupError(err error) error {
 
 func (i *InstancesV2) getInstance(ctx context.Context, node *v1.Node) (*servers.Server, error) {
 	if node.Spec.ProviderID == "" {
+		// First try to fetch the server using node system information.
+		// Fallback to fetch by name if it doesn't work.
+		if uuid := node.Status.NodeInfo.SystemUUID; uuid != "" {
+			server, err := getServerByUUID(ctx, i.compute, uuid)
+			if err == nil {
+				return server, nil
+			}
+			klog.V(4).Info("fetching instance by its system UUID did not work, trying by name")
+		}
 		server, err := getServerByName(ctx, i.compute, node.Name)
 		if err != nil {
+			klog.Errorf("unable to find server: %v", err)
 			return nil, instanceLookupError(err)
 		}
 		return server, nil
@@ -225,6 +235,14 @@ func getServerByName(ctx context.Context, client *gophercloud.ServiceClient, nam
 	}
 
 	return &serverList[0], nil
+}
+
+func getServerByUUID(ctx context.Context, client *gophercloud.ServiceClient, uuid string) (*servers.Server, error) {
+	server, err := servers.Get(ctx, client, uuid).Extract()
+	if err != nil {
+		return nil, err
+	}
+	return server, nil
 }
 
 // If Instances.InstanceID or cloudprovider.GetInstanceProviderID is changed, the regexp should be changed too.
