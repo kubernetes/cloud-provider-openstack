@@ -1307,12 +1307,14 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 
 func Test_getSecurityGroupName(t *testing.T) {
 	tests := []struct {
-		name     string
-		service  *corev1.Service
-		expected string
+		name        string
+		clusterName string
+		service     *corev1.Service
+		expected    string
 	}{
 		{
-			name: "regular test security group name and length",
+			name:        "regular test security group name with cluster name",
+			clusterName: "my-cluster",
 			service: &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{
 					UID:       "12345",
@@ -1320,10 +1322,11 @@ func Test_getSecurityGroupName(t *testing.T) {
 					Name:      "security-group-name",
 				},
 			},
-			expected: "lb-sg-12345-security-group-namespace-security-group-name",
+			expected: "lb-sg-my-cluster-12345-security-group-namespace-security-group-name",
 		},
 		{
-			name: "security group name longer than 255 byte",
+			name:        "security group name longer than 255 byte",
+			clusterName: "my-cluster",
 			service: &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{
 					UID:       "12345678-90ab-cdef-0123-456789abcdef",
@@ -1331,21 +1334,87 @@ func Test_getSecurityGroupName(t *testing.T) {
 					Name:      "security-group-longer-test-service-name-with-more-than-255-byte-this-test-should-be-longer-than-255-i-need-that-ijiojohoo-afhwefkbfk-jwebfwbifwbewifobiu-efbiobfoiqwebi-the-end-e-end-pardon-the-long-string-i-really-apologize-if-this-is-a-bad-thing-to-do",
 				},
 			},
-			expected: "lb-sg-12345678-90ab-cdef-0123-456789abcdef-security-group-longer-test-namespace-security-group-longer-test-service-name-with-more-than-255-byte-this-test-should-be-longer-than-255-i-need-that-ijiojohoo-afhwefkbfk-jwebfwbifwbewifobiu-efbiobfoiqwebi-the-end",
+			expected: "lb-sg-my-cluster-12345678-90ab-cdef-0123-456789abcdef-security-group-longer-test-namespace-security-group-longer-test-service-name-with-more-than-255-byte-this-test-should-be-longer-than-255-i-need-that-ijiojohoo-afhwefkbfk-jwebfwbifwbewifobiu-efbiobfoiqw",
 		},
 		{
-			name: "test the security group name with all empty param",
+			name:        "test the security group name with all empty param",
+			clusterName: "",
 			service: &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{},
 			},
-			expected: "lb-sg---",
+			expected: "lb-sg----",
+		},
+		{
+			name:        "test the security group name with empty cluster name",
+			clusterName: "",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					UID:       "12345",
+					Namespace: "ns",
+					Name:      "svc",
+				},
+			},
+			expected: "lb-sg--12345-ns-svc",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := getSecurityGroupName(test.service)
+			got := getSecurityGroupName(test.clusterName, test.service)
 
+			assert.Equal(t, test.expected, got)
+		})
+	}
+}
+
+func Test_getSecurityGroupLegacyName(t *testing.T) {
+	tests := []struct {
+		name     string
+		service  *corev1.Service
+		expected string
+	}{
+		{
+			name: "legacy name format without cluster name",
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					UID:       "12345",
+					Namespace: "ns",
+					Name:      "svc",
+				},
+			},
+			expected: "lb-sg-12345-ns-svc",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := getSecurityGroupLegacyName(test.service)
+			assert.Equal(t, test.expected, got)
+		})
+	}
+}
+
+func Test_getSecurityGroupTag(t *testing.T) {
+	tests := []struct {
+		name        string
+		clusterName string
+		expected    string
+	}{
+		{
+			name:        "regular cluster name",
+			clusterName: "my-cluster",
+			expected:    "kube_service_my-cluster",
+		},
+		{
+			name:        "empty cluster name",
+			clusterName: "",
+			expected:    "kube_service_",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := getSecurityGroupTag(test.clusterName)
 			assert.Equal(t, test.expected, got)
 		})
 	}

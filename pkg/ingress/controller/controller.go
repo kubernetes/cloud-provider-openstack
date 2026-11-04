@@ -735,7 +735,7 @@ func (c *Controller) ensureIngress(ctx context.Context, ing *nwv1.Ingress) error
 		logger.Info("ensuring security group")
 
 		sgDescription := fmt.Sprintf("Security group created for Ingress %s from cluster %s", ingfullName, clusterName)
-		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ingNamespace, ingName)}
+		sgTags := []string{IngressControllerTag, fmt.Sprintf("%s_%s", ingNamespace, ingName), fmt.Sprintf("kube_ingress_%s", clusterName)}
 		sgID, err = c.osClient.EnsureSecurityGroup(ctx, false, resName, sgDescription, sgTags)
 		if err != nil {
 			return fmt.Errorf("failed to prepare the security group for the ingress %s: %v", ingfullName, err)
