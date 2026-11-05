@@ -3,10 +3,11 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/ptr"
 	"reflect"
 	"sort"
 	"testing"
+
+	"k8s.io/utils/ptr"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
@@ -1295,12 +1296,40 @@ func Test_buildPoolCreateOpt(t *testing.T) {
 				LBMethod: "ROUND_ROBIN",
 			},
 		},
+		{
+			name: "test for pool with TLS enabled",
+			args: args{
+				protocol: "TCP",
+				svcConf: &serviceConfig{
+					poolEnableTLS:         true,
+					poolTLSContainerRef:   "pool-tls-container-ref",
+					poolCATLSContainerRef: "pool-ca-tls-container-ref",
+				},
+				lbaasV2: &LbaasV2{
+					LoadBalancer{
+						opts: LoadBalancerOpts{
+							LBProvider: "amphora",
+							LBMethod:   "ROUND_ROBIN",
+						},
+					},
+				},
+				service: &corev1.Service{},
+			},
+			want: pools.CreateOpts{
+				Name:              "test for pool with TLS enabled",
+				Protocol:          pools.ProtocolTCP,
+				LBMethod:          "ROUND_ROBIN",
+				TLSEnabled:        true,
+				TLSContainerRef:   "pool-tls-container-ref",
+				CATLSContainerRef: "pool-ca-tls-container-ref",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.args.lbaasV2.buildPoolCreateOpt(tt.args.protocol, tt.args.service, tt.args.svcConf, tt.name)
-			assert.Equal(t, got, tt.want)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

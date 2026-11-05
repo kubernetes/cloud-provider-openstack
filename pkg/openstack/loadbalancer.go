@@ -94,6 +94,12 @@ const (
 	ServiceAnnotationLoadBalancerAddress               = "loadbalancer.openstack.org/load-balancer-address"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
+	// Enables backend member re-encryption for the load balancer pool.
+	ServiceAnnotationPoolEnableTls = "loadbalancer.openstack.org/pool-enable-tls"
+	// Reference to a key manager secret containing the PKCS #12 certificate and key bundle used to re-encrypt traffic to TLS-enabled pool members.
+	ServiceAnnotationPoolTlsContainerRef = "loadbalancer.openstack.org/pool-tls-container-ref"
+	// Reference to a key manager secret containing the CA certificate bundle used to validate certificates presented by TLS-enabled pool members.
+	ServiceAnnotationPoolCaTlsContainerRef = "loadbalancer.openstack.org/pool-ca-tls-container-ref"
 	// revive:enable:var-naming
 	// See https://nip.io
 	defaultProxyHostnameSuffix      = "nip.io"
@@ -159,6 +165,9 @@ type serviceConfig struct {
 	lbTags                      string
 	listenerTags                string
 	poolTags                    string
+	poolEnableTLS               bool
+	poolTLSContainerRef         string
+	poolCATLSContainerRef       string
 }
 
 type listenerKey struct {
@@ -973,8 +982,29 @@ func (lbaas *LbaasV2) ensureOctaviaPool(ctx context.Context, lbID string, name s
 				updateOpts.Tags = &tags
 			}
 		}
+		if pool.TLSEnabled != svcConf.poolEnableTLS {
+			updateOpts.TLSEnabled = new(svcConf.poolEnableTLS)
+		}
+
+		if !svcConf.poolEnableTLS {
+			if pool.TLSContainerRef != "" {
+				updateOpts.TLSContainerRef = new("")
+			}
+
+			if pool.CATLSContainerRef != "" {
+				updateOpts.CATLSContainerRef = new("")
+			}
+		} else {
+			if pool.TLSContainerRef != svcConf.poolTLSContainerRef {
+				updateOpts.TLSContainerRef = new(svcConf.poolTLSContainerRef)
+			}
+			if pool.CATLSContainerRef != svcConf.poolCATLSContainerRef {
+				updateOpts.CATLSContainerRef = new(svcConf.poolCATLSContainerRef)
+			}
+		}
+
 		if updateOpts != (v2pools.UpdateOpts{}) {
-			klog.InfoS("Updating pool", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "lbMethod", updateOpts.LBMethod, "tags", updateOpts.Tags)
+			klog.InfoS("Updating pool", "poolID", pool.ID, "listenerID", listener.ID, "lbID", lbID, "updateOpts", updateOpts)
 			err = openstackutil.UpdatePool(ctx, lbaas.lb, lbID, pool.ID, updateOpts)
 			if err != nil {
 				err = PreserveGopherError(err)
@@ -1068,12 +1098,20 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 		lbMethod = v2pools.LBMethod(lbaas.opts.LBMethod)
 	}
 
-	return v2pools.CreateOpts{
+	opts := v2pools.CreateOpts{
 		Name:        name,
 		Protocol:    poolProto,
 		LBMethod:    lbMethod,
 		Persistence: persistence,
 	}
+
+	if svcConf.poolEnableTLS {
+		opts.TLSEnabled = true
+		opts.TLSContainerRef = svcConf.poolTLSContainerRef
+		opts.CATLSContainerRef = svcConf.poolCATLSContainerRef
+	}
+
+	return opts
 }
 
 // buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
@@ -1405,7 +1443,12 @@ func (lbaas *LbaasV2) checkServiceUpdate(ctx context.Context, service *corev1.Se
 			}
 		}
 	}
-	return lbaas.makeSvcConf(ctx, serviceName, service, svcConf)
+
+	if err := lbaas.makeSvcConf(ctx, serviceName, service, svcConf); err != nil {
+		return err
+	}
+
+	return lbaas.validateSecretRefs(ctx, serviceName, svcConf)
 }
 
 func (lbaas *LbaasV2) checkServiceDelete(ctx context.Context, service *corev1.Service, svcConf *serviceConfig) error {
@@ -1445,41 +1488,6 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 		svcConf.internal = true
 	} else {
 		svcConf.internal = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerInternal, lbaas.opts.InternalLB)
-	}
-
-	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
-	if svcConf.tlsContainerRef != "" {
-		if lbaas.secret == nil {
-			return fmt.Errorf("failed to create a TLS Terminated loadbalancer because openstack keymanager client is not "+
-				"initialized and default-tls-container-ref %q is set", svcConf.tlsContainerRef)
-		}
-
-		// check if container or secret exists for 'barbican' container store
-		// tls container ref has the format: https://{keymanager_host}/v1/containers/{uuid} or https://{keymanager_host}/v1/secrets/{uuid}
-		if lbaas.opts.ContainerStore == "barbican" {
-			slice := strings.Split(svcConf.tlsContainerRef, "/")
-			if len(slice) < 2 {
-				return fmt.Errorf("invalid tlsContainerRef for service %s", serviceName)
-			}
-			barbicanUUID := slice[len(slice)-1]
-			barbicanType := slice[len(slice)-2]
-			switch barbicanType {
-			case "containers":
-				container, err := containers.Get(ctx, lbaas.secret, barbicanUUID).Extract()
-				if err != nil {
-					return fmt.Errorf("failed to get tls container %q: %v", svcConf.tlsContainerRef, err)
-				}
-				klog.V(4).Infof("Default TLS container %q found", container.ContainerRef)
-			case "secrets":
-				secret, err := secrets.Get(ctx, lbaas.secret, barbicanUUID).Extract()
-				if err != nil {
-					return fmt.Errorf("failed to get tls secret %q: %v", svcConf.tlsContainerRef, err)
-				}
-				klog.V(4).Infof("Default TLS secret %q found", secret.SecretRef)
-			default:
-				return fmt.Errorf("failed to validate tlsContainerRef for service %s: tlsContainerRef type %s unknown", serviceName, barbicanType)
-			}
-		}
 	}
 
 	lbNetworkID, err := lbaas.getNetworkID(service, svcConf)
@@ -1600,7 +1608,12 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 	} else {
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
-	return lbaas.makeSvcConf(ctx, serviceName, service, svcConf)
+
+	if err := lbaas.makeSvcConf(ctx, serviceName, service, svcConf); err != nil {
+		return err
+	}
+
+	return lbaas.validateSecretRefs(ctx, serviceName, svcConf)
 }
 
 func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
@@ -1676,6 +1689,19 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	svcConf.healthMonitorTimeout = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorTimeout, int(lbaas.opts.MonitorTimeout.Seconds()))
 	svcConf.healthMonitorMaxRetries = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetries, int(lbaas.opts.MonitorMaxRetries))
 	svcConf.healthMonitorMaxRetriesDown = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerHealthMonitorMaxRetriesDown, int(lbaas.opts.MonitorMaxRetriesDown))
+
+	svcConf.poolEnableTLS = getBoolFromServiceAnnotation(service, ServiceAnnotationPoolEnableTls, false)
+	if svcConf.poolEnableTLS {
+		if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeaturePoolEnableTLS, lbaas.opts.LBProvider) {
+			svcConf.poolTLSContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationPoolTlsContainerRef, "")
+			svcConf.poolCATLSContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationPoolCaTlsContainerRef, "")
+		} else {
+			svcConf.poolEnableTLS = false
+			msg := "LoadBalancer pool TLS is not supported. Use the Amphora provider and Octavia API version 2.8 or later for Service %s"
+			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBPoolEnableTLSIgnored, msg, serviceName)
+			klog.Warningf(msg, serviceName)
+		}
+	}
 	return nil
 }
 
@@ -2250,6 +2276,67 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 	// orphan created SGs even if CPO got reconfigured.
 	if err := lbaas.ensureSecurityGroupDeleted(ctx, service); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (lbaas *LbaasV2) validateSecretRefs(ctx context.Context, serviceName string, svcConf *serviceConfig) error {
+	validate := func(ctx context.Context, ref string, acceptedTypes []string) error {
+		if lbaas.secret == nil {
+			return fmt.Errorf("failed to configure TLS because the OpenStack key manager client is not "+
+				"initialized and tls ref %q is set", ref)
+		}
+
+		// Listener TLS references support a PKCS #12 key manager secret and the
+		// deprecated Barbican certificate-container format. Pool TLS references
+		// use key manager secrets. See the Octavia API reference:
+		// https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-listener-detail
+		// https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-pool-detail
+		if lbaas.opts.ContainerStore == "barbican" {
+			slice := strings.Split(ref, "/")
+			if len(slice) < 2 {
+				return fmt.Errorf("invalid TLS reference %q for service %s", ref, serviceName)
+			}
+			barbicanUUID := slice[len(slice)-1]
+			barbicanType := slice[len(slice)-2]
+			if !slices.Contains(acceptedTypes, barbicanType) {
+				return fmt.Errorf("invalid TLS reference for service %s: expected reference type %s, got %s", serviceName, strings.Join(acceptedTypes, " or "), barbicanType)
+			}
+			switch barbicanType {
+			case "containers":
+				container, err := containers.Get(ctx, lbaas.secret, barbicanUUID).Extract()
+				if err != nil {
+					return fmt.Errorf("failed to get TLS container %q: %v", ref, err)
+				}
+				klog.V(4).Infof("TLS container %q found", container.ContainerRef)
+			case "secrets":
+				secret, err := secrets.Get(ctx, lbaas.secret, barbicanUUID).Extract()
+				if err != nil {
+					return fmt.Errorf("failed to get TLS secret %q: %v", ref, err)
+				}
+				klog.V(4).Infof("TLS secret %q found", secret.SecretRef)
+			default:
+				return fmt.Errorf("unknown TLS container reference type %q for service %s", barbicanType, serviceName)
+			}
+		}
+
+		return nil
+	}
+
+	if svcConf.tlsContainerRef != "" {
+		if err := validate(ctx, svcConf.tlsContainerRef, []string{"containers", "secrets"}); err != nil {
+			return err
+		}
+	}
+	if svcConf.poolEnableTLS {
+		for _, ref := range []string{svcConf.poolTLSContainerRef, svcConf.poolCATLSContainerRef} {
+			if ref != "" {
+				if err := validate(ctx, ref, []string{"secrets"}); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
