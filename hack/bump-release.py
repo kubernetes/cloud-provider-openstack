@@ -366,7 +366,7 @@ def changed_files(merge_base: str) -> list[str]:
     return git("diff", "--name-only", merge_base, "HEAD").splitlines()
 
 
-def release_stable_full(base_branch: str) -> None:
+def release_stable_full(base_branch: str, *, force: bool = False) -> None:
     """Full CPO release: bump appVersion, chart versions, and image references."""
     app_version = read_app_version()
 
@@ -379,11 +379,16 @@ def release_stable_full(base_branch: str) -> None:
     app_x, app_y = int(m_app.group("x")), int(m_app.group("y"))
     new_app_version = f"v{m_app.group('major')}.{app_x}.{app_y + 1}"
 
+    if force:
+        reason = "Release forced (automatic change detection bypassed)."
+    else:
+        reason = "Changes to CPO code detected."
+
     console.print(
         f"[dim]Detected base branch:[/dim] [bold]{base_branch}[/bold]"
     )
     console.print(
-        f"[dim]Changes to CPO code detected. Continuing will release a new CPO patch version "
+        f"[dim]{reason}. Continuing will release a new CPO patch version "
         f"([bold]{new_app_version}[/bold]) and bump all Helm chart versions.[/dim]"
     )
     console.print()
@@ -475,7 +480,7 @@ def release_stable_chart_only(base_branch: str, affected: list[Path]) -> None:
         update_chart(path, app_version, new_version)
 
 
-def release_stable(base_branch: str) -> None:
+def release_stable(base_branch: str, *, force: bool = False) -> None:
     last_cpo_tag = find_last_cpo_tag()
     app_version = read_app_version()
 
@@ -496,7 +501,7 @@ def release_stable(base_branch: str) -> None:
     )
 
     if has_code_changes:
-        release_stable_full(base_branch)
+        release_stable_full(base_branch, force=force)
         return
 
     # Chart changes are measured against each chart's own last tag so that
@@ -517,12 +522,20 @@ def release_stable(base_branch: str) -> None:
         ):
             affected.append(chart_path)
 
-    if not affected:
+    if not affected and not force:
         print(
             f"No changes to CPO code or charts detected since {last_cpo_tag}. "
             "Nothing to release."
         )
         sys.exit(0)
+
+    if force and not has_code_changes:
+        console.print(
+            "[yellow]Warning:[/yellow] --force was specified. "
+            "Bypassing automatic change detection."
+        )
+        release_stable_full(base_branch, force=True)
+        return
 
     release_stable_chart_only(base_branch, affected)
 
@@ -541,6 +554,13 @@ def main() -> None:
         choices=["pre-release", "post-release"],
         help="Override the auto-detected task on master (pre-release or post-release).",
     )
+
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="On a stable branch, bypass change detection and run a full CPO patch release.",
+    )
+
     args = parser.parse_args()
     task = args.task
 
@@ -555,7 +575,7 @@ def main() -> None:
             console.print(f"[dim]Detected task:[/dim] [bold]{task}[/bold]")
         release_master(task)
     elif base_branch is not None:
-        release_stable(base_branch)
+        release_stable(base_branch, force=args.force)
     else:
         sys.exit(
             "ERROR: Could not determine a base branch.\n"
