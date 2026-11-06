@@ -1,0 +1,89 @@
+---
+- name: Run the DNS bootstrap test
+  vars:
+    bootstrap_ssh_options:
+      - -o
+      - UserKnownHostsFile=/dev/null
+      - -o
+      - StrictHostKeyChecking=no
+      - -i
+      - "{{ ansible_user_dir }}/.ssh/id_rsa"
+  block:
+    - name: Build the bootstrap test binary
+      command:
+        argv:
+          - /usr/local/go/bin/go
+          - test
+          - -c
+          - -o
+          - "{{ ansible_user_dir }}/occm-bootstrap.test"
+          - ./tests/e2e/cloudprovider
+        chdir: "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack"
+      environment:
+        CGO_ENABLED: "0"
+
+    - name: Prepare the test directory on the disposable k3s VM
+      command:
+        argv: >-
+          {{ ['ssh'] + bootstrap_ssh_options + [
+            'ubuntu@' ~ k3s_fip,
+            'mkdir -p /home/ubuntu/occm-bootstrap/artifacts'
+          ] }}
+
+    - name: Copy the test binary and candidate manifests to the k3s VM
+      command:
+        argv: >-
+          {{ ['scp'] + bootstrap_ssh_options + [
+            ansible_user_dir ~ '/occm-bootstrap.test',
+            'openstack-cloud-controller-manager-ds.yaml',
+            'cloud-controller-manager-roles.yaml',
+            'cloud-controller-manager-role-bindings.yaml',
+            'ubuntu@' ~ k3s_fip ~ ':/home/ubuntu/occm-bootstrap/'
+          ] }}
+        chdir: "{{ ansible_user_dir }}/src/k8s.io/cloud-provider-openstack/manifests/controller-manager"
+
+    - name: Check failure and recovery before CoreDNS starts
+      vars:
+        bootstrap_command: >-
+          sudo env
+          KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          OCCM_BOOTSTRAP_E2E=true
+          {{ ('OCCM_BOOTSTRAP_HOSTNAME=' ~ occm_bootstrap_hostname) | quote }}
+          {{ ('OCCM_BOOTSTRAP_ADDRESS=' ~ occm_bootstrap_address) | quote }}
+          OCCM_BOOTSTRAP_ARTIFACTS=/home/ubuntu/occm-bootstrap/artifacts
+          OCCM_BOOTSTRAP_MANIFESTS=/home/ubuntu/occm-bootstrap
+          /home/ubuntu/occm-bootstrap/occm-bootstrap.test
+          -test.v -test.run='^TestOCCMBootstrap$' -test.timeout=30m
+      command:
+        argv: "{{ ['ssh'] + bootstrap_ssh_options + ['ubuntu@' ~ k3s_fip, bootstrap_command] }}"
+      register: bootstrap_test
+
+  always:
+    - name: Create the bootstrap artifact directory
+      file:
+        path: "{{ ansible_user_dir }}/logs/occm-bootstrap"
+        state: directory
+        mode: "0755"
+
+    - name: Collect available bootstrap artifacts from the k3s VM
+      command:
+        argv: >-
+          {{ ['scp', '-r'] + bootstrap_ssh_options + [
+            'ubuntu@' ~ k3s_fip ~ ':/home/ubuntu/occm-bootstrap/artifacts',
+            ansible_user_dir ~ '/logs/occm-bootstrap/'
+          ] }}
+      changed_when: false
+      failed_when: false
+
+    - name: Save the bootstrap test output
+      copy:
+        dest: "{{ ansible_user_dir }}/logs/occm-bootstrap/test-output.txt"
+        mode: "0644"
+        content: |
+          {{ bootstrap_test.stdout | default('Test did not start') }}
+          {{ bootstrap_test.stderr | default('') }}
+
+    - name: Save DNS queries from the DevStack host
+      shell: sudo journalctl -u occm-bootstrap-dns --no-pager > {{ ansible_user_dir }}/logs/occm-bootstrap/dns.log
+      changed_when: false
+      failed_when: false

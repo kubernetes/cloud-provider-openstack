@@ -1,0 +1,3 @@
+---
+occm_bootstrap_hostname: keystone.occm.test
+occm_bootstrap_upstream_dns: "8.8.8.8"

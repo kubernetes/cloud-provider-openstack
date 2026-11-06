@@ -34,6 +34,7 @@ CONFIG_ANSIBLE="${CONFIG_ANSIBLE:-"true"}"
 RESOURCE_TYPE="${RESOURCE_TYPE:-"gce-project"}"
 ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
 OCTAVIA_PROVIDER="${OCTAVIA_PROVIDER:-""}"
+TEST_OCCM_BOOTSTRAP="${TEST_OCCM_BOOTSTRAP:-true}"
 mkdir -p "${ARTIFACTS}/logs"
 
 cleanup() {
@@ -103,6 +104,7 @@ scp -i ~/.ssh/google_compute_engine \
 
 # Run ansible playbook on the CI host, e.g. a VM in GCP
 # USERNAME and PUBLIC_IP are global env variables set after creating the CI host.
+exit_code=0
 ansible-playbook -v \
   --user ${USERNAME} \
   --private-key ~/.ssh/google_compute_engine \
@@ -110,8 +112,8 @@ ansible-playbook -v \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
   tests/playbooks/test-occm-e2e.yaml \
   -e octavia_provider=${OCTAVIA_PROVIDER} \
-  -e run_e2e=true
-exit_code=$?
+  -e run_e2e=true \
+  -e test_occm_bootstrap="${TEST_OCCM_BOOTSTRAP}" || exit_code=$?
 
 # Fetch logs for debugging purpose
 ansible-playbook -v \
@@ -119,7 +121,7 @@ ansible-playbook -v \
   --private-key ~/.ssh/google_compute_engine \
   --inventory ${PUBLIC_IP}, \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
-  tests/playbooks/fetch-logs.yaml
+  tests/playbooks/fetch-logs.yaml || true
 
  scp -i ~/.ssh/google_compute_engine \
    -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
