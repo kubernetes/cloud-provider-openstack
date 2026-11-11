@@ -215,35 +215,53 @@ func list[T any](ctx context.Context, resourceType, operation string,
 // listWithSingleResult performs pagination and expects exactly one result.
 // Returns ErrNotFound if no results, ErrMultipleResults if more than one.
 // Stops pagination early if multiple results are detected.
+//
+// The metric observation covers only the transport/pagination error so that a
+// successful request returning an empty or multi-element list is not recorded
+// as an OpenStack API error. Result-count verification is kept separate.
 func listWithSingleResult[T any](ctx context.Context, resourceType, operation string,
 	pager pagination.Pager, extractFn func(pagination.Page) ([]T, error)) (*T, error) {
 
-	mc := metrics.NewMetricContext(resourceType, operation)
+	// resultErr carries our own result-verification sentinels (ErrNotFound /
+	// ErrMultipleResults). It is intentionally distinct from the transport error
+	// returned by EachPage so the two are not conflated in the metric.
 	var result *T
+	var resultErr error
+	mc := metrics.NewMetricContext(resourceType, operation)
 	err := pager.EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
-		items, err := extractFn(page)
-		if err != nil {
-			return false, err
+		items, extractErr := extractFn(page)
+		if extractErr != nil {
+			return false, extractErr
 		}
 
 		// Stop early if we found no results
 		if len(items) == 0 {
-			return false, cpoerrors.ErrNotFound
+			resultErr = cpoerrors.ErrNotFound
+			return false, nil
 		}
 		// Stop early if we found more than one result
 		if len(items) > 1 {
-			return false, cpoerrors.ErrMultipleResults
+			resultErr = cpoerrors.ErrMultipleResults
+			return false, nil
 		}
 		// Exactly one result found, store it and stop pagination
 		result = &items[0]
 
 		return false, nil
 	})
-
-	if err == nil && result == nil {
-		err = cpoerrors.ErrNotFound
+	// Observe only the transport error: a 200 with an empty/multi list is a
+	// successful request, not an API error.
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
 	}
-	return result, mc.ObserveRequest(err)
+
+	if resultErr != nil {
+		return nil, resultErr
+	}
+	if result == nil {
+		return nil, cpoerrors.ErrNotFound
+	}
+	return result, nil
 }
 
 func getTimeoutSteps(name string, steps int) int {
