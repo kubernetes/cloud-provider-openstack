@@ -156,42 +156,47 @@ func IsOctaviaFeatureSupported(ctx context.Context, client *gophercloud.ServiceC
 // Internal Helper Functions
 // ==============================================================================
 
-// executeAndWaitActive executes an operation with metrics tracking and waits for
-// the load balancer to return to ACTIVE state. Used for operations that don't
-// return a result (delete, update without returning updated object).
-func executeAndWaitActive(ctx context.Context, client *gophercloud.ServiceClient,
-	lbID, resourceType, operation string, fn func() error) error {
-
-	_, err := executeExtractAndWaitActive(ctx, client, lbID, resourceType, operation,
-		func() (*any, error) {
-			return nil, fn()
-		})
-	return err
-}
-
-// executeExtractAndWaitActive executes an operation with metrics tracking, extracts
-// the result, and waits for the load balancer to return to ACTIVE state.
-// Used for create operations that return the created resource.
-// For delete operations, NotFound errors are logged but not returned as errors.
-func executeExtractAndWaitActive[T any](ctx context.Context, client *gophercloud.ServiceClient,
-	lbID, resourceType, operation string, fn func() (*T, error)) (*T, error) {
-
+// withMetric runs fn under a metric context so the recorded latency covers the
+// whole OpenStack API round-trip. Callers MUST pass a closure that issues the
+// request lazily (e.g. func() (*T, error) { return pkg.Get(ctx, client, id).Extract() }),
+// not an already-evaluated method expression like pkg.Get(...).Extract — the
+// latter fires the HTTP request before the metric context is created, so the
+// recorded duration would only cover extraction.
+func withMetric[T any](ctx context.Context, resourceType, operation string, fn func() (T, error)) (T, error) {
 	mc := metrics.NewMetricContext(resourceType, operation)
 	result, err := fn()
+	if mc.ObserveRequest(err) != nil {
+		return result, fmt.Errorf("failed to %s %s: %w", operation, resourceType, err)
+	}
+	return result, nil
+}
+
+// mutateAndWaitActive runs a load balancer mutation (create/update/delete of a
+// child resource) under a metric context and then waits for the load balancer
+// to return to ACTIVE state. For delete operations a NotFound error is treated
+// as success (the resource is already gone).
+//
+// As with withMetric, fn must issue the request lazily so the metric captures
+// the full round-trip.
+func mutateAndWaitActive(ctx context.Context, client *gophercloud.ServiceClient,
+	lbID, resourceType, operation string, fn func() error) error {
+
+	mc := metrics.NewMetricContext(resourceType, operation)
+	err := fn()
 	if mc.ObserveRequest(err) != nil {
 		// For delete operations, treat NotFound as success (already deleted)
 		if operation == "delete" && cpoerrors.IsNotFound(err) {
 			klog.V(2).Infof("%s was already deleted", resourceType)
 		} else {
-			return result, fmt.Errorf("failed to %s %s on load balancer %s: %w", operation, resourceType, lbID, err)
+			return fmt.Errorf("failed to %s %s on load balancer %s: %w", operation, resourceType, lbID, err)
 		}
 	}
 	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
-		return result, fmt.Errorf("failed to wait for load balancer %s ACTIVE after %s %s: %w",
+		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after %s %s: %w",
 			lbID, operation, resourceType, err)
 	}
 
-	return result, nil
+	return nil
 }
 
 // list performs pagination and returns all results with metrics tracking.
@@ -207,10 +212,10 @@ func list[T any](ctx context.Context, resourceType, operation string,
 	return extractFn(allPages)
 }
 
-// listWithUniqueResult performs pagination and expects exactly one result.
+// listWithSingleResult performs pagination and expects exactly one result.
 // Returns ErrNotFound if no results, ErrMultipleResults if more than one.
 // Stops pagination early if multiple results are detected.
-func listWithUniqueResult[T any](ctx context.Context, resourceType, operation string,
+func listWithSingleResult[T any](ctx context.Context, resourceType, operation string,
 	pager pagination.Pager, extractFn func(pagination.Page) ([]T, error)) (*T, error) {
 
 	mc := metrics.NewMetricContext(resourceType, operation)
@@ -239,19 +244,6 @@ func listWithUniqueResult[T any](ctx context.Context, resourceType, operation st
 		err = cpoerrors.ErrNotFound
 	}
 	return result, mc.ObserveRequest(err)
-}
-
-// getSingleResource executes a single resource retrieval operation with metrics tracking.
-// Used for Get operations that retrieve a resource by ID.
-func getSingleResource[T any](ctx context.Context, resourceType, operation string,
-	fn func() (T, error)) (T, error) {
-
-	mc := metrics.NewMetricContext(resourceType, operation)
-	result, err := fn()
-	if mc.ObserveRequest(err) != nil {
-		return result, fmt.Errorf("failed to %s %s: %w", operation, resourceType, err)
-	}
-	return result, nil
 }
 
 func getTimeoutSteps(name string, steps int) int {
@@ -311,13 +303,15 @@ func GetLoadBalancers(ctx context.Context, client *gophercloud.ServiceClient, op
 
 // GetLoadbalancerByID retrieves a load balancer by ID.
 func GetLoadbalancerByID(ctx context.Context, client *gophercloud.ServiceClient, lbID string) (*loadbalancers.LoadBalancer, error) {
-	return getSingleResource(ctx, "loadbalancer", "get", loadbalancers.Get(ctx, client, lbID).Extract)
+	return withMetric(ctx, "loadbalancer", "get", func() (*loadbalancers.LoadBalancer, error) {
+		return loadbalancers.Get(ctx, client, lbID).Extract()
+	})
 }
 
 // GetLoadbalancerByName retrieves a load balancer by name.
 func GetLoadbalancerByName(ctx context.Context, client *gophercloud.ServiceClient, name string) (*loadbalancers.LoadBalancer, error) {
 	pager := loadbalancers.List(client, loadbalancers.ListOpts{Name: name})
-	return listWithUniqueResult(ctx, "loadbalancer", "list", pager, loadbalancers.ExtractLoadBalancers)
+	return listWithSingleResult(ctx, "loadbalancer", "list", pager, loadbalancers.ExtractLoadBalancers)
 }
 
 // UpdateLoadBalancerTags updates tags for a load balancer and waits for it to become active.
@@ -332,8 +326,16 @@ func UpdateLoadBalancerTags(ctx context.Context, client *gophercloud.ServiceClie
 }
 
 // UpdateLoadBalancer updates a load balancer and waits for it to become active.
+// It returns the load balancer in its ACTIVE state after the update has been
+// applied, not the PENDING_UPDATE object returned by the update call itself.
 func UpdateLoadBalancer(ctx context.Context, client *gophercloud.ServiceClient, lbID string, updateOpts loadbalancers.UpdateOpts) (*loadbalancers.LoadBalancer, error) {
-	return executeExtractAndWaitActive(ctx, client, lbID, "loadbalancer", "update", loadbalancers.Update(ctx, client, lbID, updateOpts).Extract)
+	if _, err := withMetric(ctx, "loadbalancer", "update", func() (*loadbalancers.LoadBalancer, error) {
+		return loadbalancers.Update(ctx, client, lbID, updateOpts).Extract()
+	}); err != nil {
+		return nil, err
+	}
+
+	return WaitActiveAndGetLoadBalancer(ctx, client, lbID)
 }
 
 func waitLoadBalancerDeleted(ctx context.Context, client *gophercloud.ServiceClient, loadbalancerID string) error {
@@ -384,7 +386,7 @@ func DeleteLoadbalancer(ctx context.Context, client *gophercloud.ServiceClient, 
 
 // UpdateListener updates a listener and waits for the load balancer to become active.
 func UpdateListener(ctx context.Context, client *gophercloud.ServiceClient, lbID string, listenerID string, opts listeners.UpdateOpts) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_listener", "update",
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_listener", "update",
 		func() error {
 			_, err := listeners.Update(ctx, client, listenerID, opts).Extract()
 			return err
@@ -393,19 +395,31 @@ func UpdateListener(ctx context.Context, client *gophercloud.ServiceClient, lbID
 
 // CreateListener creates a listener and waits for the load balancer to become active.
 func CreateListener(ctx context.Context, client *gophercloud.ServiceClient, lbID string, opts listeners.CreateOpts) (*listeners.Listener, error) {
-	return executeExtractAndWaitActive(ctx, client, lbID, "loadbalancer_listener", "create", listeners.Create(ctx, client, opts).Extract)
+	listener, err := withMetric(ctx, "loadbalancer_listener", "create", func() (*listeners.Listener, error) {
+		return listeners.Create(ctx, client, opts).Extract()
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
+		return nil, err
+	}
+	return listener, nil
 }
 
 // DeleteListener deletes a listener and waits for the load balancer to become active.
 func DeleteListener(ctx context.Context, client *gophercloud.ServiceClient, listenerID string, lbID string) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_listener", "delete", listeners.Delete(ctx, client, listenerID).ExtractErr)
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_listener", "delete",
+		func() error {
+			return listeners.Delete(ctx, client, listenerID).ExtractErr()
+		})
 }
 
 // GetListenerByName retrieves a listener by name within a specific load balancer.
 // Returns ErrNotFound if no listener is found, or ErrMultipleResults if multiple listeners match.
 func GetListenerByName(ctx context.Context, client *gophercloud.ServiceClient, name string, lbID string) (*listeners.Listener, error) {
 	pager := listeners.List(client, listeners.ListOpts{Name: name, LoadbalancerID: lbID})
-	return listWithUniqueResult(ctx, "loadbalancer_listener", "list", pager, listeners.ExtractListeners)
+	return listWithSingleResult(ctx, "loadbalancer_listener", "list", pager, listeners.ExtractListeners)
 }
 
 // GetListenersByLoadBalancerID retrieves all listeners for a specific load balancer.
@@ -421,34 +435,53 @@ func GetListenersByLoadBalancerID(ctx context.Context, client *gophercloud.Servi
 
 // CreatePool creates a pool and waits for the load balancer to become active.
 func CreatePool(ctx context.Context, client *gophercloud.ServiceClient, opts pools.CreateOptsBuilder, lbID string) (*pools.Pool, error) {
-	return executeExtractAndWaitActive(ctx, client, lbID, "loadbalancer_pool", "create", pools.Create(ctx, client, opts).Extract)
+	pool, err := withMetric(ctx, "loadbalancer_pool", "create", func() (*pools.Pool, error) {
+		return pools.Create(ctx, client, opts).Extract()
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
+		return nil, err
+	}
+	return pool, nil
 }
 
 // GetPoolByName retrieves a pool by name within a specific load balancer.
 // Returns ErrNotFound if no pool is found, or ErrMultipleResults if multiple pools match.
 func GetPoolByName(ctx context.Context, client *gophercloud.ServiceClient, name string, lbID string) (*pools.Pool, error) {
 	pager := pools.List(client, pools.ListOpts{Name: name, LoadbalancerID: lbID})
-	return listWithUniqueResult(ctx, "loadbalancer_pool", "list", pager, pools.ExtractPools)
+	return listWithSingleResult(ctx, "loadbalancer_pool", "list", pager, pools.ExtractPools)
 }
 
 // GetPoolByListener retrieves the pool associated with a specific listener.
 // It first queries the listener to get its default pool ID, then fetches the pool directly.
 // Falls back to using the listener's Pools field if no default pool is set.
 // Returns ErrNotFound if no pool is found, or ErrMultipleResults if multiple pools match.
+//
+// Note: this only resolves the listener's default pool (or the single entry in
+// its Pools list). It does NOT resolve pools associated solely through an
+// L7 policy. The previous implementation iterated a filtered pool list where
+// Octavia collapses the pools reachable via common listeners and l7policies, so
+// an L7-associated pool could be returned. OCCM only ever creates normal
+// (default) pools, so this difference is not observable for OCCM-managed load
+// balancers, but callers dealing with L7-policy pools should be aware of it.
 func GetPoolByListener(ctx context.Context, client *gophercloud.ServiceClient, lbID, listenerID string) (*pools.Pool, error) {
 	// Get the listener by ID to retrieve its default pool ID
 	listOpts := listeners.ListOpts{
 		LoadbalancerID: lbID,
 		ID:             listenerID,
 	}
-	listener, err := listWithUniqueResult(ctx, "loadbalancer_listener", "list", listeners.List(client, listOpts), listeners.ExtractListeners)
+	listener, err := listWithSingleResult(ctx, "loadbalancer_listener", "list", listeners.List(client, listOpts), listeners.ExtractListeners)
 	if err != nil {
 		return nil, err
 	}
 
 	// If listener has a default pool, get it directly
 	if listener.DefaultPoolID != "" {
-		return getSingleResource(ctx, "loadbalancer_pool", "get", pools.Get(ctx, client, listener.DefaultPoolID).Extract)
+		return withMetric(ctx, "loadbalancer_pool", "get", func() (*pools.Pool, error) {
+			return pools.Get(ctx, client, listener.DefaultPoolID).Extract()
+		})
 	}
 
 	// Fallback: use listener's Pools field if no default pool is set
@@ -460,7 +493,9 @@ func GetPoolByListener(ctx context.Context, client *gophercloud.ServiceClient, l
 	}
 
 	// Get the pool by ID from the listener's Pools field
-	return getSingleResource(ctx, "loadbalancer_pool", "get", pools.Get(ctx, client, listener.Pools[0].ID).Extract)
+	return withMetric(ctx, "loadbalancer_pool", "get", func() (*pools.Pool, error) {
+		return pools.Get(ctx, client, listener.Pools[0].ID).Extract()
+	})
 }
 
 // GetPools retrieves all pools for a specific load balancer.
@@ -472,7 +507,7 @@ func GetPools(ctx context.Context, client *gophercloud.ServiceClient, lbID strin
 
 // UpdatePool updates a pool and waits for the load balancer to become active.
 func UpdatePool(ctx context.Context, client *gophercloud.ServiceClient, lbID string, poolID string, opts pools.UpdateOpts) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_pool", "update",
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_pool", "update",
 		func() error {
 			_, err := pools.Update(ctx, client, poolID, opts).Extract()
 			return err
@@ -481,7 +516,10 @@ func UpdatePool(ctx context.Context, client *gophercloud.ServiceClient, lbID str
 
 // DeletePool deletes a pool and waits for the load balancer to become active.
 func DeletePool(ctx context.Context, client *gophercloud.ServiceClient, poolID string, lbID string) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_pool", "delete", pools.Delete(ctx, client, poolID).ExtractErr)
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_pool", "delete",
+		func() error {
+			return pools.Delete(ctx, client, poolID).ExtractErr()
+		})
 }
 
 // ==============================================================================
@@ -497,7 +535,10 @@ func GetMembersbyPool(ctx context.Context, client *gophercloud.ServiceClient, po
 
 // BatchUpdatePoolMembers updates pool members in batch and waits for the load balancer to become active.
 func BatchUpdatePoolMembers(ctx context.Context, client *gophercloud.ServiceClient, lbID string, poolID string, opts []pools.BatchUpdateMemberOpts) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_members", "update", pools.BatchUpdateMembers(ctx, client, poolID, opts).ExtractErr)
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_members", "update",
+		func() error {
+			return pools.BatchUpdateMembers(ctx, client, poolID, opts).ExtractErr()
+		})
 }
 
 // ==============================================================================
@@ -513,12 +554,24 @@ func GetL7policies(ctx context.Context, client *gophercloud.ServiceClient, liste
 
 // CreateL7Policy creates an L7 policy and waits for the load balancer to become active.
 func CreateL7Policy(ctx context.Context, client *gophercloud.ServiceClient, opts l7policies.CreateOpts, lbID string) (*l7policies.L7Policy, error) {
-	return executeExtractAndWaitActive(ctx, client, lbID, "loadbalancer_l7policy", "create", l7policies.Create(ctx, client, opts).Extract)
+	policy, err := withMetric(ctx, "loadbalancer_l7policy", "create", func() (*l7policies.L7Policy, error) {
+		return l7policies.Create(ctx, client, opts).Extract()
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
+		return nil, err
+	}
+	return policy, nil
 }
 
 // DeleteL7policy deletes an L7 policy and waits for the load balancer to become active.
 func DeleteL7policy(ctx context.Context, client *gophercloud.ServiceClient, policyID string, lbID string) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_l7policy", "delete", l7policies.Delete(ctx, client, policyID).ExtractErr)
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_l7policy", "delete",
+		func() error {
+			return l7policies.Delete(ctx, client, policyID).ExtractErr()
+		})
 }
 
 // GetL7Rules retrieves all L7 rules for a specific L7 policy.
@@ -530,7 +583,7 @@ func GetL7Rules(ctx context.Context, client *gophercloud.ServiceClient, policyID
 
 // CreateL7Rule creates an L7 rule and waits for the load balancer to become active.
 func CreateL7Rule(ctx context.Context, client *gophercloud.ServiceClient, policyID string, opts l7policies.CreateRuleOpts, lbID string) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_l7rule", "create",
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_l7rule", "create",
 		func() error {
 			_, err := l7policies.CreateRule(ctx, client, policyID, opts).Extract()
 			return err
@@ -543,7 +596,7 @@ func CreateL7Rule(ctx context.Context, client *gophercloud.ServiceClient, policy
 
 // UpdateHealthMonitor updates a health monitor and waits for the load balancer to become active.
 func UpdateHealthMonitor(ctx context.Context, client *gophercloud.ServiceClient, monitorID string, opts monitors.UpdateOpts, lbID string) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_healthmonitor", "update",
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_healthmonitor", "update",
 		func() error {
 			_, err := monitors.Update(ctx, client, monitorID, opts).Extract()
 			return err
@@ -552,15 +605,29 @@ func UpdateHealthMonitor(ctx context.Context, client *gophercloud.ServiceClient,
 
 // DeleteHealthMonitor deletes a health monitor and waits for the load balancer to become active.
 func DeleteHealthMonitor(ctx context.Context, client *gophercloud.ServiceClient, monitorID string, lbID string) error {
-	return executeAndWaitActive(ctx, client, lbID, "loadbalancer_healthmonitor", "delete", monitors.Delete(ctx, client, monitorID).ExtractErr)
+	return mutateAndWaitActive(ctx, client, lbID, "loadbalancer_healthmonitor", "delete",
+		func() error {
+			return monitors.Delete(ctx, client, monitorID).ExtractErr()
+		})
 }
 
 // CreateHealthMonitor creates a health monitor and waits for the load balancer to become active.
 func CreateHealthMonitor(ctx context.Context, client *gophercloud.ServiceClient, opts monitors.CreateOpts, lbID string) (*monitors.Monitor, error) {
-	return executeExtractAndWaitActive(ctx, client, lbID, "loadbalancer_healthmonitor", "create", monitors.Create(ctx, client, opts).Extract)
+	monitor, err := withMetric(ctx, "loadbalancer_healthmonitor", "create", func() (*monitors.Monitor, error) {
+		return monitors.Create(ctx, client, opts).Extract()
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
+		return nil, err
+	}
+	return monitor, nil
 }
 
 // GetHealthMonitor retrieves a health monitor by ID.
 func GetHealthMonitor(ctx context.Context, client *gophercloud.ServiceClient, monitorID string) (*monitors.Monitor, error) {
-	return getSingleResource(ctx, "loadbalancer_healthmonitor", "get", monitors.Get(ctx, client, monitorID).Extract)
+	return withMetric(ctx, "loadbalancer_healthmonitor", "get", func() (*monitors.Monitor, error) {
+		return monitors.Get(ctx, client, monitorID).Extract()
+	})
 }
