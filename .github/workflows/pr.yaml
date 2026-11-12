@@ -26,7 +26,7 @@ jobs:
 
       - uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c
         with:
-          python-version: '3.9'
+          python-version: '3.x'
           check-latest: true
 
       # see example https://github.com/helm/chart-testing-action
