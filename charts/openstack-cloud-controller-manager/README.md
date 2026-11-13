@@ -27,6 +27,23 @@ helm repo update
 helm install openstack-ccm cpo/openstack-cloud-controller-manager --values openstack-ccm.yaml
 ```
 
+## DNS during cluster bootstrap
+
+The chart defaults to `hostNetwork: true` and `dnsPolicy: ClusterFirst`.
+For host-networked Pods, `ClusterFirst` uses the node's DNS configuration, so OCCM can resolve OpenStack API endpoints before cluster DNS is available.
+CoreDNS may be waiting for OCCM to initialise nodes and remove the `node.cloudprovider.kubernetes.io/uninitialized` taint.
+Making OCCM depend on CoreDNS in this situation can prevent the cluster from starting.
+The node DNS servers must be able to resolve the OpenStack API endpoints.
+
+If cluster DNS is available independently of OCCM, you can set `dnsPolicy: ClusterFirstWithHostNet` with `hostNetwork: true`.
+When disabling host networking, the default `ClusterFirst` policy uses cluster DNS instead of node DNS.
+This requires working pod networking and cluster DNS, for example when running only the `service` controller on an existing cluster.
+
+When adopting this chart's defaults during an upgrade, deployments with `hostNetwork: true` that previously used `ClusterFirstWithHostNet` will switch to node DNS.
+To keep using cluster DNS with host networking, explicitly set `dnsPolicy: ClusterFirstWithHostNet` in your Helm values.
+Deployments with `hostNetwork: false` continue to use cluster DNS with the default `ClusterFirst` policy.
+Explicit `dnsPolicy` overrides continue to apply.
+
 ## Using an external secret
 
 In order to use an external secret for the OCCM:
