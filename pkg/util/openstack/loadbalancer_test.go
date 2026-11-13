@@ -226,6 +226,34 @@ func TestGetLoadbalancerByName(t *testing.T) {
 	}
 }
 
+// TestGetLoadbalancerByNameDuplicateAcrossPages guards the fix for kayrus's
+// review comment: a duplicate resource may appear on a *later* page. Each page
+// here carries a single load balancer, so neither page alone looks ambiguous,
+// but the total is two. The helper must page through to the second result and
+// report ErrMultipleResults rather than silently returning the first match.
+func TestGetLoadbalancerByNameDuplicateAcrossPages(t *testing.T) {
+	ts := newTestServer(t)
+
+	// Gophercloud reads the next-page URL from the "loadbalancers_links" rel=next
+	// entry. Both pages share the same path, so route by the marker query param:
+	// page 1 carries one result plus a link to page 2, page 2 carries the second.
+	page2URL := ts.server.URL + "/lbaas/loadbalancers?marker=page2"
+	ts.handle(http.MethodGet, "/lbaas/loadbalancers", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if r.URL.Query().Get("marker") == "page2" {
+			_, _ = w.Write([]byte(`{"loadbalancers":[{"id":"dup"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(fmt.Sprintf(
+			`{"loadbalancers":[{"id":"dup"}],"loadbalancers_links":[{"rel":"next","href":%q}]}`, page2URL)))
+	})
+
+	if _, err := GetLoadbalancerByName(ctx(), ts.client, "lb"); !errors.Is(err, cpoerrors.ErrMultipleResults) {
+		t.Fatalf("expected ErrMultipleResults across pages, got %v", err)
+	}
+}
+
 // TestGetLoadbalancerByNameEmptyListNotAnAPIError guards the fix for the review
 // comment that an empty list returned with HTTP 200 must NOT be recorded as an
 // OpenStack API error. ErrNotFound is our own result-verification sentinel, not

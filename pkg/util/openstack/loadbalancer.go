@@ -214,7 +214,12 @@ func list[T any](ctx context.Context, resourceType, operation string,
 
 // listWithSingleResult performs pagination and expects exactly one result.
 // Returns ErrNotFound if no results, ErrMultipleResults if more than one.
-// Stops pagination early if multiple results are detected.
+//
+// Pagination continues across pages and stops early only once more than one
+// result has been accumulated in total. A later page may contain a duplicate of
+// a resource seen on an earlier page, so we must not conclude "exactly one" from
+// the first page alone — doing so would hide a duplicate-resource problem from
+// the operator.
 //
 // The metric observation covers only the transport/pagination error so that a
 // successful request returning an empty or multi-element list is not recorded
@@ -222,32 +227,20 @@ func list[T any](ctx context.Context, resourceType, operation string,
 func listWithSingleResult[T any](ctx context.Context, resourceType, operation string,
 	pager pagination.Pager, extractFn func(pagination.Page) ([]T, error)) (*T, error) {
 
-	// resultErr carries our own result-verification sentinels (ErrNotFound /
-	// ErrMultipleResults). It is intentionally distinct from the transport error
-	// returned by EachPage so the two are not conflated in the metric.
-	var result *T
-	var resultErr error
+	var results []T
 	mc := metrics.NewMetricContext(resourceType, operation)
 	err := pager.EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
 		items, extractErr := extractFn(page)
 		if extractErr != nil {
 			return false, extractErr
 		}
-
-		// Stop early if we found no results
-		if len(items) == 0 {
-			resultErr = cpoerrors.ErrNotFound
+		results = append(results, items...)
+		// Stop early once we have accumulated more than one result in total;
+		// no need to keep paging to know it is not unique.
+		if len(results) > 1 {
 			return false, nil
 		}
-		// Stop early if we found more than one result
-		if len(items) > 1 {
-			resultErr = cpoerrors.ErrMultipleResults
-			return false, nil
-		}
-		// Exactly one result found, store it and stop pagination
-		result = &items[0]
-
-		return false, nil
+		return true, nil
 	})
 	// Observe only the transport error: a 200 with an empty/multi list is a
 	// successful request, not an API error.
@@ -255,13 +248,13 @@ func listWithSingleResult[T any](ctx context.Context, resourceType, operation st
 		return nil, err
 	}
 
-	if resultErr != nil {
-		return nil, resultErr
-	}
-	if result == nil {
+	if len(results) == 0 {
 		return nil, cpoerrors.ErrNotFound
 	}
-	return result, nil
+	if len(results) > 1 {
+		return nil, cpoerrors.ErrMultipleResults
+	}
+	return &results[0], nil
 }
 
 func getTimeoutSteps(name string, steps int) int {
