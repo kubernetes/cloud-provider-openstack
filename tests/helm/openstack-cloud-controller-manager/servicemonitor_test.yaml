@@ -77,16 +77,16 @@ tests:
       - equal:
           path: spec.selector
           value:
-            app: openstack-cloud-controller-manager
-            component: controllermanager
-            release: test-release
+            app.kubernetes.io/component: controllermanager
+            app.kubernetes.io/instance: test-release
+            app.kubernetes.io/name: openstack-cloud-controller-manager
         template: templates/service-sm.yaml
       - isSubset:
           path: spec.template.metadata.labels
           content:
-            app: openstack-cloud-controller-manager
-            component: controllermanager
-            release: test-release
+            app.kubernetes.io/component: controllermanager
+            app.kubernetes.io/instance: test-release
+            app.kubernetes.io/name: openstack-cloud-controller-manager
         template: templates/daemonset.yaml
       - contains:
           path: spec.template.spec.containers[0].args
