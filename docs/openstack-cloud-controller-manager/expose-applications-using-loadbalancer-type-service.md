@@ -231,6 +231,24 @@ Request Body:
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
+- `loadbalancer.openstack.org/pool-enable-tls`
+
+  Enables TLS encryption between the Octavia load balancer and its pool members. The value is a boolean and defaults to `false`.
+
+  Requires Octavia API version 2.8 or later. It is not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
+- `loadbalancer.openstack.org/pool-tls-container-ref`
+
+  Reference to a Barbican secret containing a PKCS #12 certificate and key bundle. The load balancer uses this bundle to authenticate to TLS-enabled pool members.
+
+  Requires Octavia API version 2.8 or later. Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
+- `loadbalancer.openstack.org/pool-ca-tls-container-ref`
+
+  Reference to a Barbican secret containing a PEM-encoded CA certificate bundle. The load balancer uses this bundle to validate certificates presented by TLS-enabled pool members.
+
+  Requires Octavia API version 2.8 or later. Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/load-balancer-id`
 
   This annotation is automatically added to the Service if it's not specified when creating. After the Service is created successfully it shouldn't be changed, otherwise the Service won't behave as expected.
@@ -262,7 +280,7 @@ Request Body:
   Defines whether the load balancer address is published in the service status as a `<ip>.<suffix>` hostname when the PROXY protocol is enabled, if not specified, use [`enable-ingress-hostname`](./using-openstack-cloud-controller-manager.md#load-balancer) config. Set to `false` to publish the IP address with `ipMode: Proxy` instead, which lets DNS integrations create A records for the service.
 
 - `loadbalancer.openstack.org/load-balancer-address`
-  
+
   This annotation is automatically added and it contains the floating ip address of the load balancer service.
   When using `loadbalancer.openstack.org/hostname` annotation it is the only place to see the real address of the load balancer.
 
@@ -540,7 +558,7 @@ Prior to this, either the config option `enable-ingress-hostname` should be set 
 
 By default, different Services of LoadBalancer type should have different corresponding cloud load balancers, however, openstack-cloud-controller-manager allows multiple Services to share a single load balancer if the Octavia service supports the tag feature (since API version 2.5).
 
-The shared load balancer can be created either by other Services or outside the cluster, e.g. created manually by the user in the cloud or by Services from the other Kubernetes clusters. The load balancer is deleted only when the last attached Service is deleted, unless the load balancer was created outside the Kubernetes cluster. 
+The shared load balancer can be created either by other Services or outside the cluster, e.g. created manually by the user in the cloud or by Services from the other Kubernetes clusters. The load balancer is deleted only when the last attached Service is deleted, unless the load balancer was created outside the Kubernetes cluster.
 
 All Services attached to one shared load balancer will have the same external IP as the floating IP and LB VIP are shared too.
 

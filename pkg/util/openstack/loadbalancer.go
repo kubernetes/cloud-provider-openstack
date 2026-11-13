@@ -46,6 +46,9 @@ const (
 	OctaviaFeatureTimeout           = 3
 	OctaviaFeatureAvailabilityZones = 4
 	OctaviaFeatureHTTPMonitorsOnUDP = 5
+	// Octavia API 2.8+ supports ca_tls_container_ref, tls_enabled, and tls_container_ref. Other pool TLS fields require later API versions.
+	// See https://docs.openstack.org/api-ref/load-balancer/v2/index.html?expanded=create-pool-detail
+	OctaviaFeaturePoolEnableTLS = 6
 
 	waitLoadbalancerInitDelay   = 1 * time.Second
 	waitLoadbalancerFactor      = 1.2
@@ -145,6 +148,15 @@ func IsOctaviaFeatureSupported(ctx context.Context, client *gophercloud.ServiceC
 		if currentVer.GreaterThanOrEqual(verHTTPMonitorsOnUDP) {
 			return true
 		}
+	case OctaviaFeaturePoolEnableTLS:
+		if lbProvider == "ovn" {
+			return false
+		}
+		verPoolTLS, _ := version.NewVersion("v2.8")
+		if currentVer.GreaterThanOrEqual(verPoolTLS) {
+			return true
+		}
+
 	default:
 		klog.Warningf("Feature %d not recognized", feature)
 	}
