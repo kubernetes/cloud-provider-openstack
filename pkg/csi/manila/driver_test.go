@@ -134,3 +134,31 @@ func TestInitProxiedDriverRetryOnUnavailable(t *testing.T) {
 		t.Errorf("expected 4 ProbeForever calls (3 Unavailable + 1 success), got %d", idClient.calls)
 	}
 }
+
+func TestSetupControllerServiceModifyVolumeCapability(t *testing.T) {
+	for _, tc := range []struct {
+		protocol string
+		want     bool
+	}{
+		{protocol: "NFS", want: true},
+		{protocol: "CEPHFS", want: false},
+	} {
+		t.Run(tc.protocol, func(t *testing.T) {
+			d := &Driver{shareProto: tc.protocol}
+			if err := d.SetupControllerService(); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got := false
+			for _, capability := range d.cscaps {
+				if capability.GetRpc().GetType() == csi.ControllerServiceCapability_RPC_MODIFY_VOLUME {
+					got = true
+					break
+				}
+			}
+			if got != tc.want {
+				t.Fatalf("MODIFY_VOLUME capability = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}

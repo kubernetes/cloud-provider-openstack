@@ -19,6 +19,8 @@ package manila
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -90,6 +92,19 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	params := req.GetParameters()
 	if params == nil {
 		params = make(map[string]string)
+	}
+	if cs.d.shareProto != "NFS" && len(req.GetMutableParameters()) != 0 {
+		return nil, status.Error(codes.InvalidArgument, "mutable parameters are only supported for NFS volumes")
+	}
+	for key, value := range req.GetMutableParameters() {
+		if key != "nfs-shareClient" {
+			return nil, status.Errorf(codes.InvalidArgument, "unsupported mutable parameter %q", key)
+		}
+		accessToList, err := parseNFSShareClients(value)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid nfs-shareClient: %v", err)
+		}
+		params[key] = strings.Join(accessToList, ",")
 	}
 
 	params["protocol"] = cs.d.shareProto
@@ -227,8 +242,79 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}, nil
 }
 
-func (d *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+func (cs *controllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+	if cs.d.shareProto != "NFS" {
+		return nil, status.Error(codes.InvalidArgument, "mutable parameters are only supported for NFS volumes")
+	}
+	if req.GetVolumeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume ID cannot be empty")
+	}
+	if len(req.GetSecrets()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "secrets cannot be nil or empty")
+	}
+
+	mutableParameters := req.GetMutableParameters()
+	if len(mutableParameters) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "mutable parameters cannot be nil or empty")
+	}
+	for key := range mutableParameters {
+		if key != "nfs-shareClient" {
+			return nil, status.Errorf(codes.InvalidArgument, "unsupported mutable parameter %q", key)
+		}
+	}
+
+	accessToList, err := parseNFSShareClients(mutableParameters["nfs-shareClient"])
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid nfs-shareClient: %v", err)
+	}
+
+	osOpts, err := options.NewOpenstackOptions(req.GetSecrets())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid OpenStack secrets: %v", err)
+	}
+
+	manilaClient, err := cs.d.manilaClientBuilder.New(ctx, osOpts)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "failed to create Manila v2 client: %v", err)
+	}
+
+	share, err := manilaClient.GetShareByID(ctx, req.GetVolumeId())
+	if err != nil {
+		if clouderrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "volume %s not found: %v", req.GetVolumeId(), err)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to retrieve volume %s: %v", req.GetVolumeId(), err)
+	}
+	if !compareProtocol(share.ShareProto, "NFS") {
+		return nil, status.Errorf(codes.InvalidArgument, "nfs-shareClient cannot be applied to a %s volume", share.ShareProto)
+	}
+
+	if _, isPending := pendingVolumes.LoadOrStore(share.Name, true); isPending {
+		return nil, status.Errorf(codes.Aborted, "volume %s is already being processed", share.Name)
+	}
+	defer pendingVolumes.Delete(share.Name)
+
+	if err := (shareadapters.NFS{}).ReconcileAccesses(ctx, manilaClient, share.ID, accessToList); err != nil {
+		if wait.Interrupted(err) {
+			return nil, status.Errorf(codes.DeadlineExceeded, "deadline exceeded while updating access rules for volume %s", share.Name)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to update access rules for volume %s: %v", share.Name, err)
+	}
+
+	return &csi.ControllerModifyVolumeResponse{}, nil
+}
+
+func parseNFSShareClients(value string) ([]string, error) {
+	clients := util.Unique(util.SplitTrim(value, ','))
+	for _, client := range clients {
+		if net.ParseIP(client) != nil {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(client); err != nil {
+			return nil, fmt.Errorf("%q is not an IP address or CIDR", client)
+		}
+	}
+	return clients, nil
 }
 
 func (cs *controllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
