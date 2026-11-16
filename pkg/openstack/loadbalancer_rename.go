@@ -96,8 +96,8 @@ func renameLoadBalancer(ctx context.Context, client *gophercloud.ServiceClient, 
 			if err != nil {
 				return nil, err
 			}
-			oldClusterName = getClusterName(fmt.Sprintf("%s[0-9]+_", poolPrefix), lbPool.Name)
-			if oldClusterName != clusterName {
+			oldPoolClusterName := getClusterName(fmt.Sprintf("%s[0-9]+_", poolPrefix), lbPool.Name)
+			if oldPoolClusterName != clusterName {
 				if lbPool.MonitorID != "" {
 					// If monitor exists, let's handle it first, as we treat it as child of the pool.
 					monitor, err := openstackutil.GetHealthMonitor(ctx, client, lbPool.MonitorID)
@@ -115,7 +115,7 @@ func renameLoadBalancer(ctx context.Context, client *gophercloud.ServiceClient, 
 				}
 
 				// Monitor is handled, let's rename the pool.
-				lbPool.Name = replaceClusterName(oldClusterName, clusterName, lbPool.Name)
+				lbPool.Name = replaceClusterName(oldPoolClusterName, clusterName, lbPool.Name)
 				err = openstackutil.UpdatePool(ctx, client, loadbalancer.ID, lbPool.ID, pools.UpdateOpts{Name: &lbPool.Name})
 				if err != nil {
 					return nil, err

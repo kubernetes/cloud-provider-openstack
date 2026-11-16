@@ -85,7 +85,8 @@ spec:
               value: /etc/config/cloud.conf
             - name: CLUSTER_NAME
               value: kubernetes
-      dnsPolicy: ClusterFirstWithHostNet
+      # ClusterFirst uses node DNS with hostNetwork, allowing OCCM to bootstrap.
+      dnsPolicy: ClusterFirst
       # Host network access is usually necessary if using metadata service,
       # since not all CNIs support link-local addresses, or if the OpenStack
       # control plane is on a management network that is not advertised to pods
