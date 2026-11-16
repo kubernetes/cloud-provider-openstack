@@ -466,47 +466,39 @@ func GetPoolByName(ctx context.Context, client *gophercloud.ServiceClient, name 
 }
 
 // GetPoolByListener retrieves the pool associated with a specific listener.
-// It first queries the listener to get its default pool ID, then fetches the pool directly.
-// Falls back to using the listener's Pools field if no default pool is set.
-// Returns ErrNotFound if no pool is found, or ErrMultipleResults if multiple pools match.
+// It lists the load balancer's pools and returns the one that references the
+// given listener in its Listeners field. Returns ErrNotFound if no pool matches,
+// or ErrMultipleResults if more than one does.
 //
-// Note: this only resolves the listener's default pool (or the single entry in
-// its Pools list). It does NOT resolve pools associated solely through an
-// L7 policy. The previous implementation iterated a filtered pool list where
-// Octavia collapses the pools reachable via common listeners and l7policies, so
-// an L7-associated pool could be returned. OCCM only ever creates normal
-// (default) pools, so this difference is not observable for OCCM-managed load
-// balancers, but callers dealing with L7-policy pools should be aware of it.
+// Resolving the pool via the pool list (rather than the listener's DefaultPoolID)
+// also finds pools that are still linked to the listener even when DefaultPoolID
+// is empty, which is required for the rename flow to remain idempotent when a
+// previous attempt renamed the pool but not yet the listener.
 func GetPoolByListener(ctx context.Context, client *gophercloud.ServiceClient, lbID, listenerID string) (*pools.Pool, error) {
-	// Get the listener by ID to retrieve its default pool ID
-	listOpts := listeners.ListOpts{
-		LoadbalancerID: lbID,
-		ID:             listenerID,
-	}
-	listener, err := listWithSingleResult(ctx, "loadbalancer_listener", "list", listeners.List(client, listOpts), listeners.ExtractListeners)
+	allPools, err := list(ctx, "loadbalancer_pool", "list",
+		pools.List(client, pools.ListOpts{LoadbalancerID: lbID}), pools.ExtractPools)
 	if err != nil {
 		return nil, err
 	}
 
-	// If listener has a default pool, get it directly
-	if listener.DefaultPoolID != "" {
-		return withMetric(ctx, "loadbalancer_pool", "get", func() (*pools.Pool, error) {
-			return pools.Get(ctx, client, listener.DefaultPoolID).Extract()
-		})
+	var listenerPools []pools.Pool
+	for _, p := range allPools {
+		for _, l := range p.Listeners {
+			if l.ID == listenerID {
+				listenerPools = append(listenerPools, p)
+				break
+			}
+		}
 	}
 
-	// Fallback: use listener's Pools field if no default pool is set
-	if len(listener.Pools) == 0 {
+	switch len(listenerPools) {
+	case 0:
 		return nil, cpoerrors.ErrNotFound
-	}
-	if len(listener.Pools) > 1 {
+	case 1:
+		return &listenerPools[0], nil
+	default:
 		return nil, cpoerrors.ErrMultipleResults
 	}
-
-	// Get the pool by ID from the listener's Pools field
-	return withMetric(ctx, "loadbalancer_pool", "get", func() (*pools.Pool, error) {
-		return pools.Get(ctx, client, listener.Pools[0].ID).Extract()
-	})
 }
 
 // GetPools retrieves all pools for a specific load balancer.

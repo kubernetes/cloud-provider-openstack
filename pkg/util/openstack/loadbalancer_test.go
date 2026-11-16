@@ -245,8 +245,8 @@ func TestGetLoadbalancerByNameDuplicateAcrossPages(t *testing.T) {
 			_, _ = w.Write([]byte(`{"loadbalancers":[{"id":"dup"}]}`))
 			return
 		}
-		_, _ = w.Write([]byte(fmt.Sprintf(
-			`{"loadbalancers":[{"id":"dup"}],"loadbalancers_links":[{"rel":"next","href":%q}]}`, page2URL)))
+		_, _ = fmt.Fprintf(w,
+			`{"loadbalancers":[{"id":"dup"}],"loadbalancers_links":[{"rel":"next","href":%q}]}`, page2URL)
 	})
 
 	if _, err := GetLoadbalancerByName(ctx(), ts.client, "lb"); !errors.Is(err, cpoerrors.ErrMultipleResults) {
@@ -323,44 +323,41 @@ func TestGetPoolByName(t *testing.T) {
 	}
 }
 
-// TestGetPoolByListener covers the four branches of the reworked lookup.
+// TestGetPoolByListener covers the pool-list lookup filtered by listener ID.
 func TestGetPoolByListener(t *testing.T) {
 	const lbID, listenerID = "lb-1", "list-1"
 
-	t.Run("default pool", func(t *testing.T) {
+	t.Run("single match", func(t *testing.T) {
 		ts := newTestServer(t)
-		ts.json(http.MethodGet, "/lbaas/listeners", http.StatusOK,
-			fmt.Sprintf(`{"listeners":[{"id":%q,"default_pool_id":"pool-default"}]}`, listenerID))
-		ts.json(http.MethodGet, "/lbaas/pools/pool-default", http.StatusOK, `{"pool":{"id":"pool-default"}}`)
+		ts.json(http.MethodGet, "/lbaas/pools", http.StatusOK,
+			fmt.Sprintf(`{"pools":[{"id":"pool-match","listeners":[{"id":%q}]}]}`, listenerID))
 
 		pool, err := GetPoolByListener(ctx(), ts.client, lbID, listenerID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if pool.ID != "pool-default" {
-			t.Fatalf("expected pool-default, got %q", pool.ID)
+		if pool.ID != "pool-match" {
+			t.Fatalf("expected pool-match, got %q", pool.ID)
 		}
 	})
 
-	t.Run("fallback to single pools entry", func(t *testing.T) {
+	t.Run("ignores pools of other listeners", func(t *testing.T) {
 		ts := newTestServer(t)
-		ts.json(http.MethodGet, "/lbaas/listeners", http.StatusOK,
-			fmt.Sprintf(`{"listeners":[{"id":%q,"pools":[{"id":"pool-fallback"}]}]}`, listenerID))
-		ts.json(http.MethodGet, "/lbaas/pools/pool-fallback", http.StatusOK, `{"pool":{"id":"pool-fallback"}}`)
+		ts.json(http.MethodGet, "/lbaas/pools", http.StatusOK,
+			fmt.Sprintf(`{"pools":[{"id":"other","listeners":[{"id":"other-list"}]},{"id":"pool-match","listeners":[{"id":%q}]}]}`, listenerID))
 
 		pool, err := GetPoolByListener(ctx(), ts.client, lbID, listenerID)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if pool.ID != "pool-fallback" {
-			t.Fatalf("expected pool-fallback, got %q", pool.ID)
+		if pool.ID != "pool-match" {
+			t.Fatalf("expected pool-match, got %q", pool.ID)
 		}
 	})
 
 	t.Run("no pools", func(t *testing.T) {
 		ts := newTestServer(t)
-		ts.json(http.MethodGet, "/lbaas/listeners", http.StatusOK,
-			fmt.Sprintf(`{"listeners":[{"id":%q}]}`, listenerID))
+		ts.json(http.MethodGet, "/lbaas/pools", http.StatusOK, `{"pools":[]}`)
 
 		if _, err := GetPoolByListener(ctx(), ts.client, lbID, listenerID); !errors.Is(err, cpoerrors.ErrNotFound) {
 			t.Fatalf("expected ErrNotFound, got %v", err)
@@ -369,8 +366,8 @@ func TestGetPoolByListener(t *testing.T) {
 
 	t.Run("multiple pools", func(t *testing.T) {
 		ts := newTestServer(t)
-		ts.json(http.MethodGet, "/lbaas/listeners", http.StatusOK,
-			fmt.Sprintf(`{"listeners":[{"id":%q,"pools":[{"id":"p1"},{"id":"p2"}]}]}`, listenerID))
+		ts.json(http.MethodGet, "/lbaas/pools", http.StatusOK,
+			fmt.Sprintf(`{"pools":[{"id":"p1","listeners":[{"id":%q}]},{"id":"p2","listeners":[{"id":%q}]}]}`, listenerID, listenerID))
 
 		if _, err := GetPoolByListener(ctx(), ts.client, lbID, listenerID); !errors.Is(err, cpoerrors.ErrMultipleResults) {
 			t.Fatalf("expected ErrMultipleResults, got %v", err)
