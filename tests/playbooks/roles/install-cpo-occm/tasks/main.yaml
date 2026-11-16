@@ -40,7 +40,7 @@
 
       cat <<EOF > {{ ansible_user_dir }}/cloud.conf
       [Global]
-      auth-url=${OS_AUTH_URL}/v3
+      auth-url={{ occm_bootstrap_auth_url | default('${OS_AUTH_URL}/v3') }}
       username=${OS_USERNAME}
       password=${OS_PASSWORD}
       region=${OS_REGION_NAME}
@@ -79,7 +79,12 @@
       sed -i "s#--v=1#--v=5#" manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
       cat manifests/controller-manager/openstack-cloud-controller-manager-ds.yaml
 
+- name: Test DNS during openstack-cloud-controller-manager bootstrap
+  include_tasks: bootstrap.yaml
+  when: test_occm_bootstrap | bool
+
 - name: Deploy openstack-cloud-controller-manager
+  when: not (test_occm_bootstrap | bool)
   shell:
     executable: /bin/bash
     cmd: |
@@ -91,6 +96,7 @@
   ignore_errors: true
 
 - name: Wait for openstack-cloud-controller-manager up and running
+  when: not (test_occm_bootstrap | bool)
   shell:
     executable: /bin/bash
     cmd: |
@@ -102,7 +108,9 @@
   ignore_errors: true
 
 - name: Gather additional evidence if openstack-cloud-controller-manager failed to come up
-  when: check_occm.failed
+  when:
+    - not (test_occm_bootstrap | bool)
+    - check_occm.failed
   block:
     - name: Describe failed openstack-cloud-controller-manager
       shell:

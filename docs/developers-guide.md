@@ -176,6 +176,9 @@ make unit
 
 ### E2E tests
 
+The OCCM e2e job also checks DNS during initial node bootstrap, before CoreDNS can be scheduled.
+See the [bootstrap DNS test](../tests/e2e/cloudprovider/README.md) for setup instructions and saved logs.
+
 End-to-end or _e2e_ tests are more complex to run as they require a functioning OpenStack cloud and Kubernetes (well, k3s) deployment. Fortunately, you can rely on the infrastructure used for CI to run this on your own machines.
 
 For example, to run the Cinder CSI e2e tests, the CI calls the `tests/ci-csi-cinder-e2e.sh` script. Inspecting this, you'll note that a lot of the commands in here are simply provisioning an instance on GCE, using [Boskos](https://github.com/kubernetes-sigs/boskos) to manage static resources (projects, in this case) if needed. If you have a set of GCE credentials, then in theory you could run this script as-is. However, all you need is a VM with sufficient resources and network connectivity running the correct image (Ubuntu 24.04 cloud image as of writing - check `tests/scripts/create-gce-vm.sh` for the latest info). For example, using OpenStack:
