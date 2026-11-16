@@ -321,7 +321,8 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(ctx context.Context, c
 			// ignore 404
 			klog.Warningf("Security group rule %s found missing when trying to delete it. This indicates concurrent "+
 				"updates to the SG %s and is unexpected", existingRule.ID, existingRule.SecGroupID)
-			return mc.ObserveRequest(nil)
+			_ = mc.ObserveRequest(nil)
+			continue
 		} else if mc.ObserveRequest(err) != nil {
 			return fmt.Errorf("failed to delete security group rule %s: %w", existingRule.ID, err)
 		}
