@@ -1,0 +1,28 @@
+# Service and SnapshotMetadataService resource for the external-snapshot-metadata
+# sidecar running in the Cinder CSI controller plugin pod. The CRD comes from
+# the deploy/ directory of https://github.com/kubernetes-csi/external-snapshot-metadata.
+apiVersion: v1
+kind: Service
+metadata:
+  name: csi-cinder-snapshot-metadata
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  selector:
+    app: csi-cinder-controllerplugin
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      protocol: TCP
+---
+apiVersion: cbt.storage.k8s.io/v1beta1
+kind: SnapshotMetadataService
+metadata:
+  # Must equal the CSI driver name.
+  name: cinder.csi.openstack.org
+spec:
+  address: csi-cinder-snapshot-metadata.kube-system:50051
+  audience: cinder.csi.openstack.org
+  # base64-encoded PEM of the CA that signed the sidecar's TLS certificate.
+  caCert: "<base64 PEM of the CA that signed the sidecar cert>"

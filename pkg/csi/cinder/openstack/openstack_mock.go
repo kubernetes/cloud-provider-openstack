@@ -448,6 +448,29 @@ func (_m *OpenStackMock) GetInstanceID() (string, error) {
 }
 
 func (_m *OpenStackMock) GetSnapshotByID(ctx context.Context, snapshotID string) (*snapshots.Snapshot, error) {
+	for _, call := range _m.ExpectedCalls {
+		if call.Method != "GetSnapshotByID" {
+			continue
+		}
+
+		ret := _m.Called(snapshotID)
+
+		var r0 *snapshots.Snapshot
+		if rf, ok := ret.Get(0).(func(string) *snapshots.Snapshot); ok {
+			r0 = rf(snapshotID)
+		} else if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*snapshots.Snapshot)
+		}
+
+		var r1 error
+		if rf, ok := ret.Get(1).(func(string) error); ok {
+			r1 = rf(snapshotID)
+		} else {
+			r1 = ret.Error(1)
+		}
+
+		return r0, r1
+	}
 
 	return &fakeSnapshot, nil
 }
@@ -642,4 +665,48 @@ func (_m *OpenStackMock) AttachmentComplete(ctx context.Context, attachmentID st
 	}
 
 	return r0
+}
+
+// ListChangedBlocks provides a mock function with given fields: volumeID, opts
+func (_m *OpenStackMock) ListChangedBlocks(ctx context.Context, volumeID string, opts ListChangedBlocksOpts) (*ChangedBlocksPage, error) {
+	ret := _m.Called(volumeID, opts)
+
+	var r0 *ChangedBlocksPage
+	if rf, ok := ret.Get(0).(func(string, ListChangedBlocksOpts) *ChangedBlocksPage); ok {
+		r0 = rf(volumeID, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ChangedBlocksPage)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(string, ListChangedBlocksOpts) error); ok {
+		r1 = rf(volumeID, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ChangedBlocksSupported provides a mock function without fields
+func (_m *OpenStackMock) ChangedBlocksSupported(ctx context.Context) (bool, error) {
+	ret := _m.Called()
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Bool(0)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }

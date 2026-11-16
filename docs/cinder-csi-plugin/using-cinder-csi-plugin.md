@@ -139,6 +139,18 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   Defaults to `false` (disabled).
   </dd>
+
+  <dt>--with-snapshot-metadata &lt;disabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver provides the CSI SnapshotMetadata service
+  (changed block tracking) on top of the Cinder `os-list_changed_blocks` volume
+  action. Requires Block Storage API microversion 3.72, a backend that tracks
+  changed blocks and the external-snapshot-metadata sidecar. See
+  [Snapshot Metadata (Changed Block Tracking)](./features.md#snapshot-metadata-changed-block-tracking)
+  for more information.
+
+  Defaults to `false` (disabled).
+  </dd>
 </dl>
 
 ## Driver Config
@@ -280,6 +292,7 @@ helm install cinder-csi --namespace kube-system ./charts/cinder-csi-plugin
 * [Volume Expansion](./features.md#volume-expansion)
 * [Volume Cloning](./features.md#volume-cloning)
 * [Volume Snapshots](./features.md#volume-snapshots)
+* [Snapshot Metadata (Changed Block Tracking)](./features.md#snapshot-metadata-changed-block-tracking)
 * [Ephemeral Volumes](./features.md#ephemeral-volumes)
 * [Multiattach Volumes](./features.md#multi-attach-volumes)
 * [Liveness probe](./features.md#liveness-probe)

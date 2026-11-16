@@ -17,7 +17,9 @@ limitations under the License.
 package cinder
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -47,6 +49,11 @@ const (
 	// AttachModeDirect uses Cinder Attachment API with os-brick sidecar
 	// for direct attachment (typically bare-metal nodes).
 	AttachModeDirect = "direct"
+
+	// snapshotMetadataProbeTimeout bounds the Block Storage API version
+	// discovery made for each cloud when the snapshot metadata service is
+	// set up.
+	snapshotMetadataProbeTimeout = 30 * time.Second
 )
 
 var (
@@ -78,9 +85,15 @@ type Driver struct {
 	withTopology bool
 	attachMode   string
 
+	// withSnapshotMetadata records the operator's request for the
+	// SnapshotMetadata service. It is cleared when no configured cloud can
+	// serve it, so that the capability is never advertised without a backend.
+	withSnapshotMetadata bool
+
 	ids *identityServer
 	cs  *controllerServer
 	ns  *nodeServer
+	sms *snapshotMetadataServer
 
 	vcap  []*csi.VolumeCapability_AccessMode
 	cscap []*csi.ControllerServiceCapability
@@ -95,6 +108,10 @@ type DriverOpts struct {
 	WithTopology bool
 	AttachMode   string
 
+	// WithSnapshotMetadata provides the CSI SnapshotMetadata service on top
+	// of the Cinder os-list_changed_blocks volume action.
+	WithSnapshotMetadata bool
+
 	PVCLister v1.PersistentVolumeClaimLister
 }
 
@@ -105,19 +122,21 @@ func NewDriver(o *DriverOpts) *Driver {
 	}
 
 	d := &Driver{
-		name:         driverName,
-		fqVersion:    fmt.Sprintf("%s@%s", Version, version.Version),
-		endpoint:     o.Endpoint,
-		clusterID:    o.ClusterID,
-		withTopology: o.WithTopology,
-		attachMode:   attachMode,
-		pvcLister:    o.PVCLister,
+		name:                 driverName,
+		fqVersion:            fmt.Sprintf("%s@%s", Version, version.Version),
+		endpoint:             o.Endpoint,
+		clusterID:            o.ClusterID,
+		withTopology:         o.WithTopology,
+		attachMode:           attachMode,
+		withSnapshotMetadata: o.WithSnapshotMetadata,
+		pvcLister:            o.PVCLister,
 	}
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)
 	klog.Info("CSI Spec version: ", specVersion)
 	klog.Infof("Topology awareness: %t", d.withTopology)
+	klog.Infof("Snapshot metadata service: %t", d.withSnapshotMetadata)
 
 	d.AddControllerServiceCapabilities(
 		[]csi.ControllerServiceCapability_RPC_Type{
@@ -221,10 +240,57 @@ func (d *Driver) SetupNodeService(mount mount.IMount, metadata metadata.IMetadat
 	d.ns = NewNodeServer(d, mount, metadata, opts, topologies, connector, kubeClient, nodeName, clouds)
 }
 
+// SetupSnapshotMetadataService provides the CSI SnapshotMetadata service when
+// the driver was started with it. Each cloud is asked whether its Block
+// Storage API offers the microversion that carries os-list_changed_blocks. A
+// cloud that definitively lacks it is reported, and when every cloud lacks it
+// the service is withdrawn so that the SNAPSHOT_METADATA_SERVICE capability
+// is not advertised. A failed probe counts as unknown rather than as
+// unsupported, because a transient API fault at startup must not remove the
+// capability for the lifetime of the process.
+func (d *Driver) SetupSnapshotMetadataService(clouds map[string]openstack.IOpenStack) {
+	if !d.withSnapshotMetadata {
+		return
+	}
+
+	unsupported := 0
+	for name, cloud := range clouds {
+		ctx, cancel := context.WithTimeout(context.Background(), snapshotMetadataProbeTimeout)
+		supported, err := cloud.ChangedBlocksSupported(ctx)
+		cancel()
+
+		switch {
+		case err != nil:
+			klog.Warningf("Snapshot metadata: cannot determine whether cloud %q supports Block Storage API microversion %s, assuming it does: %v", name, openstack.ChangedBlocksMicroversion, err)
+		case !supported:
+			unsupported++
+			klog.Warningf("Snapshot metadata: cloud %q does not support Block Storage API microversion %s; snapshot metadata requests for this cloud will fail", name, openstack.ChangedBlocksMicroversion)
+		default:
+			klog.Infof("Snapshot metadata: cloud %q supports Block Storage API microversion %s", name, openstack.ChangedBlocksMicroversion)
+		}
+	}
+
+	if len(clouds) > 0 && unsupported == len(clouds) {
+		klog.Warningf("Snapshot metadata: no configured cloud supports Block Storage API microversion %s; the service is not provided and the external-snapshot-metadata sidecar will refuse to start", openstack.ChangedBlocksMicroversion)
+		d.withSnapshotMetadata = false
+		return
+	}
+
+	klog.Info("Providing snapshot metadata service")
+	d.sms = NewSnapshotMetadataServer(d, clouds)
+}
+
 func (d *Driver) Run() {
 	if nil == d.cs && nil == d.ns {
 		klog.Fatal("No CSI services initialized")
 	}
 
-	RunServicesInitialized(d.endpoint, d.ids, d.cs, d.ns)
+	// A nil *snapshotMetadataServer stored in an interface is not a nil
+	// interface, so the service is handed over only when it exists.
+	var sms csi.SnapshotMetadataServer
+	if d.sms != nil {
+		sms = d.sms
+	}
+
+	RunServicesInitialized(d.endpoint, d.ids, d.cs, d.ns, sms)
 }

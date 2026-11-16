@@ -80,9 +80,9 @@ func NewNodeServer(d *Driver, mount mount.IMount, metadata metadata.IMetadata, o
 
 //revive:enable:unexported-return
 
-func RunServicesInitialized(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
+func RunServicesInitialized(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer, sms csi.SnapshotMetadataServer) {
 	s := NewNonBlockingGRPCServer()
-	s.Start(endpoint, ids, cs, ns)
+	s.Start(endpoint, ids, cs, ns, sms)
 	s.Wait()
 }
 
@@ -109,6 +109,23 @@ func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, h
 	}
 
 	return resp, err
+}
+
+// logGRPCStream is the streaming counterpart of logGRPC. The request message
+// is not available here because a streaming handler reads it from the stream
+// itself, so only the method and the outcome are logged.
+func logGRPCStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	callID := atomic.AddUint64(&serverGRPCEndpointCallCounter, 1)
+
+	klog.V(3).Infof("[ID:%d] GRPC stream call: %s", callID, info.FullMethod)
+	err := handler(srv, ss)
+	if err != nil {
+		klog.Errorf("[ID:%d] GRPC stream error: %v", callID, err)
+	} else {
+		klog.V(5).Infof("[ID:%d] GRPC stream completed: %s", callID, info.FullMethod)
+	}
+
+	return err
 }
 
 func splitToken(str string) (string, string) {

@@ -87,5 +87,19 @@ func (ids *identityServer) GetPluginCapabilities(ctx context.Context, req *csi.G
 		})
 	}
 
+	// The external-snapshot-metadata sidecar exits at startup when this
+	// capability is missing, and advertising it without a registered service
+	// would turn every request into UNIMPLEMENTED, so both conditions must
+	// hold.
+	if ids.Driver.withSnapshotMetadata && ids.Driver.sms != nil {
+		caps = append(caps, &csi.PluginCapability{
+			Type: &csi.PluginCapability_Service_{
+				Service: &csi.PluginCapability_Service{
+					Type: csi.PluginCapability_Service_SNAPSHOT_METADATA_SERVICE,
+				},
+			},
+		})
+	}
+
 	return &csi.GetPluginCapabilitiesResponse{Capabilities: caps}, nil
 }

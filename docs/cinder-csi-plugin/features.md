@@ -9,6 +9,7 @@
   - [Volume Expansion](#volume-expansion)
     - [Rescan on in-use volume resize](#rescan-on-in-use-volume-resize)
   - [Volume Snapshots](#volume-snapshots)
+  - [Snapshot Metadata (Changed Block Tracking)](#snapshot-metadata-changed-block-tracking)
   - [Ephemeral Volumes](#ephemeral-volumes)
     - [[DEPRECATED] CSI Ephemeral Volumes](#deprecated-csi-ephemeral-volumes)
     - [Generic Ephemeral Volumes](#generic-ephemeral-volumes)
@@ -71,6 +72,27 @@ This feature enables creating volume snapshots and restore volume from snapshot.
 
 * To avail the feature. deploy the snapshot-controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver) . For more info, refer [Snapshot Controller](https://kubernetes-csi.github.io/docs/snapshot-controller.html)
 * For example on using snapshot feature, refer [sample app](./examples.md#snapshot-create-and-restore)
+
+## Snapshot Metadata (Changed Block Tracking)
+
+The CSI SnapshotMetadata service tells a backup application which blocks of a snapshot are allocated and which blocks changed between two snapshots of the same volume, so that it copies only those blocks instead of the whole volume. The service is defined by [KEP-3314](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/3314-csi-changed-block-tracking); it is alpha in the CSI specification and beta in Kubernetes. The driver implements it with the Cinder `os-list_changed_blocks` volume action.
+
+Requirements:
+
+* Cinder with Block Storage API microversion 3.72 and a backend that tracks changed blocks for the volume type in use. At startup the driver reads the maximum microversion of every configured cloud; when every cloud reports a maximum below 3.72, or has `ignore-volume-microversion` set, the service is not advertised. A cloud whose version document cannot be read is assumed to support it, and requests to it fail with `FAILED_PRECONDITION` if it does not.
+* `cinder-csi-plugin` started with `--with-snapshot-metadata`. The service belongs to the controller service, so the flag has no effect without `--provide-controller-service`.
+* The [external-snapshot-metadata](https://github.com/kubernetes-csi/external-snapshot-metadata) sidecar in the controller plugin pod, connected to the same CSI socket as the other sidecars. The sidecar terminates TLS and needs a certificate and key, a Service that exposes its gRPC port, and a cluster-scoped `SnapshotMetadataService` resource named exactly `cinder.csi.openstack.org` whose `spec.address`, `spec.audience` and `spec.caCert` describe that endpoint. The CRD and the ClusterRole for the sidecar are in the `deploy/` directory of the sidecar project. The sidecar exits at startup if the driver does not advertise the `SNAPSHOT_METADATA_SERVICE` plugin capability.
+
+The [example](../../examples/cinder-csi-plugin/snapshot-metadata) contains the Service, the `SnapshotMetadataService` resource and a patch that adds the sidecar to the controller plugin Deployment.
+
+How requests map to Cinder:
+
+* `GetMetadataAllocated` returns the allocation map of the target snapshot. `GetMetadataDelta` returns the blocks that differ between a base and a target snapshot of the same volume.
+* Only snapshots from a `VolumeSnapshotClass` with `type: snapshot` can be queried, because their handle is the Cinder snapshot ID. Snapshots with `type: backup` are reported as `NOT_FOUND`. Both snapshots must still exist and be `available`.
+* The sidecar passes the `VolumeSnapshotClass` secrets to the driver, so the `cloud` key selects the OpenStack cloud in the same way as for the other snapshot operations (see [multi-region clouds](./multi-region-clouds.md)).
+* `FAILED_PRECONDITION` means that the backend does not track changed blocks, that the two snapshots cannot be compared (which includes snapshots created before the Cinder release that began recording backend identifiers for them), that one of the snapshots is in an error status, or that the selected cloud does not offer `os-list_changed_blocks` at microversion 3.72. The status message names the cause. The backup application should fall back to a full backup.
+* `UNAVAILABLE` means a transient fault, such as an unreachable volume service, and the request should be retried.
+* Block metadata is reported as variable-length extents in ascending order. Extents do not overlap and are clipped to the size of the target snapshot.
 
 ## Ephemeral Volumes
 

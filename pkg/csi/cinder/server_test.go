@@ -16,7 +16,7 @@ func TestServerReleaseWaitAfterStopCalling(t *testing.T) {
 		server = NewNonBlockingGRPCServer()
 		ch     = make(chan struct{})
 	)
-	server.Start(FakeEndpoint, nil, nil, nil)
+	server.Start(FakeEndpoint, nil, nil, nil, nil)
 
 	go func() {
 		server.Wait()
