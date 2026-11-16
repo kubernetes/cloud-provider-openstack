@@ -80,6 +80,8 @@ type IOpenStack interface {
 	AttachmentGet(ctx context.Context, attachmentID string) (map[string]any, error)
 	AttachmentDelete(ctx context.Context, attachmentID string) error
 	AttachmentComplete(ctx context.Context, attachmentID string) error
+	ListChangedBlocks(ctx context.Context, volumeID string, opts ListChangedBlocksOpts) (*ChangedBlocksPage, error)
+	ChangedBlocksSupported(ctx context.Context) (bool, error)
 }
 
 type OpenStack struct {

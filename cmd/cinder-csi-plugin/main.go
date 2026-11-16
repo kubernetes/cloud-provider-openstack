@@ -47,6 +47,7 @@ var (
 	noClient                 bool
 	withTopology             bool
 	attachMode               string
+	withSnapshotMetadata     bool
 )
 
 func main() {
@@ -106,6 +107,8 @@ func main() {
 
 	cmd.PersistentFlags().StringVar(&attachMode, "attach-mode", "nova", "Volume attach mode: 'nova' uses Nova attach/detach, 'direct' uses Cinder Attachment API with os-brick sidecar for direct attachment (typically bare-metal nodes)")
 
+	cmd.PersistentFlags().BoolVar(&withSnapshotMetadata, "with-snapshot-metadata", false, "Provide the CSI SnapshotMetadata service (changed block tracking) on top of the Cinder os-list_changed_blocks volume action; requires Block Storage API microversion "+openstack.ChangedBlocksMicroversion+" and the external-snapshot-metadata sidecar")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	code := cli.Run(cmd)
@@ -123,12 +126,20 @@ func handle() {
 		klog.Fatalf("Invalid --attach-mode %q: must be %q or %q", attachMode, cinder.AttachModeNova, cinder.AttachModeDirect)
 	}
 
+	// The snapshot metadata service answers from the controller's clouds, so
+	// it cannot exist in a node-only process.
+	if withSnapshotMetadata && !provideControllerService {
+		klog.Warning("Ignoring --with-snapshot-metadata: the snapshot metadata service requires the controller service")
+		withSnapshotMetadata = false
+	}
+
 	d := cinder.NewDriver(&cinder.DriverOpts{
-		Endpoint:     endpoint,
-		ClusterID:    cluster,
-		PVCLister:    csi.GetPVCLister(),
-		WithTopology: withTopology,
-		AttachMode:   attachMode,
+		Endpoint:             endpoint,
+		ClusterID:            cluster,
+		PVCLister:            csi.GetPVCLister(),
+		WithTopology:         withTopology,
+		AttachMode:           attachMode,
+		WithSnapshotMetadata: withSnapshotMetadata,
 	})
 
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
@@ -155,6 +166,7 @@ func handle() {
 		}
 
 		d.SetupControllerService(clouds, connProps)
+		d.SetupSnapshotMetadataService(clouds)
 	}
 
 	if provideNodeService {

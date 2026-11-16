@@ -379,3 +379,11 @@ func (cloud *cloud) AttachmentDelete(_ context.Context, attachmentID string) err
 func (cloud *cloud) AttachmentComplete(_ context.Context, attachmentID string) error {
 	return nil
 }
+
+func (cloud *cloud) ListChangedBlocks(_ context.Context, volumeID string, opts openstack.ListChangedBlocksOpts) (*openstack.ChangedBlocksPage, error) {
+	return &openstack.ChangedBlocksPage{}, nil
+}
+
+func (cloud *cloud) ChangedBlocksSupported(_ context.Context) (bool, error) {
+	return false, nil
+}

@@ -38,3 +38,28 @@ func TestGetPluginInfo(t *testing.T) {
 	fqVersion := fmt.Sprintf("%s@", vendorVersion)
 	assert.Equal(t, resp.GetVendorVersion(), fqVersion)
 }
+
+func TestGetPluginCapabilitiesSnapshotMetadata(t *testing.T) {
+	hasSnapshotMetadata := func(t *testing.T, d *Driver) bool {
+		t.Helper()
+
+		resp, err := NewIdentityServer(d).GetPluginCapabilities(context.Background(), &csi.GetPluginCapabilitiesRequest{})
+		assert.NoError(t, err)
+
+		for _, c := range resp.GetCapabilities() {
+			if c.GetService().GetType() == csi.PluginCapability_Service_SNAPSHOT_METADATA_SERVICE {
+				return true
+			}
+		}
+		return false
+	}
+
+	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster})
+	assert.False(t, hasSnapshotMetadata(t, d), "capability advertised by default")
+
+	d = NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithSnapshotMetadata: true})
+	assert.False(t, hasSnapshotMetadata(t, d), "capability advertised without a service")
+
+	d.sms = NewSnapshotMetadataServer(d, nil)
+	assert.True(t, hasSnapshotMetadata(t, d), "capability missing with the service set up")
+}

@@ -1,0 +1,54 @@
+# Strategic merge patch for manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml.
+# It adds the external-snapshot-metadata sidecar on the shared CSI socket and
+# enables the snapshot metadata service in cinder-csi-plugin:
+#
+#   kubectl -n kube-system patch deployment csi-cinder-controllerplugin \
+#     --patch-file controllerplugin-sidecar-patch.yaml
+#
+# The sidecar expects a TLS secret named snapshot-metadata-tls in kube-system
+# with the keys tls.crt and tls.key.
+spec:
+  template:
+    spec:
+      containers:
+        - name: csi-snapshot-metadata
+          securityContext:
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          image: registry.k8s.io/sig-storage/csi-snapshot-metadata:v1.1.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--tls-cert=/tls/tls.crt"
+            - "--tls-key=/tls/tls.key"
+            - "--port=50051"
+            - "--max-streaming-duration-min=10"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 50051
+              name: grpc
+              protocol: TCP
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+            - name: snapshot-metadata-tls
+              mountPath: /tls
+              readOnly: true
+        - name: cinder-csi-plugin
+          # A strategic merge patch replaces args as a whole, so the list from
+          # the stock manifest is repeated here with the new flag added.
+          args:
+            - /bin/cinder-csi-plugin
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--cloud-config=$(CLOUD_CONFIG)"
+            - "--cluster=$(CLUSTER_NAME)"
+            - "--pvc-annotations"
+            - "--with-snapshot-metadata"
+            - "--v=1"
+      volumes:
+        - name: snapshot-metadata-tls
+          secret:
+            secretName: snapshot-metadata-tls
