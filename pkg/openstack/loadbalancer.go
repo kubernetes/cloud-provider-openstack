@@ -121,6 +121,9 @@ const (
 	clusterIDTagPrefix = "kube_cluster_id_"
 )
 
+// All the ProvisioningStatus could be found here https://developer.openstack.org/api-ref/load-balancer/v2/index.html#provisioning-status-codes
+var deletedProvisioningStatuses = []string{"DELETED", "PENDING_DELETE"}
+
 // LbaasV2 is a LoadBalancer implementation based on Octavia
 type LbaasV2 struct {
 	LoadBalancer
@@ -531,8 +534,7 @@ func (lbaas *LbaasV2) getLoadbalancerByName(ctx context.Context, service *corev1
 	}
 
 	for _, lb := range allLoadbalancers {
-		// All the ProvisioningStatus could be found here https://developer.openstack.org/api-ref/load-balancer/v2/index.html#provisioning-status-codes
-		if lb.ProvisioningStatus != "DELETED" && lb.ProvisioningStatus != "PENDING_DELETE" {
+		if !slices.Contains(deletedProvisioningStatuses, lb.ProvisioningStatus) {
 			validLBs = append(validLBs, lb)
 		}
 	}
