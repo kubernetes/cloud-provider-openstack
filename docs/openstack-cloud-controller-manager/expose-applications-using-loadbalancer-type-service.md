@@ -146,11 +146,19 @@ Request Body:
 
 - `loadbalancer.openstack.org/x-forwarded-for`
 
-  If 'true', `X-Forwarded-For` is inserted into the HTTP headers which contains the original client IP address so that the backend HTTP service is able to get the real source IP of the request. Please note that the cloud provider will force the creation of an Octavia listener of type `HTTP` if this option is set. Only applies when using Octavia.
+  If set to `true`, adds an `X-Forwarded-For` request header containing the client IP address. Default is `false`.
 
-  This annotation also works in conjunction with the `loadbalancer.openstack.org/default-tls-container-ref` annotation. In this case the cloud provider will create an Octavia listener of type `TERMINATED_HTTPS` instead of an `HTTP` listener.
+- `loadbalancer.openstack.org/x-forwarded-port`
 
-  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+  If set to `true`, adds an `X-Forwarded-Port` request header containing the listener port on which the request was received. Default is `false`.
+
+- `loadbalancer.openstack.org/x-forwarded-proto`
+
+  If set to `true`, adds an `X-Forwarded-Proto` request header. The value is `http` for an `HTTP` listener and `https` for a `TERMINATED_HTTPS` listener. Default is `false`. This header requires Octavia API version 2.1 or later.
+
+The three X-Forwarded annotations are independent and apply to every listener created for the Service. All Service ports must use `TCP`. Without TLS termination, enabling any of them forces both the listener and pool protocols to `HTTP`. When `loadbalancer.openstack.org/default-tls-container-ref` is configured, the listener protocol is `TERMINATED_HTTPS` and the pool protocol remains `HTTP`. Enabling the first X-Forwarded annotation or disabling the last one on an existing non-TLS Service recreates its listeners because the Octavia listener protocol is immutable.
+
+The X-Forwarded annotations cannot be combined with `loadbalancer.openstack.org/proxy-protocol`. They are supported by the Octavia Amphora provider, but not by the OVN provider. Support by other provider drivers depends on the driver. See the [Octavia supported HTTP header insertions](https://docs.openstack.org/api-ref/load-balancer/v2/#supported-http-header-insertions) for details.
 
 - `loadbalancer.openstack.org/lb-method`
 
