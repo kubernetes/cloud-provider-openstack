@@ -216,6 +216,12 @@ Request Body:
 
   Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
 
+- `loadbalancer.openstack.org/flavor-name`
+
+  The name of the flavor that is used for creating the loadbalancer. It is resolved to a flavor id through the Octavia API. Ignored if `loadbalancer.openstack.org/flavor-id` is set. The service fails if no flavor, or more than one flavor, has this name.
+
+  Not supported when `lb-provider=ovn` is configured in openstack-cloud-controller-manager.
+
 - `loadbalancer.openstack.org/availability-zone`
 
   The name of the loadbalancer availability zone to use. It is ignored if the Octavia version doesn't support availability zones yet.

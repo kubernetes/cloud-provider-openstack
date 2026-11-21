@@ -25,6 +25,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/apiversions"
+	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/flavors"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/l7policies"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/v2/openstack/loadbalancer/v2/loadbalancers"
@@ -249,6 +250,29 @@ func GetLoadbalancerByName(ctx context.Context, client *gophercloud.ServiceClien
 	}
 
 	return &loadbalancerList[0], nil
+}
+
+// GetFlavorIDByName resolves an Octavia flavor name to its ID. It returns
+// ErrNotFound if no flavor matches and ErrMultipleResults if the name is ambiguous.
+func GetFlavorIDByName(ctx context.Context, client *gophercloud.ServiceClient, name string) (string, error) {
+	mc := metrics.NewMetricContext("loadbalancer_flavor", "list")
+	allPages, err := flavors.List(client, flavors.ListOpts{Name: name}).AllPages(ctx)
+	if mc.ObserveRequest(err) != nil {
+		return "", err
+	}
+	flavorList, err := flavors.ExtractFlavors(allPages)
+	if err != nil {
+		return "", err
+	}
+
+	if len(flavorList) > 1 {
+		return "", cpoerrors.ErrMultipleResults
+	}
+	if len(flavorList) == 0 {
+		return "", cpoerrors.ErrNotFound
+	}
+
+	return flavorList[0].ID, nil
 }
 
 // UpdateLoadBalancerTags updates tags for the load balancer
