@@ -1656,16 +1656,16 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
-		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, "")
-		if svcConf.flavorID == "" {
-			svcConf.flavorID = lbaas.opts.FlavorID
-			if flavorName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorName, ""); flavorName != "" {
-				flavorID, err := openstackutil.GetFlavorIDByName(ctx, lbaas.lb, flavorName)
-				if err != nil {
-					return fmt.Errorf("failed to resolve loadbalancer flavor name %q for service %s: %v", flavorName, serviceName, err)
-				}
-				svcConf.flavorID = flavorID
+		if flavorID, ok := service.Annotations[ServiceAnnotationLoadBalancerFlavorID]; ok {
+			svcConf.flavorID = flavorID
+		} else if flavorName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorName, ""); flavorName != "" {
+			flavorID, err := openstackutil.GetFlavorIDByName(ctx, lbaas.lb, flavorName)
+			if err != nil {
+				return fmt.Errorf("failed to resolve loadbalancer flavor name %q for service %s: %v", flavorName, serviceName, err)
 			}
+			svcConf.flavorID = flavorID
+		} else {
+			svcConf.flavorID = lbaas.opts.FlavorID
 		}
 	}
 
