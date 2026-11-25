@@ -79,6 +79,7 @@ const (
 	ServiceAnnotationLoadBalancerTimeoutTCPInspect    = "loadbalancer.openstack.org/timeout-tcp-inspect"
 	ServiceAnnotationLoadBalancerXForwardedFor        = "loadbalancer.openstack.org/x-forwarded-for"
 	ServiceAnnotationLoadBalancerFlavorID             = "loadbalancer.openstack.org/flavor-id"
+	ServiceAnnotationLoadBalancerFlavorName           = "loadbalancer.openstack.org/flavor-name"
 	ServiceAnnotationLoadBalancerAvailabilityZone     = "loadbalancer.openstack.org/availability-zone"
 	// ServiceAnnotationLoadBalancerEnableHealthMonitor defines whether to create health monitor for the load balancer
 	// pool, if not specified, use 'create-monitor' config. The health monitor can be created or deleted dynamically.
@@ -1655,7 +1656,17 @@ func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, servi
 	}
 
 	if openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureFlavors, lbaas.opts.LBProvider) {
-		svcConf.flavorID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorID, lbaas.opts.FlavorID)
+		if flavorID, ok := service.Annotations[ServiceAnnotationLoadBalancerFlavorID]; ok {
+			svcConf.flavorID = flavorID
+		} else if flavorName := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerFlavorName, ""); flavorName != "" {
+			flavorID, err := openstackutil.GetFlavorIDByName(ctx, lbaas.lb, flavorName)
+			if err != nil {
+				return fmt.Errorf("failed to resolve loadbalancer flavor name %q for service %s: %v", flavorName, serviceName, err)
+			}
+			svcConf.flavorID = flavorID
+		} else {
+			svcConf.flavorID = lbaas.opts.FlavorID
+		}
 	}
 
 	availabilityZone := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerAvailabilityZone, lbaas.opts.AvailabilityZone)
